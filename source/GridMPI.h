@@ -98,6 +98,7 @@ public:
 			delete it->second;
 
 		SynchronizerMPIs.clear();
+        MPI_Comm_free(&cartcomm);
 	}
 
 	vector<BlockInfo>& getBlocksInfo()

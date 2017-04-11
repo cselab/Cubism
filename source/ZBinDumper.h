@@ -20,6 +20,14 @@ typedef double Real;
 #include "BlockInfo.h"
 #include "LosslessCompression.h"
 
+<<<<<<< Updated upstream
+=======
+typedef struct _header_serial
+{
+	long size[8];
+} header_serial;
+
+>>>>>>> Stashed changes
 /*
 inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsigned *max)
 inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize);
@@ -59,6 +67,14 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const string 
 
 	file_id = fopen(filename, "w");
 
+<<<<<<< Updated upstream
+=======
+	header_serial tag;
+    fseek(file_id, sizeof(tag), SEEK_SET);
+	for (unsigned int ichannel = 0; ichannel < NCHANNELS; ichannel++)
+    {
+
+>>>>>>> Stashed changes
 #pragma omp parallel for
 	for(int i=0; i<(int)vInfo_local.size(); i++)
 	{
@@ -129,9 +145,14 @@ void ReadZBin(TGrid &grid, const string f_name, const string read_path=".")
 	const int sY = 0;
 	const int sZ = 0;
 
+<<<<<<< Updated upstream
 	const int eX = B::sizeX;
 	const int eY = B::sizeY;
 	const int eZ = B::sizeZ;
+=======
+    header_serial tag;
+    size_t rb_header = fread(&tag.size[0], 1, sizeof(tag), file_id);
+>>>>>>> Stashed changes
 
 	sprintf(filename, "%s/%s.zbin", read_path.c_str(), f_name.c_str());
 

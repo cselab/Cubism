@@ -152,9 +152,6 @@ void ReadZBin(TGrid &grid, const string f_name, const string read_path=".")
 	const int eY = B::sizeY;
 	const int eZ = B::sizeZ;
 
-    header_serial tag;
-    size_t rb_header = fread(&tag.size[0], 1, sizeof(tag), file_id);
-
     sprintf(filename, "%s/%s.zbin", read_path.c_str(), f_name.c_str());
 
     file_id = fopen(filename, "rb");
@@ -162,7 +159,7 @@ void ReadZBin(TGrid &grid, const string f_name, const string read_path=".")
     long local_count = NX * NY * NZ * 1;
     long local_bytes = local_count * sizeof(Real);
 
-    header tag;
+    header_serial tag;
     size_t rb_header = fread(&tag.size[0], 1, sizeof(tag), file_id);
 
 #if DBG

@@ -19,69 +19,75 @@
 #include <omp.h>
 #endif
 #include "BlockInfo.h"
+#include "MeshMap.h"
 
 //hello git
 template <typename Block, template<typename X> class allocator=std::allocator>
 class Grid
 {
-	Block * m_blocks;
+    Block * m_blocks;
     std::vector<BlockInfo> m_vInfo;
 
 protected:
 
-	const double maxextent;
-	const unsigned int N, NX, NY, NZ;
+    const double maxextent;
+    const unsigned int N, NX, NY, NZ;
 
-	void _dealloc()
-	{
-		allocator<Block> alloc;
+    const MeshMap<Block>* const m_mapX;
+    const MeshMap<Block>* const m_mapY;
+    const MeshMap<Block>* const m_mapZ;
 
-		alloc.deallocate(m_blocks, N);
-	}
+    void _dealloc()
+    {
+        allocator<Block> alloc;
 
-	void _alloc()
-	{
-		allocator<Block> alloc;
-		m_blocks = alloc.allocate(N);
-		assert(m_blocks!=NULL);
+        alloc.deallocate(m_blocks, N);
+    }
 
-		//numa touch
-		#pragma omp parallel
-		{
+    void _alloc()
+    {
+        allocator<Block> alloc;
+        m_blocks = alloc.allocate(N);
+        assert(m_blocks!=NULL);
+
+        //numa touch
+        #pragma omp parallel
+        {
 #ifdef _USE_NUMA_
-			const int cores_per_node = numa_num_configured_cpus() / numa_num_configured_nodes();
-			const int mynode = omp_get_thread_num() / cores_per_node;
-			numa_run_on_node(mynode);
+            const int cores_per_node = numa_num_configured_cpus() / numa_num_configured_nodes();
+            const int mynode = omp_get_thread_num() / cores_per_node;
+            numa_run_on_node(mynode);
 #endif
 #pragma omp for schedule(static)
-			for(int i=0; i<(int)N; ++i)
-				m_blocks[i].clear();
-		}
-	}
+            for(int i=0; i<(int)N; ++i)
+                m_blocks[i].clear();
+        }
+    }
 
-	Block* _linaccess(const unsigned int idx) const
-	{
-		assert(idx >= 0);
-		assert(idx < N);
+    Block* _linaccess(const unsigned int idx) const
+    {
+        assert(idx >= 0);
+        assert(idx < N);
 
-		return m_blocks + idx;
-	}
+        return m_blocks + idx;
+    }
 
-	unsigned int _encode(const unsigned int ix, const unsigned int iy, const unsigned int iz) const
-	{
-		assert(ix>=0 && ix<NX);
-		assert(iy>=0 && iy<NY);
-		assert(iz>=0 && iz<NZ);
+    unsigned int _encode(const unsigned int ix, const unsigned int iy, const unsigned int iz) const
+    {
+        assert(ix>=0 && ix<NX);
+        assert(iy>=0 && iy<NY);
+        assert(iz>=0 && iz<NZ);
 
-		return ix + NX*(iy + NY*iz);
-	}
+        return ix + NX*(iy + NY*iz);
+    }
 
 public:
 
-	typedef Block BlockType;
+    typedef Block BlockType;
 
-	Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1, const double _maxextent = 1) :
-	m_blocks(NULL), maxextent(_maxextent), N(_NX*_NY*_NZ), NX(_NX), NY(_NY), NZ(_NZ)
+    Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1, const double _maxextent = 1) :
+    m_blocks(NULL), maxextent(_maxextent), N(_NX*_NY*_NZ), NX(_NX), NY(_NY), NZ(_NZ)
+    m_mapX(NULL), m_mapY(NULL), m_mapZ(NULL)
     {
         _alloc();
         const double h = (maxextent / std::max(NX, std::max(NY, NZ)));
@@ -98,49 +104,69 @@ public:
                 }
     }
 
-	virtual ~Grid() { _dealloc(); }
+    Grid(MeshMap<Block>* const mapX, MeshMap<Block>* const mapY, MeshMap<Block>* const mapZ) :
+        m_blocks(NULL),
+        NX(mapX->nblocks()), NY(mapY->nblocks()), NZ(mapZ->nblocks()),
+        N(mapX->nblocks()*mapY->nblocks()*mapZ->nblocks()),
+        maxextent(-1.0), // not used
+        m_mapX(mapX), m_mapY(mapY), m_mapZ(mapZ)
+    {
+        _alloc();
 
-	void setup(const unsigned int nX, const unsigned int nY, const unsigned int nZ)
-	{
-		std::cout << "Setting up the grid with " << nX << "x" << nY << "x" << nZ << " blocks ...";
+        for(unsigned int iz=0; iz<NZ; iz++)
+            for(unsigned int iy=0; iy<NY; iy++)
+                for(unsigned int ix=0; ix<NX; ix++)
+                {
+                    const long long blockID = _encode(ix, iy, iz);
+                    const int idx[3] = {ix, iy, iz};
 
-		_dealloc();
+                    m_vInfo.push_back(BlockInfo(blockID, idx, mapX, mapY, mapZ, _linaccess(blockID)));
+                }
+    }
 
-		_alloc();
+    virtual ~Grid() { _dealloc(); }
 
-		std::cout << "done. " << std::endl;
-	}
+    void setup(const unsigned int nX, const unsigned int nY, const unsigned int nZ)
+    {
+        std::cout << "Setting up the grid with " << nX << "x" << nY << "x" << nZ << " blocks ...";
 
-	virtual int getBlocksPerDimension(int idim) const
-	{
-		assert(idim>=0 && idim<3);
+        _dealloc();
 
-		switch (idim)
-		{
-			case 0: return NX;
-			case 1: return NY;
-			case 2: return NZ;
-			default: abort();
-				return 0;
-		}
-	}
+        _alloc();
 
-	virtual bool avail(int ix, int iy=0, int iz=0) const { return true; }
+        std::cout << "done. " << std::endl;
+    }
 
-	virtual Block& operator()(int ix, int iy=0, int iz=0) const
-	{
-		return *_linaccess( _encode((ix+NX) % NX, (iy+NY) % NY, (iz+NZ) % NZ) );
-	}
+    virtual int getBlocksPerDimension(int idim) const
+    {
+        assert(idim>=0 && idim<3);
 
-	virtual std::vector<BlockInfo>& getBlocksInfo()
-	{
+        switch (idim)
+        {
+            case 0: return NX;
+            case 1: return NY;
+            case 2: return NZ;
+            default: abort();
+                return 0;
+        }
+    }
+
+    virtual bool avail(int ix, int iy=0, int iz=0) const { return true; }
+
+    virtual Block& operator()(int ix, int iy=0, int iz=0) const
+    {
+        return *_linaccess( _encode((ix+NX) % NX, (iy+NY) % NY, (iz+NZ) % NZ) );
+    }
+
+    virtual std::vector<BlockInfo>& getBlocksInfo()
+    {
         return m_vInfo;
-	}
+    }
 
-	virtual const std::vector<BlockInfo>& getBlocksInfo() const
-	{
+    virtual const std::vector<BlockInfo>& getBlocksInfo() const
+    {
         return m_vInfo;
-	}
+    }
 
     double getH() const
     {
@@ -148,33 +174,37 @@ public:
         BlockInfo info = vInfo[0];
         return info.h_gridpoint;
     }
+
+    inline const MeshMap<Block>& getMapX() const { return *m_mapX; }
+    inline const MeshMap<Block>& getMapY() const { return *m_mapY; }
+    inline const MeshMap<Block>& getMapZ() const { return *m_mapZ; }
 };
 
 template <typename Block, template<typename X> class allocator>
 std::ostream& operator<< (std::ostream& out, const Grid<Block, allocator>& grid)
 {
-	//save metadata
-	out << grid.getBlocksPerDimension(0) << " "
-	<< grid.getBlocksPerDimension(1) << " "
-	<< grid.getBlocksPerDimension(2) << std::endl;
+    //save metadata
+    out << grid.getBlocksPerDimension(0) << " "
+    << grid.getBlocksPerDimension(1) << " "
+    << grid.getBlocksPerDimension(2) << std::endl;
 
-	return out;
+    return out;
 }
 
 
 template <typename Block, template<typename X> class allocator>
 std::ifstream& operator>> (std::ifstream& in, Grid<Block, allocator>& grid)
 {
-	//read metadata
-	unsigned int nx, ny, nz;
-	in >> nx;
+    //read metadata
+    unsigned int nx, ny, nz;
+    in >> nx;
     in.ignore(1,' ');
     in >> ny;
     in.ignore(1,' ');
     in >> nz;
-	in.ignore(1,'\n');
+    in.ignore(1,'\n');
 
-	grid.setup(nx, ny, nz);
+    grid.setup(nx, ny, nz);
 
-	return in;
+    return in;
 }

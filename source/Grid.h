@@ -33,9 +33,9 @@ protected:
     const double maxextent;
     const unsigned int N, NX, NY, NZ;
 
-    const MeshMap<Block>* const m_mapX;
-    const MeshMap<Block>* const m_mapY;
-    const MeshMap<Block>* const m_mapZ;
+    MeshMap<Block>* const m_mapX;
+    MeshMap<Block>* const m_mapY;
+    MeshMap<Block>* const m_mapZ;
 
     void _dealloc()
     {
@@ -175,9 +175,9 @@ public:
         return info.h_gridpoint;
     }
 
-    inline const MeshMap<Block>& getMapX() const { return *m_mapX; }
-    inline const MeshMap<Block>& getMapY() const { return *m_mapY; }
-    inline const MeshMap<Block>& getMapZ() const { return *m_mapZ; }
+    inline MeshMap<Block>& getMapX() { return *m_mapX; }
+    inline MeshMap<Block>& getMapY() { return *m_mapY; }
+    inline MeshMap<Block>& getMapZ() { return *m_mapZ; }
 };
 
 template <typename Block, template<typename X> class allocator>

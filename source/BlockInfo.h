@@ -20,6 +20,7 @@ struct BlockInfo
 
     double origin[3];
     double h, h_gridpoint;
+    double grid_spacing[3];
     double block_extent[3];
 
     double* grid_spacing_x;
@@ -34,16 +35,63 @@ struct BlockInfo
     template <typename T>
     inline void pos(T p[2], int ix, int iy) const
     {
-        p[0] = origin[0] + h_gridpoint*(ix+0.5);
-        p[1] = origin[1] + h_gridpoint*(iy+0.5);
+        T delta[2] = {0.0};
+        if (bUniform_X)
+            delta[0] = grid_spacing[0]*(ix+0.5);
+        else
+        {
+            for (int i = 0; i < ix; ++i)
+                delta[0] += grid_spacing_x[i];
+            delta[0] += 0.5*grid_spacing_x[ix];
+        }
+
+        if (bUniform_Y)
+            delta[1] = grid_spacing[1]*(iy+0.5);
+        else
+        {
+            for (int i = 0; i < iy; ++i)
+                delta[1] += grid_spacing_y[i];
+            delta[1] += 0.5*grid_spacing_y[iy];
+        }
+
+        p[0] = origin[0] + delta[0];
+        p[1] = origin[1] + delta[1];
     }
 
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const
     {
-        p[0] = origin[0] + h_gridpoint*(ix+0.5);
-        p[1] = origin[1] + h_gridpoint*(iy+0.5);
-        p[2] = origin[2] + h_gridpoint*(iz+0.5);
+        T delta[3] = {0.0};
+        if (bUniform_X)
+            delta[0] = grid_spacing[0]*(ix+0.5);
+        else
+        {
+            for (int i = 0; i < ix; ++i)
+                delta[0] += grid_spacing_x[i];
+            delta[0] += 0.5*grid_spacing_x[ix];
+        }
+
+        if (bUniform_Y)
+            delta[1] = grid_spacing[1]*(iy+0.5);
+        else
+        {
+            for (int i = 0; i < iy; ++i)
+                delta[1] += grid_spacing_y[i];
+            delta[1] += 0.5*grid_spacing_y[iy];
+        }
+
+        if (bUniform_Z)
+            delta[2] = grid_spacing[2]*(iz+0.5);
+        else
+        {
+            for (int i = 0; i < iz; ++i)
+                delta[2] += grid_spacing_z[i];
+            delta[2] += 0.5*grid_spacing_z[iz];
+        }
+
+        p[0] = origin[0] + delta[0];
+        p[1] = origin[1] + delta[1];
+        p[2] = origin[2] + delta[2];
     }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +109,10 @@ struct BlockInfo
 
         h = spacing;
         h_gridpoint = h_gridpoint_;
+
+        grid_spacing[0] = h_gridpoint_;
+        grid_spacing[1] = h_gridpoint_;
+        grid_spacing[2] = h_gridpoint_;
 
         block_extent[0] = h;
         block_extent[1] = h;
@@ -103,6 +155,13 @@ struct BlockInfo
         bUniform_X = mapX->uniform();
         bUniform_Y = mapY->uniform();
         bUniform_Z = mapZ->uniform();
+
+        if (bUniform_X) grid_spacing[0] = grid_spacing_x[0];
+        else            grid_spacing[0] = -1.0;
+        if (bUniform_Y) grid_spacing[1] = grid_spacing_y[0];
+        else            grid_spacing[1] = -1.0;
+        if (bUniform_Z) grid_spacing[2] = grid_spacing_z[0];
+        else            grid_spacing[2] = -1.0;
     }
 
     BlockInfo():blockID(-1), ptrBlock(NULL) {}

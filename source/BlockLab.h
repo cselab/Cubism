@@ -329,6 +329,7 @@ public:
 
 				//printf("iy : %d %d\n", s[1], e[1]);
 				const int bytes = (e[0]-s[0])*sizeof(ElementType);
+				if (!bytes) continue;
 				for(int iz=s[2]; iz<e[2]; iz++)
 				{
 					const int my_izx = (iz-m_stencilStart[2])*m_nElemsPerSlice + my_ix;

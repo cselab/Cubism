@@ -11,6 +11,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <utility>
 
 #ifdef _USE_HDF_
 #include <hdf5.h>
@@ -25,6 +26,7 @@ typedef double hdf5Real;
 #endif
 
 #include "BlockInfo.h"
+#include "MeshMap.h"
 
 // The following requirements for the data Streamer are required:
 // Streamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
@@ -41,9 +43,48 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
     ostringstream filename;
     filename << dump_path.str() << "/" << f_name;
 
+    vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
+
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
 
+    ///////////////////////////////////////////////////////////////////////////
+    // startup file
+    H5open();
+    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // write mesh
+    std::vector<int> mesh_dims;
+    std::vector<std::string> dset_name;
+    dset_name.push_back("/vx");
+    dset_name.push_back("/vy");
+    dset_name.push_back("/vz");
+    for (size_t i = 0; i < 3; ++i)
+    {
+        const MeshMap<B>& m = grid.getMeshMap(i);
+        std::vector<double> vertices(m.ncells()+1, m.start());
+        mesh_dims.push_back(vertices.size());
+
+        for (int j = 0; j < m.ncells(); ++j)
+            vertices[j+1] = vertices[j] + m.cell_width(j);
+
+        hsize_t dim[1] = {vertices.size()};
+        fspace_id = H5Screate_simple(1, dim, NULL);
+#ifndef _ON_FERMI_
+        dataset_id = H5Dcreate(file_id, dset_name[i].c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+#else
+        dataset_id = H5Dcreate2(file_id, dset_name[i].c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+#endif
+        status = H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vertices.data());
+        status = H5Sclose(fspace_id);
+        status = H5Dclose(dataset_id);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    // write data
     static const unsigned int NCHANNELS = Streamer::NCHANNELS;
     const unsigned int NX = grid.getBlocksPerDimension(0)*B::sizeX;
     const unsigned int NY = grid.getBlocksPerDimension(1)*B::sizeY;
@@ -73,11 +114,6 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
         grid.getBlocksPerDimension(0)*B::sizeX, NCHANNELS};
 
     hsize_t offset[4] = {0, 0, 0, 0};
-
-    H5open();
-    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-    file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
-    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
 #pragma omp parallel for
     for(int i=0; i<(int)vInfo_local.size(); i++)
@@ -142,24 +178,24 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
         fprintf(xmf, "<Xdmf Version=\"2.0\">\n");
         fprintf(xmf, " <Domain>\n");
         fprintf(xmf, "   <Grid GridType=\"Uniform\">\n");
-        /* fprintf(xmf, "     <Time Value=\"%05d\"/>\n", iCounter); */
-        fprintf(xmf, "     <Time Value=\"%e\"/>\n", absTime);
-        fprintf(xmf, "     <Topology TopologyType=\"3DCORECTMesh\" Dimensions=\"%d %d %d\"/>\n", (int)dims[0], (int)dims[1], (int)dims[2]);
-        fprintf(xmf, "     <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n");
-        fprintf(xmf, "       <DataItem Name=\"Origin\" Dimensions=\"3\" NumberType=\"Float\" Precision=\"4\" Format=\"XML\">\n");
-        fprintf(xmf, "        %e %e %e\n", 0.,0.,0.);
+        fprintf(xmf, "     <Time Value=\"%e\"/>\n\n", absTime);
+        fprintf(xmf, "     <Topology TopologyType=\"3DRectMesh\" Dimensions=\"%d %d %d\"/>\n\n", mesh_dims[0], mesh_dims[1], mesh_dims[2]);
+        fprintf(xmf, "     <Geometry GeometryType=\"VxVyVz\">\n");
+        fprintf(xmf, "       <DataItem Name=\"mesh_vx\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[0]);
+        fprintf(xmf, "        %s:/vx\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");
-        fprintf(xmf, "       <DataItem Name=\"Spacing\" Dimensions=\"3\" NumberType=\"Float\" Precision=\"4\" Format=\"XML\">\n");
-        fprintf(xmf, "        %e %e %e\n", 1./(Real)dims[0],1./(Real)dims[0],1./(Real)dims[0]);
+        fprintf(xmf, "       <DataItem Name=\"mesh_vy\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[1]);
+        fprintf(xmf, "        %s:/vy\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");
-        fprintf(xmf, "     </Geometry>\n");
-
-        fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Node\">\n", Streamer::getAttributeName());
-        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d %d\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", (int)dims[0], (int)dims[1], (int)dims[2], (int)dims[3]);
+        fprintf(xmf, "       <DataItem Name=\"mesh_vz\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[2]);
+        fprintf(xmf, "        %s:/vz\n",(filename.str()+".h5").c_str());
+        fprintf(xmf, "       </DataItem>\n");
+        fprintf(xmf, "     </Geometry>\n\n");
+        fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", Streamer::getAttributeName());
+        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", (int)dims[0], (int)dims[1], (int)dims[2], (int)dims[3], sizeof(hdf5Real));
         fprintf(xmf, "        %s:/data\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Attribute>\n");
-
         fprintf(xmf, "   </Grid>\n");
         fprintf(xmf, " </Domain>\n");
         fprintf(xmf, "</Xdmf>\n");

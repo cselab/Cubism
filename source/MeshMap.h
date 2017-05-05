@@ -117,6 +117,8 @@ public:
         m_initialized = true;
     }
 
+    inline double start() const { return m_xS; }
+    inline double end() const { return m_xE; }
     inline double extent() const { return m_extent; }
     inline unsigned int nblocks() const { return m_Nblocks; }
     inline unsigned int ncells() const { return m_Ncells; }

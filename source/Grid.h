@@ -33,15 +33,23 @@ protected:
     const double maxextent;
     const unsigned int N, NX, NY, NZ;
 
-    MeshMap<Block>* const m_mapX;
-    MeshMap<Block>* const m_mapY;
-    MeshMap<Block>* const m_mapZ;
+    const bool m_own_mesh_maps;
+    std::vector<MeshMap<Block>*> m_mesh_maps;
 
     void _dealloc()
     {
         allocator<Block> alloc;
 
         alloc.deallocate(m_blocks, N);
+
+        if (m_own_mesh_maps)
+        {
+            for (size_t i = 0; i < m_mesh_maps.size(); ++i)
+            {
+                delete m_mesh_maps[i];
+                m_mesh_maps[i] = NULL;
+            }
+        }
     }
 
     void _alloc()
@@ -86,11 +94,21 @@ public:
     typedef Block BlockType;
 
     Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1, const double _maxextent = 1) :
-    m_blocks(NULL), maxextent(_maxextent), N(_NX*_NY*_NZ), NX(_NX), NY(_NY), NZ(_NZ)
-    m_mapX(NULL), m_mapY(NULL), m_mapZ(NULL)
+        m_blocks(NULL), maxextent(_maxextent), N(_NX*_NY*_NZ), NX(_NX), NY(_NY), NZ(_NZ)
+        m_own_mesh_maps(true)
     {
         _alloc();
+
         const double h = (maxextent / std::max(NX, std::max(NY, NZ)));
+
+        const double extents[3] = {h*NX, h*NY, h*NZ};
+        const unsigned int nBlocks[3] = {NX, NY, NZ};
+        for (int i = 0; i < 3; ++i)
+        {
+            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
+            m->init(); // uniform only for this constructor
+            m_mesh_maps.push_back(m);
+        }
 
         for(unsigned int iz=0; iz<NZ; iz++)
             for(unsigned int iy=0; iy<NY; iy++)
@@ -109,9 +127,13 @@ public:
         NX(mapX->nblocks()), NY(mapY->nblocks()), NZ(mapZ->nblocks()),
         N(mapX->nblocks()*mapY->nblocks()*mapZ->nblocks()),
         maxextent(-1.0), // not used
-        m_mapX(mapX), m_mapY(mapY), m_mapZ(mapZ)
+        m_own_mesh_maps(false)
     {
         _alloc();
+
+        m_mesh_maps.push_back(mapX);
+        m_mesh_maps.push_back(mapY);
+        m_mesh_maps.push_back(mapZ);
 
         for(unsigned int iz=0; iz<NZ; iz++)
             for(unsigned int iy=0; iy<NY; iy++)
@@ -175,9 +197,16 @@ public:
         return info.h_gridpoint;
     }
 
-    inline MeshMap<Block>& getMapX() { return *m_mapX; }
-    inline MeshMap<Block>& getMapY() { return *m_mapY; }
-    inline MeshMap<Block>& getMapZ() { return *m_mapZ; }
+    inline MeshMap<Block>& getMeshMap(const int i)
+    {
+        assert(i>=0 && i<3);
+        return *m_mesh_maps[i];
+    }
+    inline const MeshMap<Block>& getMeshMap(const int i) const
+    {
+        assert(i>=0 && i<3);
+        return *m_mesh_maps[i];
+    }
 };
 
 template <typename Block, template<typename X> class allocator>

@@ -77,6 +77,125 @@ struct GaussianDensity
     }
 };
 
+struct SmoothHeavisideDensity
+{
+    const double A;
+    const double B;
+    const double c;
+    const double eps;
+    const bool uniform;
+
+    SmoothHeavisideDensity(const double A=2.0, const double B=1.0, const double c=0.5, const double eps=0.2) : A(A), B(B), c(c), eps(eps), uniform(false) {}
+
+    inline double _smooth_heaviside(const double r, const double A, const double B, const double c, const double eps, const bool mirror=false) const
+    {
+        const double theta = M_PI*std::max(0.0, std::min(1.0, (1.0-2.0*mirror)/eps*(r - (c-0.5*eps)) + 1.0*mirror));
+        const double q = 0.5*(std::cos(theta) + 1.0);
+        return B + (A-B)*q;
+    }
+
+    void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+            const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
+    {
+        assert(std::min(A,B) > 0.0);
+        assert(0.5*eps <= c && c <= 1.0-0.5*eps);
+
+        const unsigned int total_cells = ncells + ghostE + ghostS;
+        double* const buf = new double[total_cells];
+
+        double ducky = 0.0;
+        for (int i = 0; i < ncells; ++i)
+        {
+            const double r = static_cast<double>(i)/ncells;
+            double rho;
+            if (A >= B)
+                rho = _smooth_heaviside(r, A, B, c, eps);
+            else
+                rho = _smooth_heaviside(r, B, A, c, eps, true);
+            buf[i+ghostS] = 1.0/rho;
+            ducky += buf[i+ghostS];
+        }
+        for (int i = 0; i < ghostS; ++i)
+            buf[i] = buf[ghostS];
+        for (int i = 0; i < ghostE; ++i)
+            buf[i+ncells+ghostS] = buf[ncells+ghostS-1];
+
+        const double scale = (xE-xS)/ducky;
+        for (int i = 0; i < total_cells; ++i)
+            buf[i] *= scale;
+
+        for (int i = 0; i < ncells; ++i)
+            ary[i] = buf[i+ghostS];
+
+        if (ghost_spacing)
+        {
+            for (int i = 0; i < ghostS; ++i)
+                ghost_spacing[i] = buf[i];
+            for (int i = 0; i < ghostE; ++i)
+                ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
+        }
+    }
+};
+
+struct SmoothHatDensity : public SmoothHeavisideDensity
+{
+    const double c2;
+    const double eps2;
+
+    SmoothHatDensity(const double A=2.0, const double B=1.0, const double c1=0.25, const double eps1=0.15, const double c2=0.75, const double eps2=0.15) : SmoothHeavisideDensity(A,B,c1,eps1), c2(c2), eps2(eps2) {}
+
+    void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+            const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
+    {
+        assert(std::min(A,B) > 0.0);
+        assert(0.5*eps <= c && c <= c2-0.5*eps2);
+        assert(c2 <= 1.0-0.5*eps2);
+
+        const unsigned int total_cells = ncells + ghostE + ghostS;
+        double* const buf = new double[total_cells];
+
+        double ducky = 0.0;
+        for (int i = 0; i < ncells; ++i)
+        {
+            const double r = static_cast<double>(i)/ncells;
+            double rho;
+            if (r <= c+0.5*eps)
+                if (A >= B)
+                    rho = _smooth_heaviside(r, A, B, c, eps);
+                else
+                    rho = _smooth_heaviside(r, B, A, c, eps, true);
+            else if (r >= c2-0.5*eps2)
+                if (A >= B)
+                    rho = _smooth_heaviside(r, A, B, c2, eps2, true);
+                else
+                    rho = _smooth_heaviside(r, B, A, c2, eps2);
+            else
+                rho = B;
+            buf[i+ghostS] = 1.0/rho;
+            ducky += buf[i+ghostS];
+        }
+        for (int i = 0; i < ghostS; ++i)
+            buf[i] = buf[ghostS];
+        for (int i = 0; i < ghostE; ++i)
+            buf[i+ncells+ghostS] = buf[ncells+ghostS-1];
+
+        const double scale = (xE-xS)/ducky;
+        for (int i = 0; i < total_cells; ++i)
+            buf[i] *= scale;
+
+        for (int i = 0; i < ncells; ++i)
+            ary[i] = buf[i+ghostS];
+
+        if (ghost_spacing)
+        {
+            for (int i = 0; i < ghostS; ++i)
+                ghost_spacing[i] = buf[i];
+            for (int i = 0; i < ghostE; ++i)
+                ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
+        }
+    }
+};
+
 
 template <typename TBlock>
 class MeshMap

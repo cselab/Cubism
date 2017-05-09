@@ -270,6 +270,8 @@ public:
         return &m_grid_spacing[bix*TBlock::sizeX];
     }
 
+    inline double* data_grid_spacing() { return m_grid_spacing; }
+
 private:
     const double m_xS;
     const double m_xE;

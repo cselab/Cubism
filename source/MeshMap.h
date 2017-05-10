@@ -216,8 +216,8 @@ public:
         }
     }
 
-    template <typename TKernel=UniformDensity>
-    void init(const TKernel& kernel=UniformDensity(), const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL)
+    template <typename TKernel>
+    void init(const TKernel& kernel, const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL)
     {
         _alloc();
 

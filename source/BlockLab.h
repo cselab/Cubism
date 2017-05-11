@@ -105,8 +105,8 @@ public:
 
 	inline ElementType * getBuffer() const { return &m_cacheBlock->LinAccess(0);}
 
-        // rasthofer May 2016: required for non-relecting time-dependent boundary conditions
-        virtual void apply_bc_update(const BlockInfo& info, const Real dt=0, const Real h=0, const Real a=0, const Real b=0) { }
+    // rasthofer May 2016: required for non-relecting time-dependent boundary conditions
+    virtual void apply_bc_update(const BlockInfo& info, const Real dt=0, const Real a=0, const Real b=0) { }
 
 	void prepare(Grid<BlockType,allocator>& grid, int startX, int endX, int startY, int endY, int startZ, int endZ, const bool _istensorial)
 	{

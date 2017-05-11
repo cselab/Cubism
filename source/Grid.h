@@ -106,7 +106,8 @@ public:
         for (int i = 0; i < 3; ++i)
         {
             MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
-            m->init(); // uniform only for this constructor
+            UniformDensity uniform;
+            m->template init<UniformDensity>(uniform); // uniform only for this constructor
             m_mesh_maps.push_back(m);
         }
 

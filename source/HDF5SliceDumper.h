@@ -262,7 +262,7 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
         fprintf(xmf, " <Domain>\n");
         fprintf(xmf, "   <Grid GridType=\"Uniform\">\n");
         fprintf(xmf, "     <Time Value=\"%e\"/>\n\n", t);
-        fprintf(xmf, "     <Topology TopologyType=\"2DRectMesh\" Dimensions=\"%d %d\"/>\n\n", mesh_dims[0], mesh_dims[1]);
+        fprintf(xmf, "     <Topology TopologyType=\"2DRectMesh\" Dimensions=\"%d %d\"/>\n\n", mesh_dims[1], mesh_dims[0]);
         fprintf(xmf, "     <Geometry GeometryType=\"VxVyVz\">\n");
         fprintf(xmf, "       <DataItem Name=\"mesh_vx\" Dimensions=\"1\" NumberType=\"Float\" Precision=\"8\" Format=\"XML\">\n");
         fprintf(xmf, "        %e\n", 0.0);

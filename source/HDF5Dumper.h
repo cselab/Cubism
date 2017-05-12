@@ -43,7 +43,7 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
     ostringstream filename;
     filename << dump_path.str() << "/" << f_name;
 
-    vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
+    std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
@@ -92,8 +92,6 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
 
     std::cout << "Allocating " << (NX * NY * NZ * NCHANNELS * sizeof(hdf5Real))/(1024.*1024.*1024.) << " GB of HDF5 data" << std::endl;
     hdf5Real * array_all = new hdf5Real[NX * NY * NZ * NCHANNELS];
-
-    std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
     const unsigned int sX = 0;
     const unsigned int sY = 0;
@@ -179,7 +177,7 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
         fprintf(xmf, " <Domain>\n");
         fprintf(xmf, "   <Grid GridType=\"Uniform\">\n");
         fprintf(xmf, "     <Time Value=\"%e\"/>\n\n", absTime);
-        fprintf(xmf, "     <Topology TopologyType=\"3DRectMesh\" Dimensions=\"%d %d %d\"/>\n\n", mesh_dims[0], mesh_dims[1], mesh_dims[2]);
+        fprintf(xmf, "     <Topology TopologyType=\"3DRectMesh\" Dimensions=\"%d %d %d\"/>\n\n", mesh_dims[2], mesh_dims[1], mesh_dims[0]);
         fprintf(xmf, "     <Geometry GeometryType=\"VxVyVz\">\n");
         fprintf(xmf, "       <DataItem Name=\"mesh_vx\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[0]);
         fprintf(xmf, "        %s:/vx\n",(filename.str()+".h5").c_str());

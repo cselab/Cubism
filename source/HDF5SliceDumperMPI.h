@@ -31,12 +31,83 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     MPI_Comm comm = grid.getCartComm();
     MPI_Comm_rank(comm, &sliceRank);
 
-// #ifndef NDEBUG
+    ostringstream filename;
+    filename << dpath << "/" << fname << TStreamer::postfix() << "_slice" << slice.id;
+
+    herr_t status;
+    hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
+
+    ///////////////////////////////////////////////////////////////////////////
+    // write mesh
+    std::vector<int> mesh_dims;
+    std::vector<std::string> dset_name;
+    dset_name.push_back("/vwidth");
+    dset_name.push_back("/vheight");
+    if (0 == sliceRank)
+    {
+        H5open();
+        fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+        file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+        status = H5Pclose(fapl_id);
+
+        int slice_orientation[2];
+        if (0 == slice.dir)
+        {
+            slice_orientation[0] = 2;
+            slice_orientation[1] = 1;
+        }
+        else if (1 == slice.dir)
+        {
+            slice_orientation[0] = 2;
+            slice_orientation[1] = 0;
+        }
+        else if (2 == slice.dir)
+        {
+            slice_orientation[0] = 0;
+            slice_orientation[1] = 1;
+        }
+
+        for (size_t i = 0; i < 2; ++i)
+        {
+            const MeshMap<B>& m = grid.getMeshMap(slice_orientation[i]);
+            std::vector<double> vertices(m.ncells()+1, m.start());
+            mesh_dims.push_back(vertices.size());
+
+            for (int j = 0; j < m.ncells(); ++j)
+                vertices[j+1] = vertices[j] + m.cell_width(j);
+
+            hsize_t dim[1] = {vertices.size()};
+            fspace_id = H5Screate_simple(1, dim, NULL);
+#ifndef _ON_FERMI_
+            dataset_id = H5Dcreate(file_id, dset_name[i].c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+#else
+            dataset_id = H5Dcreate2(file_id, dset_name[i].c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+#endif
+            status = H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, vertices.data());
+            status = H5Sclose(fspace_id);
+            status = H5Dclose(dataset_id);
+        }
+
+        // shutdown h5 file
+        status = H5Fclose(file_id);
+        H5close();
+    }
+    MPI_Barrier(slice.sliceComm);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // startup file
+    H5open();
+    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    status = H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL); if(status<0) H5Eprint1(stdout);
+    file_id = H5Fopen((filename.str()+".h5").c_str(), H5F_ACC_RDWR, fapl_id);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // write data
     if (0 == sliceRank)
     {
         std::cout << "Allocating " << (width * height * NCHANNELS * sizeof(hdf5Real))/(1024.*1024.) << " MB of HDF5 slice data";
     }
-// #endif /* NDEBUG */
 
     hdf5Real * array_all = new hdf5Real[width * height * NCHANNELS];
 
@@ -53,25 +124,14 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     ostringstream filename;
     filename << dpath << "/" << fname << "_slice" << slice.id;
 
-    herr_t status;
-    hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
-
     hsize_t count[3] = {height, width, NCHANNELS}; // local
     hsize_t dims[3] = {slice.height, slice.width, NCHANNELS}; // global
     hsize_t offset[3] = {slice.offsetHeight, slice.offsetWidth, 0}; // file offset
 
-// #ifndef NDEBUG
     if (0 == sliceRank)
     {
         std::cout << " (Total  " << (dims[0] * dims[1] * dims[2] * sizeof(hdf5Real))/(1024.*1024.) << " MB)" << std::endl;
     }
-// #endif /* NDEBUG */
-
-    H5open();
-    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-    status = H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL); if(status<0) H5Eprint1(stdout);
-    file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
-    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     if (0 == slice.dir)
         SliceExtractor::YZ<B,TStreamer>(slice.idx%_BLOCKSIZE_, width, bInfo_slice, array_all);
@@ -114,18 +174,21 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
         fprintf(xmf, "<Xdmf Version=\"2.0\">\n");
         fprintf(xmf, " <Domain>\n");
         fprintf(xmf, "   <Grid GridType=\"Uniform\">\n");
-        fprintf(xmf, "     <Time Value=\"%e\"/>\n", t);
-        fprintf(xmf, "     <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\"1 %d %d\"/>\n", slice.height, slice.width);
-        fprintf(xmf, "     <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n");
-        fprintf(xmf, "       <DataItem Name=\"Origin\" Dimensions=\"3\" NumberType=\"Float\" Precision=\"4\" Format=\"XML\">\n");
-        fprintf(xmf, "        %e %e %e\n", 0., 0., 0.);
+        fprintf(xmf, "     <Time Value=\"%e\"/>\n\n", t);
+        fprintf(xmf, "     <Topology TopologyType=\"2DRectMesh\" Dimensions=\"%d %d\"/>\n\n", mesh_dims[1], mesh_dims[0]);
+        fprintf(xmf, "     <Geometry GeometryType=\"VxVyVz\">\n");
+        fprintf(xmf, "       <DataItem Name=\"mesh_vx\" Dimensions=\"1\" NumberType=\"Float\" Precision=\"8\" Format=\"XML\">\n");
+        fprintf(xmf, "        %e\n", 0.0);
         fprintf(xmf, "       </DataItem>\n");
-        fprintf(xmf, "       <DataItem Name=\"Spacing\" Dimensions=\"3\" NumberType=\"Float\" Precision=\"4\" Format=\"XML\">\n");
-        fprintf(xmf, "        %e %e %e\n", 1.,1.,1.);
+        fprintf(xmf, "       <DataItem Name=\"mesh_vy\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[0]);
+        fprintf(xmf, "        %s:/vwidth\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");
-        fprintf(xmf, "     </Geometry>\n");
-        fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Node\">\n", TStreamer::getAttributeName());
-        fprintf(xmf, "       <DataItem Dimensions=\"1 %d %d %d\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", slice.height, slice.width, NCHANNELS);
+        fprintf(xmf, "       <DataItem Name=\"mesh_vz\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[1]);
+        fprintf(xmf, "        %s:/vheight\n",(filename.str()+".h5").c_str());
+        fprintf(xmf, "       </DataItem>\n");
+        fprintf(xmf, "     </Geometry>\n\n");
+        fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", TStreamer::getAttributeName());
+        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", (int)dims[0], (int)dims[1], (int)dims[2], sizeof(hdf5Real));
         fprintf(xmf, "        %s:/data\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Attribute>\n");

@@ -118,6 +118,63 @@ public:
 		}
 	}
 
+
+    GridMPI(MeshMap<Block>* const mapX, MeshMap<Block>* const mapY, MeshMap<Block>* const mapZ,
+            const int npeX, const int npeY, const int npeZ,
+            const int nX=0, const int nY=0, const int nZ=0,
+            const MPI_Comm comm = MPI_COMM_WORLD): TGrid(mapX,mapY,mapZ,nX,nY,nZ), timestamp(0), worldcomm(comm)
+    {
+        blocksize[0] = Block::sizeX;
+        blocksize[1] = Block::sizeY;
+        blocksize[2] = Block::sizeZ;
+
+        assert(mapX->nblocks() == npeX*nX);
+        assert(mapY->nblocks() == npeY*nY);
+        assert(mapZ->nblocks() == npeZ*nZ);
+        mybpd[0] = nX;
+        mybpd[1] = nY;
+        mybpd[2] = nZ;
+        myblockstotalsize = nX*nY*nZ;
+
+        periodic[0] = true;
+        periodic[1] = true;
+        periodic[2] = true;
+
+        pesize[0] = npeX;
+        pesize[1] = npeY;
+        pesize[2] = npeZ;
+
+        int world_size;
+        MPI_Comm_size(worldcomm, &world_size);
+        assert(npeX*npeY*npeZ == world_size);
+
+        MPI_Cart_create(worldcomm, 3, pesize, periodic, true, &cartcomm);
+        MPI_Comm_rank(cartcomm, &myrank);
+        MPI_Cart_coords(cartcomm, myrank, 3, mypeindex);
+
+        const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
+
+        MeshMap<Block>* const ptr_map[3] = {mapX, mapY, mapZ};
+        for(int i=0; i<vInfo.size(); ++i)
+        {
+            BlockInfo info = vInfo[i];
+
+            for(int j=0; j<3; ++j)
+            {
+                info.index[j] += mypeindex[j]*mybpd[j];
+
+                info.origin[j] = ptr_map[j]->block_origin(info.index[j]);
+
+                info.block_extent[j] = ptr_map[j]->block_width(info.index[j]);
+
+                info.ptr_grid_spacing[j] = ptr_map[j]->get_grid_spacing(info.index[j]);
+            }
+
+            cached_blockinfo.push_back(info);
+        }
+    }
+
+
 	~GridMPI()
 	{
 		for( std::map<StencilInfo, SynchronizerMPI*>::const_iterator it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)

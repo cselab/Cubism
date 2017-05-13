@@ -11,14 +11,29 @@
 
 #include <cassert>
 #include <cmath>
+#include <vector>
+#include <string>
+#include <iostream>
+#include <cstdlib>
+#include "ArgumentParser.h"
 
-struct UniformDensity
+class MeshDensity
 {
+public:
     const bool uniform;
+    MeshDensity(const bool _uniform) : uniform(_uniform) {}
 
-    UniformDensity() : uniform(true) {}
+    virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+            const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const = 0;
+};
 
-    void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+
+class UniformDensity : public MeshDensity
+{
+public:
+    UniformDensity() : MeshDensity(true) {}
+
+    virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
     {
         const double h = (xE - xS) / ncells;
@@ -35,15 +50,21 @@ struct UniformDensity
     }
 };
 
-struct GaussianDensity
+class GaussianDensity : public MeshDensity
 {
     const double A;
     const double B;
-    const bool uniform;
 
-    GaussianDensity(const double A=1.0, const double B=0.25) : A(A), B(B), uniform(false) {}
+public:
+    struct DefaultParameter
+    {
+        double A, B;
+        DefaultParameter() : A(1.0), B(0.25) {}
+    };
 
-    void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+    GaussianDensity(const DefaultParameter d=DefaultParameter()) : MeshDensity(false), A(d.A), B(d.B) {}
+
+    virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
     {
         const unsigned int total_cells = ncells + ghostE + ghostS;
@@ -77,15 +98,13 @@ struct GaussianDensity
     }
 };
 
-struct SmoothHeavisideDensity
+class SmoothHeavisideDensity : public MeshDensity
 {
+protected:
     const double A;
     const double B;
     const double c;
     const double eps;
-    const bool uniform;
-
-    SmoothHeavisideDensity(const double A=2.0, const double B=1.0, const double c=0.5, const double eps=0.2) : A(A), B(B), c(c), eps(eps), uniform(false) {}
 
     inline double _smooth_heaviside(const double r, const double A, const double B, const double c, const double eps, const bool mirror=false) const
     {
@@ -94,7 +113,17 @@ struct SmoothHeavisideDensity
         return B + (A-B)*q;
     }
 
-    void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+public:
+    struct DefaultParameter
+    {
+        double A, B, c1, eps1;
+        DefaultParameter() : A(2.0), B(1.0), c1(0.5), eps1(0.2) {}
+    };
+
+    SmoothHeavisideDensity(const double A, const double B, const double c, const double eps) : MeshDensity(false), A(A), B(B), c(c), eps(eps) {}
+    SmoothHeavisideDensity(const DefaultParameter d=DefaultParameter()) : MeshDensity(false), A(d.A), B(d.B), c(d.c1), eps(d.eps1) {}
+
+    virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
     {
         assert(std::min(A,B) > 0.0);
@@ -106,7 +135,7 @@ struct SmoothHeavisideDensity
         double ducky = 0.0;
         for (int i = 0; i < ncells; ++i)
         {
-            const double r = static_cast<double>(i)/ncells;
+            const double r = (static_cast<double>(i)+0.5)/ncells;
             double rho;
             if (A >= B)
                 rho = _smooth_heaviside(r, A, B, c, eps);
@@ -137,14 +166,22 @@ struct SmoothHeavisideDensity
     }
 };
 
-struct SmoothHatDensity : public SmoothHeavisideDensity
+class SmoothHatDensity : public SmoothHeavisideDensity
 {
+protected:
     const double c2;
     const double eps2;
 
-    SmoothHatDensity(const double A=2.0, const double B=1.0, const double c1=0.25, const double eps1=0.15, const double c2=0.75, const double eps2=0.15) : SmoothHeavisideDensity(A,B,c1,eps1), c2(c2), eps2(eps2) {}
+public:
+    struct DefaultParameter
+    {
+        double A, B, c1, eps1, c2, eps2;
+        DefaultParameter() : A(2.0), B(1.0), c1(0.25), eps1(0.15), c2(0.75), eps2(0.15) {}
+    };
 
-    void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+    SmoothHatDensity(const DefaultParameter d=DefaultParameter()) : SmoothHeavisideDensity(d.A,d.B,d.c1,d.eps1), c2(d.c2), eps2(d.eps2) {}
+
+    virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
     {
         assert(std::min(A,B) > 0.0);
@@ -157,7 +194,7 @@ struct SmoothHatDensity : public SmoothHeavisideDensity
         double ducky = 0.0;
         for (int i = 0; i < ncells; ++i)
         {
-            const double r = static_cast<double>(i)/ncells;
+            const double r = (static_cast<double>(i)+0.5)/ncells;
             double rho;
             if (r <= c+0.5*eps)
                 if (A >= B)
@@ -197,6 +234,82 @@ struct SmoothHatDensity : public SmoothHeavisideDensity
 };
 
 
+class MeshDensityFactory
+{
+public:
+    MeshDensityFactory(ArgumentParser& parser) : m_parser(parser) { _make_mesh_kernels(); }
+    ~MeshDensityFactory() { _dealloc(); }
+
+    inline MeshDensity* get_mesh_kernel(const int i) { return m_mesh_kernels[i]; }
+
+private:
+    ArgumentParser& m_parser;
+    std::vector<MeshDensity*> m_mesh_kernels;
+
+    void _dealloc()
+    {
+        for (int i = 0; i < (int)m_mesh_kernels.size(); ++i)
+            delete m_mesh_kernels[i];
+    }
+
+    void _make_mesh_kernels()
+    {
+        std::vector<std::string> suffix;
+        suffix.push_back("_x");
+        suffix.push_back("_y");
+        suffix.push_back("_z");
+        for (int i = 0; i < (int)suffix.size(); ++i)
+        {
+            const std::string mesh_density("mesh_density" + suffix[i]);
+            if (m_parser.exist(mesh_density))
+            {
+                const std::string density_function(m_parser(mesh_density).asString());
+                const std::string A("A" + suffix[i]);
+                const std::string B("B" + suffix[i]);
+                const std::string c1("c1" + suffix[i]);
+                const std::string eps1("eps1" + suffix[i]);
+                const std::string c2("c2" + suffix[i]);
+                const std::string eps2("eps2" + suffix[i]);
+                if (density_function == "GaussianDensity")
+                {
+                    typename GaussianDensity::DefaultParameter p;
+                    if (m_parser.exist(A)) p.A = m_parser(A).asDouble();
+                    if (m_parser.exist(B)) p.B = m_parser(B).asDouble();
+                    m_mesh_kernels.push_back(new GaussianDensity(p));
+                }
+                else if (density_function == "SmoothHeavisideDensity")
+                {
+                    typename SmoothHeavisideDensity::DefaultParameter p;
+                    if (m_parser.exist(A)) p.A = m_parser(A).asDouble();
+                    if (m_parser.exist(B)) p.B = m_parser(B).asDouble();
+                    if (m_parser.exist(c1)) p.c1 = m_parser(c1).asDouble();
+                    if (m_parser.exist(eps1)) p.eps1 = m_parser(eps1).asDouble();
+                    m_mesh_kernels.push_back(new SmoothHeavisideDensity(p));
+                }
+                else if (density_function == "SmoothHatDensity")
+                {
+                    typename SmoothHatDensity::DefaultParameter p;
+                    if (m_parser.exist(A)) p.A = m_parser(A).asDouble();
+                    if (m_parser.exist(B)) p.B = m_parser(B).asDouble();
+                    if (m_parser.exist(c1)) p.c1 = m_parser(c1).asDouble();
+                    if (m_parser.exist(eps1)) p.eps1 = m_parser(eps1).asDouble();
+                    if (m_parser.exist(c2)) p.c2 = m_parser(c2).asDouble();
+                    if (m_parser.exist(eps2)) p.eps2 = m_parser(eps2).asDouble();
+                    m_mesh_kernels.push_back(new SmoothHatDensity(p));
+                }
+                else
+                {
+                    std::cerr << "ERROR: MeshMap.h: Undefined mesh density function." << std::endl;
+                    abort();
+                }
+            }
+            else
+                m_mesh_kernels.push_back(new UniformDensity);
+        }
+    }
+};
+
+
 template <typename TBlock>
 class MeshMap
 {
@@ -216,12 +329,11 @@ public:
         }
     }
 
-    template <typename TKernel>
-    void init(const TKernel& kernel, const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL)
+    void init(const MeshDensity* const kernel, const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL)
     {
         _alloc();
 
-        kernel.compute_spacing(m_xS, m_xE, m_Ncells, m_grid_spacing, ghostS, ghostE, ghost_spacing);
+        kernel->compute_spacing(m_xS, m_xE, m_Ncells, m_grid_spacing, ghostS, ghostE, ghost_spacing);
 
         assert(m_Nblocks > 0);
         for (int i = 0; i < m_Nblocks; ++i)
@@ -232,7 +344,7 @@ public:
             m_block_spacing[i] = delta_block;
         }
 
-        m_uniform = kernel.uniform;
+        m_uniform = kernel->uniform;
         m_initialized = true;
     }
 

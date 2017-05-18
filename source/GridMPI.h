@@ -74,6 +74,22 @@ public:
         MPI_Comm_rank(cartcomm, &myrank);
         MPI_Cart_coords(cartcomm, myrank, 3, mypeindex);
 
+        for (int i = 0; i < 3; ++i)
+            delete this->m_mesh_maps[i];
+        std::vector<MeshMap<Block>*> tmp;
+        this->m_mesh_maps.swap(tmp);
+
+        const double blockwidth = (maxextent / std::max(nX*npeX, std::max(nY*npeY, nZ*npeZ)));
+        const double extents[3] = {blockwidth*nX*npeX, blockwidth*nY*npeY, blockwidth*nZ*npeZ};
+        const unsigned int nBlocks[3] = {nX*npeX, nY*npeY, nZ*npeZ};
+        for (int i = 0; i < 3; ++i)
+        {
+            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
+            UniformDensity uniform;
+            m->init(&uniform); // uniform only for this constructor
+            this->m_mesh_maps.push_back(m);
+        }
+
 		const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
 
         // Doesn't make sense to export `h_gridpoint` and `h_block` as a member
@@ -109,13 +125,20 @@ public:
             info.h = h_block[0];// only for blocksize[0]=blocksize[1]=blocksize[2]
 
             for(int j=0; j<3; ++j)
-			{
-				info.index[j] += mypeindex[j]*mybpd[j];
-				info.origin[j] = info.index[j]*h_block[j];
-			}
+            {
+                info.index[j] += mypeindex[j]*mybpd[j];
 
-			cached_blockinfo.push_back(info);
-		}
+                info.origin[j] = this->m_mesh_maps[j]->block_origin(info.index[j]);
+
+                info.uniform_grid_spacing[j] = h_gridpoint;
+
+                info.block_extent[j] = this->m_mesh_maps[j]->block_width(info.index[j]);
+
+                info.ptr_grid_spacing[j] = this->m_mesh_maps[j]->get_grid_spacing(info.index[j]);
+            }
+
+            cached_blockinfo.push_back(info);
+        }
 	}
 
 

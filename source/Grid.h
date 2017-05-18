@@ -107,7 +107,7 @@ public:
         {
             MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
             UniformDensity uniform;
-            m->template init<UniformDensity>(uniform); // uniform only for this constructor
+            m->init(&uniform); // uniform only for this constructor
             m_mesh_maps.push_back(m);
         }
 

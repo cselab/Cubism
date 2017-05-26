@@ -11,6 +11,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <limits>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -95,6 +96,9 @@ public:
             for (int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
         }
+
+        // clean up
+        delete[] buf;
     }
 };
 
@@ -163,6 +167,9 @@ public:
             for (int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
         }
+
+        // clean up
+        delete[] buf;
     }
 };
 
@@ -230,8 +237,182 @@ public:
             for (int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
         }
+
+        // clean up
+        delete[] buf;
     }
 };
+
+
+class BoxFadeDensity : public MeshDensity
+{
+protected:
+    const double box_left;
+    const double box_right;
+    const int box_ncells;
+
+public:
+    struct DefaultParameter
+    {
+        double box_left, box_right;
+        int box_ncells;
+        DefaultParameter() : box_left(0.0), box_right(1.0),
+        box_ncells(256) {}
+    };
+
+    BoxFadeDensity(const DefaultParameter d=DefaultParameter()) : MeshDensity(false),
+    box_left(d.box_left), box_right(d.box_right),
+    box_ncells(d.box_ncells) {}
+
+    virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+            const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
+    {
+        const double box_width = box_right - box_left;
+        const double length_left = box_left - xS;
+        const double length_right= xE - box_right;
+        assert(box_width > 0.0);
+        assert(length_left >= 0.0);
+        assert(length_right>= 0.0);
+
+        int cells_left = 0;
+        int cells_right = 0;
+        if (length_left > length_right)
+        {
+            const double distribution_ratio = length_right/length_left;
+            cells_right = 0.5*(static_cast<int>(ncells) - box_ncells)*distribution_ratio;
+            cells_left = static_cast<int>(ncells) - box_ncells - cells_right;
+        }
+        else
+        {
+            const double distribution_ratio = length_left/length_right;
+            cells_left = 0.5*(static_cast<int>(ncells) - box_ncells)*distribution_ratio;
+            cells_right = static_cast<int>(ncells) - box_ncells - cells_left;
+        }
+        assert(cells_left > 0);
+        assert(cells_right > 0);
+
+        const unsigned int total_cells = ncells + ghostE + ghostS;
+        double* const buf = new double[total_cells];
+        double* const buf_left = new double[cells_left];
+        double* const buf_right = new double[cells_right];
+
+        const double h_window = box_width/box_ncells;
+
+        _compute_fade(buf_left, cells_left, length_left, h_window, 6);
+        _compute_fade(buf_right, cells_right, length_right, h_window, 6);
+
+        // flip left side
+        for (int i = 0; i < cells_left/2; ++i)
+        {
+            const double tmp = buf_left[i];
+            buf_left[i] = buf_left[cells_left-1-i];
+            buf_left[cells_left-1-i] = tmp;
+        }
+
+        // assemble buf
+        for (int i = 0; i < ghostS; ++i)
+            buf[i] = buf_left[0];
+        for (int i = 0; i < cells_left; ++i)
+            buf[i+ghostS] = buf_left[i];
+        for (int i = 0; i < box_ncells; ++i)
+            buf[i+ghostS+cells_left] = h_window;
+        for (int i = 0; i < cells_right; ++i)
+            buf[i+ghostS+cells_left+box_ncells] = buf_right[i];
+        for (int i = 0; i < ghostE; ++i)
+            buf[i+ncells+ghostS] = buf_right[cells_right-1];
+
+        // distribute
+        for (int i = 0; i < ncells; ++i)
+            ary[i] = buf[i+ghostS];
+
+        if (ghost_spacing)
+        {
+            for (int i = 0; i < ghostS; ++i)
+                ghost_spacing[i] = buf[i];
+            for (int i = 0; i < ghostE; ++i)
+                ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
+        }
+
+        // clean up
+        delete[] buf;
+        delete[] buf_left;
+        delete[] buf_right;
+    }
+
+private:
+
+    // helpers
+    inline double _heaviside(const double x) const { return (x>0.0) ? 1.0 : 0.0; }
+    inline double _theta(const double xi) const { return M_PI*(xi*_heaviside(xi) - (xi-1.0)*_heaviside(xi-1.0)); }
+    inline double _f(const double xi, const double alpha) const { return 0.5*alpha*(1.0 - std::cos(_theta(xi))) + 1.0; }
+    inline double _dfdalpha(const double xi) const { return 0.5*(1.0 - std::cos(_theta(xi))); }
+
+    inline double _F(const std::vector<double>& xi, const double alpha, const double L) const
+    {
+        double sum = 0.0;
+        for (int i = 0; i < (int)xi.size(); ++i)
+            sum += _f(xi[i], alpha);
+        return L - sum;
+    }
+
+    inline double _dFdalpha(const std::vector<double>& xi) const
+    {
+        double sum = 0.0;
+        for (int i = 0; i < (int)xi.size(); ++i)
+            sum += _dfdalpha(xi[i]);
+        return -sum;
+    }
+
+    double _newton(const std::vector<double>& xi, const double L, const double tol=std::numeric_limits<double>::epsilon()) const
+    {
+        double alpha = 0.0; // initial guess
+        unsigned int steps = 0;
+        while (true)
+        {
+            const double F = _F(xi,alpha,L);
+            const double dF= _dFdalpha(xi);
+            const double tmp = alpha;
+            alpha = alpha - F/dF;
+            ++steps;
+            if (std::abs(alpha-tmp) <= tol)
+                break;
+        }
+        // std::cout << "MeshMap: Newton solver: Found solution in " << steps << " steps" << std::endl;
+        return alpha;
+    }
+
+    void _compute_fade(double* const buf, const unsigned int N, const double L, const double h0, const int nLast=6) const
+    {
+        assert(N > 20); // not a strict limit but should prefereably be at least this
+        const double h_xi = 1.0/N;
+        std::vector<double> xi(N);
+        for (unsigned int i = 0; i < N; ++i)
+            xi[i] = h_xi*(i+0.5);
+
+        // find growth factor
+        const double alpha = _newton(xi, L/h0);
+
+        // adjust the last 6 cells to be of equal size (for FD scheme used in
+        // characteristic 1D boundaries, otherwise need non-uniform scheme
+        // there)
+        assert(nLast < N);
+        for (unsigned int i = 0; i < N; ++i)
+            buf[i] = h0*_f(xi[i], alpha);
+
+        const unsigned int k = N-nLast;
+        for (unsigned int i = k; i < N; ++i)
+            buf[i] = buf[k-1];
+
+        double sum = 0.0;
+        for (unsigned int i = 0; i < N; ++i)
+            sum += buf[i];
+
+        const double scale = L/sum;
+        for (unsigned int i = 0; i < N; ++i)
+            buf[i] *= scale;
+    }
+};
+
 
 
 class MeshDensityFactory
@@ -296,6 +477,17 @@ private:
                     if (m_parser.exist(c2)) p.c2 = m_parser(c2).asDouble();
                     if (m_parser.exist(eps2)) p.eps2 = m_parser(eps2).asDouble();
                     m_mesh_kernels.push_back(new SmoothHatDensity(p));
+                }
+                else if (density_function == "BoxFadeDensity")
+                {
+                    typename BoxFadeDensity::DefaultParameter p;
+                    const std::string box_left("box_left" + suffix[i]);
+                    const std::string box_right("box_right" + suffix[i]);
+                    const std::string box_ncells("box_ncells" + suffix[i]);
+                    if (m_parser.exist(box_left)) p.box_left = m_parser(box_left).asDouble();
+                    if (m_parser.exist(box_right)) p.box_right = m_parser(box_right).asDouble();
+                    if (m_parser.exist(box_ncells)) p.box_ncells= m_parser(box_ncells).asDouble();
+                    m_mesh_kernels.push_back(new BoxFadeDensity(p));
                 }
                 else
                 {

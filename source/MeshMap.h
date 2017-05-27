@@ -288,17 +288,19 @@ public:
             cells_left = 0.5*(static_cast<int>(ncells) - box_ncells)*distribution_ratio;
             cells_right = static_cast<int>(ncells) - box_ncells - cells_left;
         }
-        assert(cells_left > 0);
-        assert(cells_right > 0);
+        assert(cells_left >= 0);
+        assert(cells_right >= 0);
 
         const unsigned int total_cells = ncells + ghostE + ghostS;
         double* const buf = new double[total_cells];
-        double* const buf_left = new double[cells_left];
-        double* const buf_right = new double[cells_right];
+        double* const buf_left  = &buf[ghostS];
+        double* const buf_middle= &buf[ghostS+cells_left];
+        double* const buf_right = &buf[ghostS+cells_left+box_ncells];
 
         const double h_window = box_width/box_ncells;
 
         _compute_fade(buf_left, cells_left, length_left, h_window, 6);
+        for (int i = 0; i < box_ncells; ++i) buf_middle[i] = h_window;
         _compute_fade(buf_right, cells_right, length_right, h_window, 6);
 
         // flip left side
@@ -309,17 +311,11 @@ public:
             buf_left[cells_left-1-i] = tmp;
         }
 
-        // assemble buf
+        // assemble ghosts
         for (int i = 0; i < ghostS; ++i)
-            buf[i] = buf_left[0];
-        for (int i = 0; i < cells_left; ++i)
-            buf[i+ghostS] = buf_left[i];
-        for (int i = 0; i < box_ncells; ++i)
-            buf[i+ghostS+cells_left] = h_window;
-        for (int i = 0; i < cells_right; ++i)
-            buf[i+ghostS+cells_left+box_ncells] = buf_right[i];
+            buf[i] = buf[ghostS];
         for (int i = 0; i < ghostE; ++i)
-            buf[i+ncells+ghostS] = buf_right[cells_right-1];
+            buf[i+ncells+ghostS] = buf[ghostS+ncells-1];
 
         // distribute
         for (int i = 0; i < ncells; ++i)
@@ -335,8 +331,6 @@ public:
 
         // clean up
         delete[] buf;
-        delete[] buf_left;
-        delete[] buf_right;
     }
 
 private:
@@ -363,7 +357,7 @@ private:
         return -sum;
     }
 
-    double _newton(const std::vector<double>& xi, const double L, const double tol=std::numeric_limits<double>::epsilon()) const
+    double _newton(const std::vector<double>& xi, const double L, const double tol=10.0*std::numeric_limits<double>::epsilon()) const
     {
         double alpha = 0.0; // initial guess
         unsigned int steps = 0;
@@ -383,33 +377,36 @@ private:
 
     void _compute_fade(double* const buf, const unsigned int N, const double L, const double h0, const int nLast=6) const
     {
-        assert(N > 20); // not a strict limit but should prefereably be at least this
-        const double h_xi = 1.0/N;
-        std::vector<double> xi(N);
-        for (unsigned int i = 0; i < N; ++i)
-            xi[i] = h_xi*(i+0.5);
+        if (N > 0)
+        {
+            assert(N > 20); // not a strict limit but should prefereably be at least this
+            const double h_xi = 1.0/N;
+            std::vector<double> xi(N);
+            for (unsigned int i = 0; i < N; ++i)
+                xi[i] = h_xi*(i+0.5);
 
-        // find growth factor
-        const double alpha = _newton(xi, L/h0);
+            // find growth factor
+            const double alpha = _newton(xi, L/h0);
 
-        // adjust the last 6 cells to be of equal size (for FD scheme used in
-        // characteristic 1D boundaries, otherwise need non-uniform scheme
-        // there)
-        assert(nLast < N);
-        for (unsigned int i = 0; i < N; ++i)
-            buf[i] = h0*_f(xi[i], alpha);
+            // adjust the last 6 cells to be of equal size (for FD scheme used in
+            // characteristic 1D boundaries, otherwise need non-uniform scheme
+            // there)
+            assert(nLast < N);
+            for (unsigned int i = 0; i < N; ++i)
+                buf[i] = h0*_f(xi[i], alpha);
 
-        const unsigned int k = N-nLast;
-        for (unsigned int i = k; i < N; ++i)
-            buf[i] = buf[k-1];
+            const unsigned int k = N-nLast;
+            for (unsigned int i = k; i < N; ++i)
+                buf[i] = buf[k-1];
 
-        double sum = 0.0;
-        for (unsigned int i = 0; i < N; ++i)
-            sum += buf[i];
+            double sum = 0.0;
+            for (unsigned int i = 0; i < N; ++i)
+                sum += buf[i];
 
-        const double scale = L/sum;
-        for (unsigned int i = 0; i < N; ++i)
-            buf[i] *= scale;
+            const double scale = L/sum;
+            for (unsigned int i = 0; i < N; ++i)
+                buf[i] *= scale;
+        }
     }
 };
 

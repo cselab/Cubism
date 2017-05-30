@@ -249,19 +249,21 @@ class BoxFadeDensity : public MeshDensity
 protected:
     const double box_left;
     const double box_right;
+    const double abs_tol;
     const int box_ncells;
 
 public:
     struct DefaultParameter
     {
         double box_left, box_right;
+        double abs_tol;
         int box_ncells;
-        DefaultParameter() : box_left(0.0), box_right(1.0),
+        DefaultParameter() : box_left(0.0), box_right(1.0), abs_tol(1.0e-8),
         box_ncells(256) {}
     };
 
     BoxFadeDensity(const DefaultParameter d=DefaultParameter()) : MeshDensity(false),
-    box_left(d.box_left), box_right(d.box_right),
+    box_left(d.box_left), box_right(d.box_right), abs_tol(d.abs_tol),
     box_ncells(d.box_ncells) {}
 
     virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
@@ -357,7 +359,7 @@ private:
         return -sum;
     }
 
-    double _newton(const std::vector<double>& xi, const double L, const double tol=10.0*std::numeric_limits<double>::epsilon()) const
+    double _newton(const std::vector<double>& xi, const double L, const double tol=1.0e-8) const
     {
         double alpha = 0.0; // initial guess
         unsigned int steps = 0;
@@ -386,7 +388,7 @@ private:
                 xi[i] = h_xi*(i+0.5);
 
             // find growth factor
-            const double alpha = _newton(xi, L/h0);
+            const double alpha = _newton(xi, L/h0, abs_tol);
 
             // adjust the last 6 cells to be of equal size (for FD scheme used in
             // characteristic 1D boundaries, otherwise need non-uniform scheme
@@ -481,9 +483,11 @@ private:
                     const std::string box_left("box_left" + suffix[i]);
                     const std::string box_right("box_right" + suffix[i]);
                     const std::string box_ncells("box_ncells" + suffix[i]);
+                    const std::string abs_tol("abs_tol" + suffix[i]);
                     if (m_parser.exist(box_left)) p.box_left = m_parser(box_left).asDouble();
                     if (m_parser.exist(box_right)) p.box_right = m_parser(box_right).asDouble();
                     if (m_parser.exist(box_ncells)) p.box_ncells= m_parser(box_ncells).asDouble();
+                    if (m_parser.exist(abs_tol)) p.abs_tol = m_parser(abs_tol).asDouble();
                     m_mesh_kernels.push_back(new BoxFadeDensity(p));
                 }
                 else

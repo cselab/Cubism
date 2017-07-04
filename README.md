@@ -17,8 +17,9 @@ To run the Python example (based on the coupling framework), do the following
 steps:
 
 - Install the coupling framework, as described [here][1].
-- Go to `pywrapper/example/<example_name>`.
+- Go to `pywrapper/examples/<example_name>`.
 - Run `./example.py 1`. The `1` stands for the number of MPI nodes.
+  Currently won't work with more than 1 node.
 - Run `./plot.sh` to generate the plots.
 
 [1]: https://gitlab.ethz.ch/mavt-cse/lugano

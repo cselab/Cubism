@@ -6,12 +6,12 @@
  *  Copyright 2017 ETH Zurich. All rights reserved.
  *
  */
-#ifndef _CUBISM_UPDATE_AT_POINTS_H_
-#define _CUBISM_UPDATE_AT_POINTS_H_
+#ifndef _CUBISM_P2M_H_
+#define _CUBISM_P2M_H_
 
 #include "Process.h"
 
-namespace cubism::apps {
+namespace cubism::applications {
 
 /*
  * Particle to mesh algorithm.
@@ -87,7 +87,7 @@ void linear_p2m(Grid &grid, const Array &points, UpdateFunc update_func) {
     auto rhs = [&particles, &update_func, &N](const BlockInfo &info,
                                               auto &block) {
         const int block_index = info.index[0] + N[0] * (
-        info.index[1] + N[1] * info.index[2]);
+                                info.index[1] + N[1] * info.index[2]);
         const double invh = 1. / info.h_gridpoint;
         for (const auto &part : particles[block_index]) {
             double _idx[DIM];
@@ -126,8 +126,8 @@ void linear_p2m(Grid &grid, const Array &points, UpdateFunc update_func) {
                     for (int iy = ymin; iy <= ymax; ++iy) {
                         const double ayz = az * alpha[2 + iy - idx[1]];
                         for (int ix = xmin; ix <= xmax; ++ix) {
-                          const double weight = ayz * alpha[ix - idx[0]];
-                          update_func(block(ix, iy, iz), weight, *part.it);
+                            const double weight = ayz * alpha[ix - idx[0]];
+                            update_func(block(ix, iy, iz), weight, *part.it);
                         }
                     }
                 }

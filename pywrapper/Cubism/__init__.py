@@ -152,15 +152,15 @@ class GridPoint(Struct):
 
 
 def _getter_factory(self, name, element_type):
-    getter = self.Method(name=name, args=(Int, Int, Int), output=element_type)
+    getter = self.Method(name=name, args=[Int] * self.DIM, output=element_type)
     return lambda this, *ijk: rerun_on_reuse(
-            getter(this, *(list(ijk) + [0] * (3 - len(ijk)))))
+            getter(this, *(list(ijk) + [0] * (self.DIM - len(ijk)))))
 
 
 
 class Block(Struct):
     """Defines cubism::Block<grid_point, sizeX, sizeY, sizeZ>."""
-    def __init__(self, element_type, block_size):
+    def __init__(self, element_type, block_size, DIM):
         # TODO: Template and typedef should be automated.
         _ctype, pyname = get_template_names(
                 'cubism::Block', 'CubismBlock', element_type, *block_size)
@@ -177,6 +177,7 @@ class Block(Struct):
         self.element_type = element_type
         self.grid_point = element_type
         self.block_size = block_size
+        self.DIM = DIM
 
         self.clear = self.Method(name='clear')
         self.functor = _getter_factory(self, '', element_type)
@@ -189,12 +190,13 @@ class Block(Struct):
 
 class BlockLab(Struct):
     """Defines BlockLab<block_type>."""
-    def __init__(self, block_type):
+    def __init__(self, block_type, DIM):
         ctype, pyname = get_template_names('BlockLab', 'BlockLab', block_type)
         super().__init__(ctype=ctype, pyname=pyname,
                          header='Cubism/source/BlockLab.h')
         self.block_type = block_type
         self.element_type = block_type.element_type
+        self.DIM = DIM
 
         # Member functions. .functor is member method called on __call__.
         self.functor = _getter_factory(self, '', block_type.element_type)
@@ -281,6 +283,7 @@ class Cubism(Library):
         if not (1 <= len(block_size) <= 3):
             raise ValueError("1 to 3 dimensions supported, not {}.".format(
                     len(block_size)))
+        block_size = tuple(list(block_size) + [1] * (3 - len(block_size)))
         class Meta:
             include_paths = ['../../..']   # This is not good!
             cpp_flags = '-D_BLOCKSIZEX_={} -D_BLOCKSIZEY_={} ' \
@@ -292,11 +295,11 @@ class Cubism(Library):
         super().__init__(*args, Meta=Meta, **kwargs)
         self.grid_point = grid_point
         self.block_size = block_size
-        self.DIM = len(block_size)
+        self.DIM = max(k + 1 for k, size in enumerate(block_size) if size > 1)
 
 
-        self.block_type = Block(grid_point, block_size)
-        self.lab_type = BlockLab(self.block_type)
+        self.block_type = Block(grid_point, block_size, self.DIM)
+        self.lab_type = BlockLab(self.block_type, self.DIM)
         self.grid_type = Grid(self.block_type)
 
         _name1 = 'cubism::applications::process_pointwise'
@@ -311,7 +314,7 @@ class Cubism(Library):
                 name=_name2, args=(StencilInfo, Auto, Auto),
                 header='Cubism/applications/Process.h', library=self)
         self._linear_p2m = methods.Method(
-                name='cubism::applications::linear_p2m',
+                name='cubism::applications::linear_p2m<{}>'.format(self.DIM),
                 args=(self.grid_type, Auto, Auto),
                 header='Cubism/applications/P2M.h', library=self)
 
@@ -336,10 +339,10 @@ class Cubism(Library):
             if len(ijk) == self.DIM:
                 return func(*ijk)
             else:
-                size = self.block_size[-1 - len(ijk)]
+                size = self.block_size[self.DIM - 1 - len(ijk)]
                 if size == 1:
                     return inner(0, *ijk)
-                name_hint = "i" + "zyx"[len(ijk)]
+                name_hint = "i" + "xyz"[self.DIM - 1 - len(ijk)]
                 return ForRange(size, counter_type=Int, name_hint=name_hint)(
                         lambda i: inner(i, *ijk))
         return inner()

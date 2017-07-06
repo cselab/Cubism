@@ -12,6 +12,8 @@ def map_to_vector(cubism, func):
     class G(object):  # Container for the vector.
         vector = None
 
+    assert cubism.block_num, ".init() not yet called?"
+
     nx = cubism.block_size[0] * cubism.block_num[0]
     ny = cubism.block_size[1] * cubism.block_num[1]
 
@@ -56,6 +58,7 @@ def save_to_txt_file(cubism, field_name, filename):
         vector = map_to_vector(cubism, inner)
 
         f = fopen(filename.c_str(), '"w"')
+        assert cubism.block_num, ".init() not yet called?"
         nx = cubism.block_size[0] * cubism.block_num[0]
         ny = cubism.block_size[1] * cubism.block_num[1]
 

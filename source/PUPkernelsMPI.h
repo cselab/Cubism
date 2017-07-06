@@ -96,7 +96,7 @@ inline void pack_stripes_x(const Real * const srcbase, Real * const dst,
 	}
 }
 
-#include "QPXEMU.h"
+// #include "QPXEMU.h"
 #ifdef __bgq__
 #include <builtins.h>
 #define memcpy2(a,b,c)	__bcopy((b),(a),(c))

@@ -29,8 +29,10 @@ import Cubism.misc
 
 from coupling import *                  # Imports most common things.
 from coupling.contrib.cpp import cmath  # <cmath> methods.
-from coupling.contrib.cpp.extra import sqr, strprintf  # Utility methods.
+from coupling.contrib.cpp.cassert import cassert
 from coupling.contrib.cpp.cstdio import printf
+from coupling.contrib.cpp.extra import sqr, strprintf  # Utility methods.
+from coupling.methods.reduce import log_reduce_max
 
 
 # Definition of the grid.
@@ -49,10 +51,14 @@ GP = Cubism.GridPoint('phi', ('grad', 2))
 # depends on the structure of GridPoint or on the block_size.
 # Technically, this instantiates a Library instance, used later for links and
 # communication (not in this example).
-C = Cubism.Cubism(GP, block_size=(32, 32, 1))
+C = Cubism.CubismMPI(GP, block_size=(32, 32, 1))
+BLOCK_NUM = (4, 4, 1)   # Number of blocks per each dimension.
+
 
 VEL = (0.5, 0.1)        # Simulation parameter. (velocity)
 MU = 2                  # Simulation parameter. (for initial condition).
+
+linker = Linker(C)
 
 
 @make_method  # Create a C++-method `void initial_state(void) { ... }`.
@@ -146,17 +152,42 @@ def timestep(dt:Double):
 # Note: This is Python code, and it will be executed during compilation.
 os.makedirs(os.path.join(os.path.dirname(__file__), 'output'), exist_ok=True)
 
+
+def determine_dim(linker):
+    """Automatically calculate the division of nodes in a 2D Cartesian grid."""
+    N = linker.get_size(C)
+    sqrt = Int(cmath.sqrt(Double(N)))
+    dims = StdArray(Int, 3).from_values(sqrt, sqrt, 1)
+    return InlineWorkflow(
+        cassert(expression('"Works only with N=1, 4, 9, 16, ..."',
+                           '&&', sqrt * sqrt == N)),
+        printf(r'"Nodes split into %dx%dx%d\n"', *dims),
+        return_value=dims,
+        localvars=(N, sqrt, dims),
+        name='determine_dim',
+    )
+    # dims = StdArray(Int, 3).from_values(0, 0, 1, const=False)
+    # return InlineWorkflow(
+    #     dims,
+    #     mpi.MPI_Dims_create(linker.get_size(C), 2, dims.data()),
+    #     return_value=dims,
+    #     name='determine_dim',
+    # )
+
+dims = lazy_global_variable(determine_dim(linker), 'dims')
+
 # Specification of the complete workflow, in the order of execution.
 workflow = [
-    C.init(),           # Initialize Cubism.
+    C.init(linker, dims, BLOCK_NUM),  # Initialize Cubism.
     initial_state(),    # Initial condition.
     # Do 50 time steps. After each, save the result in a file.
     ForRange(50)(lambda step: [
-        timestep(0.01),
-
-        # Save `.phi` values from the given library C.
-        Cubism.misc.save_to_txt_file(
-                C, 'phi', strprintf('"output/save_%03d.txt"', step)),
-        printf('"Saved \'output/save%03d.txt\'.\\n"', step),
+        timestep(Double(0.01) / Double(log_reduce_max([*dims]))),
+        # Save `.phi` values from the given library C, ONLY RANK 0!
+        If(linker.get_rank(C) == 0).Then(
+            Cubism.misc.save_to_txt_file(
+                    C, 'phi', strprintf('"output/save_%03d.txt"', step)),
+            printf('"Saved \'output/save%03d.txt\'.\\n"', step),
+        ),
     ]),
 ]

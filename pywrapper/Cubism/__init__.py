@@ -4,7 +4,7 @@ Provides access to the Cubism API:
     process_pointwise
     process_stencil
 
-Additional Cubism application-oriented API can be found in applications.py.
+Additional Cubism application-oriented API can be found in misc.py.
 
 Usage:
     import Cubism
@@ -40,15 +40,16 @@ from coupling import methods
 from coupling.contrib import domains
 from coupling.compiler.tokens import Typename
 from coupling.library import Library
+from coupling.links.backends import mpi
 from coupling.methods.helpers import fake_variable, rerun_on_reuse, \
-        lazy_global_variable, inline_code, noop
+        lazy_global_variable, inline_code, noop, value_placeholder
 from coupling.methods.operators import assign
 from coupling.methods.variables import New
 from coupling.types import Auto, Bool, Double, Int, LongLong, AutoConstructor
 from coupling.types.utils import get_template_cname, get_template_names
 from coupling.types.arrays import Pointer, StdArray, StdVector, dereference
 from coupling.types.structs import Struct
-from coupling.workflows.decorators import make_lambda
+from coupling.workflows.decorators import make_lambda, make_method
 from coupling.workflows.linear import InlineWorkflow
 from coupling.workflows.loops import ForRange
 
@@ -221,7 +222,7 @@ class LabGetter(object):
         # traversal.
 
         wrapper = self.lab_wrapper
-        assert wrapper.lab_var
+        assert wrapper.lab_var is not None
         assert len(dijk) <= MAX_DIM
 
         nonzero = 0
@@ -279,7 +280,8 @@ class Grid(Struct):
 
 
 class Cubism(Library):
-    def __init__(self, grid_point, block_size=(32, 32, 1), *args, **kwargs):
+    def __init__(self, grid_point, block_size=(32, 32, 1), *args,
+                 mpi=False, **kwargs):
         if not (1 <= len(block_size) <= 3):
             raise ValueError("1 to 3 dimensions supported, not {}.".format(
                     len(block_size)))
@@ -291,40 +293,45 @@ class Cubism(Library):
                         '-Wno-reorder -Wno-narrowing -Wno-sign-compare ' \
                         '-Wno-unknown-pragmas -Wno-unused-parameter ' \
                         '-Wno-unused-variable -fopenmp'.format(*block_size, 32)
+            mpi_enabled = mpi
 
         super().__init__(*args, Meta=Meta, **kwargs)
         self.grid_point = grid_point
         self.block_size = block_size
         self.DIM = max(k + 1 for k, size in enumerate(block_size) if size > 1)
 
-
         self.block_type = Block(grid_point, block_size, self.DIM)
         self.lab_type = BlockLab(self.block_type, self.DIM)
         self.grid_type = Grid(self.block_type)
 
-        _name1 = 'cubism::applications::process_pointwise'
-        _name2 = get_template_cname('cubism::applications::process_stencil',
+        _name1 = 'cubism::utils::process_pointwise'
+        _name2 = get_template_cname('cubism::utils::process_stencil',
                                     self.lab_type)
 
         block_ctype = self.block_type.ctype
         self._process_pointwise = methods.Method(
                 name=_name1, args=(Auto, Auto),
-                header='Cubism/applications/Process.h', library=self)
+                header='Cubism/utils/Process.h', library=self)
         self._process_stencil = methods.Method(
-                name=_name2, args=(StencilInfo, Auto, Auto),
-                header='Cubism/applications/Process.h', library=self)
+                name=_name2, args=(StencilInfo, Auto, Auto, Double),
+                header='Cubism/utils/Process.h', library=self)
         self._linear_p2m = methods.Method(
-                name='cubism::applications::linear_p2m<{}>'.format(self.DIM),
+                name='cubism::utils::linear_p2m<{}>'.format(self.DIM),
                 args=(self.grid_type, Auto, Auto),
-                header='Cubism/applications/P2M.h', library=self)
+                header='Cubism/utils/P2M.h', library=self)
 
-        # TODO: block_num should be passed via .init().
-        self.block_num = [4, 4, 1]
-        self.grid_ptr = lazy_global_variable(
-                New(self.grid_type, *self.block_num), 'grid_ptr')
+        self._init_variables()
+
+    def _init_variables(self):
+        self.block_num = None  # Not initialized yet.
+        self.grid_ptr = value_placeholder(Pointer(self.grid_type))
         self.grid = rerun_on_reuse(dereference(self.grid_ptr))
 
-    def init(self):
+    def init(self, block_num):
+        assert len(block_num) == 3, "Expected 3 values (x, y, z)."
+        self.block_num = block_num
+        self.grid_ptr.set_value(lazy_global_variable(
+                New(self.grid_type, *block_num), 'grid_ptr'))
         return [
             # FIXME: Now, .clear() won't be generated unless it is used. Fix it.
             inline_code("\n/* This is an ugly hack to get the definition "
@@ -419,6 +426,8 @@ class Cubism(Library):
                 name='process_pointwise',
         )
 
+
+
     def process_stencil(self, func):
         """Call given (stencil) function for each point in the grid.
 
@@ -457,11 +466,11 @@ class Cubism(Library):
         lab_wrapper = LabWrapper(self.grid_point)
 
         @make_lambda(capture_default='&',
-                     _arg_const=(False, True, True),
+                     _arg_const=(True, True, False),
                      name_hint=getattr(func, '__name__', None))
-        def rhs(block:Ref(self.block_type),
-                lab:self.lab_type,
-                info:BlockInfo):
+        def rhs(lab:self.lab_type,
+                info:BlockInfo,
+                block:Ref(self.block_type)):
             lab_wrapper.lab_var = lab
             return self._process__create_loops(
                     lambda *ijk: func(block(*ijk),
@@ -473,7 +482,7 @@ class Cubism(Library):
         return InlineWorkflow(
                 rhs,
                 stencil,
-                self._process_stencil(stencil, rhs, self.grid),
+                self._process_stencil(stencil, rhs, self.grid, 0.0),
                 localvars=(stencil, rhs),
                 name='process_stencil',
         )
@@ -497,3 +506,68 @@ class Cubism(Library):
         return InlineWorkflow(noop(rank),
                               return_value=domain,
                               name='Cubism.get_subdomain')
+
+
+###############################################################################
+# Cubism MPI
+###############################################################################
+
+class GridMPI(Struct):
+    """Defines GridMPI<Grid>."""
+    def __init__(self, grid_type):
+        # TODO: Fix headers dependencies (headers of a struct are not captured
+        # if struct used only as template arguments.)
+        super().__init__(ctype='GridMPI', pyname='GridMPI',
+                         template_args=grid_type,
+                         headers=['Cubism/source/GridMPI.h',
+                                  'Cubism/source/Grid.h',
+                                  'Cubism/source/BlockLabMPI.h'])
+        # (nodes per x, y, z, blocks within node per x, y, z, maxextent, comm)
+        self.constructor = self.Constructor(Int, Int, Int,
+                                            Int, Int, Int, Double, mpi.MPI_Comm)
+
+
+
+class BlockLabMPI(Struct):
+    """Defines BlockLabMPI<Lab>."""
+    def __init__(self, lab_type):
+        super().__init__(ctype='BlockLabMPI', pyname='BlockLabMPI',
+                         template_args=lab_type,
+                         header='Cubism/source/BlockLabMPI.h')
+
+
+
+class CubismMPI(Cubism):
+    def __init__(self, *args, mpi=True, **kwargs):
+        super().__init__(*args, mpi=mpi, **kwargs)
+
+        self._node__process_stencil = self._process_stencil
+        self._process_stencil = methods.Method(
+                name=get_template_cname('cubism::utils::process_stencil_MPI',
+                                        self.mpi_lab_type),
+                # Stencil, kernel, grid, t = 0..
+                args=(StencilInfo, Auto, Auto, Double),
+                header='Cubism/utils/ProcessMPI.h',
+                library=self)
+
+    def _init_variables(self):
+        self.mpi_lab_type = BlockLabMPI(self.lab_type)
+        self.mpi_grid_type = GridMPI(self.grid_type)
+
+        self.block_num = None  # Not initialized yet.
+        self.grid_ptr = value_placeholder(Pointer(self.mpi_grid_type))
+        self.grid = rerun_on_reuse(dereference(self.grid_ptr))
+
+    def init(self, linker, node_dims, bpd):
+        self.block_num = bpd
+        grid_ptr = New(self.mpi_grid_type, *node_dims, *bpd, 1.0,
+                       linker.get_comm(self))
+        self.grid_ptr.set_value(lazy_global_variable(grid_ptr, 'grid_ptr'))
+        return [
+            noop(self.grid_ptr),
+            # FIXME: Now, .clear() won't be generated unless it is used. Fix it.
+            inline_code("\n/* This is an ugly hack to get the definition "
+                        "of .clear() in GridPoint:\n"),
+            methods.Method(name='dummy', output=self.grid_point)().clear(),
+            inline_code("*/\n"),
+        ]

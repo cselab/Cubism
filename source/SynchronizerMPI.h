@@ -14,7 +14,10 @@
 #include <cmath>
 #include <algorithm>
 #include "mpi.h"
+#include <omp.h>
 
+#include "BlockInfo.h"
+#include "StencilInfo.h"
 #include "PUPkernelsMPI.h"
 #include "DependencyCubeMPI.h"
 
@@ -31,7 +34,7 @@ class SynchronizerMPI
 
 		bool operator<(const I3& a) const
 		{
-			return ix<a.ix || ix==a.ix && iy<a.iy || ix==a.ix && iy==a.iy && iz<a.iz;
+			return ix<a.ix || (ix==a.ix && iy<a.iy) || (ix==a.ix && iy==a.iy && iz<a.iz);
 		}
 	};
 
@@ -69,7 +72,7 @@ class SynchronizerMPI
 
 	bool _face_needed(const int d) const
 	{
-		return periodic[d] || mypeindex[d] > 0 && mypeindex[d] < pesize[d]-1;
+		return periodic[d] || (mypeindex[d] > 0 && mypeindex[d] < pesize[d] - 1);
 	}
 
 	bool _myself(const int indx[3])
@@ -717,7 +720,7 @@ public:
 		assert(send.pending.size() == 0);
 	}
 
-	~SynchronizerMPI()
+	virtual ~SynchronizerMPI()
 	{
 		for(int i=0;i<all_mallocs.size();++i)
 			_myfree(all_mallocs[i]);

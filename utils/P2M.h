@@ -2,16 +2,16 @@
  *  P2M.h
  *  Cubism
  *
- *  Created by Ivica Kicic on 07/28/17.
+ *  Created by Ivica Kicic on 06/28/17.
  *  Copyright 2017 ETH Zurich. All rights reserved.
  *
  */
-#ifndef _CUBISM_P2M_H_
-#define _CUBISM_P2M_H_
+#ifndef _CUBISM_UTILS_P2M_H_
+#define _CUBISM_UTILS_P2M_H_
 
 #include "Process.h"
 
-namespace cubism::applications {
+namespace cubism::utils {
 
 /*
  * Particle to mesh algorithm.
@@ -20,12 +20,17 @@ namespace cubism::applications {
  * (particle positions), determine which grid points are affected and call
  * `update_func` with the grid point reference and the corresponding weight.
  *
- * This implementation uses 1st order interpolation scheme and works for
- * periodic boundaries only. It assumes that point coordinates are between 0
- * and 1.
+ * Restrictions:
+ *   - Assumes point coordinates between 0 and 1 (same as Cubism domain).
+ *   - 1st order interpolation.
+ *   - Only periodic boundaries.
+ *   - Only single node (NO MPI!).
+ *
  */
 template <int DIM, typename Grid, typename Array, typename UpdateFunc>
 void linear_p2m(Grid &grid, const Array &points, UpdateFunc update_func) {
+    /* Based on Fabian's Cubism-LAMMPS example. */
+
     static_assert(DIM == 2 || DIM == 3);
     typedef typename Grid::BlockType Block;
 
@@ -81,7 +86,7 @@ void linear_p2m(Grid &grid, const Array &points, UpdateFunc update_func) {
             particles[idx[0]].push_back(p);
         }
     }
-    // END Particle storage..
+    // END Particle storage.
 
     // BEGIN Linear P2M.
     auto rhs = [&particles, &update_func, &N](const BlockInfo &info,

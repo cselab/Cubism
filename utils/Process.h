@@ -2,69 +2,85 @@
  *  Block.h
  *  Cubism
  *
- *  Created by Ivica Kicic on 07/28/17.
+ *  Created by Ivica Kicic on 06/28/17.
  *  Copyright 2017 ETH Zurich. All rights reserved.
  *
  */
 
-#ifndef _CUBISM_INTERNALS_H_
-#define _CUBISM_INTERNALS_H_
+/*
+ * Block processing utility functions for single-node MPI.
+ *     process_pointwise - Process each block separately (can be used for
+ *                         MPI-Cubism too).
+ *     process_stencil   - Process a kernel with a stencil.
+ */
+
+#ifndef _CUBISM_PROCESS_SINGLE_NODE_H_
+#define _CUBISM_PROCESS_SINGLE_NODE_H_
 
 #include <omp.h>
 
 #include "../source/BlockInfo.h"
 #include "../source/StencilInfo.h"
 
-namespace cubism::applications {
+namespace cubism::utils
+{
 
 /*
  * Process each point separately, or in technical words, each block separately.
  *
  * Arguments:
- *    rhs - Functor of type (const BlockInfo &, Block &) called for each block.
- *    grid - Reference to the grid.
+ *     kernel - Functor of type (const BlockInfo &, Block &) invoked for
+ *              each block.
+ *     grid   - Reference to the grid.
  *
  * As opposed to `process_stencil`, `process_pointwise` does not require
  * BlockLab, i.e. ghost cells.
  */
-template<typename Operator, typename Grid>
-inline void process_pointwise(Operator rhs, Grid &grid) {
+template<typename Kernel, typename Grid>
+inline void process_pointwise(Kernel kernel, Grid &grid)
+{
     typedef typename Grid::BlockType Block;
     const int nthreads = omp_get_max_threads();
-    std::vector<BlockInfo> &blocks = grid.getBlocksInfo(); // block metadata
+    std::vector<BlockInfo> &infos = grid.getBlocksInfo(); // block metadata
 
     #pragma omp parallel num_threads(nthreads)
     {
         int tid = omp_get_thread_num();
-        Operator myrhs = rhs;
+        Kernel mykernel = kernel;
 
-        // Applies the kernel "myrhs" given the BlockInfo and pointer to
+        // Applies the kernel "mykernel" given the BlockInfo and pointer to
         // first data element in block i.
         #pragma omp for schedule(dynamic,1)
-        for (size_t i = 0; i < blocks.size(); ++i)
-            myrhs(blocks[i], *(Block *)blocks[i].ptrBlock);
+        for (size_t i = 0; i < infos.size(); ++i)
+            mykernel(infos[i], *(Block *)infos[i].ptrBlock);
     }
 }
 
 
 /*
- * Processes a kernel that requires a stencil.
+ * Process a kernel that requires a stencil.
  *
- * TODO: Argument description.
+ * Arguments:
+ *     stencil - Stencil information.
+ *     kernel  - Functor of type (const Lab &, const BlockInfo &, Block &)
+ *               invoked for each block.
+ *     grid    - Grid reference.
+ *     t       - Argument passed to Lab::load. 0.0 by default. (?).
  *
  * Here, a BlockLab type is used, which is a copy of the actual data stored in
  * a block. The BlockLab defines ghost cells, based on the information in
  * StencilInfo, which defines the width of the stencil that is used for the
  * kernel.
  */
-template<typename Lab, typename Operator, typename Grid>
+template<typename Lab, typename Kernel, typename Grid>
 inline void process_stencil(const StencilInfo &stencil,
-                            Operator rhs,
+                            Kernel kernel,
                             Grid &grid,
-                            const Real t = 0) {
+                            const Real t = 0)
+{
     typedef typename Grid::BlockType Block;
     const int nthreads = omp_get_max_threads();
-    std::vector<BlockInfo> &block_infos = grid.getBlocksInfo();
+    std::vector<BlockInfo> &infos = grid.getBlocksInfo();
 
     #pragma omp parallel num_threads(nthreads)
     {
@@ -72,7 +88,7 @@ inline void process_stencil(const StencilInfo &stencil,
 
         // Each thread works with its own BlockLab.
         Lab mylab;
-        Operator myrhs = rhs;
+        Kernel mykernel = kernel;
 
         // Allocated memory for the lab based on the stencil.
         mylab.prepare(grid,
@@ -82,13 +98,14 @@ inline void process_stencil(const StencilInfo &stencil,
                       stencil.tensorial);
 
         #pragma omp for schedule(dynamic, 1)
-        for (int i = 0; i < block_infos.size(); ++i) {
+        for (int i = 0; i < infos.size(); ++i)
+        {
             // copy the data from the grid block into the BlockLab.
-            mylab.load(block_infos[i], t);
+            mylab.load(infos[i], t);
 
             // Apply the kernel using the BlockLab. Data is written back
             // into the block stored in the grid.
-            myrhs(*(Block *)block_infos[i].ptrBlock, mylab, block_infos[i]);
+            mykernel(mylab, infos[i], *(Block *)infos[i].ptrBlock);
         }
     }
 }

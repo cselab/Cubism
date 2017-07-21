@@ -20,7 +20,6 @@
 #include <cstring>
 #include <ctime>
 #include <map>
-#include <vector>
 #include <string>
 #include <iostream>
 #include <sstream>
@@ -30,18 +29,16 @@
 #include <limits>
 
 
-using namespace std;
-
 class Value
 {
 private:
-	string content;
+	std::string content;
 
 public:
 
 	Value() : content("") {}
 
-	Value(string content_) : content(content_) { /*printf("%s\n",content.c_str());*/ }
+	Value(std::string content_) : content(content_) { /*printf("%s\n",content.c_str());*/ }
 
     Value(const Value& c) : content(c.content) {}
 
@@ -62,7 +59,7 @@ public:
 	{
 		if (content == "")
         {
-            ostringstream sbuf;
+            std::ostringstream sbuf;
             sbuf << def;
             content = sbuf.str();
         }
@@ -73,7 +70,7 @@ public:
 	{
 		if (content == "")
         {
-            ostringstream sbuf;
+            std::ostringstream sbuf;
             sbuf << def;
             content = sbuf.str();
         }
@@ -93,7 +90,7 @@ public:
 		return true;
 	}
 
-	string asString(string def="")
+	std::string asString(std::string def="")
 	{
 		if (content == "") content = def;
 
@@ -116,7 +113,7 @@ private:
 	bool bStrictMode, bVerbose;
 
 protected:
-	map<string,Value> mapArguments;
+	std::map<std::string,Value> mapArguments;
 
     inline void _normalizeKey(std::string& key) const
     {
@@ -132,7 +129,7 @@ protected:
 
 public:
 
-	Value& operator()(string key)
+	Value& operator()(std::string key)
 	{
         _normalizeKey(key);
 		if (bStrictMode)
@@ -148,7 +145,7 @@ public:
 		return mapArguments[key];
 	}
 
-	inline bool check(string key) const
+	inline bool check(std::string key) const
 	{
         _normalizeKey(key);
 		return _existKey(key,mapArguments);
@@ -159,7 +156,7 @@ public:
 		for (int i=1; i<argc; i++)
 			if (argv[i][0] == '-')
 			{
-				string values = "";
+				std::string values = "";
 				int itemCount = 0;
 
 				for (int j=i+1; j<argc; j++)
@@ -229,14 +226,14 @@ public:
 		bVerbose = true;
 	}
 
-	void save_options(string path=".")
+	void save_options(std::string path=".")
 	{
-		string options;
-		for(map<string,Value>::iterator it=mapArguments.begin(); it!=mapArguments.end(); it++)
+		std::string options;
+		for(std::map<std::string,Value>::iterator it=mapArguments.begin(); it!=mapArguments.end(); it++)
 		{
 			options+= it->first + " " + it->second.asString() + " ";
 		}
-		string filepath = (path + "/" + string("argumentparser.log"));
+		std::string filepath = (path + "/" + std::string("argumentparser.log"));
 		FILE * f = fopen(filepath.data(), "a");
 		if (f == NULL)
 		{
@@ -249,7 +246,7 @@ public:
 
 	void print_args()
 	{
-		for(map<string,Value>::iterator it=mapArguments.begin(); it!=mapArguments.end(); it++)
+		for(std::map<std::string,Value>::iterator it=mapArguments.begin(); it!=mapArguments.end(); it++)
 		{
             std::cout.width(50);
             std::cout.fill('.');
@@ -352,7 +349,7 @@ public:
         {
             _parseFile(confFile, mapArguments);
             confFile.clear();
-            confFile.seekg(0, ios::beg);
+            confFile.seekg(0, std::ios::beg);
             _parseFile(confFile, myFMap); // we keep a reference for each separate file read
         }
         confFile.close();

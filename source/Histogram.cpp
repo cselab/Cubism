@@ -12,6 +12,8 @@
 #include <math.h>
 #include <iostream>
 
+using namespace std;
+
 void Histogram::_setup()
 {
     int comm_rank;

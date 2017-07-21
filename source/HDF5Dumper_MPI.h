@@ -11,6 +11,9 @@
 
 #include <cassert>
 #include <cstdio>
+#include <iostream>
+#include <vector>
+#include <string>
 
 #ifdef _USE_HDF_
 #include <hdf5.h>
@@ -22,12 +25,10 @@
 #define HDF_REAL H5T_NATIVE_DOUBLE
 #endif
 
-using namespace std;
-
 #include "BlockInfo.h"
 
 template<typename TGrid, typename Streamer>
-void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, const string f_name, const string dump_path=".", const bool bXMF=true)
+void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, const std::string f_name, const std::string dump_path=".", const bool bXMF=true)
 {
 #ifdef _USE_HDF_
     typedef typename TGrid::BlockType B;
@@ -51,11 +52,11 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, con
 
     if (rank==0)
     {
-        cout << "Allocating " << (NX * NY * NZ * NCHANNELS * sizeof(Real))/(1024.*1024.*1024.) << " GB of HDF5 data";
+        std::cout << "Allocating " << (NX * NY * NZ * NCHANNELS * sizeof(Real))/(1024.*1024.*1024.) << " GB of HDF5 data";
     }
     Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
 
-    vector<BlockInfo> vInfo_local = grid.getResidentBlocksInfo();
+    std::vector<BlockInfo> vInfo_local = grid.getResidentBlocksInfo();
 
     static const unsigned int sX = 0;
     static const unsigned int sY = 0;
@@ -77,7 +78,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, con
 
     if (rank==0)
     {
-        cout << " (Total " << (dims[0] * dims[1] * dims[2] * dims[3] * sizeof(Real))/(1024.*1024.*1024.) << " GB)" << endl;
+        std::cout << " (Total " << (dims[0] * dims[1] * dims[2] * dims[3] * sizeof(Real))/(1024.*1024.*1024.) << " GB)" << std::endl;
     }
 
     hsize_t offset[4] = {
@@ -194,7 +195,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, con
 }
 
 template<typename TGrid, typename Streamer>
-void ReadHDF5_MPI(TGrid &grid, const string f_name, const string dump_path=".")
+void ReadHDF5_MPI(TGrid &grid, const std::string f_name, const std::string dump_path=".")
 {
 #ifdef _USE_HDF_
     typedef typename TGrid::BlockType B;
@@ -217,7 +218,7 @@ void ReadHDF5_MPI(TGrid &grid, const string f_name, const string dump_path=".")
 
     Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
 
-    vector<BlockInfo> vInfo_local = grid.getResidentBlocksInfo();
+    std::vector<BlockInfo> vInfo_local = grid.getResidentBlocksInfo();
 
     static const int sX = 0;
     static const int sY = 0;

@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <vector>
+#include <string>
 #include <stdio.h>
 #ifdef _FLOAT_PRECISION_
 typedef float Real;
@@ -30,10 +31,9 @@ inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsign
 inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize);
 */
 
-using namespace std;
 
 template<typename TGrid, typename Streamer>
-void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const string f_name, const string dump_path=".", const bool bDummy=false)
+void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::string f_name, const std::string dump_path=".", const bool bDummy=false)
 {
 	typedef typename TGrid::BlockType B;
 
@@ -48,10 +48,10 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const string 
 	const unsigned int NZ = grid.getBlocksPerDimension(2)*B::sizeZ;
 
     Real memsize = (NX * NY * NZ * sizeof(Real))/(1024.*1024.*1024.);
-    cout << "Allocating " << memsize << " GB of BIN data" << endl;
+    std::cout << "Allocating " << memsize << " GB of BIN data" << std::endl;
 	Real * array_all = new Real[NX * NY * NZ];
 
-	vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
+	std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
 	static const unsigned int sX = 0;
 	static const unsigned int sY = 0;
@@ -127,7 +127,7 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const string 
 
 
 template<typename TGrid, typename Streamer>
-void ReadZBin(TGrid &grid, const string f_name, const string read_path=".")
+void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path=".")
 {
     typedef typename TGrid::BlockType B;
 
@@ -142,7 +142,7 @@ void ReadZBin(TGrid &grid, const string f_name, const string read_path=".")
 
     Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
 
-    vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
+    std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
     static const int sX = 0;
     static const int sY = 0;

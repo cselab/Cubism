@@ -21,7 +21,6 @@
 #include "PUPkernelsMPI.h"
 #include "DependencyCubeMPI.h"
 
-using namespace std;
 
 class SynchronizerMPI
 {
@@ -47,14 +46,14 @@ class SynchronizerMPI
 	int send_thickness[3][2], recv_thickness[3][2];
 	int blockinfo_counter;
 	StencilInfo stencil;
-	vector<PackInfo> send_packinfos;
-	map<Real *, vector<PackInfo> > recv_packinfos;
-	map<Real *, vector<SubpackInfo> > recv_subpackinfos;
-	vector<Real *> all_mallocs;
+	std::vector<PackInfo> send_packinfos;
+	std::map<Real *, std::vector<PackInfo> > recv_packinfos;
+	std::map<Real *, std::vector<SubpackInfo> > recv_subpackinfos;
+	std::vector<Real *> all_mallocs;
 
-	vector<BlockInfo> globalinfos;
+	std::vector<BlockInfo> globalinfos;
 
-    map<Region, vector<BlockInfo> > region2infos;
+    std::map<Region, std::vector<BlockInfo> > region2infos;
 
 	//?static?
 	MPI_Comm cartcomm;
@@ -63,7 +62,7 @@ class SynchronizerMPI
 	int periodic[3];
 	int neighborsrank[3][3][3];
 
-	map<I3,int> c2i;
+	std::map<I3,int> c2i;
 
 	struct CommData {
 		Real * faces[3][2], * edges[3][2][2], * corners[2][2][2];
@@ -101,9 +100,9 @@ class SynchronizerMPI
 	}
 
 	template <bool computesubregions>
-	map<Real *, vector<SubpackInfo> > _setup(CommData& data, const int thickness[3][2], const int blockstart[3], const int blockend[3], const int origin[3], vector<PackInfo>& packinfos)
+	std::map<Real *, std::vector<SubpackInfo> > _setup(CommData& data, const int thickness[3][2], const int blockstart[3], const int blockend[3], const int origin[3], std::vector<PackInfo>& packinfos)
 	{
-		map<Real *, vector<SubpackInfo> > retval;
+		std::map<Real *, std::vector<SubpackInfo> > retval;
 
 		const int NC = stencil.selcomponents.size();
 		const int bpd[3] = {
@@ -297,7 +296,7 @@ class SynchronizerMPI
 									end[dim_other1edge] = a*blockend[dim_other1edge] + (1-a)*(blockstart[dim_other1edge] + thickness[dim_other1edge][0]);
 									end[dim_other2edge] = b*blockend[dim_other2edge] + (1-b)*(blockstart[dim_other2edge] + thickness[dim_other2edge][0]);
 
-									const int vol = max(0, end[2]-start[2])*max(0, end[1]-start[1])*max(0, end[0]-start[0]);
+									const int vol = std::max(0, end[2]-start[2])*std::max(0, end[1]-start[1])*std::max(0, end[0]-start[0]);
 									if (vol == 0) continue;
 
 									int xxx[3];
@@ -382,7 +381,7 @@ class SynchronizerMPI
 									z*blockend[2] + (1-z)*(thickness[2][0] + blockstart[2])
 								};
 
-								const int vol = max(0, end[2]-start[2])*max(0, end[1]-start[1])*max(0, end[0]-start[0]);
+								const int vol = std::max(0, end[2]-start[2])*std::max(0, end[1]-start[1])*std::max(0, end[0]-start[0]);
 								if (vol == 0) continue;
 
 								int neighbor[3];
@@ -507,7 +506,7 @@ class SynchronizerMPI
 											z*blockend[2] + (1-z)*(thickness[2][0] + blockstart[2])
 										};
 
-										const int vol = max(0, end[2]-start[2])*max(0, end[1]-start[1])*max(0, end[0]-start[0]);
+										const int vol = std::max(0, end[2]-start[2])*std::max(0, end[1]-start[1])*std::max(0, end[0]-start[0]);
 										if (vol == 0) continue;
 
 										int neighbor[3];
@@ -647,7 +646,7 @@ class SynchronizerMPI
 
 public:
 
-	SynchronizerMPI(const int synchID, StencilInfo stencil, vector<BlockInfo> globalinfos, MPI_Comm cartcomm, const int mybpd[3], const int blocksize[3]):
+	SynchronizerMPI(const int synchID, StencilInfo stencil, std::vector<BlockInfo> globalinfos, MPI_Comm cartcomm, const int mybpd[3], const int blocksize[3]):
 	synchID(synchID), stencil(stencil), globalinfos(globalinfos), cube(mybpd[0], mybpd[1], mybpd[2]), cartcomm(cartcomm)
 	{
 		int myrank;
@@ -709,10 +708,10 @@ public:
 				stencil.ez + blocksize[2]-1
 			};
 
-			vector<PackInfo> packinfos;
+			std::vector<PackInfo> packinfos;
 			recv_subpackinfos = _setup<true>(recv, recv_thickness, blockstart, blockend, origin, packinfos);
 
-			for(vector<PackInfo>::const_iterator it = packinfos.begin(); it<packinfos.end(); ++it)
+			for(std::vector<PackInfo>::const_iterator it = packinfos.begin(); it<packinfos.end(); ++it)
 				recv_packinfos[it->block].push_back(*it);
 		}
 
@@ -738,8 +737,8 @@ public:
 			const int NPENDINGSENDS = send.pending.size();
 			if (NPENDINGSENDS > 0)
 			{
-				vector<MPI_Request> pending(NPENDINGSENDS);
-				copy(send.pending.begin(), send.pending.end(), pending.begin());
+				std::vector<MPI_Request> pending(NPENDINGSENDS);
+				std::copy(send.pending.begin(), send.pending.end(), pending.begin());
 #if 1
                 MPI_Waitall(NPENDINGSENDS, &pending.front(), MPI_STATUSES_IGNORE);
 #else
@@ -767,8 +766,8 @@ public:
 		{
 			const int N = send_packinfos.size();
 
-			vector<int> selcomponents = stencil.selcomponents;
-			sort(selcomponents.begin(), selcomponents.end());
+			std::vector<int> selcomponents = stencil.selcomponents;
+			std::sort(selcomponents.begin(), selcomponents.end());
 
 			const bool contiguous = false;//selcomponents.back()+1-selcomponents.front() == selcomponents.size();
 
@@ -934,8 +933,8 @@ public:
 			const int NPENDINGSENDS = send.pending.size();
 			if (NPENDINGSENDS > 0)
 			{
-				vector<MPI_Request> pending(NPENDINGSENDS);
-				copy(send.pending.begin(), send.pending.end(), pending.begin());
+				std::vector<MPI_Request> pending(NPENDINGSENDS);
+				std::copy(send.pending.begin(), send.pending.end(), pending.begin());
 #if 1
                 MPI_Waitall(NPENDINGSENDS, &pending.front(), MPI_STATUSES_IGNORE);
 #else
@@ -967,8 +966,8 @@ public:
 
 			const int N = send_packinfos.size();
 
-			vector<int> selcomponents = stencil.selcomponents;
-			sort(selcomponents.begin(), selcomponents.end());
+			std::vector<int> selcomponents = stencil.selcomponents;
+			std::sort(selcomponents.begin(), selcomponents.end());
 
             const bool contiguous = false;//true; //false; //true;//selcomponents.back()+1-selcomponents.front() == selcomponents.size();
 
@@ -1138,19 +1137,19 @@ public:
 		cube.make_dependencies(isroot);
 	}
 
-	vector<BlockInfo> avail_inner()
+	std::vector<BlockInfo> avail_inner()
 	{
-		vector<BlockInfo> retval;
+		std::vector<BlockInfo> retval;
 
 		const int xorigin = mypeindex[0]*mybpd[0];
 		const int yorigin =	mypeindex[1]*mybpd[1];
 		const int zorigin =	mypeindex[2]*mybpd[2];
 
-		vector<Region> regions = cube.avail();
+		std::vector<Region> regions = cube.avail();
 
-		for(vector<Region>::const_iterator it=regions.begin(); it!=regions.end(); ++it)
+		for(std::vector<Region>::const_iterator it=regions.begin(); it!=regions.end(); ++it)
 		{
-            map<Region, vector<BlockInfo> >::const_iterator r2v = region2infos.find(*it);
+            std::map<Region, std::vector<BlockInfo> >::const_iterator r2v = region2infos.find(*it);
 
             if(r2v!=region2infos.end())
             {
@@ -1159,7 +1158,7 @@ public:
             }
             else
             {
-                vector<BlockInfo> entry;
+                std::vector<BlockInfo> entry;
 
                 const int sx = it->s[0];
                 const int sy = it->s[1];
@@ -1189,17 +1188,17 @@ public:
 		return retval;
 	}
 
-	vector<BlockInfo> avail_halo()
+	std::vector<BlockInfo> avail_halo()
 	{
-		vector<BlockInfo> retval;
+		std::vector<BlockInfo> retval;
 
 		const int NPENDING = recv.pending.size();
 
-		vector<MPI_Request> pending(NPENDING);
+		std::vector<MPI_Request> pending(NPENDING);
 
-		copy(recv.pending.begin(), recv.pending.end(), pending.begin());
+		std::copy(recv.pending.begin(), recv.pending.end(), pending.begin());
 
-		vector<MPI_Request> old = pending;
+		std::vector<MPI_Request> old = pending;
 
 #if 1
         MPI_Waitall(NPENDING, &pending.front(), MPI_STATUSES_IGNORE);
@@ -1222,11 +1221,11 @@ public:
 		const int yorigin =	mypeindex[1]*mybpd[1];
 		const int zorigin =	mypeindex[2]*mybpd[2];
 
-		vector<Region> regions = cube.avail();
+		std::vector<Region> regions = cube.avail();
 
-		for(vector<Region>::const_iterator it=regions.begin(); it!=regions.end(); ++it)
+		for(std::vector<Region>::const_iterator it=regions.begin(); it!=regions.end(); ++it)
 		{
-            map<Region, vector<BlockInfo> >::const_iterator r2v = region2infos.find(*it);
+            std::map<Region, std::vector<BlockInfo> >::const_iterator r2v = region2infos.find(*it);
 
             if(r2v!=region2infos.end())
             {
@@ -1235,7 +1234,7 @@ public:
             }
             else
             {
-                vector<BlockInfo> entry;
+                std::vector<BlockInfo> entry;
 
                 const int sx = it->s[0];
                 const int sy = it->s[1];
@@ -1268,15 +1267,15 @@ public:
 
 	bool test_halo()
 	{
-		vector<BlockInfo> retval;
+		std::vector<BlockInfo> retval;
 
 		const int NPENDING = recv.pending.size();
 
 		if (NPENDING == 0) return true;
 
-		vector<MPI_Request> pending(NPENDING);
+		std::vector<MPI_Request> pending(NPENDING);
 
-		copy(recv.pending.begin(), recv.pending.end(), pending.begin());
+		std::copy(recv.pending.begin(), recv.pending.end(), pending.begin());
 
 		int done = false;
         MPI_Testall(NPENDING, &pending.front(), &done, MPI_STATUSES_IGNORE);
@@ -1284,17 +1283,17 @@ public:
 		return done;
 	}
 
-	vector<BlockInfo> avail()
+	std::vector<BlockInfo> avail()
 	{
-		vector<BlockInfo> retval;
+		std::vector<BlockInfo> retval;
 
 		const int NPENDING = recv.pending.size();
 
-		vector<MPI_Request> pending(NPENDING);
+		std::vector<MPI_Request> pending(NPENDING);
 
-		copy(recv.pending.begin(), recv.pending.end(), pending.begin());
+		std::copy(recv.pending.begin(), recv.pending.end(), pending.begin());
 
-		vector<MPI_Request> old = pending;
+		std::vector<MPI_Request> old = pending;
 
 		if(NPENDING > 0)
 		{
@@ -1309,7 +1308,7 @@ public:
 			}
 			else
 			{
-				vector<int> indices(NPENDING);
+				std::vector<int> indices(NPENDING);
 				int NSOLVED = 0;
 				if (blockinfo_counter == globalinfos.size())
                     MPI_Testsome(NPENDING, &pending.front(), &NSOLVED, &indices.front(), MPI_STATUSES_IGNORE);
@@ -1331,11 +1330,11 @@ public:
 		const int yorigin =	mypeindex[1]*mybpd[1];
 		const int zorigin =	mypeindex[2]*mybpd[2];
 
-		vector<Region> regions = cube.avail();
+		std::vector<Region> regions = cube.avail();
 
-		for(vector<Region>::const_iterator it=regions.begin(); it!=regions.end(); ++it)
+		for(std::vector<Region>::const_iterator it=regions.begin(); it!=regions.end(); ++it)
 		{
-            map<Region, vector<BlockInfo> >::const_iterator r2v = region2infos.find(*it);
+            std::map<Region, std::vector<BlockInfo> >::const_iterator r2v = region2infos.find(*it);
 
             if(r2v!=region2infos.end())
             {
@@ -1344,7 +1343,7 @@ public:
             }
             else
             {
-                vector<BlockInfo> entry;
+                std::vector<BlockInfo> entry;
 
                 const int sx = it->s[0];
                 const int sy = it->s[1];
@@ -1374,13 +1373,13 @@ public:
 		return retval;
 	}
 
-	vector<BlockInfo> avail(const int smallest)
+	std::vector<BlockInfo> avail(const int smallest)
 	{
-		vector<BlockInfo> accumulator;
+		std::vector<BlockInfo> accumulator;
 
 		while(accumulator.size()<smallest && !done())
 		{
-			const vector<BlockInfo> r = avail();
+			const std::vector<BlockInfo> r = avail();
 
 			accumulator.insert(accumulator.end(), r.begin(), r.end());
 		}
@@ -1419,12 +1418,12 @@ class MyRange
 
   bool outside(MyRange range) const
   {
-    const int x0 = max(sx, range.sx);
-    const int y0 = max(sy, range.sy);
-    const int z0 = max(sz, range.sz);
-    const int x1 = min(ex, range.ex);
-    const int y1 = min(ey, range.ey);
-    const int z1 = min(ez, range.ez);
+    const int x0 = std::max(sx, range.sx);
+    const int y0 = std::max(sy, range.sy);
+    const int z0 = std::max(sz, range.sz);
+    const int x1 = std::min(ex, range.ex);
+    const int y1 = std::min(ey, range.ey);
+    const int z1 = std::min(ez, range.ez);
 
     return (x0 >= x1) || (y0 >= y1) || (z0 >= z1);
   }
@@ -1438,16 +1437,16 @@ class MyRange
 
 		//packs
 		{
-			map<Real *, vector<PackInfo> >::const_iterator it = recv_packinfos.find(const_cast<Real *>(ptrBlock));
+			std::map<Real *, std::vector<PackInfo> >::const_iterator it = recv_packinfos.find(const_cast<Real *>(ptrBlock));
 
 			if( it!=recv_packinfos.end() )
 			{
-				vector<PackInfo> packs = it->second;
+				std::vector<PackInfo> packs = it->second;
 
 				//assert(!stencil.tensorial || packs.size() <= 7 || mybpd[0]*mybpd[1]*mybpd[2] == 1);
 				//assert(stencil.tensorial || packs.size()<=3 || mybpd[0]*mybpd[1]*mybpd[2] == 1);
 
-				for(vector<PackInfo>::const_iterator itpack=packs.begin(); itpack!=packs.end(); ++itpack)
+				for(std::vector<PackInfo>::const_iterator itpack=packs.begin(); itpack!=packs.end(); ++itpack)
 				{
 				  MyRange packrange(itpack->sx, itpack->ex, itpack->sy, itpack->ey, itpack->sz, itpack->ez);
 
@@ -1466,17 +1465,17 @@ class MyRange
 		//subregions inside packs
 		if (stencil.tensorial)
 		{
-			map<Real *, vector<SubpackInfo> >::const_iterator it = recv_subpackinfos.find(const_cast<Real *>(ptrBlock));
+			std::map<Real *, std::vector<SubpackInfo> >::const_iterator it = recv_subpackinfos.find(const_cast<Real *>(ptrBlock));
 
 			assert(stencil.tensorial || it==recv_subpackinfos.end());
 
 			if( it!=recv_subpackinfos.end() )
 			{
-				vector<SubpackInfo> subpacks = it->second;
+				std::vector<SubpackInfo> subpacks = it->second;
 
 			//	assert(subpacks.size()<=12+8);
 
-				for(vector<SubpackInfo>::const_iterator itsubpack=subpacks.begin(); itsubpack!=subpacks.end(); ++itsubpack)
+				for(std::vector<SubpackInfo>::const_iterator itsubpack=subpacks.begin(); itsubpack!=subpacks.end(); ++itsubpack)
 				  {
 				    MyRange packrange(itsubpack->sx, itsubpack->ex, itsubpack->sy, itsubpack->ey, itsubpack->sz, itsubpack->ez);
 

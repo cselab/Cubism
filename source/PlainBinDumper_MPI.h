@@ -10,6 +10,9 @@
 #pragma once
 #define MAX_MPI_PROCS	(16*1024)	// header: 0.25MB
 
+#include <iostream>
+#include <string>
+
 typedef struct _header
 {
 	long offset;
@@ -22,9 +25,8 @@ typedef float Real;
 typedef double Real;
 #endif
 
-using namespace std;
 
-void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const string f_name, const string dump_path=".")
+void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const std::string f_name, const std::string dump_path=".")
 {
 	int rank, nranks;
 	char filename[256];
@@ -36,7 +38,7 @@ void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const string f_na
 
 	if (rank==0)
 	{
-		cout << "Writing BIN file for ICs\n";
+		std::cout << "Writing BIN file for ICs\n";
 	}
 
 	sprintf(filename, "%s/%s.bin", dump_path.c_str(), f_name.c_str());
@@ -72,7 +74,7 @@ void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const string f_na
 }
 
 
-void PlainReadBin_MPI(MPI_Comm comm, Real **buffer, long *bytes, const string f_name, const string dump_path=".")
+void PlainReadBin_MPI(MPI_Comm comm, Real **buffer, long *bytes, const std::string f_name, const std::string dump_path=".")
 {
 	int rank, nranks;
 	char filename[256];

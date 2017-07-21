@@ -9,6 +9,10 @@
 
 #pragma once
 
+#include <iostream>
+#include <cstdio>
+#include <vector>
+#include <string>
 #include <cassert>
 
 #define MAX_MPI_PROCS	(16*1024)	// header: 0.25MB* 8
@@ -25,7 +29,6 @@ typedef float Real;
 typedef double Real;
 #endif
 
-using namespace std;
 
 #include "BlockInfo.h"
 #include "LosslessCompression.h"
@@ -36,7 +39,7 @@ inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int lay
 */
 
 template<typename TGrid, typename Streamer>
-void DumpZBin_MPI(const TGrid &grid, const int iCounter, const Real t, const string f_name, const string dump_path=".", const bool bDummy=false)
+void DumpZBin_MPI(const TGrid &grid, const int iCounter, const Real t, const std::string f_name, const std::string dump_path=".", const bool bDummy=false)
 {
 	typedef typename TGrid::BlockType B;
 
@@ -62,12 +65,12 @@ void DumpZBin_MPI(const TGrid &grid, const int iCounter, const Real t, const str
 	{
 		//Real memsize = (NX * NY * NZ * NCHANNELS * sizeof(Real))/(1024.*1024.*1024.);
 		Real memsize = (NX * NY * NZ * sizeof(Real))/(1024.*1024.*1024.);
-		cout << "Allocating " << memsize << " GB of BIN data per rank (" << memsize*nranks << " GB in total)" << endl;
+		std::cout << "Allocating " << memsize << " GB of BIN data per rank (" << memsize*nranks << " GB in total)" << std::endl;
 	}
 //	Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
 	Real * array_all = new Real[NX * NY * NZ];
 
-	vector<BlockInfo> vInfo_local = grid.getResidentBlocksInfo();
+	std::vector<BlockInfo> vInfo_local = grid.getResidentBlocksInfo();
 
 	static const unsigned int sX = 0;
 	static const unsigned int sY = 0;
@@ -175,7 +178,7 @@ void DumpZBin_MPI(const TGrid &grid, const int iCounter, const Real t, const str
 }
 
 template<typename TGrid, typename Streamer>
-void ReadZBin_MPI(TGrid &grid, const string f_name, const string dump_path=".")
+void ReadZBin_MPI(TGrid &grid, const std::string f_name, const std::string dump_path=".")
 {
 	typedef typename TGrid::BlockType B;
 
@@ -198,7 +201,7 @@ void ReadZBin_MPI(TGrid &grid, const string f_name, const string dump_path=".")
 
 	Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
 
-	vector<BlockInfo> vInfo_local = grid.getResidentBlocksInfo();
+	std::vector<BlockInfo> vInfo_local = grid.getResidentBlocksInfo();
 
 	static const int sX = 0;
 	static const int sY = 0;

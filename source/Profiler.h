@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <stack>
 
-using namespace std;
 
 #include <sys/time.h>
 //#include <tbb/tick_count.h>
@@ -31,7 +30,7 @@ class ProfileAgent
 {
 //	typedef tbb::tick_count ClockTime;
 	typedef timeval ClockTime;
-	
+
 	enum ProfileAgentState{ ProfileAgentState_Created, ProfileAgentState_Started, ProfileAgentState_Stopped};
 
 	ClockTime m_tStart, m_tEnd;
@@ -88,13 +87,13 @@ public:
 
 struct ProfileSummaryItem
 {
-	string sName;
+	std::string sName;
 	double dTime;
 	double dAverageTime;
 	int nMoney;
 	int nSamples;
 
-	ProfileSummaryItem(string sName_, double dTime_, int nMoney_, int nSamples_):
+	ProfileSummaryItem(std::string sName_, double dTime_, int nMoney_, int nSamples_):
 		sName(sName_), dTime(dTime_), nMoney(nMoney_),nSamples(nSamples_), dAverageTime(dTime_/nSamples_){}
 };
 
@@ -103,33 +102,33 @@ class Profiler
 {
 protected:
 
-	map<string, ProfileAgent*> m_mapAgents;
-	stack<string> m_mapStoppedAgents;
-		
+	std::map<std::string, ProfileAgent*> m_mapAgents;
+	std::stack<std::string> m_mapStoppedAgents;
+
 public:
-	void push_start(string sAgentName)
+	void push_start(std::string sAgentName)
 	{
 		if (m_mapStoppedAgents.size() > 0)
 			getAgent(m_mapStoppedAgents.top()).stop();
-			
+
 		m_mapStoppedAgents.push(sAgentName);
 		getAgent(sAgentName).start();
 	}
-	
+
 	void pop_stop()
 	{
-		string sCurrentAgentName = m_mapStoppedAgents.top();
+		std::string sCurrentAgentName = m_mapStoppedAgents.top();
 		getAgent(sCurrentAgentName).stop();
 		m_mapStoppedAgents.pop();
-		
+
 		if (m_mapStoppedAgents.size() == 0) return;
-		
+
 		getAgent(m_mapStoppedAgents.top()).start();
 	}
-	
+
 	void clear()
 	{
-		for(map<string, ProfileAgent*>::iterator it = m_mapAgents.begin(); it != m_mapAgents.end(); it++)
+		for(std::map<std::string, ProfileAgent*>::iterator it = m_mapAgents.begin(); it != m_mapAgents.end(); it++)
 		{
 			delete it->second;
 
@@ -148,17 +147,17 @@ public:
 
 	void printSummary(FILE *outFile=NULL) const
 	{
-		vector<ProfileSummaryItem> v = createSummary();
+		std::vector<ProfileSummaryItem> v = createSummary();
 
 		double dTotalTime = 0;
 		double dTotalTime2 = 0;
-		for(vector<ProfileSummaryItem>::const_iterator it = v.begin(); it!= v.end(); it++)
+		for(std::vector<ProfileSummaryItem>::const_iterator it = v.begin(); it!= v.end(); it++)
 			dTotalTime += it->dTime;
 
-		for(vector<ProfileSummaryItem>::const_iterator it = v.begin(); it!= v.end(); it++)
+		for(std::vector<ProfileSummaryItem>::const_iterator it = v.begin(); it!= v.end(); it++)
 		dTotalTime2 += it->dTime - it->nSamples*1.30e-6;
 
-		for(vector<ProfileSummaryItem>::const_iterator it = v.begin(); it!= v.end(); it++)
+		for(std::vector<ProfileSummaryItem>::const_iterator it = v.begin(); it!= v.end(); it++)
 		{
 			const ProfileSummaryItem& item = *it;
 			const double avgTime = item.dAverageTime;
@@ -176,12 +175,12 @@ public:
 		if (outFile) fclose(outFile);
 	}
 
-	vector<ProfileSummaryItem> createSummary(bool bSkipIrrelevantEntries=true) const
+	std::vector<ProfileSummaryItem> createSummary(bool bSkipIrrelevantEntries=true) const
 	{
-		vector<ProfileSummaryItem> result;
+		std::vector<ProfileSummaryItem> result;
 		result.reserve(m_mapAgents.size());
 
-		for(map<string, ProfileAgent*>::const_iterator it = m_mapAgents.begin(); it != m_mapAgents.end(); it++)
+		for(std::map<std::string, ProfileAgent*>::const_iterator it = m_mapAgents.begin(); it != m_mapAgents.end(); it++)
 		{
 			const ProfileAgent& agent = *it->second;
 			if (!bSkipIrrelevantEntries || agent.m_dAccumulatedTime>1e-3)
@@ -194,15 +193,15 @@ public:
 	void reset()
 	{
 		printf("reset\n");
-		for(map<string, ProfileAgent*>::const_iterator it = m_mapAgents.begin(); it != m_mapAgents.end(); it++)
+		for(std::map<std::string, ProfileAgent*>::const_iterator it = m_mapAgents.begin(); it != m_mapAgents.end(); it++)
 			it->second->_reset();
 	}
 
-	ProfileAgent& getAgent(string sName)
+	ProfileAgent& getAgent(std::string sName)
 	{
 		if (bVerboseProfiling) {printf("%s ", sName.data());}
 
-		map<string, ProfileAgent*>::const_iterator it = m_mapAgents.find(sName);
+		std::map<std::string, ProfileAgent*>::const_iterator it = m_mapAgents.find(sName);
 
 		const bool bFound = it != m_mapAgents.end();
 

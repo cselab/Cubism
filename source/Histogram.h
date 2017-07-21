@@ -13,23 +13,21 @@
 #include <map>
 #include <string>
 
-using namespace std;
-
 class Histogram
 {
     MPI_Comm m_comm;
-    map<string,vector<float> > mk2t;
+    std::map<std::string,std::vector<float> > mk2t;
     bool isroot;
     bool bInitialized;
     int reportID;
 
-    void _print2file(string sKernel, vector<float> & buf);
-    void _print_statistcis(string sKernel, vector<float> & buf);
+    void _print2file(std::string sKernel, std::vector<float> & buf);
+    void _print_statistcis(std::string sKernel, std::vector<float> & buf);
     void _setup();
 
 public:
     Histogram(const MPI_Comm comm, int a=0): m_comm(comm), mk2t() {}
 
-    void notify(string sKernel, float dt);
+    void notify(std::string sKernel, float dt);
     void consolidate();
 };

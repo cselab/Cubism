@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <vector>
+#include <string>
 
 #ifdef _USE_HDF_
 #include <hdf5.h>
@@ -28,10 +29,8 @@ typedef double Real;
 
 #include "BlockInfo.h"
 
-using namespace std;
-
 template<typename TGrid, typename Streamer>
-void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const string f_name, const string dump_path=".", const bool bXMF=true)
+void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const std::string f_name, const std::string dump_path=".", const bool bXMF=true)
 {
 #ifdef _USE_HDF_
     typedef typename TGrid::BlockType B;
@@ -46,11 +45,10 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
     const unsigned int NY = grid.getBlocksPerDimension(1)*B::sizeY;
     const unsigned int NZ = grid.getBlocksPerDimension(2)*B::sizeZ;
 
-    cout << "Allocating " << (NX * NY * NZ * NCHANNELS * sizeof(Real))/(1024.*1024.*1024.) << " GB of HDF5 data" << endl;
+    std::cout << "Allocating " << (NX * NY * NZ * NCHANNELS * sizeof(Real))/(1024.*1024.*1024.) << " GB of HDF5 data" << std::endl;
     Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
 
-
-    vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
+    std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
     const unsigned int sX = 0;
     const unsigned int sY = 0;
@@ -175,7 +173,7 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
 
 
 template<typename TGrid, typename Streamer>
-void ReadHDF5(TGrid &grid, const string f_name, const string read_path=".")
+void ReadHDF5(TGrid &grid, const std::string f_name, const std::string read_path=".")
 {
 #ifdef _USE_HDF_
     typedef typename TGrid::BlockType B;
@@ -191,7 +189,7 @@ void ReadHDF5(TGrid &grid, const string f_name, const string read_path=".")
 
     Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
 
-    vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
+    std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
     const int sX = 0;
     const int sY = 0;

@@ -9,9 +9,8 @@
 #pragma once
 
 #include <vector>
+#include <map>
 #include <mpi.h>
-
-using namespace std;
 
 #include "BlockInfo.h"
 #include "StencilInfo.h"
@@ -30,9 +29,9 @@ protected:
 	int periodic[3];
 	int mybpd[3], myblockstotalsize, blocksize[3];
 
-	vector<BlockInfo> cached_blockinfo;
+	std::vector<BlockInfo> cached_blockinfo;
 
-	map<StencilInfo, SynchronizerMPI *> SynchronizerMPIs;
+	std::map<StencilInfo, SynchronizerMPI *> SynchronizerMPIs;
 
     MPI_Comm worldcomm;
 	MPI_Comm cartcomm;
@@ -70,14 +69,14 @@ public:
         MPI_Comm_rank(cartcomm, &myrank);
         MPI_Cart_coords(cartcomm, myrank, 3, mypeindex);
 
-		const vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
+		const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
 
 		for(int i=0; i<vInfo.size(); ++i)
 		{
 			BlockInfo info = vInfo[i];
 
-			info.h_gridpoint = maxextent / (double)max (getBlocksPerDimension(0)*blocksize[0],
-														max(getBlocksPerDimension(1)*blocksize[1],
+			info.h_gridpoint = maxextent / (double)std::max (getBlocksPerDimension(0)*blocksize[0],
+														std::max(getBlocksPerDimension(1)*blocksize[1],
 															getBlocksPerDimension(2)*blocksize[2]));
 
             info.h = info.h_gridpoint * blocksize[0];// only for blocksize[0]=blocksize[1]=blocksize[2]
@@ -94,29 +93,29 @@ public:
 
 	~GridMPI()
 	{
-		for( map<StencilInfo, SynchronizerMPI*>::const_iterator it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
+		for( std::map<StencilInfo, SynchronizerMPI*>::const_iterator it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
 			delete it->second;
 
 		SynchronizerMPIs.clear();
         MPI_Comm_free(&cartcomm);
 	}
 
-	vector<BlockInfo>& getBlocksInfo()
+	std::vector<BlockInfo>& getBlocksInfo()
 	{
 		return cached_blockinfo;
 	}
 
-	const vector<BlockInfo>& getBlocksInfo() const
+	const std::vector<BlockInfo>& getBlocksInfo() const
 	{
 		return cached_blockinfo;
 	}
 
-	vector<BlockInfo>& getResidentBlocksInfo()
+	std::vector<BlockInfo>& getResidentBlocksInfo()
 	{
 		return TGrid::getBlocksInfo();
 	}
 
-	const vector<BlockInfo>& getResidentBlocksInfo() const
+	const std::vector<BlockInfo>& getResidentBlocksInfo() const
 	{
 		return TGrid::getBlocksInfo();
 	}
@@ -174,7 +173,7 @@ public:
 
 		SynchronizerMPI * queryresult = NULL;
 
-		typename map<StencilInfo, SynchronizerMPI*>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
+		typename std::map<StencilInfo, SynchronizerMPI*>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
 
 		if (itSynchronizerMPI == SynchronizerMPIs.end())
 		{

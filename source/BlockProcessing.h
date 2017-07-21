@@ -23,15 +23,12 @@
 #include "tbb/cache_aligned_allocator.h"
 #include "tbb/task_scheduler_init.h"
 
-using namespace std;
-using namespace tbb;
-
 namespace Environment
 {
 	inline void setup(int threads=-1)
 	{
 		static tbb::task_scheduler_init * init = NULL;
-		
+
 		if (init == NULL)
 		{
 			const int nthreads = threads==-1? 1 : threads;
@@ -88,7 +85,7 @@ class BlockProcessingMT_TBB
 	const BlockInfo * ptrInfos;
 
 	concurrent_queue<Lab *>& m_availableLabs;
-	
+
 	const Real current_time;
 
 public:
@@ -160,7 +157,7 @@ private:
 template <typename BlockType>
 class BlockProcessing_TBB
 {
-	static map<string, vector<void *> >& s_cachedResources;
+	static std::map<std::string, std::vector<void *> >& s_cachedResources;
 	static BlockInfo * s_ptrInfos;
 	static int s_nBlocks;
 
@@ -177,8 +174,8 @@ protected:
 		assert(resources.empty());
 
 		//1.
-		string key = typeid(Lab).name();
-		map<string, vector<void *> >::const_iterator it = s_cachedResources.find(key);
+		std::string key = typeid(Lab).name();
+		std::map<std::string, std::vector<void *> >::const_iterator it = s_cachedResources.find(key);
 		const bool bCacheMiss = (it == s_cachedResources.end());
 
 		if (bCacheMiss)
@@ -187,7 +184,7 @@ protected:
 			typedef cache_aligned_allocator<Lab> lab_allocator;
 
 
-			vector<void*>& new_resources = s_cachedResources[key];
+			std::vector<void*>& new_resources = s_cachedResources[key];
 			new_resources.reserve(nSlots);
 
 			for(int i=0; i<nSlots; i++)
@@ -201,11 +198,11 @@ protected:
 			}
 		}
 		else //3.
-			for(vector<void *>::const_iterator itElem = it->second.begin(); itElem!=it->second.end(); itElem++)
+			for(std::vector<void *>::const_iterator itElem = it->second.begin(); itElem!=it->second.end(); itElem++)
 				resources.push((Lab*)*itElem);
 	}
 
-	static const BlockInfo * _prepareBlockInfos(vector<BlockInfo>& vInfo)
+	static const BlockInfo * _prepareBlockInfos(std::vector<BlockInfo>& vInfo)
 	{
 		typedef cache_aligned_allocator<BlockInfo> info_allocator;
 
@@ -221,7 +218,7 @@ protected:
 		}
 
 		BlockInfo * currInfo = s_ptrInfos;
-		for(vector<BlockInfo>::const_iterator it = vInfo.begin(); it != vInfo.end(); it++, currInfo++)
+		for(std::vector<BlockInfo>::const_iterator it = vInfo.begin(); it != vInfo.end(); it++, currInfo++)
 			*currInfo = *it;
 
 		return s_ptrInfos;
@@ -248,7 +245,7 @@ public:
 	 *                      Optional: if not set, auto_partitioner (see tbb-doc) will be used.
 	 */
 	template <typename Processing, typename Grid>
-	static void process(vector<BlockInfo>& vInfo,  Processing& p, Grid& grid,
+	static void process(std::vector<BlockInfo>& vInfo,  Processing& p, Grid& grid,
 						int nGranularity = -1)
 	{
 		const bool bAutomatic = nGranularity<0;
@@ -276,7 +273,7 @@ public:
 	 *                      Optional: if not set, auto_partitioner (see tbb-doc) will be used.
 	 */
 	template <typename Lab, typename Grid, typename Processing>
-	static void process(vector<BlockInfo>& vInfo, Processing& p, Grid& grid,
+	static void process(std::vector<BlockInfo>& vInfo, Processing& p, Grid& grid,
 						const Real t=0, const bool tensorial=false, int nGranularity = -1)
 	{
 		const int nSlots= (int)(NTHREADS);
@@ -298,7 +295,7 @@ public:
 }; /* BlockProcessing_TBB */
 
 template <typename BlockType>
-map<string, vector<void *> >& BlockProcessing_TBB<BlockType>::s_cachedResources = *(new map<string, vector<void *> >());
+std::map<std::string, std::vector<void *> >& BlockProcessing_TBB<BlockType>::s_cachedResources = *(new std::map<std::string, std::vector<void *> >());
 
 template <typename BlockType>
 BlockInfo * BlockProcessing_TBB<BlockType>::s_ptrInfos = NULL;

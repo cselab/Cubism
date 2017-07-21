@@ -12,8 +12,6 @@
 #include <algorithm>
 #include <utility>
 
-using namespace std;
-
 #include "Grid.h"
 #include "Indexers.h"
 
@@ -22,9 +20,9 @@ class GridMorton: public TGrid
 {
 protected:
 
-	vector<int> f2m, m2f;
+	std::vector<int> f2m, m2f;
 
-	vector<BlockInfo> cached_infos;
+	std::vector<BlockInfo> cached_infos;
 
 	void _generate_morton_mapping()
 	{
@@ -32,11 +30,11 @@ protected:
 		const int NX = this->NX;
 		const int NY = this->NY;
 		const int NZ = this->NZ;
-		const int MAXND = max(NX, max(NY, NZ));
+		const int MAXND = std::max(NX, std::max(NY, NZ));
 
 		IndexerMorton indexer(MAXND, MAXND, MAXND);
 
-		vector< pair< int, int > > tobesorted(N);
+		std::vector< std::pair< int, int > > tobesorted(N);
 
 		for(int iflat = 0; iflat < N; ++iflat)
 		{
@@ -44,7 +42,7 @@ protected:
 			const int iy = (iflat / NX) % NY;
 			const int iz = (iflat / (NX * NY)) % NZ;
 
-			tobesorted[iflat] = make_pair(indexer.encode(ix, iy, iz), iflat);
+			tobesorted[iflat] = std::make_pair(indexer.encode(ix, iy, iz), iflat);
 		}
 
 		std::sort(tobesorted.begin(), tobesorted.end());
@@ -58,7 +56,7 @@ protected:
 			f2m[tobesorted[imorton].second] = imorton;
 	}
 
-	vector<BlockInfo> _getBlocksInfo() const
+	std::vector<BlockInfo> _getBlocksInfo() const
 	{
 		const int N = this->N;
 		const unsigned int NX = this->NX;
@@ -67,7 +65,7 @@ protected:
 
 		std::vector<BlockInfo> r(N);
 
-		const double h = (this->maxextent / max(NX, max(NY, NZ)));
+		const double h = (this->maxextent / std::max(NX, std::max(NY, NZ)));
 
 		for(int imorton = 0; imorton < N; ++imorton)
 		{
@@ -134,12 +132,12 @@ protected:
 		return *(this->_linaccess(idx));
 	}
 
-	vector<BlockInfo>& getBlocksInfo()
+	std::vector<BlockInfo>& getBlocksInfo()
 	{
 		return cached_infos;
 	}
 
-	const vector<BlockInfo>& getBlocksInfo() const
+	const std::vector<BlockInfo>& getBlocksInfo() const
 	{
 		return cached_infos;
 	}

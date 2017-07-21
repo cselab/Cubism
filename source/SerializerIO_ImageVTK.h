@@ -24,7 +24,7 @@ class SerializerIO_ImageVTK
 
 public:
 
-	void Write(GridType & inputGrid, string fileName, Streamer streamer = Streamer())
+	void Write(GridType & inputGrid, std::string fileName, Streamer streamer = Streamer())
 	{
 		static const int BX = TBlock::sizeX;
 		static const int BY = TBlock::sizeY;
@@ -78,9 +78,9 @@ public:
 	}
 
 	template<typename TLab>
-	void WriteLabs(GridType & inputGrid, string fileName, const Real time=0, Streamer streamer = Streamer())
+	void WriteLabs(GridType & inputGrid, std::string fileName, const Real time=0, Streamer streamer = Streamer())
 	{
-		const vector<BlockInfo> vInfo = inputGrid.getBlocksInfo();
+		const std::vector<BlockInfo> vInfo = inputGrid.getBlocksInfo();
 
 		static const int BX = TBlock::sizeX;
 		static const int BY = TBlock::sizeY;

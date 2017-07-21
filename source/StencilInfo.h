@@ -68,7 +68,7 @@ struct StencilInfo
 	{
 		std::vector<int> me = _all(), you = s._all();
 
-		const int N = min(me.size(), you.size());
+		const int N = std::min(me.size(), you.size());
 
 		for(int i=0; i<N; ++i)
 			if (me[i] < you[i])

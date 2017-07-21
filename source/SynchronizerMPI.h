@@ -66,7 +66,7 @@ class SynchronizerMPI
 
 	struct CommData {
 		Real * faces[3][2], * edges[3][2][2], * corners[2][2][2];
-		set<MPI_Request> pending;
+		std::set<MPI_Request> pending;
 	} send, recv;
 
 	bool _face_needed(const int d) const

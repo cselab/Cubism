@@ -26,6 +26,7 @@ public:
 
     virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const = 0;
+    virtual std::string name() const = 0;
 };
 
 
@@ -49,6 +50,8 @@ public:
             for (int i = 0; i < ghostS+ghostE; ++i)
                 ghost_spacing[i] = h;
     }
+
+    virtual std::string name() const { return std::string("UniformDensity"); }
 };
 
 class GaussianDensity : public MeshDensity
@@ -100,6 +103,8 @@ public:
         // clean up
         delete[] buf;
     }
+
+    virtual std::string name() const { return std::string("GaussianDensity"); }
 };
 
 class SmoothHeavisideDensity : public MeshDensity
@@ -171,6 +176,8 @@ public:
         // clean up
         delete[] buf;
     }
+
+    virtual std::string name() const { return std::string("SmoothHeavisideDensity"); }
 };
 
 class SmoothHatDensity : public SmoothHeavisideDensity
@@ -241,6 +248,8 @@ public:
         // clean up
         delete[] buf;
     }
+
+    virtual std::string name() const { return std::string("SmoothHatDensity"); }
 };
 
 
@@ -334,6 +343,8 @@ public:
         // clean up
         delete[] buf;
     }
+
+    virtual std::string name() const { return std::string("BoxFadeDensity"); }
 
 private:
 
@@ -538,6 +549,7 @@ public:
         }
 
         m_uniform = kernel->uniform;
+        m_kernel_name = kernel->name();
         m_initialized = true;
     }
 
@@ -547,6 +559,7 @@ public:
     inline unsigned int nblocks() const { return m_Nblocks; }
     inline unsigned int ncells() const { return m_Ncells; }
     inline bool uniform() const { return m_uniform; }
+    inline std::string kernel_name() const { return m_kernel_name; }
 
     inline double cell_width(const int ix) const
     {
@@ -588,6 +601,7 @@ private:
     bool m_initialized;
     double* m_grid_spacing;
     double* m_block_spacing;
+    std::string m_kernel_name;
 
     inline void _alloc()
     {

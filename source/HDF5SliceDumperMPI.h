@@ -27,9 +27,9 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     const unsigned int width = slice.localWidth;
     const unsigned int height = slice.localHeight;
 
-    int sliceRank;
+    int myRank;
     MPI_Comm comm = grid.getCartComm();
-    MPI_Comm_rank(comm, &sliceRank);
+    MPI_Comm_rank(comm, &myRank);
 
     ostringstream filename;
     filename << dpath << "/" << fname << TStreamer::postfix() << "_slice" << slice.id;
@@ -43,7 +43,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     std::vector<std::string> dset_name;
     dset_name.push_back("/vwidth");
     dset_name.push_back("/vheight");
-    if (0 == sliceRank)
+    if (0 == myRank)
     {
         H5open();
         fapl_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -92,7 +92,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
         status = H5Fclose(file_id);
         H5close();
     }
-    MPI_Barrier(slice.sliceComm);
+    MPI_Barrier(comm);
 
     ///////////////////////////////////////////////////////////////////////////
     // startup file
@@ -104,7 +104,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
 
     ///////////////////////////////////////////////////////////////////////////
     // write data
-    if (0 == sliceRank)
+    if (0 == myRank)
     {
         std::cout << "Allocating " << (width * height * NCHANNELS * sizeof(hdf5Real))/(1024.*1024.) << " MB of HDF5 slice data";
     }
@@ -128,7 +128,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     hsize_t dims[3] = {slice.height, slice.width, NCHANNELS}; // global
     hsize_t offset[3] = {slice.offsetHeight, slice.offsetWidth, 0}; // file offset
 
-    if (0 == sliceRank)
+    if (0 == myRank)
     {
         std::cout << " (Total  " << (dims[0] * dims[1] * dims[2] * sizeof(hdf5Real))/(1024.*1024.) << " MB)" << std::endl;
     }
@@ -153,6 +153,11 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     fspace_id = H5Dget_space(dataset_id);
     H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, offset, NULL, count, NULL);
     mspace_id = H5Screate_simple(3, count, NULL);
+    if (!slice.valid)
+    {
+        H5Sselect_none(fspace_id);
+        H5Sselect_none(mspace_id);
+    }
     status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all); if(status<0) H5Eprint1(stdout);
 
     status = H5Sclose(mspace_id); if(status<0) H5Eprint1(stdout);
@@ -165,7 +170,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     delete [] array_all;
 
     // writing xmf wrapper
-    if (bXMF && 0 == sliceRank)
+    if (bXMF && 0 == myRank)
     {
         FILE *xmf = 0;
         xmf = fopen((filename.str()+".xmf").c_str(), "w");

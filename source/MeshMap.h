@@ -63,6 +63,8 @@ public:
     struct DefaultParameter
     {
         double A, B;
+        // amplitude A and standard deviation B (percentage of domain length in
+        // that direction)
         DefaultParameter() : A(1.0), B(0.25) {}
     };
 
@@ -74,12 +76,13 @@ public:
         const unsigned int total_cells = ncells + ghostE + ghostS;
         double* const buf = new double[total_cells];
 
-        const double y = 1.0/(B*(total_cells+1));
+        const double h = 1.0/total_cells;
+        const double y = 1.0/B;
         double ducky = 0.0;
         for (int i = 0; i < total_cells; ++i)
         {
-            const double x = i - (total_cells+1)*0.5;
-            buf[i] = 1.0/(A*std::exp(-0.5*x*x*y*y) + 1.0);
+            const double x = h*(i+0.5);
+            buf[i] = 1.0/(A*std::exp(-0.5*(x-0.5)*(x-0.5)*y*y) + 1.0);
 
             if (i >= ghostS && i < ncells + ghostS)
                 ducky += buf[i];

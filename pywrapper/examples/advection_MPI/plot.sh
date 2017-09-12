@@ -16,6 +16,8 @@ EOFMarker
 
 mkdir -p plots
 
+echo "Note: The plots show only the part of the domain handled by the master node."
+
 N=50
 for i in $(seq 0 $(expr $N - 1))
 do

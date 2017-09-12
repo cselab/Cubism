@@ -1,5 +1,5 @@
 /*
- *  Block.h
+ *  Process.h
  *  Cubism
  *
  *  Created by Ivica Kicic on 06/28/17.
@@ -22,8 +22,8 @@
 #include "../source/BlockInfo.h"
 #include "../source/StencilInfo.h"
 
-namespace cubism::utils
-{
+namespace cubism {
+namespace utils {
 
 /*
  * Process each point separately, or in technical words, each block separately.
@@ -110,6 +110,7 @@ inline void process_stencil(const StencilInfo &stencil,
     }
 }
 
+}  // Namespace utils.
 }  // Namespace cubism.
 
 #endif

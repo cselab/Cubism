@@ -11,7 +11,8 @@
 
 #include "Process.h"
 
-namespace cubism::utils {
+namespace cubism {
+namespace utils {
 
 /*
  * Particle to mesh algorithm.
@@ -31,7 +32,7 @@ template <int DIM, typename Grid, typename Array, typename UpdateFunc>
 void linear_p2m(Grid &grid, const Array &points, UpdateFunc update_func) {
     /* Based on Fabian's Cubism-LAMMPS example. */
 
-    static_assert(DIM == 2 || DIM == 3);
+    static_assert(DIM == 2 || DIM == 3, "Only 2 and 3 dimensions supported.");
     typedef typename Grid::BlockType Block;
 
     // BEGIN Particle storage.
@@ -144,6 +145,7 @@ void linear_p2m(Grid &grid, const Array &points, UpdateFunc update_func) {
     // END Linear P2M.
 }
 
-};  // Namespace cubism.
+}  // Namespace utils.
+}  // Namespace cubism.
 
 #endif

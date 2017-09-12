@@ -19,8 +19,8 @@
 #include "../source/StencilInfo.h"
 #include "../source/SynchronizerMPI.h"
 
-namespace cubism::utils
-{
+namespace cubism {
+namespace utils {
 
 /*
  * Process a kernel that requires a stencil.
@@ -155,6 +155,7 @@ inline void process_stencil_MPI(const StencilInfo &stencil,
     process_stencil_MPI<TLab>(__kernel, grid, t);
 }
 
-}  // Namespace cubism::utils.
+}  // Namespace utils.
+}  // Namespace cubism.
 
 #endif /* BLOCKPROCESSOR_MPI_H_XDPWOHW2 */

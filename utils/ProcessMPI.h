@@ -12,8 +12,8 @@
  * Created by Fabian Wermelinger 10/13/2016.
  */
 
-#ifndef _CUBISM_PROCESS_MPI_H
-#define _CUBISM_PROCESS_MPI_H
+#ifndef _CUBISM_PROCESS_MPI_H_
+#define _CUBISM_PROCESS_MPI_H_
 
 #include <mpi.h>
 #include "../source/StencilInfo.h"
@@ -158,4 +158,4 @@ inline void process_stencil_MPI(const StencilInfo &stencil,
 }  // Namespace utils.
 }  // Namespace cubism.
 
-#endif /* BLOCKPROCESSOR_MPI_H_XDPWOHW2 */
+#endif

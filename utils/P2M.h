@@ -141,7 +141,7 @@ void linear_p2m(Grid &grid, const Array &points, UpdateFunc update_func) {
         }
     };
 
-    cubism::applications::process_pointwise(rhs, grid);
+    cubism::utils::process_pointwise(rhs, grid);
     // END Linear P2M.
 }
 

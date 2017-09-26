@@ -42,7 +42,7 @@ from coupling.compiler.tokens import Typename
 from coupling.library import Library
 from coupling.links.backends import mpi
 from coupling.methods.helpers import fake_variable, rerun_on_reuse, \
-        lazy_global_variable, inline_code, noop, value_placeholder
+        lazy_global_variable, noop, value_placeholder
 from coupling.methods.operators import assign
 from coupling.methods.variables import New
 from coupling.types import Auto, Bool, Double, Int, LongLong, AutoConstructor
@@ -146,7 +146,8 @@ class GridPoint(Struct):
         def clear(this:self):
             # TODO: Foreach maybe shouldn't be recursive (i.e. this guy should
             # handle vectors and matrices manually.)
-            return this.foreach_item(lambda item: assign(item, value_type(0)))
+            return this.recursive_foreach_item(
+                    lambda item: assign(item, value_type(0)))
         self.clear = clear
 
 
@@ -334,10 +335,10 @@ class Cubism(Library):
                 New(self.grid_type, *block_num), 'grid_ptr'))
         return [
             # FIXME: Now, .clear() won't be generated unless it is used. Fix it.
-            inline_code("\n/* This is an ugly hack to get the definition "
-                        "of .clear() in GridPoint:\n"),
+            "\n/* This is an ugly hack to get the definition of .clear() "
+            "in GridPoint:\n",
             methods.Method(name='dummy', output=self.grid_point)().clear(),
-            inline_code("*/\n"),
+            "*/\n",
         ]
 
     def _block_foreach(self, func):
@@ -566,8 +567,12 @@ class CubismMPI(Cubism):
         return [
             noop(self.grid_ptr),
             # FIXME: Now, .clear() won't be generated unless it is used. Fix it.
-            inline_code("\n/* This is an ugly hack to get the definition "
-                        "of .clear() in GridPoint:\n"),
+            "\n/* This is an ugly hack to get the definition of .clear() "
+            "in GridPoint:\n",
             methods.Method(name='dummy', output=self.grid_point)().clear(),
-            inline_code("*/\n"),
+            "*/\n",
         ]
+
+    def get_subdomain(self, rank):
+        # TODO
+        raise NotImplementedError("get_subdomain for MPI Cubism not implemented!")

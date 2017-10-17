@@ -39,6 +39,7 @@ protected:
 public:
 
     typedef typename TGrid::BlockType Block;
+    typedef typename TGrid::BlockType BlockType;
 
 	GridMPI(const int npeX, const int npeY, const int npeZ,
 			const int nX, const int nY=1, const int nZ=1,

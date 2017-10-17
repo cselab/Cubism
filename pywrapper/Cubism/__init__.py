@@ -496,6 +496,35 @@ class Cubism(Library):
                "link will probably not work."
         return self._linear_p2m(self.grid, particles, func, **kwargs)
 
+    def linear_m2p(self, particles, func, **kwargs):
+        # TODO: Documentation. Also, this is not core, but contrib (extra).
+        assert callable(func)
+
+        @make_lambda(_arg_const=[False, False])
+        def block_processing(kernel, grid):
+            # TODO: Selected.
+            selected = list(range(self.grid_point.count))
+            stencil = StencilInfo(
+                0, 0, 0,
+                2, 2, 1,
+                True,
+                len(selected),
+                *selected)
+            return self._process_stencil(stencil, kernel, grid, 0.0)
+
+        @make_lambda
+        def getter(p:self.grid_point):
+            return func(p)
+        result_type = getter.method.output.output
+
+        _linear_m2p_vector = methods.Method(
+                name='cubism::utils::linear_m2p_vector<{}>'.format(self.DIM),
+                output=StdVector(result_type),
+                args=(Auto, Auto, Auto, Auto),
+                header='Cubism/utils/M2P.h', library=self)
+        return _linear_m2p_vector(block_processing, self.grid, particles,
+                                  getter, **kwargs)
+
     def get_subdomain(self, rank):
         """Cubism's subdomain method.
 
@@ -522,6 +551,8 @@ class GridMPI(Struct):
                          template_args=grid_type,
                          headers=['Cubism/source/GridMPI.h',
                                   'Cubism/source/Grid.h',
+                                  'Cubism/source/Block.h',
+                                  'Cubism/source/BlockLab.h',
                                   'Cubism/source/BlockLabMPI.h'])
         # (nodes per x, y, z, blocks within node per x, y, z, maxextent, comm)
         self.constructor = self.Constructor(Int, Int, Int,
@@ -564,7 +595,8 @@ class CubismMPI(Cubism):
         grid_ptr = New(self.mpi_grid_type, *node_dims, *bpd, 1.0,
                        linker.get_comm(self))
         self.grid_ptr.set_value(lazy_global_variable(grid_ptr, 'grid_ptr'))
-        return [
+
+        steps = [
             noop(self.grid_ptr),
             # FIXME: Now, .clear() won't be generated unless it is used. Fix it.
             "\n/* This is an ugly hack to get the definition of .clear() "
@@ -572,7 +604,8 @@ class CubismMPI(Cubism):
             methods.Method(name='dummy', output=self.grid_point)().clear(),
             "*/\n",
         ]
+        return InlineWorkflow(steps, library=self, name="CubismMPI.init")
 
-    def get_subdomain(self, rank):
-        # TODO
-        raise NotImplementedError("get_subdomain for MPI Cubism not implemented!")
+    # def get_subdomain(self, rank):
+    #     # TODO
+    #     raise NotImplementedError("get_subdomain for MPI Cubism not implemented!")

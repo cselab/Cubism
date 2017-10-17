@@ -22,4 +22,4 @@ steps:
   Currently won't work with more than 1 node.
 - Run `./plot.sh` to generate the plots.
 
-[1]: https://gitlab.ethz.ch/mavt-cse/lugano
+[1]: https://gitlab.ethz.ch/mavt-cse/coupling-framework

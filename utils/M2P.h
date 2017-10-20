@@ -184,4 +184,3 @@ auto linear_m2p_vector(BlockProcessing block_processing,
 }  // Namespace cubism.
 
 #endif
-

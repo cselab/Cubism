@@ -41,8 +41,8 @@ from coupling.contrib import domains
 from coupling.compiler.tokens import Typename
 from coupling.library import Library
 from coupling.links.backends import mpi
-from coupling.methods.helpers import fake_variable, rerun_on_reuse, \
-        lazy_global_variable, noop, value_placeholder
+from coupling.methods.helpers import rerun_on_reuse, lazy_global_variable, \
+        noop, value_placeholder
 from coupling.methods.operators import assign
 from coupling.methods.variables import New
 from coupling.types import Auto, Bool, Double, Int, LongLong, AutoConstructor
@@ -181,7 +181,7 @@ class Block(Struct):
         self.block_size = block_size
         self.DIM = DIM
 
-        self.clear = self.Method(name='clear')
+        self.clear = self.Method()
         self.functor = _getter_factory(self, '', element_type)
 
     def definition(self):
@@ -288,7 +288,7 @@ class Cubism(Library):
                     len(block_size)))
         block_size = tuple(list(block_size) + [1] * (3 - len(block_size)))
         class Meta:
-            include_paths = ['../../..']   # This is not good!
+            include_paths = ['../../..']  # This is not good!
             cpp_flags = '-D_BLOCKSIZEX_={} -D_BLOCKSIZEY_={} ' \
                         '-D_BLOCKSIZEZ_={} -D_ALIGNBYTES_={} ' \
                         '-Wno-reorder -Wno-narrowing -Wno-sign-compare ' \
@@ -525,17 +525,16 @@ class Cubism(Library):
         return _linear_m2p_vector(block_processing, self.grid, particles,
                                   getter, **kwargs)
 
-    def get_subdomain(self, rank):
+    def get_my_subdomain(self):
         """Cubism's subdomain method.
 
         Currently, Cubism has a fixed domain of (0, 1) for all three axes.
         """
-        # TODO: This should depend on block_num.
+        # TODO: Domain type depends on self.DIM.
+        # TODO: Domain depends on block_num!
         domain_type = domains.types.AABB(Double, 2)
-        domain = domain_type(0., 1., 0., 1.)  # TODO: Formalize this.
-        return InlineWorkflow(noop(rank),
-                              return_value=domain,
-                              name='Cubism.get_subdomain')
+        domain = domain_type(0., 1., 0., 1., library=self)
+        return domain
 
 
 ###############################################################################
@@ -557,6 +556,8 @@ class GridMPI(Struct):
         # (nodes per x, y, z, blocks within node per x, y, z, maxextent, comm)
         self.constructor = self.Constructor(Int, Int, Int,
                                             Int, Int, Int, Double, mpi.MPI_Comm)
+        self.getSubdomainLow = self.Method(args=Pointer(Double))
+        self.getSubdomainHigh = self.Method(args=Pointer(Double))
 
 
 
@@ -582,19 +583,45 @@ class CubismMPI(Cubism):
                 header='Cubism/utils/ProcessMPI.h',
                 library=self)
 
+        @make_method
+        def _get_my_subdomain():
+            """Get current rank's subdomain from the GridMPI."""
+            # TODO: This is ugly as hell itself. To simplify it, implement:
+            #       a) StdArray slicing (?),
+            #       b) support for overloaded functions (constructors),
+            #       c) or change the order of arguments in the constructor.
+            low = StdArray(Double, 3)(const=False)
+            high = StdArray(Double, 3)(const=False)
+            domain_type = domains.types.AABB(Double, self.DIM)
+            interleaved = [x for pair in zip(low, high) for x in pair]
+            return InlineWorkflow(
+                self.grid.getSubdomainLow(low.data()),
+                self.grid.getSubdomainHigh(high.data()),
+                return_value=domain_type(*(interleaved[:2 * self.DIM])),
+                localvars=(low, high),
+                name='CubismMPI._get_my_subdomain',
+            )
+
+        self.get_my_subdomain = _get_my_subdomain
+
+
     def _init_variables(self):
+        """Called by Cubism.__init__."""
         self.mpi_lab_type = BlockLabMPI(self.lab_type)
         self.mpi_grid_type = GridMPI(self.grid_type)
 
         self.block_num = None  # Not initialized yet.
-        self.grid_ptr = value_placeholder(Pointer(self.mpi_grid_type))
+        self.grid_ptr = value_placeholder(Pointer(self.mpi_grid_type),
+                                          library=self)
         self.grid = rerun_on_reuse(dereference(self.grid_ptr))
 
     def init(self, linker, node_dims, bpd):
         self.block_num = bpd
+        self.node_dims = node_dims
         grid_ptr = New(self.mpi_grid_type, *node_dims, *bpd, 1.0,
                        linker.get_comm(self))
         self.grid_ptr.set_value(lazy_global_variable(grid_ptr, 'grid_ptr'))
+        self.linker = linker
 
         steps = [
             noop(self.grid_ptr),
@@ -605,7 +632,3 @@ class CubismMPI(Cubism):
             "*/\n",
         ]
         return InlineWorkflow(steps, library=self, name="CubismMPI.init")
-
-    # def get_subdomain(self, rank):
-    #     # TODO
-    #     raise NotImplementedError("get_subdomain for MPI Cubism not implemented!")

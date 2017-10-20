@@ -36,6 +36,9 @@ protected:
     MPI_Comm worldcomm;
 	MPI_Comm cartcomm;
 
+    // Subdomain handled by this node.
+    double subdomain_low[3];
+    double subdomain_high[3];
 public:
 
     typedef typename TGrid::BlockType Block;
@@ -72,20 +75,42 @@ public:
 
 		const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
 
+        // Doesn't make sense to export `h_gridpoint` and `h_block` as a member
+        // variable + getter, as they are not fixed values in case of
+        // non-uniform grids.
+		const double h_gridpoint = maxextent / (double)std::max(
+				getBlocksPerDimension(0) * blocksize[0],
+				std::max(getBlocksPerDimension(1) * blocksize[1],
+						 getBlocksPerDimension(2) * blocksize[2]));
+        const double h_block[3] = {
+            blocksize[0] * h_gridpoint,
+            blocksize[1] * h_gridpoint,
+            blocksize[2] * h_gridpoint,
+        };
+
+        // This subdomain box is used by the coupling framework. Please don't
+        // rearrange the formula for subdomain_high, as it has to exactly match
+        // subdomain_low of the neighbouring nodes. This way the roundings are
+        // guaranteed to be done in the same way. Well, at least without
+        // -ffast-math. (October 2017, kicici)
+        subdomain_low[0] = mypeindex[0] * mybpd[0] * h_block[0];
+        subdomain_low[1] = mypeindex[1] * mybpd[1] * h_block[1];
+        subdomain_low[2] = mypeindex[2] * mybpd[2] * h_block[2];
+        subdomain_high[0] = (mypeindex[0] + 1) * mybpd[0] * h_block[0];
+        subdomain_high[1] = (mypeindex[1] + 1) * mybpd[1] * h_block[1];
+        subdomain_high[2] = (mypeindex[2] + 1) * mybpd[2] * h_block[2];
+
 		for(int i=0; i<vInfo.size(); ++i)
 		{
 			BlockInfo info = vInfo[i];
 
-			info.h_gridpoint = maxextent / (double)std::max (getBlocksPerDimension(0)*blocksize[0],
-														std::max(getBlocksPerDimension(1)*blocksize[1],
-															getBlocksPerDimension(2)*blocksize[2]));
-
-            info.h = info.h_gridpoint * blocksize[0];// only for blocksize[0]=blocksize[1]=blocksize[2]
+			info.h_gridpoint = h_gridpoint;
+            info.h = h_block[0];// only for blocksize[0]=blocksize[1]=blocksize[2]
 
             for(int j=0; j<3; ++j)
 			{
 				info.index[j] += mypeindex[j]*mybpd[j];
-				info.origin[j] = info.index[j]*info.h;
+				info.origin[j] = info.index[j]*h_block[j];
 			}
 
 			cached_blockinfo.push_back(info);
@@ -231,4 +256,16 @@ public:
 	{
 		return worldcomm;
 	}
+
+    void getSubdomainLow(double low[3]) const {
+        low[0] = subdomain_low[0];
+        low[1] = subdomain_low[1];
+        low[2] = subdomain_low[2];
+    }
+
+    void getSubdomainHigh(double high[3]) const {
+        high[0] = subdomain_high[0];
+        high[1] = subdomain_high[1];
+        high[2] = subdomain_high[2];
+    }
 };

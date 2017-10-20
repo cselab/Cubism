@@ -1,5 +1,6 @@
 from coupling import StdVector
 from coupling.methods.operators import assign
+from coupling.workflows.branching import If
 from coupling.workflows.decorators import make_method
 from coupling.workflows.linear import InlineWorkflow
 from coupling.workflows.loops import ForRange
@@ -14,8 +15,8 @@ def map_to_vector(cubism, func):
 
     assert cubism.block_num, ".init() not yet called?"
 
-    nx = cubism.block_size[0] * cubism.block_num[0]
-    ny = cubism.block_size[1] * cubism.block_num[1]
+    nx = cubism.block_size[0] * cubism.block_num[0] * cubism.node_dims[0]
+    ny = cubism.block_size[1] * cubism.block_num[1] * cubism.node_dims[1]
 
     def inner(p, info, ijk, global_ijk, **kwargs):
         result = func(p, info)
@@ -41,28 +42,28 @@ def map_to_vector(cubism, func):
 # TODO: Make some decorator for this cache thing. It's popping out all over the
 # place.
 _func_cache = {}
-def save_to_txt_file(cubism, field_name, filename):
+def save_to_txt_file(cubism, getter, filename):
     """Function generator for save-to-txt."""
     assert cubism.block_size[2] == 1, "Not implemented for 3D."
 
-    key = cubism, field_name
+    key = cubism, getter
     if key in _func_cache:
         return _func_cache[key](filename)
+
+    if isinstance(getter, str):
+        getter = lambda p, info, field_name=getter: getattr(p, field_name)
 
     # TODO: ConstPointer(Char)
     @make_method
     def _save_to_txt_file(filename:StdString):
-        def inner(p, info):
-            return getattr(p, field_name)
-
-        vector = map_to_vector(cubism, inner)
+        vector = map_to_vector(cubism, getter)
 
         f = fopen(filename.c_str(), '"w"')
         assert cubism.block_num, ".init() not yet called?"
-        nx = cubism.block_size[0] * cubism.block_num[0]
-        ny = cubism.block_size[1] * cubism.block_num[1]
+        nx = cubism.block_size[0] * cubism.block_num[0] * cubism.node_dims[0]
+        ny = cubism.block_size[1] * cubism.block_num[1] * cubism.node_dims[1]
 
-        return InlineWorkflow(
+        code = InlineWorkflow(
             vector,
             f,
             ForRange(nx)(lambda iy:
@@ -75,6 +76,12 @@ def save_to_txt_file(cubism, field_name, filename):
             localvars=(vector, f),
             name='Cubism.extra.save_to_txt_file',
         )
+        # TODO: This should be lazily generated, maybe linker is not set at
+        # this point yet!
+        if cubism.linker:
+            return If(cubism.linker.get_rank(cubism) == 0).Then(code)
+        else:
+            return code
 
     _func_cache[key] = _save_to_txt_file
     return _save_to_txt_file(filename)

@@ -7,6 +7,7 @@ from coupling.workflows.loops import ForRange
 from coupling.contrib.cpp.cstdio import fopen, fprintf, fclose
 from coupling.contrib.cpp.string import StdString
 
+
 def map_to_vector(cubism, func):
     """Run `func` foreach grid point and save results into a single vector."""
 
@@ -55,7 +56,7 @@ def save_to_txt_file(cubism, getter, filename):
 
     # TODO: ConstPointer(Char)
     @make_method
-    def _save_to_txt_file(filename:StdString):
+    def _save_to_txt_file(filename: StdString):
         vector = map_to_vector(cubism, getter)
 
         f = fopen(filename.c_str(), '"w"')
@@ -66,8 +67,10 @@ def save_to_txt_file(cubism, getter, filename):
         code = InlineWorkflow(
             vector,
             f,
-            ForRange(nx)(lambda iy:
-                ForRange(ny)(lambda ix:
+            ForRange(nx)(
+                lambda iy:
+                ForRange(ny)(
+                    lambda ix:
                     fprintf(f, '"%lf "', vector[iy * nx + ix]),
                 ),
                 fprintf(f, r'"\n"'),

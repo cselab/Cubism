@@ -91,7 +91,6 @@ StencilInfo = Struct(  # Internal.
 StencilInfo.constructor = AutoConstructor(output=StencilInfo)
 
 
-
 class GridPoint(Struct):
     def __init__(self, *items, value_type=Double, ctype='GridPoint',
                  pyname='GridPoint', **kwargs):
@@ -131,7 +130,8 @@ class GridPoint(Struct):
                 assert len(item) > 1
                 assert len(item) == 2  # For now...
                 assert isinstance(item[0], str), item[0]
-                assert all(isinstance(size, int) for size in item[1:]), item[1:]
+                assert all(isinstance(size, int) for size in item[1:]), \
+                       item[1:]
                 _items.append((item[0], StdArray(value_type, *item[1:])))
                 _count += reduce(lambda x, y: x * y, item[1:])
             else:
@@ -143,7 +143,7 @@ class GridPoint(Struct):
         self.offsets = _offsets
 
         @self.make_member_method
-        def clear(this:self):
+        def clear(this: self):
             # TODO: Foreach maybe shouldn't be recursive (i.e. this guy should
             # handle vectors and matrices manually.)
             return this.recursive_foreach_item(
@@ -151,13 +151,10 @@ class GridPoint(Struct):
         self.clear = clear
 
 
-
-
 def _getter_factory(self, name, element_type):
     getter = self.Method(name=name, args=[Int] * self.DIM, output=element_type)
     return lambda this, *ijk: rerun_on_reuse(
             getter(this, *(list(ijk) + [0] * (self.DIM - len(ijk)))))
-
 
 
 class Block(Struct):
@@ -189,7 +186,6 @@ class Block(Struct):
         return ['typedef ', self._ctype, ' ', self.ctype.name]
 
 
-
 class BlockLab(Struct):
     """Defines BlockLab<block_type>."""
     def __init__(self, block_type, DIM):
@@ -203,7 +199,6 @@ class BlockLab(Struct):
         # Member functions. .functor is member method called on __call__.
         self.functor = _getter_factory(self, '', block_type.element_type)
         self.read = _getter_factory(self, 'read', block_type.element_type)
-
 
 
 class LabGetter(object):
@@ -243,7 +238,6 @@ class LabGetter(object):
         return wrapper.lab_var.read(*final_ijk)
 
 
-
 class LabWrapper(object):
     """Represents BlockLab, while keeping track of the used stencil range."""
     def __init__(self, grid_point):
@@ -268,7 +262,6 @@ class LabWrapper(object):
             *selected)
 
 
-
 class Grid(Struct):
     """Internal class Grid<block_type>."""
     def __init__(self, block_type):
@@ -279,7 +272,6 @@ class Grid(Struct):
         self.constructor = self.Constructor(Int, Int, Int)
 
 
-
 class Cubism(Library):
     def __init__(self, grid_point, block_size=(32, 32, 1), *args,
                  mpi=False, **kwargs):
@@ -287,6 +279,7 @@ class Cubism(Library):
             raise ValueError("1 to 3 dimensions supported, not {}.".format(
                     len(block_size)))
         block_size = tuple(list(block_size) + [1] * (3 - len(block_size)))
+
         class Meta:
             include_paths = ['../../..']  # This is not good!
             cpp_flags = '-D_BLOCKSIZEX_={} -D_BLOCKSIZEY_={} ' \
@@ -331,10 +324,11 @@ class Cubism(Library):
     def init(self, block_num):
         assert len(block_num) == 3, "Expected 3 values (x, y, z)."
         self.block_num = block_num
+        self.node_dims = (1, 1, 1)
         self.grid_ptr.set_value(lazy_global_variable(
                 New(self.grid_type, *block_num), 'grid_ptr'))
         return [
-            # FIXME: Now, .clear() won't be generated unless it is used. Fix it.
+            # FIXME: Now, .clear() won't be generated unless it is used.
             "\n/* This is an ugly hack to get the definition of .clear() "
             "in GridPoint:\n",
             methods.Method(name='dummy', output=self.grid_point)().clear(),
@@ -358,6 +352,7 @@ class Cubism(Library):
     def _process__create_loops(self, funcfunc):
         """Helper method for process_pointwise and process_stencil."""
         init = []
+
         def inner(*ijk):
             result = funcfunc(*ijk)
             if isinstance(result, tuple):
@@ -381,10 +376,10 @@ class Cubism(Library):
             global_ijk - GridPoint indices in the whole grid.
             xyz        - Absolute coordinates of the GridPoint.
         """
-        global_ijk = [self.block_size[dim] * info.index[dim] + ijk[dim] \
+        global_ijk = [self.block_size[dim] * info.index[dim] + ijk[dim]
                       for dim in range(len(ijk))]
         # TODO: Arithmetic operators between Double and Int.
-        xyz = [info.origin[dim] + info.h_gridpoint * Double(ijk[dim]) \
+        xyz = [info.origin[dim] + info.h_gridpoint * Double(ijk[dim])
                for dim in range(len(ijk))]
         return {
             'info': info,
@@ -405,7 +400,7 @@ class Cubism(Library):
             - FunctionCall, command to put inside the for loops.
             - [...], list of commands to put inside the for loops.
             - [...], [...] - List of commands to put BEFORE the for loops,
-                             and a list of commands to put INSIDE the for loops.
+                             and a list of commands to put INSIDE.
 
         Example:
             def decay(p, **kwargs):
@@ -415,8 +410,8 @@ class Cubism(Library):
         @make_lambda(capture_default='&',
                      _arg_const=(True, False),
                      name_hint=getattr(func, '__name__', None))
-        def rhs(info:BlockInfo,
-                block:Ref(self.block_type)):
+        def rhs(info: BlockInfo,
+                block: Ref(self.block_type)):
             return self._process__create_loops(
                     lambda *ijk: func(block(*ijk),
                                       **self._common_kwargs(info, ijk)))
@@ -426,8 +421,6 @@ class Cubism(Library):
                 localvars=(rhs, ),
                 name='process_pointwise',
         )
-
-
 
     def process_stencil(self, func):
         """Call given (stencil) function for each point in the grid.
@@ -442,7 +435,7 @@ class Cubism(Library):
             - FunctionCall, command to put inside the for loops.
             - [...], list of commands to put inside the for loops.
             - [...], [...] - List of commands to put BEFORE the for loops,
-                             and a list of commands to put INSIDE the for loops.
+                             and a list of commands to put INSIDE.
 
         To access a neighboring grid point (ix + dx, iy + dy), where (ix, iy)
         is the location of the current point, and (dx, dy) is the displacement,
@@ -458,8 +451,10 @@ class Cubism(Library):
                 # Calc `inv2h` only once per block, and execute these two
                 # assignments for each grid point in a block.
                 return [inv2h], [
-                    expression(p.grad[0], '=', inv2h * (lab(1, 0).phi - lab(-1, 0).phi),
-                    expression(p.grad[1], '=', inv2h * (lab(0, 1).phi - lab(0, -1).phi),
+                    expression(p.grad[0], '=',
+                               inv2h * (lab(1, 0).phi - lab(-1, 0).phi),
+                    expression(p.grad[1], '=',
+                               inv2h * (lab(0, 1).phi - lab(0, -1).phi),
                 ]
 
             C.process_stencil(calc_grad)
@@ -469,9 +464,9 @@ class Cubism(Library):
         @make_lambda(capture_default='&',
                      _arg_const=(True, True, False),
                      name_hint=getattr(func, '__name__', None))
-        def rhs(lab:self.lab_type,
-                info:BlockInfo,
-                block:Ref(self.block_type)):
+        def rhs(lab: self.lab_type,
+                info: BlockInfo,
+                block: Ref(self.block_type)):
             lab_wrapper.lab_var = lab
             return self._process__create_loops(
                     lambda *ijk: func(block(*ijk),
@@ -513,7 +508,7 @@ class Cubism(Library):
             return self._process_stencil(stencil, kernel, grid, 0.0)
 
         @make_lambda
-        def getter(p:self.grid_point):
+        def getter(p: self.grid_point):
             return func(p)
         result_type = getter.method.output.output
 
@@ -555,10 +550,10 @@ class GridMPI(Struct):
                                   'Cubism/source/BlockLabMPI.h'])
         # (nodes per x, y, z, blocks within node per x, y, z, maxextent, comm)
         self.constructor = self.Constructor(Int, Int, Int,
-                                            Int, Int, Int, Double, mpi.MPI_Comm)
+                                            Int, Int, Int,
+                                            Double, mpi.MPI_Comm)
         self.getSubdomainLow = self.Method(args=Pointer(Double))
         self.getSubdomainHigh = self.Method(args=Pointer(Double))
-
 
 
 class BlockLabMPI(Struct):
@@ -567,7 +562,6 @@ class BlockLabMPI(Struct):
         super().__init__(ctype='BlockLabMPI', pyname='BlockLabMPI',
                          template_args=lab_type,
                          header='Cubism/source/BlockLabMPI.h')
-
 
 
 class CubismMPI(Cubism):
@@ -604,7 +598,6 @@ class CubismMPI(Cubism):
 
         self.get_my_subdomain = _get_my_subdomain
 
-
     def _init_variables(self):
         """Called by Cubism.__init__."""
         self.mpi_lab_type = BlockLabMPI(self.lab_type)
@@ -625,7 +618,7 @@ class CubismMPI(Cubism):
 
         steps = [
             noop(self.grid_ptr),
-            # FIXME: Now, .clear() won't be generated unless it is used. Fix it.
+            # FIXME: Now, .clear() won't be generated unless it is used.
             "\n/* This is an ugly hack to get the definition of .clear() "
             "in GridPoint:\n",
             methods.Method(name='dummy', output=self.grid_point)().clear(),

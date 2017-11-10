@@ -82,15 +82,15 @@ def initial_state():
     # Run function `inner` for each point.
     # C.process_pointwise passes to the given argument one positional argument
     # (GridPoint reference), and multiple keyword arguments (e.g. ijk, xyz...),
-    # which might or might not be important to the user. As over time additional
-    # keyword arguments could be added to the Cubism API, the passed function
-    # therefore must always be defined to be able to ignore unused keyword
-    # arguments.
+    # which might or might not be important to the user. As over time
+    # additional keyword arguments could be added to the Cubism API, the passed
+    # function therefore must always be defined to be able to ignore unused
+    # keyword arguments.
     return C.process_pointwise(inner)
 
 
 @make_method  # Creates `void timestep(const double &dt) { ... }`.
-def timestep(dt:Double):
+def timestep(dt: Double):
     """Implementation of a single time step."""
     def calc_grad(p, lab, info, **kwargs):
         """Calculates the gradient `.grad` of the field `.phi`.
@@ -115,10 +115,10 @@ def timestep(dt:Double):
         Here, stencil is (x0, x1) = (-1, 0), (y0, y1) = (-1, 0),
         (z0, z1) = (0, 0), inclusive.
         """
-        invh = 1. / info.h_gridpoint
+        fac = 1. / info.h_gridpoint
         assert VEL[0] >= 0 and VEL[1] >= 0, "Scheme unstable for vel < 0."
-        # [invh] --> Code that should be executed before nested for loops
-        #            (see generated C++ code).
+        # [fac] --> Code that should be executed before nested for loops
+        #           (see generated C++ code).
         # [expression...] --> Code inside the nested for loops.
 
         # Because in Python it's not possible to capture assignment as in C++,
@@ -127,9 +127,9 @@ def timestep(dt:Double):
         # but an item like "x.a = b", by overloading __setitem__ such that
         # it keeps track of all operations. That format is available using
         # StructuredWorkflow (still in development).
-        return [invh], [
-            expression(p.grad[0], '=', invh * (lab(0, 0).phi - lab(-1, 0).phi)),
-            expression(p.grad[1], '=', invh * (lab(0, 0).phi - lab(0, -1).phi)),
+        return [fac], [
+            expression(p.grad[0], '=', fac * (lab(0, 0).phi - lab(-1, 0).phi)),
+            expression(p.grad[1], '=', fac * (lab(0, 0).phi - lab(0, -1).phi)),
         ]
 
     def advance(p, **kwargs):
@@ -142,11 +142,12 @@ def timestep(dt:Double):
         # p.phi -= dt * dot(VEL, p.grad)
         return expression(p.phi, '-=', fac0 * p.grad[0] + fac1 * p.grad[1])
 
-    # Here we list all the substeps of one time step, in the order of execution.
+    # Here we list all substeps of one time step, in the order of execution.
     return [
         C.process_stencil(calc_grad),
         C.process_pointwise(advance),
     ]
+
 
 # Immediately create a folder containing output files.
 # Note: This is Python code, and it will be executed during compilation.
@@ -166,13 +167,7 @@ def determine_dim(linker):
         localvars=(N, sqrt, dims),
         name='determine_dim',
     )
-    # dims = StdArray(Int, 3).from_values(0, 0, 1, const=False)
-    # return InlineWorkflow(
-    #     dims,
-    #     mpi.MPI_Dims_create(linker.get_size(C), 2, dims.data()),
-    #     return_value=dims,
-    #     name='determine_dim',
-    # )
+
 
 dims = lazy_global_variable(determine_dim(linker), 'dims')
 

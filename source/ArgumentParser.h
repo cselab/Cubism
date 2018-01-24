@@ -154,14 +154,21 @@ public:
 
 	CommandlineParser(const int argc, char ** argv) : iArgC(argc), vArgV(argv), bStrictMode(false), bVerbose(true),  mapArguments()
 	{
+        // parse commandline <key> <value> pairs.  Key passed on the command
+        // line must start with a leading dash (-). For example:
+        // -mykey myvalue0 [myvalue1 ...]
 		for (int i=1; i<argc; i++)
 			if (argv[i][0] == '-')
 			{
 				std::string values = "";
 				int itemCount = 0;
 
+                // check if the current key i is a list of values. If yes,
+                // concatenate them into a string
 				for (int j=i+1; j<argc; j++)
                 {
+                    // if the current value is numeric and (possibly) negative,
+                    // do not interpret it as a key
                     const bool leadingDash = (argv[j][0] == '-');
                     const bool isNumeric = std::regex_match(argv[j], std::regex("(\\+|-)?[0-9]*(\\.[0-9]*)?((e|E)(\\+|-)?[0-9]*)?"));
 					if (leadingDash && !isNumeric)
@@ -181,7 +188,7 @@ public:
 
                 std::string key(argv[i]);
                 key.erase(0,1); // remove leading '-'
-                if (key[0] == '+')
+                if (key[0] == '+') // for key concatenation
                 {
                     key.erase(0,1);
                     if (!_existKey(key,mapArguments))
@@ -189,7 +196,7 @@ public:
                     else
                         mapArguments[key] += Value(values);
                 }
-                else
+                else // regular key
                 {
                     if (!_existKey(key,mapArguments))
                         mapArguments[key] = Value(values);

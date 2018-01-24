@@ -27,6 +27,7 @@
 #include <fstream>
 #include <ostream>
 #include <limits>
+#include <regex> // C++11
 
 
 class Value
@@ -162,9 +163,8 @@ public:
 				for (int j=i+1; j<argc; j++)
                 {
                     const bool leadingDash = (argv[j][0] == '-');
-                    const char c = argv[j][1];
-                    const bool firstNumeric = ((c >= '0' && c <= '9') || c == 0) ? true : false;
-					if (leadingDash && !firstNumeric)
+                    const bool isNumeric = std::regex_match(argv[j], std::regex("(\\+|-)?[0-9]*(\\.[0-9]*)?((e|E)(\\+|-)?[0-9]*)?"));
+					if (leadingDash && !isNumeric)
 						break;
 					else
 					{

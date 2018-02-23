@@ -16,6 +16,7 @@
 #include <string>
 #include <iostream>
 #include <cstdlib>
+#include <random> // C++11
 #include "ArgumentParser.h"
 
 class MeshDensity
@@ -53,6 +54,62 @@ public:
 
     virtual std::string name() const { return std::string("UniformDensity"); }
 };
+
+
+class RandomDensity : public MeshDensity
+{
+    const unsigned int m_seed;
+
+public:
+    struct DefaultParameter
+    {
+        unsigned int seed;
+        DefaultParameter() : seed(1) {}
+    };
+
+    RandomDensity(const DefaultParameter d=DefaultParameter()) : MeshDensity(false), m_seed(d.seed) {}
+
+    virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+            const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
+    {
+        const unsigned int total_cells = ncells + ghostE + ghostS;
+        double* const buf = new double[total_cells];
+
+        std::default_random_engine gen;
+        gen.seed(m_seed);
+        std::uniform_real_distribution<double> uniform(0.0,1.0);
+
+        double ducky = 0.0;
+        for (int i = 0; i < total_cells; ++i)
+        {
+            buf[i] = uniform(gen);
+
+            if (i >= ghostS && i < ncells + ghostS)
+                ducky += buf[i];
+        }
+
+        const double scale = (xE-xS)/ducky;
+        for (int i = 0; i < total_cells; ++i)
+            buf[i] *= scale;
+
+        for (int i = 0; i < ncells; ++i)
+            ary[i] = buf[i+ghostS];
+
+        if (ghost_spacing)
+        {
+            for (int i = 0; i < ghostS; ++i)
+                ghost_spacing[i] = buf[i];
+            for (int i = 0; i < ghostE; ++i)
+                ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
+        }
+
+        // clean up
+        delete[] buf;
+    }
+
+    virtual std::string name() const { return std::string("RandomDensity"); }
+};
+
 
 class GaussianDensity : public MeshDensity
 {
@@ -503,6 +560,13 @@ private:
                     if (m_parser.exist(box_ncells)) p.box_ncells= m_parser(box_ncells).asDouble();
                     if (m_parser.exist(abs_tol)) p.abs_tol = m_parser(abs_tol).asDouble();
                     m_mesh_kernels.push_back(new BoxFadeDensity(p));
+                }
+                else if (density_function == "RandomDensity")
+                {
+                    typename RandomDensity::DefaultParameter p;
+                    const std::string seed("seed" + suffix[i]);
+                    if (m_parser.exist(seed)) p.seed   = m_parser(seed).asInt();
+                    m_mesh_kernels.push_back(new RandomDensity(p));
                 }
                 else
                 {

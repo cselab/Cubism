@@ -19,6 +19,9 @@
 #include <random> // C++11
 #include "ArgumentParser.h"
 
+///////////////////////////////////////////////////////////////////////////////
+// Base class
+///////////////////////////////////////////////////////////////////////////////
 class MeshDensity
 {
 public:
@@ -31,6 +34,9 @@ public:
 };
 
 
+///////////////////////////////////////////////////////////////////////////////
+// General mesh densities
+///////////////////////////////////////////////////////////////////////////////
 class UniformDensity : public MeshDensity
 {
 public:
@@ -484,6 +490,133 @@ private:
 };
 
 
+///////////////////////////////////////////////////////////////////////////////
+// Trigonometric wall growth (e.g. for channel flow)
+///////////////////////////////////////////////////////////////////////////////
+// Based on Alfonsi et al. "Direct Numerical Simulation of Turbulent Channel
+// Flow on High-Performance GPU Computing System" (2016)
+class HyperbolicTangentDensity: public MeshDensity
+{
+    const double PP;
+    const double QQ;
+
+public:
+    struct DefaultParameter
+    {
+        double PP, QQ;
+        // Parameter are based on channel half-width = 1.0
+        DefaultParameter() : PP(0.0), QQ(2.0) {}
+    };
+
+    HyperbolicTangentDensity(const DefaultParameter d=DefaultParameter()) : MeshDensity(false), PP(d.PP), QQ(d.QQ) {}
+
+    virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+            const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
+    {
+        const unsigned int total_cells = ncells + ghostE + ghostS;
+        double* const buf = new double[total_cells];
+
+        // interior
+        const size_t nhalf = ncells/2 + ncells%2;
+        const double h = 2.0 / ncells;
+        double ducky = 0.0;
+        for (int i = 0; i < nhalf; ++i)
+        {
+            const double x = h*(i+0.5);
+            const double dh = PP*x + (1.0-PP)*(1.0 - std::tanh(QQ*(1.0-x))/std::tanh(QQ));
+            buf[i+ghostS] = dh;
+            buf[ncells-1-i+ghostS] = dh;
+
+            ducky += 2*dh;
+        }
+        if (ncells%2 == 1)
+            ducky -= buf[ghostS+nhalf-1];
+
+        const double scale = (xE-xS)/ducky;
+        for (int i = 0; i < ncells; ++i)
+            buf[i+ghostS] *= scale;
+
+        for (int i = 0; i < ncells; ++i)
+            ary[i] = buf[i+ghostS];
+
+        assert(ghostS == ghostE);
+        if (ghost_spacing)
+        {
+            for (int i = 0; i < ghostS; ++i)
+                ghost_spacing[ghostS-1-i] = buf[ghostS+i];
+            for (int i = 0; i < ghostE; ++i)
+                ghost_spacing[i+ghostS] = buf[ncells-1+ghostS-i];
+        }
+
+        // clean up
+        delete[] buf;
+    }
+
+    virtual std::string name() const { return std::string("HyperbolicTangentDensity"); }
+};
+
+
+// Lee & Moser "Direct numerical simulation of turbulent channel flow up to
+// Re_tau 5200" (JFM, 2015)
+class SinusoidalDensity: public MeshDensity
+{
+    const double eta;
+
+public:
+    struct DefaultParameter
+    {
+        double eta;
+        DefaultParameter() : eta(1.0) {}
+    };
+
+    SinusoidalDensity(const DefaultParameter d=DefaultParameter()) : MeshDensity(false), eta(d.eta) {}
+
+    virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
+            const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
+    {
+        const unsigned int total_cells = ncells + ghostE + ghostS;
+        double* const buf = new double[total_cells];
+
+        // interior
+        const size_t nhalf = ncells/2 + ncells%2;
+        const double h = 2.0 / ncells;
+        double ducky = 0.0;
+        for (int i = 0; i < nhalf; ++i)
+        {
+            const double x = h*(i+0.5) - 1.0;
+            const double dh = std::sin(0.5*eta*x*M_PI) / std::sin(0.5*eta*M_PI) + 1.0;
+            buf[i+ghostS] = dh;
+            buf[ncells-1-i+ghostS] = dh;
+
+            ducky += 2*dh;
+        }
+        if (ncells%2 == 1)
+            ducky -= buf[ghostS+nhalf-1];
+
+        const double scale = (xE-xS)/ducky;
+        for (int i = 0; i < ncells; ++i)
+            buf[i+ghostS] *= scale;
+
+        for (int i = 0; i < ncells; ++i)
+            ary[i] = buf[i+ghostS];
+
+        assert(ghostS == ghostE);
+        if (ghost_spacing)
+        {
+            for (int i = 0; i < ghostS; ++i)
+                ghost_spacing[ghostS-1-i] = buf[ghostS+i];
+            for (int i = 0; i < ghostE; ++i)
+                ghost_spacing[i+ghostS] = buf[ncells-1+ghostS-i];
+        }
+
+        // clean up
+        delete[] buf;
+    }
+
+    virtual std::string name() const { return std::string("SinusoidalDensity"); }
+};
+
+
 
 class MeshDensityFactory
 {
@@ -567,6 +700,22 @@ private:
                     const std::string seed("seed" + suffix[i]);
                     if (m_parser.exist(seed)) p.seed   = m_parser(seed).asInt();
                     m_mesh_kernels.push_back(new RandomDensity(p));
+                }
+                else if (density_function == "HyperbolicTangentDensity")
+                {
+                    typename HyperbolicTangentDensity::DefaultParameter p;
+                    const std::string PP("PP" + suffix[i]);
+                    const std::string QQ("QQ" + suffix[i]);
+                    if (m_parser.exist(PP)) p.PP = m_parser(PP).asDouble();
+                    if (m_parser.exist(QQ)) p.QQ = m_parser(QQ).asDouble();
+                    m_mesh_kernels.push_back(new HyperbolicTangentDensity(p));
+                }
+                else if (density_function == "SinusoidalDensity")
+                {
+                    typename SinusoidalDensity::DefaultParameter p;
+                    const std::string eta("eta" + suffix[i]);
+                    if (m_parser.exist(eta)) p.eta = m_parser(eta).asDouble();
+                    m_mesh_kernels.push_back(new SinusoidalDensity(p));
                 }
                 else
                 {

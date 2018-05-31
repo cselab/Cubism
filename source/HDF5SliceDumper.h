@@ -16,16 +16,12 @@
 #include <hdf5.h>
 #endif
 
-#ifdef _FLOAT_PRECISION_
-typedef float Real;
-#else
-typedef double Real;
-#endif
-
-#ifdef _FLOAT_PRECISION_
+#ifndef _HDF5_DOUBLE_PRECISION_
 #define HDF_REAL H5T_NATIVE_FLOAT
+typedef  float hdf5Real;
 #else
 #define HDF_REAL H5T_NATIVE_DOUBLE
+typedef double hdf5Real;
 #endif
 
 #include "BlockInfo.h"
@@ -34,7 +30,7 @@ typedef double Real;
 namespace SliceExtractor
 {
     template <typename TBlock, typename TStreamer>
-    void YZ(const int ix, const int width, std::vector<BlockInfo>& bInfo, Real * const data)
+    void YZ(const int ix, const int width, std::vector<BlockInfo>& bInfo, hdf5Real * const data)
     {
         const unsigned int NCHANNELS = TStreamer::NCHANNELS;
 
@@ -42,23 +38,22 @@ namespace SliceExtractor
         for(int i = 0; i < (int)bInfo.size(); ++i)
         {
             BlockInfo& info = bInfo[i];
-            const unsigned int idx[3] = {info.index[0], info.index[1], info.index[2]};
+            const int idx[3] = {info.index[0], info.index[1], info.index[2]};
             TBlock& b = *(TBlock*)info.ptrBlock;
-            TStreamer streamer(b);
 
             for(unsigned int iz=0; iz<TBlock::sizeZ; ++iz)
                 for(unsigned int iy=0; iy<TBlock::sizeY; ++iy)
                 {
-                    Real output[NCHANNELS];
+                    hdf5Real output[NCHANNELS];
                     for(unsigned int k=0; k<NCHANNELS; ++k)
                         output[k] = 0;
 
-                    streamer.operate(ix, iy, iz, (Real*)output);
+                    TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
 
                     const unsigned int gy = idx[1]*TBlock::sizeY + iy;
                     const unsigned int gz = idx[2]*TBlock::sizeZ + iz;
 
-                    Real * const ptr = data + NCHANNELS*(gz + width * gy);
+                    hdf5Real * const ptr = data + NCHANNELS*(gz + width * gy);
 
                     for(unsigned int k=0; k<NCHANNELS; ++k)
                         ptr[k] = output[k];
@@ -67,7 +62,7 @@ namespace SliceExtractor
     }
 
     template <typename TBlock, typename TStreamer>
-    void XZ(const int iy, const int width, std::vector<BlockInfo>& bInfo, Real * const data)
+    void XZ(const int iy, const int width, std::vector<BlockInfo>& bInfo, hdf5Real * const data)
     {
         const unsigned int NCHANNELS = TStreamer::NCHANNELS;
 
@@ -75,23 +70,22 @@ namespace SliceExtractor
         for(int i = 0; i < (int)bInfo.size(); ++i)
         {
             BlockInfo& info = bInfo[i];
-            const unsigned int idx[3] = {info.index[0], info.index[1], info.index[2]};
+            const int idx[3] = {info.index[0], info.index[1], info.index[2]};
             TBlock& b = *(TBlock*)info.ptrBlock;
-            TStreamer streamer(b);
 
             for(unsigned int iz=0; iz<TBlock::sizeZ; ++iz)
                 for(unsigned int ix=0; ix<TBlock::sizeX; ++ix)
                 {
-                    Real output[NCHANNELS];
+                    hdf5Real output[NCHANNELS];
                     for(unsigned int k=0; k<NCHANNELS; ++k)
                         output[k] = 0;
 
-                    streamer.operate(ix, iy, iz, (Real*)output);
+                    TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
 
                     const unsigned int gx = idx[0]*TBlock::sizeX + ix;
                     const unsigned int gz = idx[2]*TBlock::sizeZ + iz;
 
-                    Real * const ptr = data + NCHANNELS*(gz + width * gx);
+                    hdf5Real * const ptr = data + NCHANNELS*(gz + width * gx);
 
                     for(unsigned int k=0; k<NCHANNELS; ++k)
                         ptr[k] = output[k];
@@ -100,7 +94,7 @@ namespace SliceExtractor
     }
 
     template <typename TBlock, typename TStreamer>
-    void YX(const int iz, const int width, std::vector<BlockInfo>& bInfo, Real * const data)
+    void YX(const int iz, const int width, std::vector<BlockInfo>& bInfo, hdf5Real * const data)
     {
         const unsigned int NCHANNELS = TStreamer::NCHANNELS;
 
@@ -108,23 +102,22 @@ namespace SliceExtractor
         for(int i = 0; i < (int)bInfo.size(); ++i)
         {
             BlockInfo& info = bInfo[i];
-            const unsigned int idx[3] = {info.index[0], info.index[1], info.index[2]};
+            const int idx[3] = {info.index[0], info.index[1], info.index[2]};
             TBlock& b = *(TBlock*)info.ptrBlock;
-            TStreamer streamer(b);
 
             for(unsigned int iy=0; iy<TBlock::sizeY; ++iy)
                 for(unsigned int ix=0; ix<TBlock::sizeX; ++ix)
                 {
-                    Real output[NCHANNELS];
+                    hdf5Real output[NCHANNELS];
                     for(unsigned int k=0; k<NCHANNELS; ++k)
                         output[k] = 0;
 
-                    streamer.operate(ix, iy, iz, (Real*)output);
+                    TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
 
                     const unsigned int gx = idx[0]*TBlock::sizeX + ix;
                     const unsigned int gy = idx[1]*TBlock::sizeY + iy;
 
-                    Real * const ptr = data + NCHANNELS*(gx + width * gy);
+                    hdf5Real * const ptr = data + NCHANNELS*(gx + width * gy);
 
                     for(unsigned int k=0; k<NCHANNELS; ++k)
                         ptr[k] = output[k];
@@ -144,9 +137,9 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     const unsigned int width = slice.width;
     const unsigned int height = slice.height;
 
-    std::cout << "Allocating " << (width * height * NCHANNELS * sizeof(Real))/(1024.*1024.) << " MB of HDF5 slice data" << std::endl;;
+    std::cout << "Allocating " << (width * height * NCHANNELS * sizeof(hdf5Real))/(1024.*1024.) << " MB of HDF5 slice data" << std::endl;;
 
-    Real * array_all = new Real[width * height * NCHANNELS];
+    hdf5Real * array_all = new hdf5Real[width * height * NCHANNELS];
 
     std::vector<BlockInfo> bInfo_local = grid.getBlocksInfo();
     std::vector<BlockInfo> bInfo_slice;
@@ -158,7 +151,7 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     }
 
     ostringstream filename;
-    filename << dpath << "/" << fname<< TStreamer::EXT << "_slice" << slice.id;
+    filename << dpath << "/" << fname<< TStreamer::postfix() << "_slice" << slice.id;
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
@@ -170,7 +163,7 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
     file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
-    status = H5Pclose(fapl_id);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     if (0 == slice.dir)
         SliceExtractor::YZ<B,TStreamer>(slice.idx%_BLOCKSIZE_, width, bInfo_slice, array_all);
@@ -190,13 +183,13 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     fspace_id = H5Dget_space(dataset_id);
     H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, offset, NULL, count, NULL);
     mspace_id = H5Screate_simple(3, count, NULL);
-    status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all);
+    status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all); if(status<0) H5Eprint1(stdout);
 
-    status = H5Sclose(mspace_id);
-    status = H5Sclose(fspace_id);
-    status = H5Dclose(dataset_id);
-    status = H5Pclose(fapl_id);
-    status = H5Fclose(file_id);
+    status = H5Sclose(mspace_id); if(status<0) H5Eprint1(stdout);
+    status = H5Sclose(fspace_id); if(status<0) H5Eprint1(stdout);
+    status = H5Dclose(dataset_id); if(status<0) H5Eprint1(stdout);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
+    status = H5Fclose(file_id); if(status<0) H5Eprint1(stdout);
     H5close();
 
     delete [] array_all;

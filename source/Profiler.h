@@ -39,9 +39,17 @@ class ProfileAgent
 	int m_nMeasurements;
 	int m_nMoney;
 
-	static void _getTime(ClockTime& time);
+	static void _getTime(ClockTime& time)
+  {
+  	//time = tick_count::now();
+  	gettimeofday(&time, NULL);
+  }
 
-	static double _getElapsedTime(const ClockTime& tS, const ClockTime& tE);
+	static double _getElapsedTime(const ClockTime&tS, const ClockTime&tE)
+  {
+  	return (tE.tv_sec - tS.tv_sec) + 1e-6 * (tE.tv_usec - tS.tv_usec);
+  	//return (tE - tS).seconds();
+  }
 
 	void _reset()
 	{
@@ -89,9 +97,9 @@ struct ProfileSummaryItem
 {
 	std::string sName;
 	double dTime;
-	double dAverageTime;
 	int nMoney;
 	int nSamples;
+	double dAverageTime;
 
 	ProfileSummaryItem(std::string sName_, double dTime_, int nMoney_, int nSamples_):
 		sName(sName_), dTime(dTime_), nMoney(nMoney_),nSamples(nSamples_), dAverageTime(dTime_/nSamples_){}
@@ -216,6 +224,3 @@ public:
 
 	friend class ProfileAgent;
 };
-
-
-

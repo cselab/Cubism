@@ -15,16 +15,12 @@
 #include <hdf5.h>
 #endif
 
-#ifdef _FLOAT_PRECISION_
-typedef float Real;
-#else
-typedef double Real;
-#endif
-
-#ifdef _FLOAT_PRECISION_
+#ifndef _HDF5_DOUBLE_PRECISION_
 #define HDF_REAL H5T_NATIVE_FLOAT
+typedef  float hdf5Real;
 #else
 #define HDF_REAL H5T_NATIVE_DOUBLE
+typedef double hdf5Real;
 #endif
 
 #include "BlockInfo.h"
@@ -35,7 +31,7 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
 #ifdef _USE_HDF_
     typedef typename TGrid::BlockType B;
 
-    const std::string fullname = f_name + Streamer::EXT;
+    const std::string fullname = f_name + Streamer::postfix();
     char filename[256];
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
@@ -45,8 +41,8 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
     const unsigned int NY = grid.getBlocksPerDimension(1)*B::sizeY;
     const unsigned int NZ = grid.getBlocksPerDimension(2)*B::sizeZ;
 
-    std::cout << "Allocating " << (NX * NY * NZ * NCHANNELS * sizeof(Real))/(1024.*1024.*1024.) << " GB of HDF5 data" << std::endl;
-    Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
+    std::cout << "Allocating " << (NX * NY * NZ * NCHANNELS * sizeof(hdf5Real))/(1024.*1024.*1024.) << " GB of HDF5 data" << std::endl;
+    hdf5Real * array_all = new hdf5Real[NX * NY * NZ * NCHANNELS];
 
     std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
@@ -75,7 +71,7 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
     file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
-    status = H5Pclose(fapl_id);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
 #pragma omp parallel for
     for(int i=0; i<(int)vInfo_local.size(); i++)
@@ -83,23 +79,22 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
         BlockInfo& info = vInfo_local[i];
         const unsigned int idx[3] = {info.index[0], info.index[1], info.index[2]};
         B & b = *(B*)info.ptrBlock;
-        Streamer streamer(b);
 
         for(unsigned int iz=sZ; iz<eZ; iz++)
             for(unsigned int iy=sY; iy<eY; iy++)
                 for(unsigned int ix=sX; ix<eX; ix++)
                 {
-                    Real output[NCHANNELS];
+                    hdf5Real output[NCHANNELS];
                     for(unsigned int i=0; i<NCHANNELS; ++i)
                         output[i] = 0;
 
-                    streamer.operate(ix, iy, iz, (Real*)output);
+                    Streamer::operate(b, ix, iy, iz, (hdf5Real*)output);
 
                     const unsigned int gx = idx[0]*B::sizeX + ix;
                     const unsigned int gy = idx[1]*B::sizeY + iy;
                     const unsigned int gz = idx[2]*B::sizeZ + iz;
 
-                    Real * const ptr = array_all + NCHANNELS*(gx + NX * (gy + NY * gz));
+                    hdf5Real * const ptr = array_all + NCHANNELS*(gx + NX * (gy + NY * gz));
 
                     for(unsigned int i=0; i<NCHANNELS; ++i)
                         ptr[i] = output[i];
@@ -121,13 +116,13 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
 
     mspace_id = H5Screate_simple(4, count, NULL);
 
-    status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all);
+    status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all); if(status<0) H5Eprint1(stdout);
 
-    status = H5Sclose(mspace_id);
-    status = H5Sclose(fspace_id);
-    status = H5Dclose(dataset_id);
-    status = H5Pclose(fapl_id);
-    status = H5Fclose(file_id);
+    status = H5Sclose(mspace_id); if(status<0) H5Eprint1(stdout);
+    status = H5Sclose(fspace_id); if(status<0) H5Eprint1(stdout);
+    status = H5Dclose(dataset_id); if(status<0) H5Eprint1(stdout);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
+    status = H5Fclose(file_id); if(status<0) H5Eprint1(stdout);
     H5close();
 
     delete [] array_all;
@@ -187,7 +182,7 @@ void ReadHDF5(TGrid &grid, const std::string f_name, const std::string read_path
     const int NZ = grid.getBlocksPerDimension(2)*B::sizeZ;
     static const int NCHANNELS = Streamer::NCHANNELS;
 
-    Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
+    hdf5Real * array_all = new hdf5Real[NX * NY * NZ * NCHANNELS];
 
     std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
@@ -216,7 +211,7 @@ void ReadHDF5(TGrid &grid, const std::string f_name, const std::string read_path
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
     file_id = H5Fopen(filename, H5F_ACC_RDONLY, fapl_id);
-    status = H5Pclose(fapl_id);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     dataset_id = H5Dopen2(file_id, "data", H5P_DEFAULT);
     fapl_id = H5Pcreate(H5P_DATASET_XFER);
@@ -225,7 +220,7 @@ void ReadHDF5(TGrid &grid, const std::string f_name, const std::string read_path
     H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, offset, NULL, count, NULL);
 
     mspace_id = H5Screate_simple(4, count, NULL);
-    status = H5Dread(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all);
+    status = H5Dread(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all); if(status<0) H5Eprint1(stdout);
 
 #pragma omp parallel for
     for(int i=0; i<vInfo_local.size(); i++)
@@ -233,7 +228,6 @@ void ReadHDF5(TGrid &grid, const std::string f_name, const std::string read_path
         BlockInfo& info = vInfo_local[i];
         const int idx[3] = {info.index[0], info.index[1], info.index[2]};
         B & b = *(B*)info.ptrBlock;
-        Streamer streamer(b);
 
         for(int iz=sZ; iz<eZ; iz++)
             for(int iy=sY; iy<eY; iy++)
@@ -243,17 +237,17 @@ void ReadHDF5(TGrid &grid, const std::string f_name, const std::string read_path
                     const int gy = idx[1]*B::sizeY + iy;
                     const int gz = idx[2]*B::sizeZ + iz;
 
-                    Real * const ptr_input = array_all + NCHANNELS*(gx + NX * (gy + NY * gz));
+                    hdf5Real * const ptr_input = array_all + NCHANNELS*(gx + NX * (gy + NY * gz));
 
-                    streamer.operate(ptr_input, ix, iy, iz);
+                    Streamer::operate(b, ptr_input, ix, iy, iz);
                 }
     }
 
-    status = H5Pclose(fapl_id);
-    status = H5Dclose(dataset_id);
-    status = H5Sclose(fspace_id);
-    status = H5Sclose(mspace_id);
-    status = H5Fclose(file_id);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
+    status = H5Dclose(dataset_id); if(status<0) H5Eprint1(stdout);
+    status = H5Sclose(fspace_id); if(status<0) H5Eprint1(stdout);
+    status = H5Sclose(mspace_id); if(status<0) H5Eprint1(stdout);
+    status = H5Fclose(file_id); if(status<0) H5Eprint1(stdout);
 
     H5close();
 

@@ -109,7 +109,7 @@ class CommandlineParser
 {
 private:
 	const int iArgC;
-	const char** vArgV;
+  char** vArgV;
 	bool bStrictMode, bVerbose;
 
 protected:
@@ -151,7 +151,7 @@ public:
 		return _existKey(key,mapArguments);
 	}
 
-	CommandlineParser(const int argc, const char ** argv) : mapArguments(), iArgC(argc), vArgV(argv), bStrictMode(false), bVerbose(true)
+	CommandlineParser(const int argc, char ** argv) : iArgC(argc), vArgV(argv), bStrictMode(false), bVerbose(true),  mapArguments()
 	{
 		for (int i=1; i<argc; i++)
 			if (argv[i][0] == '-')
@@ -204,7 +204,7 @@ public:
 
 	int getargc() const { return iArgC; }
 
-	const char** getargv() const { return vArgV; }
+	char** getargv() const { return vArgV; }
 
 	void set_strict_mode()
 	{
@@ -327,7 +327,7 @@ class ArgumentParser: public CommandlineParser
 
 
 public:
-    ArgumentParser(const int _argc, const char ** _argv, const char cstart='#'):
+    ArgumentParser(const int _argc, char ** _argv, const char cstart='#'):
         CommandlineParser(_argc, _argv), commentStart(cstart)
     {
         from_commandline = mapArguments;

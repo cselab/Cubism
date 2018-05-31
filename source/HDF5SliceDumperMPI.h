@@ -24,16 +24,17 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     const unsigned int height = slice.localHeight;
 
     int sliceRank;
-    MPI_Comm_rank(slice.sliceComm, &sliceRank);
+    MPI_Comm comm = grid.getCartComm();
+    MPI_Comm_rank(comm, &sliceRank);
 
 // #ifndef NDEBUG
     if (0 == sliceRank)
     {
-        std::cout << "Allocating " << (width * height * NCHANNELS * sizeof(Real))/(1024.*1024.) << " MB of HDF5 slice data";
+        std::cout << "Allocating " << (width * height * NCHANNELS * sizeof(hdf5Real))/(1024.*1024.) << " MB of HDF5 slice data";
     }
 // #endif /* NDEBUG */
 
-    Real * array_all = new Real[width * height * NCHANNELS];
+    hdf5Real * array_all = new hdf5Real[width * height * NCHANNELS];
 
     std::vector<BlockInfo> bInfo_local = grid.getResidentBlocksInfo();
     std::vector<BlockInfo> bInfo_slice;
@@ -45,7 +46,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     }
 
     ostringstream filename;
-    filename << dpath << "/" << fname << TStreamer::EXT << "_slice" << slice.id;
+    filename << dpath << "/" << fname << TStreamer::postfix() << "_slice" << slice.id;
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
@@ -57,15 +58,15 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
 // #ifndef NDEBUG
     if (0 == sliceRank)
     {
-        std::cout << " (Total  " << (dims[0] * dims[1] * dims[2] * sizeof(Real))/(1024.*1024.) << " MB)" << std::endl;
+        std::cout << " (Total  " << (dims[0] * dims[1] * dims[2] * sizeof(hdf5Real))/(1024.*1024.) << " MB)" << std::endl;
     }
 // #endif /* NDEBUG */
 
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-    status = H5Pset_fapl_mpio(fapl_id, slice.sliceComm, MPI_INFO_NULL);
+    status = H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL); if(status<0) H5Eprint1(stdout);
     file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
-    status = H5Pclose(fapl_id);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     if (0 == slice.dir)
         SliceExtractor::YZ<B,TStreamer>(slice.idx%_BLOCKSIZE_, width, bInfo_slice, array_all);
@@ -87,13 +88,13 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     fspace_id = H5Dget_space(dataset_id);
     H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, offset, NULL, count, NULL);
     mspace_id = H5Screate_simple(3, count, NULL);
-    status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all);
+    status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all); if(status<0) H5Eprint1(stdout);
 
-    status = H5Sclose(mspace_id);
-    status = H5Sclose(fspace_id);
-    status = H5Dclose(dataset_id);
-    status = H5Pclose(fapl_id);
-    status = H5Fclose(file_id);
+    status = H5Sclose(mspace_id); if(status<0) H5Eprint1(stdout);
+    status = H5Sclose(fspace_id); if(status<0) H5Eprint1(stdout);
+    status = H5Dclose(dataset_id); if(status<0) H5Eprint1(stdout);
+    status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
+    status = H5Fclose(file_id); if(status<0) H5Eprint1(stdout);
     H5close();
 
     delete [] array_all;

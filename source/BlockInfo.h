@@ -18,8 +18,8 @@ struct BlockInfo
     bool special;
     int index[3];
 
-	double origin[3];
-	double h, h_gridpoint;
+    double origin[3];
+    double h, h_gridpoint;
     double uniform_grid_spacing[3];
     double block_extent[3];
 
@@ -28,9 +28,9 @@ struct BlockInfo
     bool bUniform[3];
 
 ///////////////////////////////////////////////////////////////////////////////
-	template <typename T>
-	inline void pos(T p[2], int ix, int iy) const
-	{
+    template <typename T>
+    inline void pos(T p[2], int ix, int iy) const
+    {
         const int I[2] = {ix, iy};
         for (int j = 0; j < 2; ++j)
         {
@@ -46,11 +46,11 @@ struct BlockInfo
             }
             p[j] = origin[j] + delta;
         }
-	}
+    }
 
-	template <typename T>
-	inline void pos(T p[3], int ix, int iy, int iz) const
-	{
+    template <typename T>
+    inline void pos(T p[3], int ix, int iy, int iz) const
+    {
         const int I[3] = {ix, iy, iz};
         for (int j = 0; j < 3; ++j)
         {
@@ -70,10 +70,10 @@ struct BlockInfo
 ///////////////////////////////////////////////////////////////////////////////
 
     BlockInfo(long long ID, const int idx[3], const double _pos[3], const double spacing, double h_gridpoint_, void * ptr=NULL, const bool _special=false):
-	blockID(ID), ptrBlock(ptr), special(_special)
-	{
-		h = spacing;
-		h_gridpoint = h_gridpoint_;
+    blockID(ID), ptrBlock(ptr), special(_special)
+    {
+        h = spacing;
+        h_gridpoint = h_gridpoint_;
 
         for (int i = 0; i < 3; ++i)
         {
@@ -89,11 +89,11 @@ struct BlockInfo
 
             bUniform[i] = true;
         }
-	}
+    }
 
     template <typename TBlock>
     BlockInfo(long long ID, const int idx[3], MeshMap<TBlock>* const mapX, MeshMap<TBlock>* const mapY, MeshMap<TBlock>* const mapZ, void * ptr=NULL, const bool _special=false):
-	blockID(ID), ptrBlock(ptr), special(_special)
+    blockID(ID), ptrBlock(ptr), special(_special)
     {
         // TODO: [fabianw@mavt.ethz.ch; Wed May 03 2017 05:06:58 PM (-0700)]
         // ugly but keep this for the moment to ensure that nothing breaks

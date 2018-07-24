@@ -16,8 +16,8 @@
 
 typedef struct _header
 {
-	long offset;
-	long size;
+    long offset;
+    long size;
 } header;
 
 #ifdef _FLOAT_PRECISION_
@@ -33,13 +33,13 @@ void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const std::string
 	MPI_Status status;
 	MPI_File file_id;
 
-	MPI_Comm_rank(comm, &rank);
-	MPI_Comm_size(comm, &nranks);
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &nranks);
 
-	if (rank==0)
-	{
-		std::cout << "Writing BIN file for ICs\n";
-	}
+    if (rank==0)
+    {
+        std::cout << "Writing BIN file for ICs\n";
+    }
 
     ostringstream filename;
     filename << dump_path << "/" << f_name;
@@ -50,28 +50,28 @@ void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const std::string
 		exit(1);
 	}
 
-	long offset; // global offset
-	MPI_Exscan(&bytes, &offset, 1, MPI_LONG, MPI_SUM, comm);
-	if (rank == 0) offset = 0;
+    long offset; // global offset
+    MPI_Exscan(&bytes, &offset, 1, MPI_LONG, MPI_SUM, comm);
+    if (rank == 0) offset = 0;
 
 #if DBG
-	printf("rank %d, offset = %ld, size = %ld\n", rank, offset, bytes); fflush(0);
+    printf("rank %d, offset = %ld, size = %ld\n", rank, offset, bytes); fflush(0);
 #endif
 
-	header tag;
-	tag.offset = offset;
-	tag.size = bytes;
+    header tag;
+    tag.offset = offset;
+    tag.size = bytes;
 
 #if DBG
-	printf("DUMP IC HEADER(%d): %ld %ld\n", rank, tag.offset, tag.size);
+    printf("DUMP IC HEADER(%d): %ld %ld\n", rank, tag.offset, tag.size);
 #endif
 
-	long base = MAX_MPI_PROCS*sizeof(tag); 	// full size of Header
+    long base = MAX_MPI_PROCS*sizeof(tag); 	// full size of Header
 
-	MPI_File_write_at(file_id, rank*sizeof(tag), &tag, 2, MPI_LONG, &status);
-	MPI_File_write_at(file_id, base + tag.offset, (char *)buffer, tag.size, MPI_CHAR, &status);
+    MPI_File_write_at(file_id, rank*sizeof(tag), &tag, 2, MPI_LONG, &status);
+    MPI_File_write_at(file_id, base + tag.offset, (char *)buffer, tag.size, MPI_CHAR, &status);
 
-	MPI_File_close(&file_id);
+    MPI_File_close(&file_id);
 }
 
 
@@ -81,8 +81,8 @@ void PlainReadBin_MPI(MPI_Comm comm, Real **buffer, long *bytes, const std::stri
 	MPI_Status status;
 	MPI_File file_id;
 
-	MPI_Comm_rank(comm, &rank);
-	MPI_Comm_size(comm, &nranks);
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &nranks);
 
     ostringstream filename;
     filename << read_path << "/" << f_name;
@@ -93,28 +93,28 @@ void PlainReadBin_MPI(MPI_Comm comm, Real **buffer, long *bytes, const std::stri
 		exit(1);
 	}
 
-	header tag;
-	tag.offset = -1;
-	tag.size = -1;
+    header tag;
+    tag.offset = -1;
+    tag.size = -1;
 
-	MPI_File_read_at(file_id, rank*sizeof(tag), &tag, 2, MPI_LONG, &status);
+    MPI_File_read_at(file_id, rank*sizeof(tag), &tag, 2, MPI_LONG, &status);
 
 #if DBG
-	printf("READ IC HEADER(%d): %ld %ld\n", rank, tag.offset, tag.size); fflush(0);
+    printf("READ IC HEADER(%d): %ld %ld\n", rank, tag.offset, tag.size); fflush(0);
 #endif
 
-	long offset = tag.offset;
-	long lbytes = tag.size;
+    long offset = tag.offset;
+    long lbytes = tag.size;
 #if DBG
-	printf("Reading %ld bytes of binary data\n", lbytes);
+    printf("Reading %ld bytes of binary data\n", lbytes);
 #endif
-	unsigned char *tmp = (unsigned char *) malloc(lbytes);
+    unsigned char *tmp = (unsigned char *) malloc(lbytes);
 
-	long base = MAX_MPI_PROCS*sizeof(tag);	// Header
-	MPI_File_read_at(file_id, base + offset, (char *)tmp, lbytes, MPI_CHAR, &status);
+    long base = MAX_MPI_PROCS*sizeof(tag);	// Header
+    MPI_File_read_at(file_id, base + offset, (char *)tmp, lbytes, MPI_CHAR, &status);
 
-	*buffer = (Real *)tmp;
-	*bytes = lbytes;
+    *buffer = (Real *)tmp;
+    *bytes = lbytes;
 
-	MPI_File_close(&file_id);
+    MPI_File_close(&file_id);
 }

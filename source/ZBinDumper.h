@@ -24,7 +24,7 @@ typedef double Real;
 
 typedef struct _header_serial
 {
-	long size[8];
+    long size[8];
 } header_serial;
 
 /*
@@ -40,7 +40,7 @@ inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int lay
 template<typename TGrid, typename Streamer>
 void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::string f_name, const std::string dump_path=".", const bool bDummy=false)
 {
-	typedef typename TGrid::BlockType B;
+    typedef typename TGrid::BlockType B;
 
     // f_name is the base filename without file type extension
     ostringstream filename;
@@ -49,30 +49,30 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::st
 	FILE *file_id;
 	int status;
 
-	static const unsigned int NCHANNELS = Streamer::NCHANNELS;
-	const unsigned int NX = grid.getBlocksPerDimension(0)*B::sizeX;
-	const unsigned int NY = grid.getBlocksPerDimension(1)*B::sizeY;
-	const unsigned int NZ = grid.getBlocksPerDimension(2)*B::sizeZ;
+    static const unsigned int NCHANNELS = Streamer::NCHANNELS;
+    const unsigned int NX = grid.getBlocksPerDimension(0)*B::sizeX;
+    const unsigned int NY = grid.getBlocksPerDimension(1)*B::sizeY;
+    const unsigned int NZ = grid.getBlocksPerDimension(2)*B::sizeZ;
 
     Real memsize = (NX * NY * NZ * sizeof(Real))/(1024.*1024.*1024.);
     std::cout << "Allocating " << memsize << " GB of BIN data" << std::endl;
-	Real * array_all = new Real[NX * NY * NZ];
+    Real * array_all = new Real[NX * NY * NZ];
 
-	std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
+    std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
-	static const unsigned int sX = 0;
-	static const unsigned int sY = 0;
-	static const unsigned int sZ = 0;
+    static const unsigned int sX = 0;
+    static const unsigned int sY = 0;
+    static const unsigned int sZ = 0;
 
-	static const unsigned int eX = B::sizeX;
-	static const unsigned int eY = B::sizeY;
-	static const unsigned int eZ = B::sizeZ;
+    static const unsigned int eX = B::sizeX;
+    static const unsigned int eY = B::sizeY;
+    static const unsigned int eZ = B::sizeZ;
 
 	file_id = fopen((filename.str()+".zbin").c_str(), "w");
 
-	header_serial tag;
+    header_serial tag;
     fseek(file_id, sizeof(tag), SEEK_SET);
-	for (unsigned int ichannel = 0; ichannel < NCHANNELS; ichannel++)
+    for (unsigned int ichannel = 0; ichannel < NCHANNELS; ichannel++)
     {
 
 #pragma omp parallel for
@@ -125,9 +125,9 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::st
     fseek(file_id, 0, SEEK_SET);
     size_t wb_header = fwrite(&tag.size[0], 1, sizeof(tag), file_id);
 
-	status = fclose(file_id);
+    status = fclose(file_id);
 
-	delete [] array_all;
+    delete [] array_all;
 }
 
 
@@ -156,9 +156,9 @@ void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path
     static const int sY = 0;
     static const int sZ = 0;
 
-	const int eX = B::sizeX;
-	const int eY = B::sizeY;
-	const int eZ = B::sizeZ;
+    const int eX = B::sizeX;
+    const int eY = B::sizeY;
+    const int eZ = B::sizeZ;
 
     file_id = fopen((filename.str()+".zbin").c_str(), "rb");
 

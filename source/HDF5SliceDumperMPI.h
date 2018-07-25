@@ -16,7 +16,7 @@
 namespace SliceTypesMPI
 {
     template <typename TGrid>
-    struct Slice : public SliceCreator::Slice<TGrid>
+    struct Slice : public SliceTypes::Slice<TGrid>
     {
         typedef TGrid GridType;
 
@@ -27,7 +27,7 @@ namespace SliceTypesMPI
         template <typename TSlice>
         static std::vector<TSlice> getSlices(ArgumentParser& parser, TGrid& grid)
         {
-            std::vector<TSlice> slices = SliceCreator::Slice<TGrid>::template getSlices<TSlice>(parser, grid);
+            std::vector<TSlice> slices = SliceTypes::Slice<TGrid>::template getSlices<TSlice>(parser, grid);
 
             typedef typename TGrid::BlockType B;
             int Dim[3];

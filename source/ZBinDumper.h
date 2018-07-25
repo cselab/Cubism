@@ -44,7 +44,7 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::st
 
     // f_name is the base filename without file type extension
     std::ostringstream filename;
-    filename << dump_path.str() << "/" << f_name;
+    filename << dump_path << "/" << f_name;
 
 	FILE *file_id;
 	int status;
@@ -138,7 +138,7 @@ void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path
 
     // f_name is the base filename without file type extension
     std::ostringstream filename;
-    filename << read_path.str() << "/" << f_name;
+    filename << read_path << "/" << f_name;
 
     int status;
     FILE *file_id;

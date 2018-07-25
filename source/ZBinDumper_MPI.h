@@ -53,7 +53,7 @@ void DumpZBin_MPI(const TGrid &grid, const int iCounter, const Real t, const std
 
     // f_name is the base filename without file type extension
     std::ostringstream filename;
-    filename << dump_path.str() << "/" << f_name;
+    filename << dump_path << "/" << f_name;
 
     MPI_Status status;
     MPI_File file_id;
@@ -193,7 +193,7 @@ void ReadZBin_MPI(TGrid &grid, const std::string f_name, const std::string read_
 
     // f_name is the base filename without file type extension
     std::ostringstream filename;
-    filename << read_path.str() << "/" << f_name;
+    filename << read_path << "/" << f_name;
 
     MPI_Status status;
     MPI_File file_id;

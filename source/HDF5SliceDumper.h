@@ -30,7 +30,7 @@ typedef double hdf5Real;
 
 ///////////////////////////////////////////////////////////////////////////////
 // helpers
-namespace SliceCreator
+namespace SliceTypes
 {
     template <typename TGrid>
     struct Slice

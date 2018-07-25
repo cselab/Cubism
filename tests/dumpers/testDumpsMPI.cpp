@@ -76,8 +76,8 @@ struct MyStreamer
 using MyBlock   = Block<MyReal>;
 using MyGrid    = Grid<MyBlock>;
 using MyGridMPI = GridMPI<MyGrid>;
-using MySlice   = typename SliceCreator::Slice<MyGrid>;
-using MySliceMPI= typename SliceCreatorMPI::Slice<MyGridMPI>;
+using MySlice   = typename SliceTypes::Slice<MyGrid>;
+using MySliceMPI= typename SliceTypesMPI::Slice<MyGridMPI>;
 #ifdef _NONUNIFORM_
 using MyMeshMap = MeshMap<MyBlock>;
 using MyDensity = RandomDensity;

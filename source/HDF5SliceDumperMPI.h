@@ -13,7 +13,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 // helpers
-namespace SliceCreatorMPI
+namespace SliceTypesMPI
 {
     template <typename TGrid>
     struct Slice : public SliceCreator::Slice<TGrid>

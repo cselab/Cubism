@@ -11,6 +11,10 @@
 #include <mpi.h>
 #include "HDF5SliceDumper.h"
 
+// The following requirements for the data Streamer are required:
+// Streamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
+// Streamer::operate          : Data access methods for read and write
+// Streamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
 
 template<typename TSlice, typename TStreamer>
 void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const std::string fname, const std::string dpath=".", const bool bXMF=true)
@@ -45,8 +49,9 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
             bInfo_slice.push_back(bInfo_local[i]);
     }
 
-    ostringstream filename;
-    filename << dpath << "/" << fname << TStreamer::postfix() << "_slice" << slice.id;
+    // fname is the base filename without file type extension
+    std::ostringstream filename;
+    filename << dpath << "/" << fname << "_slice" << slice.id;
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;

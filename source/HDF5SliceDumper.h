@@ -26,6 +26,10 @@ typedef double hdf5Real;
 
 #include "BlockInfo.h"
 
+// The following requirements for the data Streamer are required:
+// Streamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
+// Streamer::operate          : Data access methods for read and write
+// Streamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
 
 namespace SliceExtractor
 {
@@ -150,8 +154,9 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
             bInfo_slice.push_back(bInfo_local[i]);
     }
 
+    // fname is the base filename without file type extension
     ostringstream filename;
-    filename << dpath << "/" << fname<< TStreamer::postfix() << "_slice" << slice.id;
+    filename << dpath << "/" << fname << "_slice" << slice.id;
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;

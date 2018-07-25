@@ -79,9 +79,9 @@ public:
         std::vector<MeshMap<Block>*> tmp;
         this->m_mesh_maps.swap(tmp);
 
-        const double blockwidth = (maxextent / std::max(nX*npeX, std::max(nY*npeY, nZ*npeZ)));
+        const double blockwidth = (_maxextent / (double)std::max(nX*npeX, std::max(nY*npeY, nZ*npeZ)));
         const double extents[3] = {blockwidth*nX*npeX, blockwidth*nY*npeY, blockwidth*nZ*npeZ};
-        const unsigned int nBlocks[3] = {nX*npeX, nY*npeY, nZ*npeZ};
+        const int nBlocks[3] = {nX*npeX, nY*npeY, nZ*npeZ};
         for (int i = 0; i < 3; ++i)
         {
             MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);

@@ -45,8 +45,8 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, con
     int rank;
 
     // f_name is the base filename without file type extension
-    ostringstream filename;
-    filename << dump_path.str() << "/" << f_name;
+    std::ostringstream filename;
+    filename << dump_path << "/" << f_name;
 
     MPI_Comm comm = grid.getCartComm();
     MPI_Comm_rank(comm, &rank);
@@ -69,7 +69,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, con
     {
         H5open();
         fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-        file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+        file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
         status = H5Pclose(fapl_id);
 
         for (size_t i = 0; i < 3; ++i)
@@ -258,8 +258,8 @@ void ReadHDF5_MPI(TGrid &grid, const std::string f_name, const std::string read_
     int rank;
 
     // f_name is the base filename without file type extension
-    ostringstream filename;
-    filename << read_path.str() << "/" << f_name;
+    std::ostringstream filename;
+    filename << read_path << "/" << f_name;
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;

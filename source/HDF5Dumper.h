@@ -40,8 +40,8 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
     typedef typename TGrid::BlockType B;
 
     // f_name is the base filename without file type extension
-    ostringstream filename;
-    filename << dump_path.str() << "/" << f_name;
+    std::ostringstream filename;
+    filename << dump_path << "/" << f_name;
 
     std::vector<BlockInfo> vInfo_local = grid.getBlocksInfo();
 
@@ -52,7 +52,7 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
     // startup file
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+    file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
     status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -117,7 +117,7 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
     for(int i=0; i<(int)vInfo_local.size(); i++)
     {
         BlockInfo& info = vInfo_local[i];
-        const unsigned int idx[3] = {info.index[0], info.index[1], info.index[2]};
+        const unsigned int idx[3] = {(unsigned int)info.index[0], (unsigned int)info.index[1], (unsigned int)info.index[2]};
         B & b = *(B*)info.ptrBlock;
 
         for(unsigned int iz=sZ; iz<eZ; iz++)
@@ -212,8 +212,8 @@ void ReadHDF5(TGrid &grid, const std::string f_name, const std::string read_path
     typedef typename TGrid::BlockType B;
 
     // f_name is the base filename without file type extension
-    ostringstream filename;
-    filename << read_path.str() << "/" << f_name;
+    std::ostringstream filename;
+    filename << read_path << "/" << f_name;
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;

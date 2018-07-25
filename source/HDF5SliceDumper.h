@@ -28,10 +28,94 @@ typedef double hdf5Real;
 #include "BlockInfo.h"
 #include "MeshMap.h"
 
-// The following requirements for the data Streamer are required:
-// Streamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
-// Streamer::operate          : Data access methods for read and write
-// Streamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
+///////////////////////////////////////////////////////////////////////////////
+// helpers
+namespace SliceCreator
+{
+    template <typename TGrid>
+    struct Slice
+    {
+        typedef TGrid GridType;
+
+        TGrid * grid;
+        int id;
+        int dir;
+        int idx;
+        int width, height;
+        bool valid;
+        Slice() : grid(NULL), id(-1), dir(-1), idx(-1), width(0), height(0), valid(false) {}
+
+        template <typename TSlice>
+        static std::vector<TSlice> getSlices(ArgumentParser& parser, TGrid& grid)
+        {
+            typedef typename TGrid::BlockType B;
+            int Dim[3];
+            Dim[0] = grid.getBlocksPerDimension(0)*B::sizeX;
+            Dim[1] = grid.getBlocksPerDimension(1)*B::sizeY;
+            Dim[2] = grid.getBlocksPerDimension(2)*B::sizeZ;
+
+            std::vector<TSlice> slices(0);
+            const size_t nSlices = parser("nslices").asInt(0);
+            for (size_t i = 0; i < nSlices; ++i)
+            {
+                TSlice thisOne;
+                thisOne.id = i+1;
+                thisOne.grid = &grid;
+                assert(thisOne.grid != NULL);
+
+                std::ostringstream identifier;
+                identifier << "slice" << i+1;
+                // fetch direction
+                const std::string sDir = identifier.str() + "_direction";
+                if (parser.check(sDir)) thisOne.dir = parser(sDir).asInt(0);
+                const bool bDirOK = (thisOne.dir >= 0 && thisOne.dir < 3);
+                assert(bDirOK);
+
+                // compute index
+                const std::string sIndex = identifier.str() + "_index";
+                const std::string sFrac  = identifier.str() + "_fraction";
+                if (parser.check(sIndex)) thisOne.idx = parser(sIndex).asInt(0);
+                else if (parser.check(sFrac))
+                {
+                    const double fraction = parser(sFrac).asDouble(0.0);
+                    const int idx = static_cast<int>(Dim[thisOne.dir] * fraction);
+                    thisOne.idx = (fraction == 1.0) ? Dim[thisOne.dir]-1 : idx;
+                }
+                const bool bIdxOK = (thisOne.idx >= 0 && thisOne.idx < Dim[thisOne.dir]);
+                assert(bIdxOK);
+
+                if (bDirOK && bIdxOK) thisOne.valid = true;
+                else
+                {
+                    std::cerr << "Slice: WARNING: Ill defined slice \"" << identifier.str() << "\"... Skipping this one" << std::endl;
+                    thisOne.valid = false;
+                    slices.push_back(thisOne);
+                    continue;
+                }
+
+                // define slice layout
+                if (thisOne.dir == 0)
+                {
+                    thisOne.width  = Dim[2];
+                    thisOne.height = Dim[1];
+                }
+                else if (thisOne.dir == 1)
+                {
+                    thisOne.width  = Dim[2];
+                    thisOne.height = Dim[0];
+                }
+                else if (thisOne.dir == 2)
+                {
+                    thisOne.width  = Dim[0];
+                    thisOne.height = Dim[1];
+                }
+                slices.push_back(thisOne);
+            }
+            return slices;
+        }
+    };
+}
+
 
 namespace SliceExtractor
 {
@@ -132,6 +216,14 @@ namespace SliceExtractor
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// Dumpers
+//
+// The following requirements for the data Streamer are required:
+// Streamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
+// Streamer::operate          : Data access methods for read and write
+// Streamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
+
 template<typename TSlice, typename TStreamer>
 void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const std::string fname, const std::string dpath=".", const bool bXMF=true)
 {
@@ -150,8 +242,9 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
 
     ///////////////////////////////////////////////////////////////////////////
     // startup file
-    ostringstream filename;
-    filename << dpath << "/" << fname<< TStreamer::postfix() << "_slice" << slice.id;
+    // fname is the base filename without file type extension
+    std::ostringstream filename;
+    filename << dpath << "/" << fname << "_slice" << slice.id;
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
     file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
@@ -213,10 +306,6 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
         if (start <= slice.idx && slice.idx < (start+_BLOCKSIZE_))
             bInfo_slice.push_back(bInfo_local[i]);
     }
-
-    // fname is the base filename without file type extension
-    ostringstream filename;
-    filename << dpath << "/" << fname << "_slice" << slice.id;
 
     hsize_t count[3] = {height, width, NCHANNELS};
     hsize_t dims[3] = {height, width, NCHANNELS};

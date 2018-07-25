@@ -94,7 +94,7 @@ public:
     typedef Block BlockType;
 
     Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1, const double _maxextent = 1) :
-        m_blocks(NULL), maxextent(_maxextent), N(_NX*_NY*_NZ), NX(_NX), NY(_NY), NZ(_NZ)
+        m_blocks(NULL), maxextent(_maxextent), N(_NX*_NY*_NZ), NX(_NX), NY(_NY), NZ(_NZ),
         m_own_mesh_maps(true)
     {
         _alloc();
@@ -142,7 +142,7 @@ public:
                 for(unsigned int ix=0; ix<NX; ix++)
                 {
                     const long long blockID = _encode(ix, iy, iz);
-                    const int idx[3] = {ix, iy, iz};
+                    const int idx[3] = {(int)ix, (int)iy, (int)iz};
 
                     m_vInfo.push_back(BlockInfo(blockID, idx, mapX, mapY, mapZ, _linaccess(blockID)));
                 }

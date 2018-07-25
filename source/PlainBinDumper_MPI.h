@@ -41,7 +41,7 @@ void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const std::string
         std::cout << "Writing BIN file for ICs\n";
     }
 
-    ostringstream filename;
+    std::ostringstream filename;
     filename << dump_path << "/" << f_name;
 
 	int rc = MPI_File_open( MPI_COMM_SELF, (filename.str()+".bin").c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file_id );
@@ -84,7 +84,7 @@ void PlainReadBin_MPI(MPI_Comm comm, Real **buffer, long *bytes, const std::stri
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &nranks);
 
-    ostringstream filename;
+    std::ostringstream filename;
     filename << read_path << "/" << f_name;
 
 	int rc = MPI_File_open( MPI_COMM_SELF, (filename.str()+".bin").c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &file_id );

@@ -11,6 +11,82 @@
 #include <mpi.h>
 #include "HDF5SliceDumper.h"
 
+///////////////////////////////////////////////////////////////////////////////
+// helpers
+namespace SliceCreatorMPI
+{
+    template <typename TGrid>
+    struct Slice : public SliceCreator::Slice<TGrid>
+    {
+        typedef TGrid GridType;
+
+        int localWidth, localHeight;
+        int offsetWidth, offsetHeight;
+        Slice() : localWidth(-1), localHeight(-1), offsetWidth(-1), offsetHeight(-1) {}
+
+        template <typename TSlice>
+        static std::vector<TSlice> getSlices(ArgumentParser& parser, TGrid& grid)
+        {
+            std::vector<TSlice> slices = SliceCreator::Slice<TGrid>::template getSlices<TSlice>(parser, grid);
+
+            typedef typename TGrid::BlockType B;
+            int Dim[3];
+            Dim[0] = grid.getResidentBlocksPerDimension(0)*B::sizeX;
+            Dim[1] = grid.getResidentBlocksPerDimension(1)*B::sizeY;
+            Dim[2] = grid.getResidentBlocksPerDimension(2)*B::sizeZ;
+
+            // get slice communicators
+            int myRank;
+            MPI_Comm_rank(grid.getCartComm(), &myRank);
+            int peIdx[3];
+            grid.peindex(peIdx);
+            int myStart[3], myEnd[3];
+            for (int i = 0; i < 3; ++i)
+            {
+                myStart[i] = Dim[i]*peIdx[i];
+                myEnd[i]   = myStart[i] + Dim[i];
+            }
+            for (size_t i = 0; i < slices.size(); ++i)
+            {
+                TSlice& s = slices[i];
+                const int sIdx = s.idx;
+                const int dir  = s.dir;
+                if ( !(myStart[dir] <= sIdx && sIdx < myEnd[dir]) )
+                    s.valid = false;
+
+                // scale index to process local index
+                s.idx = s.idx % Dim[s.dir];
+
+                if (s.dir == 0)
+                {
+                    s.localWidth  = Dim[2];
+                    s.localHeight = Dim[1];
+                    s.offsetWidth = peIdx[2]*Dim[2];
+                    s.offsetHeight= peIdx[1]*Dim[1];
+                }
+                else if (s.dir == 1)
+                {
+                    s.localWidth  = Dim[2];
+                    s.localHeight = Dim[0];
+                    s.offsetWidth = peIdx[2]*Dim[2];
+                    s.offsetHeight= peIdx[0]*Dim[0];
+                }
+                else if (s.dir == 2)
+                {
+                    s.localWidth  = Dim[0];
+                    s.localHeight = Dim[1];
+                    s.offsetWidth = peIdx[0]*Dim[0];
+                    s.offsetHeight= peIdx[1]*Dim[1];
+                }
+            }
+            return slices;
+        }
+    };
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Dumpers
+//
 // The following requirements for the data Streamer are required:
 // Streamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // Streamer::operate          : Data access methods for read and write
@@ -23,6 +99,10 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     typedef typename TSlice::GridType::BlockType B;
     const typename TSlice::GridType& grid = *(slice.grid);
 
+    // fname is the base filename without file type extension
+    std::ostringstream filename;
+    filename << dpath << "/" << fname << "_slice" << slice.id;
+
     static const unsigned int NCHANNELS = TStreamer::NCHANNELS;
     const unsigned int width = slice.localWidth;
     const unsigned int height = slice.localHeight;
@@ -30,9 +110,6 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     int myRank;
     MPI_Comm comm = grid.getCartComm();
     MPI_Comm_rank(comm, &myRank);
-
-    ostringstream filename;
-    filename << dpath << "/" << fname << TStreamer::postfix() << "_slice" << slice.id;
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
@@ -119,10 +196,6 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
         if (start <= slice.idx && slice.idx < (start+_BLOCKSIZE_))
             bInfo_slice.push_back(bInfo_local[i]);
     }
-
-    // fname is the base filename without file type extension
-    ostringstream filename;
-    filename << dpath << "/" << fname << "_slice" << slice.id;
 
     hsize_t count[3] = {height, width, NCHANNELS}; // local
     hsize_t dims[3] = {slice.height, slice.width, NCHANNELS}; // global

@@ -81,7 +81,6 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::st
             BlockInfo& info = vInfo_local[i];
             const unsigned int idx[3] = {info.index[0], info.index[1], info.index[2]};
             B & b = *(B*)info.ptrBlock;
-            Streamer streamer(b);
 
             for(unsigned int ix=sX; ix<eX; ix++)
             {
@@ -98,7 +97,7 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::st
                         Real * const ptr = array_all + (gz + NZ * (gy + NY * gx));
 
                         Real output;
-                        streamer.operate(ix, iy, iz, &output, ichannel);	// point -> output,
+                        Streamer::operate(b, ix, iy, iz, &output, ichannel);	// point -> output,
                         ptr[0] = output;
 
 
@@ -202,7 +201,6 @@ void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path
             BlockInfo& info = vInfo_local[i];
             const int idx[3] = {info.index[0], info.index[1], info.index[2]};
             B & b = *(B*)info.ptrBlock;
-            Streamer streamer(b);
 
             for(int ix=sX; ix<eX; ix++)
                 for(int iy=sY; iy<eY; iy++)
@@ -214,7 +212,7 @@ void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path
 
                         Real * const ptr_input = array_all + (gz + NZ * (gy + NY * gx));
 
-                        streamer.operate(*ptr_input, ix, iy, iz, ichannel);	// output -> point
+                        Streamer::operate(b, *ptr_input, ix, iy, iz, ichannel);	// output -> point
                     }
         }
     } /* ichannel */

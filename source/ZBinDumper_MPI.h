@@ -109,7 +109,6 @@ void DumpZBin_MPI(const TGrid &grid, const int iCounter, const Real t, const std
         BlockInfo& info = vInfo_local[i];
         const unsigned int idx[3] = {info.index[0], info.index[1], info.index[2]};
         B & b = *(B*)info.ptrBlock;
-        Streamer streamer(b);
 
         for(unsigned int ix=sX; ix<eX; ix++)
         {
@@ -134,7 +133,7 @@ void DumpZBin_MPI(const TGrid &grid, const int iCounter, const Real t, const std
                     //streamer.operate(ix, iy, iz, (Real*)output);	// point -> output, todo: add an extra argument for channel
 
                     Real output;
-                    streamer.operate(ix, iy, iz, &output, ichannel);	// point -> output,
+                    Streamer::operate(b, ix, iy, iz, &output, ichannel);	// point -> output,
                     ptr[0] = output;
 
 
@@ -276,7 +275,6 @@ void ReadZBin_MPI(TGrid &grid, const std::string f_name, const std::string read_
         BlockInfo& info = vInfo_local[i];
         const int idx[3] = {info.index[0], info.index[1], info.index[2]};
         B & b = *(B*)info.ptrBlock;
-        Streamer streamer(b);
 
                 for(int ix=sX; ix<eX; ix++)
           for(int iy=sY; iy<eY; iy++)
@@ -289,7 +287,7 @@ void ReadZBin_MPI(TGrid &grid, const std::string f_name, const std::string read_
                     //Real * const ptr_input = array_all + NCHANNELS*(gz + NZ * (gy + NY * gx));
                     Real * const ptr_input = array_all + (gz + NZ * (gy + NY * gx));
 
-                    streamer.operate(*ptr_input, ix, iy, iz, ichannel);	// output -> point
+                    Streamer::operate(b, *ptr_input, ix, iy, iz, ichannel);	// output -> point
                     //streamer.operate(ptr_input, ix, iy, iz);	// input -> point (all channels)
                 }
     }

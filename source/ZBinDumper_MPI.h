@@ -89,7 +89,7 @@ void DumpZBin_MPI(const TGrid &grid, const int iCounter, const Real t, const std
     static const unsigned int eY = B::sizeY;
     static const unsigned int eZ = B::sizeZ;
 
-    int rc = MPI_File_open( MPI_COMM_SELF, (filename.str()+".zbin").c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file_id );
+    int rc = MPI_File_open( MPI_COMM_SELF, const_cast<char*>( (filename.str()+".zbin").c_str() ), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file_id );
     if (rc) {
         printf("Unable to create ZBIN file\n");
         exit(1);
@@ -221,7 +221,7 @@ void ReadZBin_MPI(TGrid &grid, const std::string f_name, const std::string read_
     const int eY = B::sizeY;
     const int eZ = B::sizeZ;
 
-    int rc = MPI_File_open( MPI_COMM_SELF, (filename.str()+".zbin").c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &file_id );
+    int rc = MPI_File_open( MPI_COMM_SELF, const_cast<char*>( (filename.str()+".zbin").c_str() ), MPI_MODE_RDONLY, MPI_INFO_NULL, &file_id );
     if (rc) {
         printf("Unable to read ZBIN file\n");
         exit(1);

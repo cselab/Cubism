@@ -44,7 +44,7 @@ void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const std::string
     std::ostringstream filename;
     filename << dump_path << "/" << f_name;
 
-	int rc = MPI_File_open( MPI_COMM_SELF, (filename.str()+".bin").c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file_id );
+	int rc = MPI_File_open( MPI_COMM_SELF, const_cast<char*>( (filename.str()+".bin").c_str() ), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file_id );
 	if (rc) {
 		printf("Unable to create BIN file\n");
 		exit(1);
@@ -87,7 +87,7 @@ void PlainReadBin_MPI(MPI_Comm comm, Real **buffer, long *bytes, const std::stri
     std::ostringstream filename;
     filename << read_path << "/" << f_name;
 
-	int rc = MPI_File_open( MPI_COMM_SELF, (filename.str()+".bin").c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &file_id );
+	int rc = MPI_File_open( MPI_COMM_SELF, const_cast<char*>( (filename.str()+".bin").c_str() ), MPI_MODE_RDONLY, MPI_INFO_NULL, &file_id );
 	if (rc) {
 		printf("Unable to read ZBIN file\n");
 		exit(1);

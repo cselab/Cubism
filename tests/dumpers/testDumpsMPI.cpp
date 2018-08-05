@@ -41,6 +41,9 @@ const string prec_string = "8byte";
 #include "HDF5SliceDumper.h"
 #include "HDF5SliceDumperMPI.h"
 
+#include "HDF5SubdomainDumper.h"
+#include "HDF5SubdomainDumperMPI.h"
+
 // #include "ZBinDumper.h" // requires CubismZ
 // #include "ZBinDumper_MPI.h" // requires CubismZ
 
@@ -73,11 +76,13 @@ struct MyStreamer
     static const char * getAttributeName() { return "Scalar"; }
 };
 
-using MyBlock   = Block<MyReal>;
-using MyGrid    = Grid<MyBlock>;
-using MyGridMPI = GridMPI<MyGrid>;
-using MySlice   = typename SliceTypes::Slice<MyGrid>;
-using MySliceMPI= typename SliceTypesMPI::Slice<MyGridMPI>;
+using MyBlock        = Block<MyReal>;
+using MyGrid         = Grid<MyBlock>;
+using MyGridMPI      = GridMPI<MyGrid>;
+using MySlice        = typename SliceTypes::Slice<MyGrid>;
+using MySliceMPI     = typename SliceTypesMPI::Slice<MyGridMPI>;
+using MySubdomain    = typename SubdomainTypes::Subdomain<MyGrid>;
+using MySubdomainMPI = typename SubdomainTypesMPI::Subdomain<MyGridMPI>;
 #ifdef _NONUNIFORM_
 using MyMeshMap = MeshMap<MyBlock>;
 using MyDensity = RandomDensity;
@@ -191,6 +196,41 @@ int main(int argc, char* argv[])
             ostringstream fname;
             fname << "mpi_hdf5_slice" << (i+1) << "_" << prec_string;
             DumpSliceHDF5MPI<MySliceMPI,MyStreamer>(slice, 0, 0, fname.str());
+        }
+    }
+    ///////////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////////////////////////////////////////////////
+    // HDF5 subdomain dumps
+    {
+        // set defaults
+        parser("nsubdomains").asInt(2);
+        parser("subdomain1_origin").asString("0.25 0.125 0.125");
+        parser("subdomain1_extent").asString("0.5 0.25 0.25");
+        parser("subdomain2_origin").asString("0.1 0.01 0.01");
+        parser("subdomain2_extent").asString("0.3 0.1 0.1");
+
+        // parser.print_args();
+
+        vector<MySubdomain> subdomains = MySubdomain::getSubdomains<MySubdomain>(parser, *(MyGrid*)grid);
+        vector<MySubdomainMPI> subdomains_mpi = MySubdomainMPI::getSubdomains<MySubdomainMPI>(parser, *grid);
+
+        for (size_t i = 0; i < subdomains.size(); ++i)
+        {
+            const MySubdomain& subdomain = subdomains[i];
+
+            ostringstream fname;
+            fname << "serial_rank" << myrank << "_hdf5_subdomain" << (i+1) << "_" << prec_string;
+            DumpSubdomainHDF5<MySubdomain,MyStreamer>(subdomain, 0, 0, fname.str());
+        }
+
+        for (size_t i = 0; i < subdomains_mpi.size(); ++i)
+        {
+            const MySubdomainMPI& subdomain = subdomains_mpi[i];
+
+            ostringstream fname;
+            fname << "mpi_hdf5_subdomain" << (i+1) << "_" << prec_string;
+            DumpSubdomainHDF5MPI<MySubdomainMPI,MyStreamer>(subdomain, 0, 0, fname.str());
         }
     }
     ///////////////////////////////////////////////////////////////////////////

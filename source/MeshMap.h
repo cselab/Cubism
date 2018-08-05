@@ -804,7 +804,14 @@ public:
         return &m_grid_spacing[bix*TBlock::sizeX];
     }
 
+    inline const double* get_grid_spacing(const int bix) const
+    {
+        assert(m_initialized && bix >= 0 && bix < m_Nblocks);
+        return &m_grid_spacing[bix*TBlock::sizeX];
+    }
+
     inline double* data_grid_spacing() { return m_grid_spacing; }
+    inline const double* data_grid_spacing() const { return m_grid_spacing; }
 
 private:
     const double m_xS;

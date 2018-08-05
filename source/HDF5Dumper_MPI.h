@@ -15,6 +15,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <mpi.h>
 
 #ifdef _USE_HDF_
 #include <hdf5.h>

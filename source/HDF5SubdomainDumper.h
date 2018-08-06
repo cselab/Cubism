@@ -247,21 +247,40 @@ namespace SubdomainTypes
         inline const int (&bbox_end() const)[3] { return m_bbox_end; }
         inline const int (&count() const)[3] { return m_subcount; }
         inline const int (&dim() const)[3] { return m_subdim; }
-        inline const int dim(const size_t i) const { assert(i<3); return m_subdim[i]; }
+        inline int dim(const size_t i) const { assert(i<3); return m_subdim[i]; }
         inline const double (&start() const)[3] { return m_start; }
-        inline const double start(const size_t i) const { assert(i<3); return m_start[i]; }
+        inline double start(const size_t i) const { assert(i<3); return m_start[i]; }
         inline const double (&end() const)[3] { return m_end; }
-        inline const double end(const size_t i) const { assert(i<3); return m_end[i]; }
+        inline double end(const size_t i) const { assert(i<3); return m_end[i]; }
         inline const double* grid_spacing(const size_t i) const { assert(i<3); return m_grid_spacing[i]; }
         inline unsigned long max_size() const { return m_max_size; }
         inline bool valid() const { return m_valid; }
         inline const std::vector<BlockInfo>& getBlocksInfo() const { return m_intersecting_blocks; }
         inline TGrid* getGrid() const { return m_grid; }
+        inline std::string name() const
+        {
+            std::ostringstream out;
+            out << "subdomain" << m_id;
+            return out.str();
+        }
+
+        void show() const
+        {
+            std::cout << "subdomain" << m_id << ":" << std::endl;
+            std::cout << "ID               = " << m_id << std::endl;
+            std::cout << "START            = (" << m_start[0] << ", " << m_start[1] << ", " << m_start[2] << ")" << std::endl;
+            std::cout << "END              = (" << m_end[0] << ", " << m_end[1] << ", " << m_end[2] << ")" << std::endl;
+            std::cout << "BBOX_START       = (" << m_bbox_start[0] << ", " << m_bbox_start[1] << ", " << m_bbox_start[2] << ")" << std::endl;
+            std::cout << "BBOX_END         = (" << m_bbox_end[0] << ", " << m_bbox_end[1] << ", " << m_bbox_end[2] << ")" << std::endl;
+            std::cout << "DIM              = (" << m_subdim[0] << ", " << m_subdim[1] << ", " << m_subdim[2] << ")" << std::endl;
+            std::cout << "VALID            = " << m_valid << std::endl;
+            std::cout << "NUMBER OF BLOCKS = " << m_intersecting_blocks.size() << std::endl;
+        }
 
     protected:
 
         TGrid * m_grid;
-        int m_id;
+        const int m_id;
         int m_bbox_start[3]; // local start indices of bounding box
         int m_bbox_end[3];   // local end indices of bounding box
         int m_subcount[3];   // number of elements in local subdomain
@@ -343,7 +362,7 @@ void DumpSubdomainHDF5(const TSubdomain& subdomain, const int stepID, const Real
 
     std::cout << "Allocating " << (subdomain.max_size() * NCHANNELS * sizeof(hdf5Real))/(1024.*1024.) << " MB of HDF5 subdomain data" << std::endl;
 
-    hdf5Real * array_all;
+    hdf5Real * array_all = NULL;
 
     hsize_t count[4]  = { NZ, NY, NX, NCHANNELS };
     hsize_t dims[4]   = { NZ, NY, NX, NCHANNELS };

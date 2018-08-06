@@ -209,7 +209,7 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
         0
     };
 
-    hdf5Real * array_all;
+    hdf5Real * array_all = NULL;
 
     if (subdomain.valid())
     {

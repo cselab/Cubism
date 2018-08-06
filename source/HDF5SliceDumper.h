@@ -46,7 +46,7 @@ namespace SliceTypes
         Slice() : grid(NULL), id(-1), dir(-1), idx(-1), width(0), height(0), valid(false) {}
 
         template <typename TSlice>
-        static std::vector<TSlice> getSlices(ArgumentParser& parser, TGrid& grid)
+        static std::vector<TSlice> getEntities(ArgumentParser& parser, TGrid& grid)
         {
             typedef typename TGrid::BlockType B;
             int Dim[3];

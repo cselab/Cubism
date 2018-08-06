@@ -25,9 +25,9 @@ namespace SliceTypesMPI
         Slice() : localWidth(-1), localHeight(-1), offsetWidth(-1), offsetHeight(-1) {}
 
         template <typename TSlice>
-        static std::vector<TSlice> getSlices(ArgumentParser& parser, TGrid& grid)
+        static std::vector<TSlice> getEntities(ArgumentParser& parser, TGrid& grid)
         {
-            std::vector<TSlice> slices = SliceTypes::Slice<TGrid>::template getSlices<TSlice>(parser, grid);
+            std::vector<TSlice> slices = SliceTypes::Slice<TGrid>::template getEntities<TSlice>(parser, grid);
 
             typedef typename TGrid::BlockType B;
             int Dim[3];

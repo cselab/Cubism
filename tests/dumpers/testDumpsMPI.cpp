@@ -177,8 +177,8 @@ int main(int argc, char* argv[])
 
         // parser.print_args();
 
-        vector<MySlice> slices = MySlice::getSlices<MySlice>(parser, *(MyGrid*)grid);
-        vector<MySliceMPI> slices_mpi = MySliceMPI::getSlices<MySliceMPI>(parser, *grid);
+        vector<MySlice> slices = MySlice::getEntities<MySlice>(parser, *(MyGrid*)grid);
+        vector<MySliceMPI> slices_mpi = MySliceMPI::getEntities<MySliceMPI>(parser, *grid);
 
         for (size_t i = 0; i < slices.size(); ++i)
         {
@@ -212,8 +212,8 @@ int main(int argc, char* argv[])
 
         // parser.print_args();
 
-        vector<MySubdomain> subdomains = MySubdomain::getSubdomains<MySubdomain>(parser, *(MyGrid*)grid);
-        vector<MySubdomainMPI> subdomains_mpi = MySubdomainMPI::getSubdomains<MySubdomainMPI>(parser, *grid);
+        vector<MySubdomain> subdomains = MySubdomain::getEntities<MySubdomain>(parser, *(MyGrid*)grid);
+        vector<MySubdomainMPI> subdomains_mpi = MySubdomainMPI::getEntities<MySubdomainMPI>(parser, *grid);
 
         for (size_t i = 0; i < subdomains.size(); ++i)
         {

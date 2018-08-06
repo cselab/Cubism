@@ -38,7 +38,7 @@ namespace SubdomainTypes
     {
     public:
         template <typename TSubdomain>
-        static std::vector<TSubdomain> getSubdomains(ArgumentParser& parser, TGrid& grid)
+        static std::vector<TSubdomain> getEntities(ArgumentParser& parser, TGrid& grid)
         {
             typedef typename TGrid::BlockType B;
 

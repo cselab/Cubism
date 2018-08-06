@@ -39,9 +39,9 @@ namespace SubdomainTypesMPI
     {
     public:
         template <typename TSubdomain>
-        static std::vector<TSubdomain> getSubdomains(ArgumentParser& parser, TGrid& grid)
+        static std::vector<TSubdomain> getEntities(ArgumentParser& parser, TGrid& grid)
         {
-            return SubdomainTypes::Subdomain<TGrid>::template getSubdomains<TSubdomain>(parser, grid);
+            return SubdomainTypes::Subdomain<TGrid>::template getEntities<TSubdomain>(parser, grid);
         }
 
     public:

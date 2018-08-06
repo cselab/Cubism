@@ -124,7 +124,7 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
 
     // f_name is the base filename without file type extension
     std::ostringstream filename;
-    filename << dpath << "/" << fname;
+    filename << dpath << "/" << fname << "_subdomain" << subdomain.id();
 
     MPI_Comm comm = subdomain.getGrid()->getCartComm();
     MPI_Comm_rank(comm, &rank);

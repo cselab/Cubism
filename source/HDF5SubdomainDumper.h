@@ -242,6 +242,7 @@ namespace SubdomainTypes
 
         Subdomain(const Subdomain& c) = default;
 
+        inline int id() const { return m_id; }
         inline const int (&bbox_start() const)[3] { return m_bbox_start; }
         inline const int (&bbox_end() const)[3] { return m_bbox_end; }
         inline const int (&count() const)[3] { return m_subcount; }
@@ -290,7 +291,7 @@ void DumpSubdomainHDF5(const TSubdomain& subdomain, const int stepID, const Real
 
     // f_name is the base filename without file type extension
     std::ostringstream filename;
-    filename << dpath << "/" << fname;
+    filename << dpath << "/" << fname << "_subdomain" << subdomain.id();
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;

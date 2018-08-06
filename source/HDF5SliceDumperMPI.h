@@ -16,71 +16,75 @@
 namespace SliceTypesMPI
 {
     template <typename TGrid>
-    struct Slice : public SliceTypes::Slice<TGrid>
+    class Slice : public SliceTypes::Slice<TGrid>
     {
-        typedef TGrid GridType;
-
-        int localWidth, localHeight;
-        int offsetWidth, offsetHeight;
-        Slice() : localWidth(-1), localHeight(-1), offsetWidth(-1), offsetHeight(-1) {}
-
+    public:
         template <typename TSlice>
         static std::vector<TSlice> getEntities(ArgumentParser& parser, TGrid& grid)
         {
-            std::vector<TSlice> slices = SliceTypes::Slice<TGrid>::template getEntities<TSlice>(parser, grid);
+            return SliceTypes::Slice<TGrid>::template getEntities<TSlice>(parser, grid);
+        }
 
-            typedef typename TGrid::BlockType B;
-            int Dim[3];
-            Dim[0] = grid.getResidentBlocksPerDimension(0)*B::sizeX;
-            Dim[1] = grid.getResidentBlocksPerDimension(1)*B::sizeY;
-            Dim[2] = grid.getResidentBlocksPerDimension(2)*B::sizeZ;
+    public:
+        typedef TGrid GridType;
 
-            // get slice communicators
-            int myRank;
-            MPI_Comm_rank(grid.getCartComm(), &myRank);
+        Slice(TGrid* grid, const int id,
+                const int dir,
+                const int idx,
+                const double frac) :
+            SliceTypes::Slice<TGrid>(grid, id, dir, idx, frac)
+        {
+            typedef typename TGrid::BlockType TBlock;
+
+            const int localDim[3] = {
+                this->m_grid->getResidentBlocksPerDimension(0)*TBlock::sizeX,
+                this->m_grid->getResidentBlocksPerDimension(1)*TBlock::sizeY,
+                this->m_grid->getResidentBlocksPerDimension(2)*TBlock::sizeZ
+            };
+
+            // get MPI related dimensions and offsets
             int peIdx[3];
-            grid.peindex(peIdx);
+            this->m_grid->peindex(peIdx);
             int myStart[3], myEnd[3];
             for (int i = 0; i < 3; ++i)
             {
-                myStart[i] = Dim[i]*peIdx[i];
-                myEnd[i]   = myStart[i] + Dim[i];
+                myStart[i] = localDim[i]*peIdx[i];
+                myEnd[i]   = myStart[i] + localDim[i];
             }
-            for (size_t i = 0; i < slices.size(); ++i)
+
+            if ( !(myStart[this->m_dir] <= this->m_idx && this->m_idx < myEnd[this->m_dir]) )
+                this->m_valid = false;
+
+            // scale index to process local index and recompute intersecting
+            // blocks
+            this->m_idx = this->m_idx % localDim[this->m_dir];
+            std::vector<BlockInfo> clean;
+            std::vector<BlockInfo> bInfo_local = this->m_grid->getResidentBlocksInfo(); // local
+            this->m_intersecting_blocks.swap(clean);
+            for (size_t i = 0; i < bInfo_local.size(); ++i)
             {
-                TSlice& s = slices[i];
-                const int sIdx = s.idx;
-                const int dir  = s.dir;
-                if ( !(myStart[dir] <= sIdx && sIdx < myEnd[dir]) )
-                    s.valid = false;
-
-                // scale index to process local index
-                s.idx = s.idx % Dim[s.dir];
-
-                if (s.dir == 0)
-                {
-                    s.localWidth  = Dim[2];
-                    s.localHeight = Dim[1];
-                    s.offsetWidth = peIdx[2]*Dim[2];
-                    s.offsetHeight= peIdx[1]*Dim[1];
-                }
-                else if (s.dir == 1)
-                {
-                    s.localWidth  = Dim[2];
-                    s.localHeight = Dim[0];
-                    s.offsetWidth = peIdx[2]*Dim[2];
-                    s.offsetHeight= peIdx[0]*Dim[0];
-                }
-                else if (s.dir == 2)
-                {
-                    s.localWidth  = Dim[0];
-                    s.localHeight = Dim[1];
-                    s.offsetWidth = peIdx[0]*Dim[0];
-                    s.offsetHeight= peIdx[1]*Dim[1];
-                }
+                const int start = bInfo_local[i].index[this->m_dir] * _BLOCKSIZE_;
+                if (start <= this->m_idx && this->m_idx < (start+_BLOCKSIZE_))
+                    this->m_intersecting_blocks.push_back(bInfo_local[i]);
             }
-            return slices;
+
+            if (this->m_intersecting_blocks.empty())
+                this->m_valid = false;
+
+            // local dimensions and offsets
+            this->m_localWidth  = localDim[ this->m_coord_idx[0] ];
+            this->m_localHeight = localDim[ this->m_coord_idx[1] ];
+            m_offsetWidth = peIdx[ this->m_coord_idx[0] ] * localDim[ this->m_coord_idx[0] ];
+            m_offsetHeight= peIdx[ this->m_coord_idx[1] ] * localDim[ this->m_coord_idx[1] ];
         }
+
+        Slice(const Slice& c) = default;
+
+        inline int offsetWidth() const { return m_offsetWidth; }
+        inline int offsetHeight() const { return m_offsetHeight; }
+
+    protected:
+        int m_offsetWidth, m_offsetHeight;
     };
 }
 
@@ -91,24 +95,22 @@ namespace SliceTypesMPI
 // Streamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // Streamer::operate          : Data access methods for read and write
 // Streamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-
 template<typename TSlice, typename TStreamer>
 void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const std::string fname, const std::string dpath=".", const bool bXMF=true)
 {
 #ifdef _USE_HDF_
     typedef typename TSlice::GridType::BlockType B;
-    const typename TSlice::GridType& grid = *(slice.grid);
 
     // fname is the base filename without file type extension
     std::ostringstream filename;
-    filename << dpath << "/" << fname << "_slice" << slice.id;
+    filename << dpath << "/" << fname << "_slice" << slice.id();
 
     static const unsigned int NCHANNELS = TStreamer::NCHANNELS;
-    const unsigned int width = slice.localWidth;
-    const unsigned int height = slice.localHeight;
+    const unsigned int width = slice.localWidth();
+    const unsigned int height = slice.localHeight();
 
     int myRank;
-    MPI_Comm comm = grid.getCartComm();
+    MPI_Comm comm = slice.getGrid()->getCartComm();
     MPI_Comm_rank(comm, &myRank);
 
     herr_t status;
@@ -127,26 +129,9 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
         file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
         status = H5Pclose(fapl_id);
 
-        int slice_orientation[2];
-        if (0 == slice.dir)
-        {
-            slice_orientation[0] = 2;
-            slice_orientation[1] = 1;
-        }
-        else if (1 == slice.dir)
-        {
-            slice_orientation[0] = 2;
-            slice_orientation[1] = 0;
-        }
-        else if (2 == slice.dir)
-        {
-            slice_orientation[0] = 0;
-            slice_orientation[1] = 1;
-        }
-
         for (size_t i = 0; i < 2; ++i)
         {
-            const MeshMap<B>& m = grid.getMeshMap(slice_orientation[i]);
+            const MeshMap<B>& m = slice.getGrid()->getMeshMap( slice.coord_idx(i) );
             std::vector<double> vertices(m.ncells()+1, m.start());
             mesh_dims.push_back(vertices.size());
 
@@ -186,32 +171,22 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
         std::cout << "Allocating " << (width * height * NCHANNELS * sizeof(hdf5Real))/(1024.*1024.) << " MB of HDF5 slice data";
     }
 
-    hdf5Real * array_all = new hdf5Real[width * height * NCHANNELS];
+    hdf5Real * array_all = NULL;
 
-    std::vector<BlockInfo> bInfo_local = grid.getResidentBlocksInfo();
-    std::vector<BlockInfo> bInfo_slice;
-    for (size_t i = 0; i < bInfo_local.size(); ++i)
-    {
-        const int start = bInfo_local[i].index[slice.dir] * _BLOCKSIZE_;
-        if (start <= slice.idx && slice.idx < (start+_BLOCKSIZE_))
-            bInfo_slice.push_back(bInfo_local[i]);
-    }
+    if (slice.valid())
+        array_all = new hdf5Real[width * height * NCHANNELS];
 
-    hsize_t count[3] = {height, width, NCHANNELS}; // local
-    hsize_t dims[3] = {slice.height, slice.width, NCHANNELS}; // global
-    hsize_t offset[3] = {slice.offsetHeight, slice.offsetWidth, 0}; // file offset
+    hsize_t count[3]  = {height, width, NCHANNELS}; // local
+    hsize_t dims[3]   = {slice.height(), slice.width(), NCHANNELS}; // global
+    hsize_t offset[3] = {slice.offsetHeight(), slice.offsetWidth(), 0}; // file offset
 
     if (0 == myRank)
     {
         std::cout << " (Total  " << (dims[0] * dims[1] * dims[2] * sizeof(hdf5Real))/(1024.*1024.) << " MB)" << std::endl;
     }
 
-    if (0 == slice.dir)
-        SliceExtractor::YZ<B,TStreamer>(slice.idx%_BLOCKSIZE_, width, bInfo_slice, array_all);
-    else if (1 == slice.dir)
-        SliceExtractor::XZ<B,TStreamer>(slice.idx%_BLOCKSIZE_, width, bInfo_slice, array_all);
-    else if (2 == slice.dir)
-        SliceExtractor::YX<B,TStreamer>(slice.idx%_BLOCKSIZE_, width, bInfo_slice, array_all);
+    if (slice.valid())
+        slice.template extract<TStreamer>(array_all);
 
     fapl_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(fapl_id, H5FD_MPIO_COLLECTIVE);
@@ -226,7 +201,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     fspace_id = H5Dget_space(dataset_id);
     H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, offset, NULL, count, NULL);
     mspace_id = H5Screate_simple(3, count, NULL);
-    if (!slice.valid)
+    if (!slice.valid())
     {
         H5Sselect_none(fspace_id);
         H5Sselect_none(mspace_id);
@@ -240,7 +215,8 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     status = H5Fclose(file_id); if(status<0) H5Eprint1(stdout);
     H5close();
 
-    delete [] array_all;
+    if (slice.valid())
+        delete [] array_all;
 
     // writing xmf wrapper
     if (bXMF && 0 == myRank)

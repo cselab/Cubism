@@ -33,187 +33,273 @@ typedef double hdf5Real;
 namespace SliceTypes
 {
     template <typename TGrid>
-    struct Slice
+    class Slice
     {
-        typedef TGrid GridType;
-
-        TGrid * grid;
-        int id;
-        int dir;
-        int idx;
-        int width, height;
-        bool valid;
-        Slice() : grid(NULL), id(-1), dir(-1), idx(-1), width(0), height(0), valid(false) {}
-
+    public:
         template <typename TSlice>
         static std::vector<TSlice> getEntities(ArgumentParser& parser, TGrid& grid)
         {
             typedef typename TGrid::BlockType B;
-            int Dim[3];
-            Dim[0] = grid.getBlocksPerDimension(0)*B::sizeX;
-            Dim[1] = grid.getBlocksPerDimension(1)*B::sizeY;
-            Dim[2] = grid.getBlocksPerDimension(2)*B::sizeZ;
 
-            std::vector<TSlice> slices(0);
             const size_t nSlices = parser("nslices").asInt(0);
+            std::vector<TSlice> slices;
             for (size_t i = 0; i < nSlices; ++i)
             {
-                TSlice thisOne;
-                thisOne.id = i+1;
-                thisOne.grid = &grid;
-                assert(thisOne.grid != NULL);
-
+                const size_t id = i+1;
                 std::ostringstream identifier;
                 identifier << "slice" << i+1;
+
                 // fetch direction
                 const std::string sDir = identifier.str() + "_direction";
-                if (parser.check(sDir)) thisOne.dir = parser(sDir).asInt(0);
-                const bool bDirOK = (thisOne.dir >= 0 && thisOne.dir < 3);
-                assert(bDirOK);
+                const int dir = parser(sDir).asInt(2); // default z-direction
+                assert(dir >= 0 && dir < 3);
 
-                // compute index
+                // fetch location
                 const std::string sIndex = identifier.str() + "_index";
                 const std::string sFrac  = identifier.str() + "_fraction";
-                if (parser.check(sIndex)) thisOne.idx = parser(sIndex).asInt(0);
+                int idx = -1;
+                double frac = -1.0;
+                if (parser.check(sIndex))
+                    idx = parser(sIndex).asInt();
                 else if (parser.check(sFrac))
-                {
-                    const double fraction = parser(sFrac).asDouble(0.0);
-                    const int idx = static_cast<int>(Dim[thisOne.dir] * fraction);
-                    thisOne.idx = (fraction == 1.0) ? Dim[thisOne.dir]-1 : idx;
-                }
-                const bool bIdxOK = (thisOne.idx >= 0 && thisOne.idx < Dim[thisOne.dir]);
-                assert(bIdxOK);
-
-                if (bDirOK && bIdxOK) thisOne.valid = true;
+                    frac = parser(sFrac).asDouble();
                 else
-                {
-                    std::cerr << "Slice: WARNING: Ill defined slice \"" << identifier.str() << "\"... Skipping this one" << std::endl;
-                    thisOne.valid = false;
-                    slices.push_back(thisOne);
-                    continue;
-                }
-
-                // define slice layout
-                if (thisOne.dir == 0)
-                {
-                    thisOne.width  = Dim[2];
-                    thisOne.height = Dim[1];
-                }
-                else if (thisOne.dir == 1)
-                {
-                    thisOne.width  = Dim[2];
-                    thisOne.height = Dim[0];
-                }
-                else if (thisOne.dir == 2)
-                {
-                    thisOne.width  = Dim[0];
-                    thisOne.height = Dim[1];
-                }
-                slices.push_back(thisOne);
+                    frac = 0.5; // default
+                slices.emplace_back(&grid, id, dir, idx, frac);
             }
             return slices;
         }
-    };
-}
 
 
-namespace SliceExtractor
-{
-    template <typename TBlock, typename TStreamer>
-    void YZ(const int ix, const int width, std::vector<BlockInfo>& bInfo, hdf5Real * const data)
-    {
-        const unsigned int NCHANNELS = TStreamer::NCHANNELS;
+    public:
+        typedef TGrid GridType;
+
+        Slice(TGrid* grid, const int id,
+                const int dir,
+                const int idx,
+                const double frac) :
+            m_grid(grid), m_id(id), m_dir(dir)
+        {
+            assert(m_grid != NULL);
+            assert(m_dir >= 0 && m_dir < 3);
+
+            int Dim[3];
+            Dim[0] = m_grid->getBlocksPerDimension(0)*TBlock::sizeX;
+            Dim[1] = m_grid->getBlocksPerDimension(1)*TBlock::sizeY;
+            Dim[2] = m_grid->getBlocksPerDimension(2)*TBlock::sizeZ;
+
+            if (frac >= 0.0)
+            {
+                const int idx_low = static_cast<int>(Dim[m_dir] * frac);
+                m_idx = (frac == 1.0) ? Dim[m_dir]-1 : idx_low;
+            }
+            else if (idx >= 0)
+                m_idx = idx;
+            else
+            {
+                std::cerr << "Slice: WARNING: Ill defined slice" << m_id << "... Invalidating" << std::endl;
+                m_valid = false;
+                return;
+            }
+            assert(m_idx >= 0 && m_idx < Dim[m_dir]);
+            m_valid = true;
+
+            // define slice layout
+            if (m_dir == 0) // x-normal slices
+            {
+                // zy-plane
+                m_coord_idx[0] = 2;
+                m_coord_idx[1] = 1;
+            }
+            else if (m_dir == 1) // y-normal slices
+            {
+                // zx-plane
+                m_coord_idx[0] = 2;
+                m_coord_idx[1] = 0;
+            }
+            else if (m_dir == 2) // z-normal slices
+            {
+                // xy-plane
+                m_coord_idx[0] = 0;
+                m_coord_idx[1] = 1;
+            }
+            m_width  = Dim[ m_coord_idx[0] ];
+            m_height = Dim[ m_coord_idx[1] ];
+            m_localWidth  = m_width;
+            m_localHeight = m_height;
+            m_max_size = static_cast<unsigned long>(m_width * m_height);
+
+            std::vector<BlockInfo> bInfo_local = m_grid->getBlocksInfo();
+            for (size_t i = 0; i < bInfo_local.size(); ++i)
+            {
+                const int start = bInfo_local[i].index[m_dir] * _BLOCKSIZE_;
+                if (start <= m_idx && m_idx < (start+_BLOCKSIZE_))
+                    m_intersecting_blocks.push_back(bInfo_local[i]);
+            }
+
+            if (m_intersecting_blocks.empty())
+                m_valid = false;
+        }
+
+        Slice(const Slice& c) = default;
+
+        inline int id() const { return m_id; }
+        inline int coord_idx(const size_t i) const { assert(i<2); return m_coord_idx[i]; }
+        inline int width() const { return m_width; }
+        inline int height() const { return m_height; }
+        inline int localWidth() const { return m_localWidth; }
+        inline int localHeight() const { return m_localHeight; }
+        inline unsigned long max_size() const { return m_max_size; }
+        inline bool valid() const { return m_valid; }
+        inline const std::vector<BlockInfo>& getBlocksInfo() const { return m_intersecting_blocks; }
+        inline TGrid* getGrid() const { return m_grid; }
+        inline std::string name() const
+        {
+            std::ostringstream out;
+            out << "slice" << m_id;
+            return out.str();
+        }
+
+        void show() const
+        {
+            std::cout << "slice" << m_id << ":" << std::endl;
+            std::cout << "ID               = " << m_id << std::endl;
+            std::cout << "DIR              = " << m_dir << std::endl;
+            std::cout << "IDX              = " << m_idx<< std::endl;
+            std::cout << "COORD[0]         = " << m_coord_idx[0] << std::endl;
+            std::cout << "COORD[1]         = " << m_coord_idx[1] << std::endl;
+            std::cout << "WIDTH            = " << m_width << std::endl;
+            std::cout << "HEIGHT           = " << m_height << std::endl;
+            std::cout << "VALID            = " << m_valid << std::endl;
+            std::cout << "NUMBER OF BLOCKS = " << m_intersecting_blocks.size() << std::endl;
+        }
+
+        template <typename TStreamer>
+        inline void extract(hdf5Real* const data) const
+        {
+            if (0 == m_dir)
+                _YZ<TStreamer>(data);
+            else if (1 == m_dir)
+                _XZ<TStreamer>(data);
+            else if (2 == m_dir)
+                _YX<TStreamer>(data);
+        }
+
+    protected:
+
+        TGrid * m_grid;
+        const int m_id;
+        const int m_dir;
+        int m_idx;
+        int m_coord_idx[2];
+        int m_width, m_height;
+        int m_localWidth, m_localHeight;
+        unsigned long m_max_size;
+        bool m_valid;
+        std::vector<BlockInfo> m_intersecting_blocks;
+
+    private:
+        typedef typename TGrid::BlockType TBlock;
+
+        template <typename TStreamer>
+        void _YZ(hdf5Real * const data) const
+        {
+            const int ix = m_idx % _BLOCKSIZE_;
+            const unsigned int NCHANNELS = TStreamer::NCHANNELS;
 
 #pragma omp parallel for
-        for(int i = 0; i < (int)bInfo.size(); ++i)
-        {
-            BlockInfo& info = bInfo[i];
-            const int idx[3] = {info.index[0], info.index[1], info.index[2]};
-            TBlock& b = *(TBlock*)info.ptrBlock;
+            for(int i = 0; i < (int)m_intersecting_blocks.size(); ++i)
+            {
+                const BlockInfo& info = m_intersecting_blocks[i];
+                const int idx[3] = {info.index[0], info.index[1], info.index[2]}; // local info
+                TBlock& b = *(TBlock*)info.ptrBlock;
 
-            for(unsigned int iz=0; iz<TBlock::sizeZ; ++iz)
+                for(unsigned int iz=0; iz<TBlock::sizeZ; ++iz)
+                    for(unsigned int iy=0; iy<TBlock::sizeY; ++iy)
+                    {
+                        hdf5Real output[NCHANNELS];
+                        for(unsigned int k=0; k<NCHANNELS; ++k)
+                            output[k] = 0;
+
+                        TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
+
+                        const unsigned int gy = idx[1]*TBlock::sizeY + iy;
+                        const unsigned int gz = idx[2]*TBlock::sizeZ + iz;
+
+                        hdf5Real * const ptr = data + NCHANNELS*(gz + m_localWidth * gy);
+
+                        for(unsigned int k=0; k<NCHANNELS; ++k)
+                            ptr[k] = output[k];
+                    }
+            }
+        }
+
+        template <typename TStreamer>
+        void _XZ(hdf5Real * const data) const
+        {
+            const int iy = m_idx % _BLOCKSIZE_;
+            const unsigned int NCHANNELS = TStreamer::NCHANNELS;
+
+#pragma omp parallel for
+            for(int i = 0; i < (int)m_intersecting_blocks.size(); ++i)
+            {
+                const BlockInfo& info = m_intersecting_blocks[i];
+                const int idx[3] = {info.index[0], info.index[1], info.index[2]}; // local info
+                TBlock& b = *(TBlock*)info.ptrBlock;
+
+                for(unsigned int iz=0; iz<TBlock::sizeZ; ++iz)
+                    for(unsigned int ix=0; ix<TBlock::sizeX; ++ix)
+                    {
+                        hdf5Real output[NCHANNELS];
+                        for(unsigned int k=0; k<NCHANNELS; ++k)
+                            output[k] = 0;
+
+                        TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
+
+                        const unsigned int gx = idx[0]*TBlock::sizeX + ix;
+                        const unsigned int gz = idx[2]*TBlock::sizeZ + iz;
+
+                        hdf5Real * const ptr = data + NCHANNELS*(gz + m_localWidth * gx);
+
+                        for(unsigned int k=0; k<NCHANNELS; ++k)
+                            ptr[k] = output[k];
+                    }
+            }
+        }
+
+        template <typename TStreamer>
+        void _YX(hdf5Real * const data) const
+        {
+            const int iz = m_idx % _BLOCKSIZE_;
+            const unsigned int NCHANNELS = TStreamer::NCHANNELS;
+
+#pragma omp parallel for
+            for(int i = 0; i < (int)m_intersecting_blocks.size(); ++i)
+            {
+                const BlockInfo& info = m_intersecting_blocks[i];
+                const int idx[3] = {info.index[0], info.index[1], info.index[2]}; // local info
+                TBlock& b = *(TBlock*)info.ptrBlock;
+
                 for(unsigned int iy=0; iy<TBlock::sizeY; ++iy)
-                {
-                    hdf5Real output[NCHANNELS];
-                    for(unsigned int k=0; k<NCHANNELS; ++k)
-                        output[k] = 0;
+                    for(unsigned int ix=0; ix<TBlock::sizeX; ++ix)
+                    {
+                        hdf5Real output[NCHANNELS];
+                        for(unsigned int k=0; k<NCHANNELS; ++k)
+                            output[k] = 0;
 
-                    TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
+                        TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
 
-                    const unsigned int gy = idx[1]*TBlock::sizeY + iy;
-                    const unsigned int gz = idx[2]*TBlock::sizeZ + iz;
+                        const unsigned int gx = idx[0]*TBlock::sizeX + ix;
+                        const unsigned int gy = idx[1]*TBlock::sizeY + iy;
 
-                    hdf5Real * const ptr = data + NCHANNELS*(gz + width * gy);
+                        hdf5Real * const ptr = data + NCHANNELS*(gx + m_localWidth * gy);
 
-                    for(unsigned int k=0; k<NCHANNELS; ++k)
-                        ptr[k] = output[k];
-                }
+                        for(unsigned int k=0; k<NCHANNELS; ++k)
+                            ptr[k] = output[k];
+                    }
+            }
         }
-    }
-
-    template <typename TBlock, typename TStreamer>
-    void XZ(const int iy, const int width, std::vector<BlockInfo>& bInfo, hdf5Real * const data)
-    {
-        const unsigned int NCHANNELS = TStreamer::NCHANNELS;
-
-#pragma omp parallel for
-        for(int i = 0; i < (int)bInfo.size(); ++i)
-        {
-            BlockInfo& info = bInfo[i];
-            const int idx[3] = {info.index[0], info.index[1], info.index[2]};
-            TBlock& b = *(TBlock*)info.ptrBlock;
-
-            for(unsigned int iz=0; iz<TBlock::sizeZ; ++iz)
-                for(unsigned int ix=0; ix<TBlock::sizeX; ++ix)
-                {
-                    hdf5Real output[NCHANNELS];
-                    for(unsigned int k=0; k<NCHANNELS; ++k)
-                        output[k] = 0;
-
-                    TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
-
-                    const unsigned int gx = idx[0]*TBlock::sizeX + ix;
-                    const unsigned int gz = idx[2]*TBlock::sizeZ + iz;
-
-                    hdf5Real * const ptr = data + NCHANNELS*(gz + width * gx);
-
-                    for(unsigned int k=0; k<NCHANNELS; ++k)
-                        ptr[k] = output[k];
-                }
-        }
-    }
-
-    template <typename TBlock, typename TStreamer>
-    void YX(const int iz, const int width, std::vector<BlockInfo>& bInfo, hdf5Real * const data)
-    {
-        const unsigned int NCHANNELS = TStreamer::NCHANNELS;
-
-#pragma omp parallel for
-        for(int i = 0; i < (int)bInfo.size(); ++i)
-        {
-            BlockInfo& info = bInfo[i];
-            const int idx[3] = {info.index[0], info.index[1], info.index[2]};
-            TBlock& b = *(TBlock*)info.ptrBlock;
-
-            for(unsigned int iy=0; iy<TBlock::sizeY; ++iy)
-                for(unsigned int ix=0; ix<TBlock::sizeX; ++ix)
-                {
-                    hdf5Real output[NCHANNELS];
-                    for(unsigned int k=0; k<NCHANNELS; ++k)
-                        output[k] = 0;
-
-                    TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
-
-                    const unsigned int gx = idx[0]*TBlock::sizeX + ix;
-                    const unsigned int gy = idx[1]*TBlock::sizeY + iy;
-
-                    hdf5Real * const ptr = data + NCHANNELS*(gx + width * gy);
-
-                    for(unsigned int k=0; k<NCHANNELS; ++k)
-                        ptr[k] = output[k];
-                }
-        }
-    }
+    };
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -223,17 +309,15 @@ namespace SliceExtractor
 // Streamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // Streamer::operate          : Data access methods for read and write
 // Streamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-
 template<typename TSlice, typename TStreamer>
 void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const std::string fname, const std::string dpath=".", const bool bXMF=true)
 {
 #ifdef _USE_HDF_
     typedef typename TSlice::GridType::BlockType B;
-    const typename TSlice::GridType& grid = *(slice.grid);
 
     static const unsigned int NCHANNELS = TStreamer::NCHANNELS;
-    const unsigned int width = slice.width;
-    const unsigned int height = slice.height;
+    const unsigned int width = slice.width();
+    const unsigned int height = slice.height();
 
     std::cout << "Allocating " << (width * height * NCHANNELS * sizeof(hdf5Real))/(1024.*1024.) << " MB of HDF5 slice data" << std::endl;;
 
@@ -244,7 +328,7 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     // startup file
     // fname is the base filename without file type extension
     std::ostringstream filename;
-    filename << dpath << "/" << fname << "_slice" << slice.id;
+    filename << dpath << "/" << fname << "_slice" << slice.id();
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
     file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
@@ -256,26 +340,10 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     std::vector<std::string> dset_name;
     dset_name.push_back("/vwidth");
     dset_name.push_back("/vheight");
-    int slice_orientation[2];
-    if (0 == slice.dir)
-    {
-        slice_orientation[0] = 2;
-        slice_orientation[1] = 1;
-    }
-    else if (1 == slice.dir)
-    {
-        slice_orientation[0] = 2;
-        slice_orientation[1] = 0;
-    }
-    else if (2 == slice.dir)
-    {
-        slice_orientation[0] = 0;
-        slice_orientation[1] = 1;
-    }
 
     for (size_t i = 0; i < 2; ++i)
     {
-        const MeshMap<B>& m = grid.getMeshMap(slice_orientation[i]);
+        const MeshMap<B>& m = slice.getGrid()->getMeshMap( slice.coord_idx(i) );
         std::vector<double> vertices(m.ncells()+1, m.start());
         mesh_dims.push_back(vertices.size());
 
@@ -296,27 +364,17 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
 
     ///////////////////////////////////////////////////////////////////////////
     // write data
-    hdf5Real * array_all = new hdf5Real[width * height * NCHANNELS];
+    hdf5Real * array_all = NULL;
 
-    std::vector<BlockInfo> bInfo_local = grid.getBlocksInfo();
-    std::vector<BlockInfo> bInfo_slice;
-    for (size_t i = 0; i < bInfo_local.size(); ++i)
-    {
-        const int start = bInfo_local[i].index[slice.dir] * _BLOCKSIZE_;
-        if (start <= slice.idx && slice.idx < (start+_BLOCKSIZE_))
-            bInfo_slice.push_back(bInfo_local[i]);
-    }
+    if (slice.valid())
+        array_all = new hdf5Real[width * height * NCHANNELS];
 
-    hsize_t count[3] = {height, width, NCHANNELS};
-    hsize_t dims[3] = {height, width, NCHANNELS};
+    hsize_t count[3]  = {height, width, NCHANNELS};
+    hsize_t dims[3]   = {height, width, NCHANNELS};
     hsize_t offset[3] = {0, 0, 0};
 
-    if (0 == slice.dir)
-        SliceExtractor::YZ<B,TStreamer>(slice.idx%_BLOCKSIZE_, width, bInfo_slice, array_all);
-    else if (1 == slice.dir)
-        SliceExtractor::XZ<B,TStreamer>(slice.idx%_BLOCKSIZE_, width, bInfo_slice, array_all);
-    else if (2 == slice.dir)
-        SliceExtractor::YX<B,TStreamer>(slice.idx%_BLOCKSIZE_, width, bInfo_slice, array_all);
+    if (slice.valid())
+        slice.template extract<TStreamer>(array_all);
 
     fapl_id = H5Pcreate(H5P_DATASET_XFER);
     fspace_id = H5Screate_simple(3, dims, NULL);
@@ -329,6 +387,11 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     fspace_id = H5Dget_space(dataset_id);
     H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, offset, NULL, count, NULL);
     mspace_id = H5Screate_simple(3, count, NULL);
+    if (!slice.valid())
+    {
+        H5Sselect_none(fspace_id);
+        H5Sselect_none(mspace_id);
+    }
     status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all); if(status<0) H5Eprint1(stdout);
 
     status = H5Sclose(mspace_id); if(status<0) H5Eprint1(stdout);
@@ -338,7 +401,8 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     status = H5Fclose(file_id); if(status<0) H5Eprint1(stdout);
     H5close();
 
-    delete [] array_all;
+    if (slice.valid())
+        delete [] array_all;
 
     // writing xmf wrapper
     if (bXMF)

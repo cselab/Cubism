@@ -326,12 +326,16 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
 
     ///////////////////////////////////////////////////////////////////////////
     // startup file
-    // fname is the base filename without file type extension
+    // fname is the base filepath tail without file type extension and
+    // additional identifiers
     std::ostringstream filename;
-    filename << dpath << "/" << fname << "_slice" << slice.id();
+    std::ostringstream fullpath;
+    filename << fname << "_slice" << slice.id();
+    fullpath << dpath << "/" << filename.str();
+
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-    file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+    file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
     status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -408,7 +412,7 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     if (bXMF)
     {
         FILE *xmf = 0;
-        xmf = fopen((filename.str()+".xmf").c_str(), "w");
+        xmf = fopen((fullpath.str()+".xmf").c_str(), "w");
         fprintf(xmf, "<?xml version=\"1.0\" ?>\n");
         fprintf(xmf, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n");
         fprintf(xmf, "<Xdmf Version=\"2.0\">\n");

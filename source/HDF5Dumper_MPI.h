@@ -38,16 +38,19 @@ typedef double hdf5Real;
 // Streamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
 
 template<typename TGrid, typename Streamer>
-void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, const std::string f_name, const std::string dump_path=".", const bool bXMF=true)
+void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, const std::string fname, const std::string dpath=".", const bool bXMF=true)
 {
 #ifdef _USE_HDF_
     typedef typename TGrid::BlockType B;
 
     int rank;
 
-    // f_name is the base filename without file type extension
+    // fname is the base filepath tail without file type extension and
+    // additional identifiers
     std::ostringstream filename;
-    filename << dump_path << "/" << f_name;
+    std::ostringstream fullpath;
+    filename << fname;
+    fullpath << dpath << "/" << filename.str();
 
     MPI_Comm comm = grid.getCartComm();
     MPI_Comm_rank(comm, &rank);
@@ -70,7 +73,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, con
     {
         H5open();
         fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-        file_id = H5Fcreate((filename.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+        file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
         status = H5Pclose(fapl_id);
 
         for (size_t i = 0; i < 3; ++i)
@@ -105,7 +108,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, con
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
     status = H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL); if(status<0) H5Eprint1(stdout);
-    file_id = H5Fopen((filename.str()+".h5").c_str(), H5F_ACC_RDWR, fapl_id);
+    file_id = H5Fopen((fullpath.str()+".h5").c_str(), H5F_ACC_RDWR, fapl_id);
     status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -216,7 +219,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, con
     if (bXMF && rank==0)
     {
         FILE *xmf = 0;
-        xmf = fopen((filename.str()+".xmf").c_str(), "w");
+        xmf = fopen((fullpath.str()+".xmf").c_str(), "w");
         fprintf(xmf, "<?xml version=\"1.0\" ?>\n");
         fprintf(xmf, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n");
         fprintf(xmf, "<Xdmf Version=\"2.0\">\n");
@@ -251,16 +254,19 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, con
 }
 
 template<typename TGrid, typename Streamer>
-void ReadHDF5_MPI(TGrid &grid, const std::string f_name, const std::string read_path=".")
+void ReadHDF5_MPI(TGrid &grid, const std::string fname, const std::string dpath=".")
 {
 #ifdef _USE_HDF_
     typedef typename TGrid::BlockType B;
 
     int rank;
 
-    // f_name is the base filename without file type extension
+    // fname is the base filepath tail without file type extension and
+    // additional identifiers
     std::ostringstream filename;
-    filename << read_path << "/" << f_name;
+    std::ostringstream fullpath;
+    filename << fname;
+    fullpath << dpath << "/" << filename.str();
 
     herr_t status;
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
@@ -302,7 +308,7 @@ void ReadHDF5_MPI(TGrid &grid, const std::string f_name, const std::string read_
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
     status = H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL); if(status<0) H5Eprint1(stdout);
-    file_id = H5Fopen((filename.str()+".h5").c_str(), H5F_ACC_RDONLY, fapl_id);
+    file_id = H5Fopen((fullpath.str()+".h5").c_str(), H5F_ACC_RDONLY, fapl_id);
     status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     dataset_id = H5Dopen2(file_id, "data", H5P_DEFAULT);

@@ -39,10 +39,10 @@ struct BlockInfo
                 delta = uniform_grid_spacing[j]*(I[j]+0.5);
             else
             {
-                const double* const h = ptr_grid_spacing[j];
+                const double* const dh = ptr_grid_spacing[j];
                 for (int i = 0; i < I[j]; ++i)
-                    delta += h[i];
-                delta += 0.5*h[I[j]];
+                    delta += dh[i];
+                delta += 0.5*dh[I[j]];
             }
             p[j] = origin[j] + delta;
         }
@@ -59,10 +59,10 @@ struct BlockInfo
                 delta = uniform_grid_spacing[j]*(I[j]+0.5);
             else
             {
-                const double* const h = ptr_grid_spacing[j];
+                const double* const dh = ptr_grid_spacing[j];
                 for (int i = 0; i < I[j]; ++i)
-                    delta += h[i];
-                delta += 0.5*h[I[j]];
+                    delta += dh[i];
+                delta += 0.5*dh[I[j]];
             }
             p[j] = origin[j] + delta;
         }
@@ -116,8 +116,8 @@ struct BlockInfo
 
             bUniform[i] = ptr_map[i]->uniform();
 
-            const double* const h = ptr_grid_spacing[i];
-            if (bUniform[i]) uniform_grid_spacing[i] = h[0];
+            const double* const dh = ptr_grid_spacing[i];
+            if (bUniform[i]) uniform_grid_spacing[i] = dh[0];
             else             uniform_grid_spacing[i] = -1.0;
         }
     }

@@ -41,7 +41,6 @@ class SynchronizerMPI
     struct SubpackInfo { Real * block, * pack; int sx, sy, sz, ex, ey, ez; int x0, y0, z0, xpacklenght, ypacklenght; };
 
     DependencyCubeMPI<MPI_Request> cube;
-    const int synchID;
     bool isroot;
     int send_thickness[3][2], recv_thickness[3][2];
     int blockinfo_counter;
@@ -52,7 +51,7 @@ class SynchronizerMPI
     std::vector<Real *> all_mallocs;
 
     std::vector<BlockInfo> globalinfos;
-  std::map<Region, std::vector<BlockInfo> > region2infos;
+    std::map<Region, std::vector<BlockInfo> > region2infos;
 
     //?static?
     MPI_Comm cartcomm;
@@ -638,15 +637,10 @@ class SynchronizerMPI
 
     void _myfree(Real *& ptr) {if (ptr!=NULL) { free(ptr); ptr=NULL;} }
 
-    //forbidden methods
-    SynchronizerMPI(const SynchronizerMPI& c):cube(-1,-1,-1), synchID(-1), isroot(true){ abort(); }
-
-    void operator=(const SynchronizerMPI& c){ abort(); }
-
 public:
 
-    SynchronizerMPI(const int _synchID, StencilInfo _stencil, std::vector<BlockInfo> _globalinfos, MPI_Comm _cartcomm, const int _mybpd[3], const int _blocksize[3]):
-    cube(_mybpd[0], _mybpd[1], _mybpd[2]), synchID(_synchID), stencil(_stencil), globalinfos(_globalinfos), cartcomm(_cartcomm)
+    SynchronizerMPI(StencilInfo _stencil, std::vector<BlockInfo> _globalinfos, MPI_Comm _cartcomm, const int _mybpd[3], const int _blocksize[3]):
+    cube(_mybpd[0], _mybpd[1], _mybpd[2]), stencil(_stencil), globalinfos(_globalinfos), cartcomm(_cartcomm)
     {
         int myrank;
         MPI_Comm_rank(cartcomm, &myrank);
@@ -718,11 +712,15 @@ public:
         assert(send.pending.size() == 0);
     }
 
+    SynchronizerMPI(const SynchronizerMPI& c) = delete;
+
     virtual ~SynchronizerMPI()
     {
         for(size_t i=0;i<all_mallocs.size();++i)
             _myfree(all_mallocs[i]);
     }
+
+    SynchronizerMPI& operator=(const SynchronizerMPI& c) = delete;
 
     virtual void sync(unsigned int gptfloats, MPI_Datatype MPIREAL, const int timestamp)
     {

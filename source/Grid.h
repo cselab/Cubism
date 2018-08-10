@@ -126,9 +126,9 @@ public:
     Grid(MeshMap<Block>* const mapX, MeshMap<Block>* const mapY, MeshMap<Block>* const mapZ,
             const int _NX, const int _NY=1, const int _NZ=1) :
         m_blocks(NULL),
-        NX(_NX), NY(_NY), NZ(_NZ),
-        N(_NX*_NY*_NZ),
         maxextent(-1.0), // not used
+        N(_NX*_NY*_NZ),
+        NX(_NX), NY(_NY), NZ(_NZ),
         m_own_mesh_maps(false)
     {
         _alloc();

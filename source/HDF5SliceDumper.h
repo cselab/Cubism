@@ -39,8 +39,6 @@ namespace SliceTypes
         template <typename TSlice>
         static std::vector<TSlice> getEntities(ArgumentParser& parser, TGrid& grid)
         {
-            typedef typename TGrid::BlockType B;
-
             const size_t nSlices = parser("nslices").asInt(0);
             std::vector<TSlice> slices;
             for (size_t i = 0; i < nSlices; ++i)
@@ -91,7 +89,7 @@ namespace SliceTypes
             if (frac >= 0.0)
             {
                 const int idx_low = static_cast<int>(Dim[m_dir] * frac);
-                m_idx = (frac == 1.0) ? Dim[m_dir]-1 : idx_low;
+                m_idx = (frac < 1.0) ? idx_low : Dim[m_dir]-1;
             }
             else if (idx >= 0)
                 m_idx = idx;
@@ -186,6 +184,7 @@ namespace SliceTypes
         }
 
     protected:
+        typedef typename TGrid::BlockType TBlock;
 
         TGrid * m_grid;
         const int m_id;
@@ -199,8 +198,6 @@ namespace SliceTypes
         std::vector<BlockInfo> m_intersecting_blocks;
 
     private:
-        typedef typename TGrid::BlockType TBlock;
-
         template <typename TStreamer>
         void _YZ(hdf5Real * const data) const
         {
@@ -351,7 +348,7 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
         std::vector<double> vertices(m.ncells()+1, m.start());
         mesh_dims.push_back(vertices.size());
 
-        for (int j = 0; j < m.ncells(); ++j)
+        for (size_t j = 0; j < m.ncells(); ++j)
             vertices[j+1] = vertices[j] + m.cell_width(j);
 
         hsize_t dim[1] = {vertices.size()};
@@ -373,8 +370,14 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
     if (slice.valid())
         array_all = new hdf5Real[width * height * NCHANNELS];
 
-    hsize_t count[3]  = {height, width, NCHANNELS};
-    hsize_t dims[3]   = {height, width, NCHANNELS};
+    hsize_t count[3]  = { // local count
+        static_cast<hsize_t>(height),
+        static_cast<hsize_t>(width),
+        static_cast<hsize_t>(NCHANNELS)};
+    hsize_t dims[3]  = { // global dimension
+        static_cast<hsize_t>(height),
+        static_cast<hsize_t>(width),
+        static_cast<hsize_t>(NCHANNELS)};
     hsize_t offset[3] = {0, 0, 0};
 
     if (slice.valid())
@@ -432,7 +435,7 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Geometry>\n\n");
         fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", TStreamer::getAttributeName());
-        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", height, width, NCHANNELS, sizeof(hdf5Real));
+        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", (int)height, (int)width, (int)NCHANNELS, (int)sizeof(hdf5Real));
         fprintf(xmf, "        %s:/data\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Attribute>\n");

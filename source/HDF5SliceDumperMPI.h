@@ -34,12 +34,10 @@ namespace SliceTypesMPI
                 const double frac) :
             SliceTypes::Slice<TGrid>(grid, id, dir, idx, frac)
         {
-            typedef typename TGrid::BlockType TBlock;
-
             const int localDim[3] = {
-                this->m_grid->getResidentBlocksPerDimension(0)*TBlock::sizeX,
-                this->m_grid->getResidentBlocksPerDimension(1)*TBlock::sizeY,
-                this->m_grid->getResidentBlocksPerDimension(2)*TBlock::sizeZ
+                static_cast<int>(this->m_grid->getResidentBlocksPerDimension(0)*TBlock::sizeX),
+                static_cast<int>(this->m_grid->getResidentBlocksPerDimension(1)*TBlock::sizeY),
+                static_cast<int>(this->m_grid->getResidentBlocksPerDimension(2)*TBlock::sizeZ)
             };
 
             // get MPI related dimensions and offsets
@@ -84,6 +82,8 @@ namespace SliceTypesMPI
         inline int offsetHeight() const { return m_offsetHeight; }
 
     protected:
+        typedef typename SliceTypes::Slice<TGrid>::TBlock TBlock;
+
         int m_offsetWidth, m_offsetHeight;
     };
 }
@@ -138,7 +138,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
             std::vector<double> vertices(m.ncells()+1, m.start());
             mesh_dims.push_back(vertices.size());
 
-            for (int j = 0; j < m.ncells(); ++j)
+            for (size_t j = 0; j < m.ncells(); ++j)
                 vertices[j+1] = vertices[j] + m.cell_width(j);
 
             hsize_t dim[1] = {vertices.size()};
@@ -179,9 +179,18 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
     if (slice.valid())
         array_all = new hdf5Real[width * height * NCHANNELS];
 
-    hsize_t count[3]  = {height, width, NCHANNELS}; // local
-    hsize_t dims[3]   = {slice.height(), slice.width(), NCHANNELS}; // global
-    hsize_t offset[3] = {slice.offsetHeight(), slice.offsetWidth(), 0}; // file offset
+    hsize_t count[3]  = { // local count
+        static_cast<hsize_t>(height),
+        static_cast<hsize_t>(width),
+        static_cast<hsize_t>(NCHANNELS)};
+    hsize_t dims[3]   = { // global dimension
+        static_cast<hsize_t>(slice.height()),
+        static_cast<hsize_t>(slice.width()),
+        static_cast<hsize_t>(NCHANNELS)};
+    hsize_t offset[3] = { // file offset
+        static_cast<hsize_t>(slice.offsetHeight()),
+        static_cast<hsize_t>(slice.offsetWidth()),
+        0};
 
     if (0 == myRank)
     {
@@ -245,7 +254,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Geometry>\n\n");
         fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", TStreamer::getAttributeName());
-        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", (int)dims[0], (int)dims[1], (int)dims[2], sizeof(hdf5Real));
+        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", (int)dims[0], (int)dims[1], (int)dims[2], (int)sizeof(hdf5Real));
         fprintf(xmf, "        %s:/data\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Attribute>\n");

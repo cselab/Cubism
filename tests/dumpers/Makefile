@@ -6,8 +6,17 @@ precision ?= single
 hdf5precision ?= single
 nonuniform ?= no
 
+extra ?=
+
 CFLAGS = -fopenmp -I../../source
+CFLAGS+= $(extra)
 # CFLAGS += -I${HDF5_ROOT}/include
+# CFLAGS+= -Wall -Wextra -Wfloat-equal -Wundef -Wcast-align
+# CFLAGS+= -Wwrite-strings -Wmissing-declarations -Wredundant-decls
+# CFLAGS+= -Wlogical-op
+# CFLAGS+= -Wshadow -Woverloaded-virtual -Wuninitialized -pedantic
+CFLAGS+= -Wno-unused-parameter # does not make much sense with function overloading
+
 
 LIBS =
 # LIBS += -L${HDF5_ROOT}/lib

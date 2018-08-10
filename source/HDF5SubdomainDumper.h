@@ -148,7 +148,7 @@ namespace SubdomainTypes
         // bb_end: cell index within which the bounding box end (upper right) lies
         Subdomain(TGrid* grid, const int id,
                 const double start[3], const double end[3], const double* h[3],
-                const int bb_start[3]={0}, const int bb_end[3]={0}) :
+                const int bb_start[3]=0, const int bb_end[3]=0) :
             m_grid(grid), m_id(id),
             m_bbox_start{bb_start[0], bb_start[1], bb_start[2]},
             m_bbox_end{bb_end[0], bb_end[1], bb_end[2]},
@@ -167,14 +167,14 @@ namespace SubdomainTypes
                 const BlockInfo info_first = infos_all.front();
                 const BlockInfo info_last  = infos_all.back();
                 const int process_start[3] = {
-                    info_first.index[0] * TBlock::sizeX,
-                    info_first.index[1] * TBlock::sizeY,
-                    info_first.index[2] * TBlock::sizeZ
+                    static_cast<int>(info_first.index[0] * TBlock::sizeX),
+                    static_cast<int>(info_first.index[1] * TBlock::sizeY),
+                    static_cast<int>(info_first.index[2] * TBlock::sizeZ)
                 };
                 const int process_end[3] = {
-                    (info_last.index[0] + 1) * TBlock::sizeX - 1,
-                    (info_last.index[1] + 1) * TBlock::sizeY - 1,
-                    (info_last.index[2] + 1) * TBlock::sizeZ - 1
+                    static_cast<int>((info_last.index[0] + 1) * TBlock::sizeX - 1),
+                    static_cast<int>((info_last.index[1] + 1) * TBlock::sizeY - 1),
+                    static_cast<int>((info_last.index[2] + 1) * TBlock::sizeZ - 1)
                 };
                 bool b_contained[3] = { false, false, false };
                 for (size_t i = 0; i < 3; ++i)
@@ -221,14 +221,14 @@ namespace SubdomainTypes
                     {
                         const BlockInfo info = infos_all[i];
                         const int block_start[3] = {
-                            info.index[0] * TBlock::sizeX,
-                            info.index[1] * TBlock::sizeY,
-                            info.index[2] * TBlock::sizeZ
+                            static_cast<int>(info.index[0] * TBlock::sizeX),
+                            static_cast<int>(info.index[1] * TBlock::sizeY),
+                            static_cast<int>(info.index[2] * TBlock::sizeZ)
                         };
                         const int block_end[3] = {
-                            block_start[0] + TBlock::sizeX - 1,
-                            block_start[1] + TBlock::sizeY - 1,
-                            block_start[2] + TBlock::sizeZ - 1
+                            static_cast<int>(block_start[0] + TBlock::sizeX - 1),
+                            static_cast<int>(block_start[1] + TBlock::sizeY - 1),
+                            static_cast<int>(block_start[2] + TBlock::sizeZ - 1)
                         };
 
                         const bool b_need_X = ((block_start[0] <= m_bbox_end[0]) && (block_end[0] >= m_bbox_start[0]));
@@ -394,9 +394,9 @@ void DumpSubdomainHDF5(const TSubdomain& subdomain, const int stepID, const Real
 
             const int idx[3] = { info.index[0], info.index[1], info.index[2] };
 
-            for(int iz=0; iz<B::sizeZ; iz++)
-                for(int iy=0; iy<B::sizeY; iy++)
-                    for(int ix=0; ix<B::sizeX; ix++)
+            for(int iz=0; iz<static_cast<int>(B::sizeZ); iz++)
+                for(int iy=0; iy<static_cast<int>(B::sizeY); iy++)
+                    for(int ix=0; ix<static_cast<int>(B::sizeX); ix++)
                     {
                         int gx = idx[0]*B::sizeX + ix;
                         int gy = idx[1]*B::sizeY + iy;
@@ -408,8 +408,8 @@ void DumpSubdomainHDF5(const TSubdomain& subdomain, const int stepID, const Real
                             continue;
 
                         hdf5Real output[NCHANNELS];
-                        for(unsigned int i=0; i<NCHANNELS; ++i)
-                            output[i] = 0;
+                        for(unsigned int j=0; j<NCHANNELS; ++j)
+                            output[j] = 0;
 
                         TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
 
@@ -419,8 +419,8 @@ void DumpSubdomainHDF5(const TSubdomain& subdomain, const int stepID, const Real
 
                         hdf5Real * const ptr = array_all + NCHANNELS*(gx + NX * (gy + NY * gz));
 
-                        for(unsigned int i=0; i<NCHANNELS; ++i)
-                            ptr[i] = output[i];
+                        for(unsigned int j=0; j<NCHANNELS; ++j)
+                            ptr[j] = output[j];
                     }
         }
     }
@@ -480,7 +480,7 @@ void DumpSubdomainHDF5(const TSubdomain& subdomain, const int stepID, const Real
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Geometry>\n\n");
         fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", TStreamer::getAttributeName());
-        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", (int)dims[0], (int)dims[1], (int)dims[2], (int)dims[3], sizeof(hdf5Real));
+        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", (int)dims[0], (int)dims[1], (int)dims[2], (int)dims[3], (int)sizeof(hdf5Real));
         fprintf(xmf, "        %s:/data\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Attribute>\n");

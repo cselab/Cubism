@@ -51,7 +51,7 @@ namespace SubdomainTypesMPI
         // bb_end: cell index within which the bounding box end (upper right) lies
         Subdomain(TGrid* grid, const int id,
                 const double start[3], const double end[3], const double* h[3],
-                const int bb_start[3]={0}, const int bb_end[3]={0}) :
+                const int bb_start[3]=0, const int bb_end[3]=0) :
             SubdomainTypes::Subdomain<TGrid>(grid, id, start, end, h, bb_start, bb_end),
             m_suboffset{0}
             {
@@ -206,9 +206,9 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
     hsize_t count[4]  = { NZ, NY, NX, NCHANNELS };
     hsize_t dims[4]   = { DZ, DY, DX, NCHANNELS };
     hsize_t offset[4] = {
-        subdomain.offset()[2],
-        subdomain.offset()[1],
-        subdomain.offset()[0],
+        static_cast<hsize_t>(subdomain.offset()[2]),
+        static_cast<hsize_t>(subdomain.offset()[1]),
+        static_cast<hsize_t>(subdomain.offset()[0]),
         0
     };
 
@@ -237,9 +237,9 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
 
             const int idx[3] = { info.index[0], info.index[1], info.index[2] };
 
-            for(int iz=0; iz<B::sizeZ; iz++)
-                for(int iy=0; iy<B::sizeY; iy++)
-                    for(int ix=0; ix<B::sizeX; ix++)
+            for(int iz=0; iz<static_cast<int>(B::sizeZ); iz++)
+                for(int iy=0; iy<static_cast<int>(B::sizeY); iy++)
+                    for(int ix=0; ix<static_cast<int>(B::sizeX); ix++)
                     {
                         int gx = idx[0]*B::sizeX + ix;
                         int gy = idx[1]*B::sizeY + iy;
@@ -251,8 +251,8 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
                             continue;
 
                         hdf5Real output[NCHANNELS];
-                        for(unsigned int i=0; i<NCHANNELS; ++i)
-                            output[i] = 0;
+                        for(unsigned int j=0; j<NCHANNELS; ++j)
+                            output[j] = 0;
 
                         TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
 
@@ -262,8 +262,8 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
 
                         hdf5Real * const ptr = array_all + NCHANNELS*(gx + NX * (gy + NY * gz));
 
-                        for(unsigned int i=0; i<NCHANNELS; ++i)
-                            ptr[i] = output[i];
+                        for(unsigned int j=0; j<NCHANNELS; ++j)
+                            ptr[j] = output[j];
                     }
         }
     }
@@ -321,7 +321,7 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Geometry>\n\n");
         fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", TStreamer::getAttributeName());
-        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n",(int)dims[0], (int)dims[1], (int)dims[2], (int)dims[3], sizeof(hdf5Real));
+        fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n",(int)dims[0], (int)dims[1], (int)dims[2], (int)dims[3], (int)sizeof(hdf5Real));
         fprintf(xmf, "        %s:/data\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Attribute>\n");

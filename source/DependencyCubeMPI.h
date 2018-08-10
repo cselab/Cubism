@@ -54,7 +54,7 @@ public:
 
     struct Object
     {
-        virtual Region getRegion(const int n[3]) { return Region(); }
+        virtual Region getRegion(const int _n[3]) { return Region(); }
     };
 
     struct Face : Object
@@ -71,20 +71,20 @@ public:
             return *this;
         }
 
-        Region getRegion(const int n[3]) override
+        Region getRegion(const int _n[3]) override
         {
             Region r;
 
             const int d1 = (d+1) % 3;
             const int d2 = (d+2) % 3;
 
-            r.s[d] = s*(n[d]-1);
+            r.s[d] = s*(_n[d]-1);
             r.s[d1] = 1;
             r.s[d2] = 1;
 
             r.e[d] = r.s[d]+1;
-            r.e[d1] = n[d1]-1;
-            r.e[d2] = n[d2]-1;
+            r.e[d1] = _n[d1]-1;
+            r.e[d2] = _n[d2]-1;
 
             return r;
         }
@@ -104,7 +104,7 @@ public:
             return *this;
         }
 
-        Region getRegion(const int n[3]) override
+        Region getRegion(const int _n[3]) override
         {
             Region r;
 
@@ -112,10 +112,10 @@ public:
             const int d2 = (d+2) % 3;
 
             r.s[d] = 1;
-            r.s[d1] = a*(n[d1]-1);
-            r.s[d2] = b*(n[d2]-1);
+            r.s[d1] = a*(_n[d1]-1);
+            r.s[d2] = b*(_n[d2]-1);
 
-            r.e[d] = n[d] - 1;
+            r.e[d] = _n[d] - 1;
             r.e[d1] = r.s[d1] + 1;
             r.e[d2] = r.s[d2] + 1;
 
@@ -136,13 +136,13 @@ public:
             return *this;
         }
 
-        Region getRegion(const int n[3])
+        Region getRegion(const int _n[3])
         {
             Region r;
 
-            r.s[0] = x*(n[0]-1);
-            r.s[1] = y*(n[1]-1);
-            r.s[2] = z*(n[2]-1);
+            r.s[0] = x*(_n[0]-1);
+            r.s[1] = y*(_n[1]-1);
+            r.s[2] = z*(_n[2]-1);
 
             r.e[0] = r.s[0] + 1;
             r.e[1] = r.s[1] + 1;

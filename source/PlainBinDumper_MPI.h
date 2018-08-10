@@ -20,14 +20,10 @@ typedef struct _header
     long size;
 } header;
 
-#ifdef _FLOAT_PRECISION_
-typedef float Real;
-#else
-typedef double Real;
-#endif
+#define DBG 0
 
-
-void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const std::string f_name, const std::string dump_path=".")
+template <typename TReal>
+void PlainDumpBin_MPI(MPI_Comm comm, TReal *buffer, long bytes, const std::string f_name, const std::string dump_path=".")
 {
 	int rank, nranks;
 	MPI_Status status;
@@ -75,7 +71,8 @@ void PlainDumpBin_MPI(MPI_Comm comm, Real *buffer, long bytes, const std::string
 }
 
 
-void PlainReadBin_MPI(MPI_Comm comm, Real **buffer, long *bytes, const std::string f_name, const std::string read_path=".")
+template <typename TReal>
+void PlainReadBin_MPI(MPI_Comm comm, TReal **buffer, long *bytes, const std::string f_name, const std::string read_path=".")
 {
 	int rank, nranks;
 	MPI_Status status;
@@ -113,7 +110,7 @@ void PlainReadBin_MPI(MPI_Comm comm, Real **buffer, long *bytes, const std::stri
     long base = MAX_MPI_PROCS*sizeof(tag);	// Header
     MPI_File_read_at(file_id, base + offset, (char *)tmp, lbytes, MPI_CHAR, &status);
 
-    *buffer = (Real *)tmp;
+    *buffer = (TReal *)tmp;
     *bytes = lbytes;
 
     MPI_File_close(&file_id);

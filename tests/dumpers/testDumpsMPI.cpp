@@ -89,7 +89,7 @@ using MyDensity = RandomDensity;
 #endif /* _NONUNIFORM_ */
 
 
-void set_grid_ic(MyGridMPI* grid, const int myrank=0)
+static void set_grid_ic(MyGridMPI* grid, const int myrank=0)
 {
     vector<BlockInfo> infos = grid->getResidentBlocksInfo();
 

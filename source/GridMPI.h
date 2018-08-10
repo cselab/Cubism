@@ -218,12 +218,12 @@ public:
         MPI_Comm_free(&cartcomm);
     }
 
-    std::vector<BlockInfo>& getBlocksInfo()
+    std::vector<BlockInfo>& getBlocksInfo() override
     {
         return cached_blockinfo;
     }
 
-    const std::vector<BlockInfo>& getBlocksInfo() const
+    const std::vector<BlockInfo>& getBlocksInfo() const override
     {
         return cached_blockinfo;
     }
@@ -295,7 +295,7 @@ public:
 
         if (itSynchronizerMPI == SynchronizerMPIs.end())
         {
-            queryresult = new SynchronizerMPI(SynchronizerMPIs.size(), stencil, getBlocksInfo(), cartcomm, mybpd, blocksize);
+            queryresult = new SynchronizerMPI(stencil, getBlocksInfo(), cartcomm, mybpd, blocksize);
 
             SynchronizerMPIs[stencil] = queryresult;
         }
@@ -322,7 +322,7 @@ public:
         return mybpd[idim];
     }
 
-    int getBlocksPerDimension(int idim) const
+    int getBlocksPerDimension(int idim) const override
     {
         assert(idim>=0 && idim<3);
         return mybpd[idim]*pesize[idim];

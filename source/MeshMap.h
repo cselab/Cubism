@@ -27,6 +27,7 @@ class MeshDensity
 public:
     const bool uniform;
     MeshDensity(const bool _uniform) : uniform(_uniform) {}
+    virtual ~MeshDensity() {}
 
     virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const = 0;
@@ -46,7 +47,7 @@ public:
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
     {
         const double h = (xE - xS) / ncells;
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             ary[i] = h;
 
         // ghost cells are given by ghost start (ghostS) and ghost end
@@ -54,7 +55,7 @@ public:
         // For example, for a symmetric 6-point stencil -> ghostS = 3 and
         // ghostE = 3.  ghost_spacing must provide valid memory for it.
         if (ghost_spacing)
-            for (int i = 0; i < ghostS+ghostE; ++i)
+            for (unsigned int i = 0; i < ghostS+ghostE; ++i)
                 ghost_spacing[i] = h;
     }
 
@@ -83,29 +84,29 @@ public:
 
         std::default_random_engine gen;
         gen.seed(m_seed);
-        std::uniform_real_distribution<double> uniform(0.0,1.0);
+        std::uniform_real_distribution<double> distribution(0.0,1.0);
 
         double ducky = 0.0;
-        for (int i = 0; i < total_cells; ++i)
+        for (unsigned int i = 0; i < total_cells; ++i)
         {
-            buf[i] = uniform(gen);
+            buf[i] = distribution(gen);
 
             if (i >= ghostS && i < ncells + ghostS)
                 ducky += buf[i];
         }
 
         const double scale = (xE-xS)/ducky;
-        for (int i = 0; i < total_cells; ++i)
+        for (unsigned int i = 0; i < total_cells; ++i)
             buf[i] *= scale;
 
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             ary[i] = buf[i+ghostS];
 
         if (ghost_spacing)
         {
-            for (int i = 0; i < ghostS; ++i)
+            for (unsigned int i = 0; i < ghostS; ++i)
                 ghost_spacing[i] = buf[i];
-            for (int i = 0; i < ghostE; ++i)
+            for (unsigned int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
         }
 
@@ -142,7 +143,7 @@ public:
         const double h = 1.0/total_cells;
         const double y = 1.0/B;
         double ducky = 0.0;
-        for (int i = 0; i < total_cells; ++i)
+        for (unsigned int i = 0; i < total_cells; ++i)
         {
             const double x = h*(i+0.5);
             buf[i] = 1.0/(A*std::exp(-0.5*(x-0.5)*(x-0.5)*y*y) + 1.0);
@@ -152,17 +153,17 @@ public:
         }
 
         const double scale = (xE-xS)/ducky;
-        for (int i = 0; i < total_cells; ++i)
+        for (unsigned int i = 0; i < total_cells; ++i)
             buf[i] *= scale;
 
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             ary[i] = buf[i+ghostS];
 
         if (ghost_spacing)
         {
-            for (int i = 0; i < ghostS; ++i)
+            for (unsigned int i = 0; i < ghostS; ++i)
                 ghost_spacing[i] = buf[i];
-            for (int i = 0; i < ghostE; ++i)
+            for (unsigned int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
         }
 
@@ -176,10 +177,10 @@ public:
 class SmoothHeavisideDensity : public MeshDensity
 {
 protected:
-    const double A;
-    const double B;
-    const double c;
-    const double eps;
+    const double m_A;
+    const double m_B;
+    const double m_c;
+    const double m_eps;
 
     inline double _smooth_heaviside(const double r, const double A, const double B, const double c, const double eps, const bool mirror=false) const
     {
@@ -195,47 +196,47 @@ public:
         DefaultParameter() : A(2.0), B(1.0), c1(0.5), eps1(0.2) {}
     };
 
-    SmoothHeavisideDensity(const double A, const double B, const double c, const double eps) : MeshDensity(false), A(A), B(B), c(c), eps(eps) {}
-    SmoothHeavisideDensity(const DefaultParameter d=DefaultParameter()) : MeshDensity(false), A(d.A), B(d.B), c(d.c1), eps(d.eps1) {}
+    SmoothHeavisideDensity(const double A, const double B, const double c, const double eps) : MeshDensity(false), m_A(A), m_B(B), m_c(c), m_eps(eps) {}
+    SmoothHeavisideDensity(const DefaultParameter d=DefaultParameter()) : MeshDensity(false), m_A(d.A), m_B(d.B), m_c(d.c1), m_eps(d.eps1) {}
 
     virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
     {
-        assert(std::min(A,B) > 0.0);
-        assert(0.5*eps <= c && c <= 1.0-0.5*eps);
+        assert(std::min(m_A,m_B) > 0.0);
+        assert(0.5*m_eps <= m_c && m_c <= 1.0-0.5*m_eps);
 
         const unsigned int total_cells = ncells + ghostE + ghostS;
         double* const buf = new double[total_cells];
 
         double ducky = 0.0;
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
         {
             const double r = (static_cast<double>(i)+0.5)/ncells;
             double rho;
-            if (A >= B)
-                rho = _smooth_heaviside(r, A, B, c, eps);
+            if (m_A >= m_B)
+                rho = _smooth_heaviside(r, m_A, m_B, m_c, m_eps);
             else
-                rho = _smooth_heaviside(r, B, A, c, eps, true);
+                rho = _smooth_heaviside(r, m_B, m_A, m_c, m_eps, true);
             buf[i+ghostS] = 1.0/rho;
             ducky += buf[i+ghostS];
         }
-        for (int i = 0; i < ghostS; ++i)
+        for (unsigned int i = 0; i < ghostS; ++i)
             buf[i] = buf[ghostS];
-        for (int i = 0; i < ghostE; ++i)
+        for (unsigned int i = 0; i < ghostE; ++i)
             buf[i+ncells+ghostS] = buf[ncells+ghostS-1];
 
         const double scale = (xE-xS)/ducky;
-        for (int i = 0; i < total_cells; ++i)
+        for (unsigned int i = 0; i < total_cells; ++i)
             buf[i] *= scale;
 
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             ary[i] = buf[i+ghostS];
 
         if (ghost_spacing)
         {
-            for (int i = 0; i < ghostS; ++i)
+            for (unsigned int i = 0; i < ghostS; ++i)
                 ghost_spacing[i] = buf[i];
-            for (int i = 0; i < ghostE; ++i)
+            for (unsigned int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
         }
 
@@ -249,8 +250,8 @@ public:
 class SmoothHatDensity : public SmoothHeavisideDensity
 {
 protected:
-    const double c2;
-    const double eps2;
+    const double m_c2;
+    const double m_eps2;
 
 public:
     struct DefaultParameter
@@ -259,55 +260,55 @@ public:
         DefaultParameter() : A(2.0), B(1.0), c1(0.25), eps1(0.15), c2(0.75), eps2(0.15) {}
     };
 
-    SmoothHatDensity(const DefaultParameter d=DefaultParameter()) : SmoothHeavisideDensity(d.A,d.B,d.c1,d.eps1), c2(d.c2), eps2(d.eps2) {}
+    SmoothHatDensity(const DefaultParameter d=DefaultParameter()) : SmoothHeavisideDensity(d.A,d.B,d.c1,d.eps1), m_c2(d.c2), m_eps2(d.eps2) {}
 
     virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
     {
-        assert(std::min(A,B) > 0.0);
-        assert(0.5*eps <= c && c <= c2-0.5*eps2);
-        assert(c2 <= 1.0-0.5*eps2);
+        assert(std::min(m_A,m_B) > 0.0);
+        assert(0.5*m_eps <= m_c && m_c <= m_c2-0.5*m_eps2);
+        assert(m_c2 <= 1.0-0.5*m_eps2);
 
         const unsigned int total_cells = ncells + ghostE + ghostS;
         double* const buf = new double[total_cells];
 
         double ducky = 0.0;
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
         {
             const double r = (static_cast<double>(i)+0.5)/ncells;
             double rho;
-            if (r <= c+0.5*eps)
-                if (A >= B)
-                    rho = _smooth_heaviside(r, A, B, c, eps);
+            if (r <= m_c+0.5*m_eps)
+                if (m_A >= m_B)
+                    rho = _smooth_heaviside(r, m_A, m_B, m_c, m_eps);
                 else
-                    rho = _smooth_heaviside(r, B, A, c, eps, true);
-            else if (r >= c2-0.5*eps2)
-                if (A >= B)
-                    rho = _smooth_heaviside(r, A, B, c2, eps2, true);
+                    rho = _smooth_heaviside(r, m_B, m_A, m_c, m_eps, true);
+            else if (r >= m_c2-0.5*m_eps2)
+                if (m_A >= m_B)
+                    rho = _smooth_heaviside(r, m_A, m_B, m_c2, m_eps2, true);
                 else
-                    rho = _smooth_heaviside(r, B, A, c2, eps2);
+                    rho = _smooth_heaviside(r, m_B, m_A, m_c2, m_eps2);
             else
-                rho = B;
+                rho = m_B;
             buf[i+ghostS] = 1.0/rho;
             ducky += buf[i+ghostS];
         }
-        for (int i = 0; i < ghostS; ++i)
+        for (unsigned int i = 0; i < ghostS; ++i)
             buf[i] = buf[ghostS];
-        for (int i = 0; i < ghostE; ++i)
+        for (unsigned int i = 0; i < ghostE; ++i)
             buf[i+ncells+ghostS] = buf[ncells+ghostS-1];
 
         const double scale = (xE-xS)/ducky;
-        for (int i = 0; i < total_cells; ++i)
+        for (unsigned int i = 0; i < total_cells; ++i)
             buf[i] *= scale;
 
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             ary[i] = buf[i+ghostS];
 
         if (ghost_spacing)
         {
-            for (int i = 0; i < ghostS; ++i)
+            for (unsigned int i = 0; i < ghostS; ++i)
                 ghost_spacing[i] = buf[i];
-            for (int i = 0; i < ghostE; ++i)
+            for (unsigned int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
         }
 
@@ -389,20 +390,20 @@ public:
         }
 
         // assemble ghosts
-        for (int i = 0; i < ghostS; ++i)
+        for (unsigned int i = 0; i < ghostS; ++i)
             buf[i] = buf[ghostS];
-        for (int i = 0; i < ghostE; ++i)
+        for (unsigned int i = 0; i < ghostE; ++i)
             buf[i+ncells+ghostS] = buf[ghostS+ncells-1];
 
         // distribute
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             ary[i] = buf[i+ghostS];
 
         if (ghost_spacing)
         {
-            for (int i = 0; i < ghostS; ++i)
+            for (unsigned int i = 0; i < ghostS; ++i)
                 ghost_spacing[i] = buf[i];
-            for (int i = 0; i < ghostE; ++i)
+            for (unsigned int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[i+ncells+ghostS];
         }
 
@@ -454,7 +455,7 @@ private:
         return alpha;
     }
 
-    void _compute_fade(double* const buf, const unsigned int N, const double L, const double h0, const int nLast=6) const
+    void _compute_fade(double* const buf, const unsigned int N, const double L, const double h0, const unsigned int nLast=6) const
     {
         if (N > 0)
         {
@@ -517,10 +518,10 @@ public:
         double* const buf = new double[total_cells];
 
         // interior
-        const size_t nhalf = ncells/2 + ncells%2;
+        const unsigned int nhalf = ncells/2 + ncells%2;
         const double h = 2.0 / ncells;
         double ducky = 0.0;
-        for (int i = 0; i < nhalf; ++i)
+        for (unsigned int i = 0; i < nhalf; ++i)
         {
             const double x = h*(i+0.5);
             const double dh = PP*x + (1.0-PP)*(1.0 - std::tanh(QQ*(1.0-x))/std::tanh(QQ));
@@ -533,18 +534,18 @@ public:
             ducky -= buf[ghostS+nhalf-1];
 
         const double scale = (xE-xS)/ducky;
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             buf[i+ghostS] *= scale;
 
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             ary[i] = buf[i+ghostS];
 
         assert(ghostS == ghostE);
         if (ghost_spacing)
         {
-            for (int i = 0; i < ghostS; ++i)
+            for (unsigned int i = 0; i < ghostS; ++i)
                 ghost_spacing[ghostS-1-i] = buf[ghostS+i];
-            for (int i = 0; i < ghostE; ++i)
+            for (unsigned int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[ncells-1+ghostS-i];
         }
 
@@ -578,10 +579,10 @@ public:
         double* const buf = new double[total_cells];
 
         // interior
-        const size_t nhalf = ncells/2 + ncells%2;
+        const unsigned int nhalf = ncells/2 + ncells%2;
         const double h = 2.0 / ncells;
         double ducky = 0.0;
-        for (int i = 0; i < nhalf; ++i)
+        for (unsigned int i = 0; i < nhalf; ++i)
         {
             const double x = h*(i+0.5) - 1.0;
             const double dh = std::sin(0.5*eta*x*M_PI) / std::sin(0.5*eta*M_PI) + 1.0;
@@ -594,18 +595,18 @@ public:
             ducky -= buf[ghostS+nhalf-1];
 
         const double scale = (xE-xS)/ducky;
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             buf[i+ghostS] *= scale;
 
-        for (int i = 0; i < ncells; ++i)
+        for (unsigned int i = 0; i < ncells; ++i)
             ary[i] = buf[i+ghostS];
 
         assert(ghostS == ghostE);
         if (ghost_spacing)
         {
-            for (int i = 0; i < ghostS; ++i)
+            for (unsigned int i = 0; i < ghostS; ++i)
                 ghost_spacing[ghostS-1-i] = buf[ghostS+i];
-            for (int i = 0; i < ghostE; ++i)
+            for (unsigned int i = 0; i < ghostE; ++i)
                 ghost_spacing[i+ghostS] = buf[ncells-1+ghostS-i];
         }
 
@@ -632,7 +633,7 @@ private:
 
     void _dealloc()
     {
-        for (int i = 0; i < (int)m_mesh_kernels.size(); ++i)
+        for (size_t i = 0; i < m_mesh_kernels.size(); ++i)
             delete m_mesh_kernels[i];
     }
 
@@ -756,10 +757,10 @@ public:
         kernel->compute_spacing(m_xS, m_xE, m_Ncells, m_grid_spacing, ghostS, ghostE, ghost_spacing);
 
         assert(m_Nblocks > 0);
-        for (int i = 0; i < m_Nblocks; ++i)
+        for (size_t i = 0; i < m_Nblocks; ++i)
         {
             double delta_block = 0.0;
-            for (int j = 0; j < TBlock::sizeX; ++j)
+            for (size_t j = 0; j < TBlock::sizeX; ++j)
                 delta_block += m_grid_spacing[i*TBlock::sizeX + j];
             m_block_spacing[i] = delta_block;
         }
@@ -777,34 +778,34 @@ public:
     inline bool uniform() const { return m_uniform; }
     inline std::string kernel_name() const { return m_kernel_name; }
 
-    inline double cell_width(const int ix) const
+    inline double cell_width(const unsigned int ix) const
     {
         assert(m_initialized && ix >= 0 && ix < m_Ncells);
         return m_grid_spacing[ix];
     }
 
-    inline double block_width(const int bix) const
+    inline double block_width(const unsigned int bix) const
     {
         assert(m_initialized && bix >= 0 && bix < m_Nblocks);
         return m_block_spacing[bix];
     }
 
-    inline double block_origin(const int bix) const
+    inline double block_origin(const unsigned int bix) const
     {
         assert(m_initialized && bix >= 0 && bix < m_Nblocks);
         double offset = m_xS;
-        for (int i = 0; i < bix; ++i)
+        for (unsigned int i = 0; i < bix; ++i)
             offset += m_block_spacing[i];
         return offset;
     }
 
-    inline double* get_grid_spacing(const int bix)
+    inline double* get_grid_spacing(const unsigned int bix)
     {
         assert(m_initialized && bix >= 0 && bix < m_Nblocks);
         return &m_grid_spacing[bix*TBlock::sizeX];
     }
 
-    inline const double* get_grid_spacing(const int bix) const
+    inline const double* get_grid_spacing(const unsigned int bix) const
     {
         assert(m_initialized && bix >= 0 && bix < m_Nblocks);
         return &m_grid_spacing[bix*TBlock::sizeX];

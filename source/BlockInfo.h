@@ -97,7 +97,7 @@ struct BlockInfo
     {
         // TODO: [fabianw@mavt.ethz.ch; Wed May 03 2017 05:06:58 PM (-0700)]
         // ugly but keep this for the moment to ensure that nothing breaks
-        // down.
+        // down as this has propagated into uniform mesh applications.
         // WARNING: THIS CAN CAUSE UNEXPECTED RESULTS (if used with a
         // nonuniform grid)!
         h = -1.0;

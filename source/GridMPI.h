@@ -74,22 +74,6 @@ public:
         MPI_Comm_rank(cartcomm, &myrank);
         MPI_Cart_coords(cartcomm, myrank, 3, mypeindex);
 
-        for (int i = 0; i < 3; ++i)
-            delete this->m_mesh_maps[i];
-        std::vector<MeshMap<Block>*> tmp;
-        this->m_mesh_maps.swap(tmp);
-
-        const double blockwidth = (_maxextent / (double)std::max(nX*npeX, std::max(nY*npeY, nZ*npeZ)));
-        const double extents[3] = {blockwidth*nX*npeX, blockwidth*nY*npeY, blockwidth*nZ*npeZ};
-        const int nBlocks[3] = {nX*npeX, nY*npeY, nZ*npeZ};
-        for (int i = 0; i < 3; ++i)
-        {
-            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
-            UniformDensity uniform;
-            m->init(&uniform); // uniform only for this constructor
-            this->m_mesh_maps.push_back(m);
-        }
-
         const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
 
         // Doesn't make sense to export `h_gridpoint` and `h_block` as a member
@@ -104,6 +88,32 @@ public:
             blocksize[1] * h_gridpoint,
             blocksize[2] * h_gridpoint,
         };
+
+        // setup uniform (global) meshmaps
+        // discard single process mappings
+        for (int i = 0; i < 3; ++i)
+            delete this->m_mesh_maps[i];
+        std::vector<MeshMap<Block>*> clearme;
+        this->m_mesh_maps.swap(clearme);
+
+        // global number of blocks and extents
+        const int nBlocks[3] = {
+            mybpd[0]*pesize[0],
+            mybpd[1]*pesize[1],
+            mybpd[2]*pesize[2]
+        };
+        const double extents[3] = {
+            h_block[0]*nBlocks[0],
+            h_block[1]*nBlocks[1],
+            h_block[2]*nBlocks[2]
+        };
+        for (int i = 0; i < 3; ++i)
+        {
+            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
+            UniformDensity uniform;
+            m->init(&uniform); // uniform only for this constructor
+            this->m_mesh_maps.push_back(m);
+        }
 
         // This subdomain box is used by the coupling framework. Please don't
         // rearrange the formula for subdomain_high, as it has to exactly match
@@ -147,13 +157,14 @@ public:
             const int nX=0, const int nY=0, const int nZ=0,
             const MPI_Comm comm = MPI_COMM_WORLD): TGrid(mapX,mapY,mapZ,nX,nY,nZ), timestamp(0), worldcomm(comm)
     {
+        assert(mapX->nblocks() == npeX*nX);
+        assert(mapY->nblocks() == npeY*nY);
+        assert(mapZ->nblocks() == npeZ*nZ);
+
         blocksize[0] = Block::sizeX;
         blocksize[1] = Block::sizeY;
         blocksize[2] = Block::sizeZ;
 
-        assert(mapX->nblocks() == npeX*nX);
-        assert(mapY->nblocks() == npeY*nY);
-        assert(mapZ->nblocks() == npeZ*nZ);
         mybpd[0] = nX;
         mybpd[1] = nY;
         mybpd[2] = nZ;

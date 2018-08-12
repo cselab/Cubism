@@ -15,7 +15,7 @@ CFLAGS+= $(extra)
 # CFLAGS+= -Wwrite-strings -Wmissing-declarations -Wredundant-decls
 # CFLAGS+= -Wlogical-op
 # CFLAGS+= -Wshadow -Woverloaded-virtual -Wuninitialized -pedantic
-CFLAGS+= -Wno-unused-parameter # does not make much sense with function overloading
+CFLAGS+= -Wpedantic -Wno-unused-parameter # does not make much sense with function overloading
 
 
 LIBS =

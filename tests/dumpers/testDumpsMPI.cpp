@@ -153,13 +153,13 @@ int main(int argc, char* argv[])
     {
         ostringstream fname;
         fname << "serial_rank" << myrank << "_hdf5_" << prec_string;
-        DumpHDF5<MyGrid,MyStreamer>(*(MyGrid*)grid, 0, 0, fname.str());
+        DumpHDF5<MyStreamer>(*(MyGrid*)grid, 0, 0, fname.str());
     }
 
     {
         ostringstream fname;
         fname << "mpi_hdf5_" << prec_string;
-        DumpHDF5_MPI<MyGridMPI,MyStreamer>(*grid, 0, 0, fname.str());
+        DumpHDF5_MPI<MyStreamer>(*grid, 0, 0, fname.str());
     }
     ///////////////////////////////////////////////////////////////////////////
 
@@ -186,7 +186,7 @@ int main(int argc, char* argv[])
 
             ostringstream fname;
             fname << "serial_rank" << myrank << "_hdf5_slice" << (i+1) << "_" << prec_string;
-            DumpSliceHDF5<MySlice,MyStreamer>(slice, 0, 0, fname.str());
+            DumpSliceHDF5<MyStreamer>(slice, 0, 0, fname.str());
         }
 
         for (size_t i = 0; i < slices_mpi.size(); ++i)
@@ -195,7 +195,7 @@ int main(int argc, char* argv[])
 
             ostringstream fname;
             fname << "mpi_hdf5_slice" << (i+1) << "_" << prec_string;
-            DumpSliceHDF5MPI<MySliceMPI,MyStreamer>(slice, 0, 0, fname.str());
+            DumpSliceHDF5MPI<MyStreamer>(slice, 0, 0, fname.str());
         }
     }
     ///////////////////////////////////////////////////////////////////////////
@@ -221,7 +221,7 @@ int main(int argc, char* argv[])
 
             ostringstream fname;
             fname << "serial_rank" << myrank << "_hdf5_subdomain" << (i+1) << "_" << prec_string;
-            DumpSubdomainHDF5<MySubdomain,MyStreamer>(subdomain, 0, 0, fname.str());
+            DumpSubdomainHDF5<MyStreamer>(subdomain, 0, 0, fname.str());
         }
 
         for (size_t i = 0; i < subdomains_mpi.size(); ++i)
@@ -230,7 +230,7 @@ int main(int argc, char* argv[])
 
             ostringstream fname;
             fname << "mpi_hdf5_subdomain" << (i+1) << "_" << prec_string;
-            DumpSubdomainHDF5MPI<MySubdomainMPI,MyStreamer>(subdomain, 0, 0, fname.str());
+            DumpSubdomainHDF5MPI<MyStreamer>(subdomain, 0, 0, fname.str());
         }
     }
     ///////////////////////////////////////////////////////////////////////////

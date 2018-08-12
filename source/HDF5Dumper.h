@@ -32,8 +32,7 @@ typedef double hdf5Real;
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-
-template<typename TGrid, typename TStreamer>
+template<typename TStreamer, typename TGrid>
 void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const std::string fname, const std::string dpath=".", const bool bXMF=true)
 {
 #ifdef _USE_HDF_
@@ -192,7 +191,7 @@ void DumpHDF5(const TGrid &grid, const int iCounter, const Real absTime, const s
 }
 
 
-template<typename TGrid, typename TStreamer>
+template<typename TStreamer, typename TGrid>
 void ReadHDF5(TGrid &grid, const std::string fname, const std::string dpath=".")
 {
 #ifdef _USE_HDF_

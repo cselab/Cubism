@@ -32,12 +32,11 @@ inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsign
 inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize);
 */
 
-// The following requirements for the data Streamer are required:
-// Streamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
-// Streamer::operate          : Data access methods for read and write
-// Streamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-
-template<typename TGrid, typename Streamer>
+// The following requirements for the data TStreamer are required:
+// TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
+// TStreamer::operate          : Data access methods for read and write
+// TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
+template<typename TStreamer, typename TGrid>
 void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::string f_name, const std::string dump_path=".", const bool bDummy=false)
 {
     typedef typename TGrid::BlockType B;
@@ -49,7 +48,7 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::st
 	FILE *file_id;
 	int status;
 
-    static const unsigned int NCHANNELS = Streamer::NCHANNELS;
+    static const unsigned int NCHANNELS = TStreamer::NCHANNELS;
     const unsigned int NX = grid.getBlocksPerDimension(0)*B::sizeX;
     const unsigned int NY = grid.getBlocksPerDimension(1)*B::sizeY;
     const unsigned int NZ = grid.getBlocksPerDimension(2)*B::sizeZ;
@@ -97,7 +96,7 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::st
                         Real * const ptr = array_all + (gz + NZ * (gy + NY * gx));
 
                         Real output;
-                        Streamer::operate(b, ix, iy, iz, &output, ichannel);	// point -> output,
+                        TStreamer::operate(b, ix, iy, iz, &output, ichannel);	// point -> output,
                         ptr[0] = output;
 
 
@@ -130,7 +129,7 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::st
 }
 
 
-template<typename TGrid, typename Streamer>
+template<typename TStreamer, typename TGrid>
 void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path=".")
 {
     typedef typename TGrid::BlockType B;
@@ -145,7 +144,7 @@ void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path
     const int NX = grid.getBlocksPerDimension(0)*B::sizeX;
     const int NY = grid.getBlocksPerDimension(1)*B::sizeY;
     const int NZ = grid.getBlocksPerDimension(2)*B::sizeZ;
-    static const int NCHANNELS = Streamer::NCHANNELS;
+    static const int NCHANNELS = TStreamer::NCHANNELS;
 
     Real * array_all = new Real[NX * NY * NZ * NCHANNELS];
 
@@ -212,7 +211,7 @@ void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path
 
                         Real * const ptr_input = array_all + (gz + NZ * (gy + NY * gx));
 
-                        Streamer::operate(b, *ptr_input, ix, iy, iz, ichannel);	// output -> point
+                        TStreamer::operate(b, *ptr_input, ix, iy, iz, ichannel);	// output -> point
                     }
         }
     } /* ichannel */

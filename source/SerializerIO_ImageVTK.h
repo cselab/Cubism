@@ -15,7 +15,7 @@
 
 #include "SerializerIO.h"
 
-template<typename GridType, typename Streamer>
+template<typename GridType, typename TStreamer>
 class SerializerIO_ImageVTK
 {
     // Typedefs
@@ -24,7 +24,7 @@ class SerializerIO_ImageVTK
 
 public:
 
-    void Write(GridType & inputGrid, std::string fileName, Streamer streamer = Streamer())
+    void Write(GridType & inputGrid, std::string fileName)
     {
         static const int BX = TBlock::sizeX;
         static const int BY = TBlock::sizeY;
@@ -37,7 +37,7 @@ public:
         const int NX = BX*NBX;
         const int NY = BY*NBY;
         const int NZ = BZ*NBZ;
-        const int NC = streamer.channels;
+        const int NC = TStreamer::NCHANNELS;
 
         vtkSmartPointer<vtkImageData> imageData = vtkSmartPointer<vtkImageData>::New();
 
@@ -60,7 +60,7 @@ public:
                             {
                                 Real output[NC];
 
-                                streamer.operate(block.data[iz][iy][ix], output);
+                                TStreamer::operate(block.data[iz][iy][ix], output);
 
                                 const int gx = ix + ibx*BX;
                                 const int gy = iy + iby*BY;
@@ -78,7 +78,7 @@ public:
     }
 
     template<typename TLab>
-    void WriteLabs(GridType & inputGrid, std::string fileName, const Real time=0, Streamer streamer = Streamer())
+    void WriteLabs(GridType & inputGrid, std::string fileName, const Real time=0)
     {
         const std::vector<BlockInfo> vInfo = inputGrid.getBlocksInfo();
 
@@ -93,7 +93,7 @@ public:
         const int NX = BX*NBX;
         const int NY = BY*NBY;
         const int NZ = BZ*NBZ;
-        const int NC = streamer.channels;
+        const int NC = TStreamer::NCHANNELS;
 
         vtkSmartPointer<vtkImageData> imageData = vtkSmartPointer<vtkImageData>::New();
 
@@ -120,7 +120,7 @@ public:
                     {
                         Real output[NC];
 
-                        streamer.operate(lab(ix,iy,iz), output);
+                        TStreamer::operate(lab(ix,iy,iz), output);
 
                         const int gx = ix-steStart[0] + info.index[0]*BX;
                         const int gy = iy-steStart[1] + info.index[1]*BY;

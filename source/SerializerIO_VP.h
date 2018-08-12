@@ -13,7 +13,7 @@
 #include "Types.h"
 #include "Matrix4D.h"
 
-template<typename GridType, typename Streamer>
+template<typename GridType, typename TStreamer>
 class SerializerIO_VP
 {
     int rank, BPDX, BPDY, BPDZ;
@@ -23,7 +23,7 @@ public:
     SerializerIO_VP(int BPDX, int BPDY, int BPDZ, int rank=0):
         BPDX(BPDX), BPDY(BPDY), BPDZ(BPDZ), rank(rank) { }
 
-    void Write(GridType & inputGrid, std::string fileName, Streamer streamer = Streamer())
+    void Write(GridType & inputGrid, std::string fileName)
     {
         typedef typename GridType::BlockType TBlock;
 
@@ -49,7 +49,7 @@ public:
         }
 
         {
-            static const int nChannels = streamer.channels;
+            static const int nChannels = TStreamer::NCHANNELS;
             Matrix4D<float, true, std::allocator> * matData = new Matrix4D<float,true,std::allocator>(nChannels, TBlock::sizeX, TBlock::sizeY, TBlock::sizeZ);
 
             FILE * file = fopen((fileName+".grid").c_str(), "wb");
@@ -67,7 +67,7 @@ public:
                     for(int iy=0; iy<TBlock::sizeY; iy++)
                         for(int ix=0; ix<TBlock::sizeX; ix++)
                         {
-                            streamer.operate(block.data[iz][iy][ix], out);
+                            TStreamer::operate(block.data[iz][iy][ix], out);
 
                             for(int channel=0; channel<nChannels; channel++)
                                 matData->Access(channel, ix, iy, iz) = out[channel];

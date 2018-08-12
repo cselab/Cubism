@@ -3,36 +3,12 @@
 // Author     : Fabian Wermelinger
 // Description: Test Cubism dumping facilities
 // Copyright 2018 ETH Zurich. All Rights Reserved.
-#ifdef _DOUBLE_
-using MyReal = double;
-#else
-using MyReal = float;
-#define _FLOAT_PRECISION_
-#endif /* _DOUBLE_ */
-
-#define _BLOCKSIZE_ 16
-#define _BLOCKSIZEX_ _BLOCKSIZE_
-#define _BLOCKSIZEY_ _BLOCKSIZE_
-#define _BLOCKSIZEZ_ _BLOCKSIZE_
-
-#include <mpi.h>
-#include <cstring>
-#include <vector>
-#include <string>
-#include <sstream>
-using namespace std;
+#include "../common.h"
 
 #include "ArgumentParser.h"
 #include "Grid.h"
 #include "GridMPI.h"
-#include "BlockInfo.h"
-
-// dumpers
-#ifndef _HDF5_DOUBLE_PRECISION_
-const string prec_string = "4byte";
-#else
-const string prec_string = "8byte";
-#endif
+#include "MeshMap.h"
 
 #define _USE_HDF_
 #include "HDF5Dumper.h"
@@ -49,34 +25,17 @@ const string prec_string = "8byte";
 
 #include "PlainBinDumper_MPI.h"
 
+using namespace std;
 
-template <typename TReal>
-struct Block
-{
-    static const size_t sizeX = _BLOCKSIZE_;
-    static const size_t sizeY = _BLOCKSIZE_;
-    static const size_t sizeZ = _BLOCKSIZE_;
+// dumpers
+#ifndef _HDF5_DOUBLE_PRECISION_
+const string prec_string = "4byte";
+#else
+const string prec_string = "8byte";
+#endif
 
-    typedef TReal ElementType;
-
-    TReal data[_BLOCKSIZE_][_BLOCKSIZE_][_BLOCKSIZE_];
-    inline void clear() { memset(&data[0][0][0], 0, _BLOCKSIZE_*_BLOCKSIZE_*_BLOCKSIZE_*sizeof(TReal)); }
-};
-
-struct MyStreamer
-{
-    static const int NCHANNELS = 1;
-
-    template <typename TBlock, typename T>
-    static inline void operate(const TBlock& b, const int ix, const int iy, const int iz, T output[NCHANNELS])
-    {
-        output[0] = b.data[iz][iy][ix];
-    }
-
-    static const char * getAttributeName() { return "Scalar"; }
-};
-
-using MyBlock        = Block<MyReal>;
+using MyBlock        = Block<MyReal,1>;
+using MyStreamer     = Streamer<0>;
 using MyGrid         = Grid<MyBlock>;
 using MyGridMPI      = GridMPI<MyGrid>;
 using MySlice        = typename SliceTypes::Slice<MyGrid>;
@@ -87,30 +46,6 @@ using MySubdomainMPI = typename SubdomainTypesMPI::Subdomain<MyGridMPI>;
 using MyMeshMap = MeshMap<MyBlock>;
 using MyDensity = RandomDensity;
 #endif /* _NONUNIFORM_ */
-
-
-static void set_grid_ic(MyGridMPI* grid, const int myrank=0)
-{
-    vector<BlockInfo> infos = grid->getResidentBlocksInfo();
-
-    const int NX = grid->getResidentBlocksPerDimension(0);
-    const int NY = grid->getResidentBlocksPerDimension(1);
-    const int NZ = grid->getResidentBlocksPerDimension(2);
-
-    const double blocksize = MyBlock::sizeX*MyBlock::sizeY*MyBlock::sizeZ;
-    const double offset = myrank * NX*NY*NZ * blocksize;
-
-#pragma omp parallel for
-    for (size_t i = 0; i < infos.size(); ++i)
-    {
-        BlockInfo info = infos[i];
-        MyBlock& b = *(MyBlock*)info.ptrBlock;
-        for (size_t iz = 0; iz < MyBlock::sizeZ; ++iz)
-            for (size_t iy = 0; iy < MyBlock::sizeY; ++iy)
-                for (size_t ix = 0; ix < MyBlock::sizeX; ++ix)
-                    b.data[iz][iy][ix] = offset + info.blockID*blocksize + ix + (double)MyBlock::sizeX*(iy + MyBlock::sizeY*iz);
-    }
-}
 
 
 int main(int argc, char* argv[])

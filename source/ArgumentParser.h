@@ -27,18 +27,19 @@
 #include <fstream>
 #include <ostream>
 #include <limits>
+#include <regex> // C++11
 
 
 class Value
 {
 private:
-	std::string content;
+    std::string content;
 
 public:
 
-	Value() : content("") {}
+    Value() : content("") {}
 
-	Value(std::string content_) : content(content_) { /*printf("%s\n",content.c_str());*/ }
+    Value(std::string content_) : content(content_) { /*printf("%s\n",content.c_str());*/ }
 
     Value(const Value& c) : content(c.content) {}
 
@@ -55,47 +56,47 @@ public:
     }
     Value operator+(const Value& rhs) { return Value(content + " " + rhs.content); }
 
-	double asDouble(double def=0)
-	{
-		if (content == "")
+    double asDouble(double def=0)
+    {
+        if (content == "")
         {
             std::ostringstream sbuf;
             sbuf << def;
             content = sbuf.str();
         }
-		return (double) atof(content.c_str());
-	}
+        return (double) atof(content.c_str());
+    }
 
-	int asInt(int def=0)
-	{
-		if (content == "")
+    int asInt(int def=0)
+    {
+        if (content == "")
         {
             std::ostringstream sbuf;
             sbuf << def;
             content = sbuf.str();
         }
-		return atoi(content.c_str());
-	}
+        return atoi(content.c_str());
+    }
 
-	bool asBool(bool def=false)
-	{
-		if (content == "")
+    bool asBool(bool def=false)
+    {
+        if (content == "")
         {
             if (def) content = "true";
             else     content = "false";
         }
-		if (content == "0") return false;
-		if (content == "false") return false;
+        if (content == "0") return false;
+        if (content == "false") return false;
 
-		return true;
-	}
+        return true;
+    }
 
-	std::string asString(std::string def="")
-	{
-		if (content == "") content = def;
+    std::string asString(std::string def="")
+    {
+        if (content == "") content = def;
 
-		return content;
-	}
+        return content;
+    }
 
     friend std::ostream& operator<<(std::ostream& lhs, const Value& rhs)
     {
@@ -108,12 +109,12 @@ public:
 class CommandlineParser
 {
 private:
-	const int iArgC;
-  char** vArgV;
-	bool bStrictMode, bVerbose;
+    const int iArgC;
+    char** vArgV;
+    bool bStrictMode, bVerbose;
 
 protected:
-	std::map<std::string,Value> mapArguments;
+    std::map<std::string,Value> mapArguments;
 
     inline void _normalizeKey(std::string& key) const
     {
@@ -129,59 +130,65 @@ protected:
 
 public:
 
-	Value& operator()(std::string key)
-	{
+    Value& operator()(std::string key)
+    {
         _normalizeKey(key);
-		if (bStrictMode)
-		{
-			if (!_existKey(key,mapArguments))
-			{
-				printf("Runtime option NOT SPECIFIED! ABORTING! name: %s\n",key.data());
-				abort();
-			}
-		}
+        if (bStrictMode)
+        {
+            if (!_existKey(key,mapArguments))
+            {
+                printf("Runtime option NOT SPECIFIED! ABORTING! name: %s\n",key.data());
+                abort();
+            }
+        }
 
-		if (bVerbose) printf("%s is %s\n", key.data(), mapArguments[key].asString().data());
-		return mapArguments[key];
-	}
+        if (bVerbose) printf("%s is %s\n", key.data(), mapArguments[key].asString().data());
+        return mapArguments[key];
+    }
 
-	inline bool check(std::string key) const
-	{
+    inline bool check(std::string key) const
+    {
         _normalizeKey(key);
-		return _existKey(key,mapArguments);
-	}
+        return _existKey(key,mapArguments);
+    }
 
-	CommandlineParser(const int argc, char ** argv) : iArgC(argc), vArgV(argv), bStrictMode(false), bVerbose(true),  mapArguments()
-	{
-		for (int i=1; i<argc; i++)
-			if (argv[i][0] == '-')
-			{
-				std::string values = "";
-				int itemCount = 0;
+    CommandlineParser(const int argc, char ** argv) : iArgC(argc), vArgV(argv), bStrictMode(false), bVerbose(true),  mapArguments()
+    {
+        // parse commandline <key> <value> pairs.  Key passed on the command
+        // line must start with a leading dash (-). For example:
+        // -mykey myvalue0 [myvalue1 ...]
+        for (int i=1; i<argc; i++)
+            if (argv[i][0] == '-')
+            {
+                std::string values = "";
+                int itemCount = 0;
 
-				for (int j=i+1; j<argc; j++)
+                // check if the current key i is a list of values. If yes,
+                // concatenate them into a string
+                for (int j=i+1; j<argc; j++)
                 {
+                    // if the current value is numeric and (possibly) negative,
+                    // do not interpret it as a key
                     const bool leadingDash = (argv[j][0] == '-');
-                    const char c = argv[j][1];
-                    const bool firstNumeric = ((c >= '0' && c <= '9') || c == 0) ? true : false;
-					if (leadingDash && !firstNumeric)
-						break;
-					else
-					{
-						if (strcmp(values.c_str(), ""))
-							values += ' ';
+                    const bool isNumeric = std::regex_match(argv[j], std::regex("(\\+|-)?[0-9]*(\\.[0-9]*)?((e|E)(\\+|-)?[0-9]*)?"));
+                    if (leadingDash && !isNumeric)
+                        break;
+                    else
+                    {
+                        if (strcmp(values.c_str(), ""))
+                            values += ' ';
 
-						values += argv[j];
-						itemCount++;
-					}
+                        values += argv[j];
+                        itemCount++;
+                    }
                 }
 
-				if (itemCount == 0)
-					values = "true";
+                if (itemCount == 0)
+                    values = "true";
 
                 std::string key(argv[i]);
                 key.erase(0,1); // remove leading '-'
-                if (key[0] == '+')
+                if (key[0] == '+') // for key concatenation
                 {
                     key.erase(0,1);
                     if (!_existKey(key,mapArguments))
@@ -189,70 +196,70 @@ public:
                     else
                         mapArguments[key] += Value(values);
                 }
-                else
+                else // regular key
                 {
                     if (!_existKey(key,mapArguments))
                         mapArguments[key] = Value(values);
                 }
 
-				i += itemCount;
-			}
+                i += itemCount;
+            }
 
-		mute();
-		//printf("found %ld arguments of %d\n",mapArguments.size(),argc);
-	}
+        mute();
+        //printf("found %ld arguments of %d\n",mapArguments.size(),argc);
+    }
 
-	int getargc() const { return iArgC; }
+    int getargc() const { return iArgC; }
 
-	char** getargv() const { return vArgV; }
+    char** getargv() const { return vArgV; }
 
-	void set_strict_mode()
-	{
-		bStrictMode = true;
-	}
+    void set_strict_mode()
+    {
+        bStrictMode = true;
+    }
 
-	void unset_strict_mode()
-	{
-		bStrictMode = false;
-	}
+    void unset_strict_mode()
+    {
+        bStrictMode = false;
+    }
 
-	void mute()
-	{
-		bVerbose = false;
-	}
+    void mute()
+    {
+        bVerbose = false;
+    }
 
-	void loud()
-	{
-		bVerbose = true;
-	}
+    void loud()
+    {
+        bVerbose = true;
+    }
 
-	void save_options(std::string path=".")
-	{
-		std::string options;
-		for(std::map<std::string,Value>::iterator it=mapArguments.begin(); it!=mapArguments.end(); it++)
-		{
-			options+= it->first + " " + it->second.asString() + " ";
-		}
-		std::string filepath = (path + "/" + std::string("argumentparser.log"));
-		FILE * f = fopen(filepath.data(), "a");
-		if (f == NULL)
-		{
-			printf("impossible to write %s.\n", filepath.data());
-			return;
-		}
-		fprintf(f, "%s\n", options.data());
-		fclose(f);
-	}
+    void save_options(std::string path=".")
+    {
+        std::string options;
+        for(std::map<std::string,Value>::iterator it=mapArguments.begin(); it!=mapArguments.end(); it++)
+        {
+            options+= it->first + " " + it->second.asString() + " ";
+        }
+        std::string filepath = (path + "/" + std::string("argumentparser.log"));
+        FILE * f = fopen(filepath.data(), "a");
+        if (f == NULL)
+        {
+            printf("impossible to write %s.\n", filepath.data());
+            return;
+        }
+        fprintf(f, "%s\n", options.data());
+        fclose(f);
+    }
 
-	void print_args()
-	{
-		for(std::map<std::string,Value>::iterator it=mapArguments.begin(); it!=mapArguments.end(); it++)
-		{
+    void print_args()
+    {
+        for(std::map<std::string,Value>::iterator it=mapArguments.begin(); it!=mapArguments.end(); it++)
+        {
             std::cout.width(50);
             std::cout.fill('.');
             std::cout << std::left << it->first;
             std::cout << ": " << it->second.asString() << std::endl;
-		}
+        }
     }
 };
 

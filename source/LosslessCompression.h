@@ -23,53 +23,53 @@ inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int lay
 
 inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize)
 {
-	int decompressedbytes = 0;
+    int decompressedbytes = 0;
 
 //	fpz_decompress4D((char *)inputbuf, ninputbytes, layout, (char *) outputbuf, (unsigned int *)&decompressedbytes, (sizeof(Real)==4)?1:0, 8*sizeof(Real));
-	fpz_decompress3D((char *)inputbuf, ninputbytes, layout, (char *) outputbuf, (unsigned int *)&decompressedbytes, (sizeof(Real)==4)?1:0, 8*sizeof(Real));
+    fpz_decompress3D((char *)inputbuf, ninputbytes, layout, (char *) outputbuf, (unsigned int *)&decompressedbytes, (sizeof(Real)==4)?1:0, 8*sizeof(Real));
 
 #if DBG
-	printf("fpz: %d to %d\n", ninputbytes, decompressedbytes);
+    printf("fpz: %d to %d\n", ninputbytes, decompressedbytes);
 #endif
-	if (decompressedbytes < 0)
-	{
-		printf("FPZIP DECOMPRESSION FAILURE!!\n");
-		abort();
-	}
-	return decompressedbytes;
+    if (decompressedbytes < 0)
+    {
+        printf("FPZIP DECOMPRESSION FAILURE!!\n");
+        abort();
+    }
+    return decompressedbytes;
 }
 
 inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsigned *max)
 {
 #if 1
-	int zbufsize = 0;
-	char *zbuf = NULL;
-	zbufsize = len + 4096;
-	zbuf = (char *)malloc(zbufsize);
+    int zbufsize = 0;
+    char *zbuf = NULL;
+    zbufsize = len + 4096;
+    zbuf = (char *)malloc(zbufsize);
 #else //keep the buffer allocated
-	static int zbufsize = 0;
-	static char *zbuf = NULL;
-	if (zbuf == 0) {
-		zbufsize = len + 4096;
-		zbuf = (char *)malloc(zbufsize);
-	}
+    static int zbufsize = 0;
+    static char *zbuf = NULL;
+    if (zbuf == 0) {
+        zbufsize = len + 4096;
+        zbuf = (char *)malloc(zbufsize);
+    }
 #endif
 
-	if (zbufsize < *max) {
-		printf("small ZBUFSIZE\n");
-		abort();
-	}
+    if (zbufsize < *max) {
+        printf("small ZBUFSIZE\n");
+        abort();
+    }
 
-	int ninputbytes = len;
-	int compressedbytes;
+    int ninputbytes = len;
+    int compressedbytes;
 
 //	fpz_compress4D((void *) buf, ninputbytes, layout, (void *) zbuf, (unsigned int *)&compressedbytes, (sizeof(Real)==4)?1:0, 8*sizeof(Real));
-	fpz_compress3D((void *) buf, ninputbytes, layout, (void *) zbuf, (unsigned int *)&compressedbytes, (sizeof(Real)==4)?1:0, 8*sizeof(Real));
-	memcpy(buf, zbuf, compressedbytes);
+    fpz_compress3D((void *) buf, ninputbytes, layout, (void *) zbuf, (unsigned int *)&compressedbytes, (sizeof(Real)==4)?1:0, 8*sizeof(Real));
+    memcpy(buf, zbuf, compressedbytes);
 
-	*max = compressedbytes;
+    *max = compressedbytes;
 #if 1
-	free(zbuf);
+    free(zbuf);
 #endif
-	return compressedbytes;
+    return compressedbytes;
 }

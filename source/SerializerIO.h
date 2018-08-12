@@ -12,36 +12,36 @@
 #include <string>
 
 
-template<typename GridType, typename Streamer>
+template<typename GridType, typename TStreamer>
 class SerializerIO
 {
 public:
 
-	// Typedefs
-	typedef typename GridType::BlockType TBlock;
-	typedef typename TBlock::ElementType TElement;
+    // Typedefs
+    typedef typename GridType::BlockType TBlock;
+    typedef typename TBlock::ElementType TElement;
 
-	// Virtual methods
-	virtual void Write(GridType & inputGrid, std::string fileName, Streamer streamer = Streamer())
-	{
+    // Virtual methods
+    virtual void Write(GridType & inputGrid, std::string fileName)
+    {
         std::ofstream output(fileName.c_str(),  ios::out);
 
-		output << inputGrid;
+        output << inputGrid;
 
-		const std::vector<BlockInfo> vInfo = inputGrid.getBlocksInfo();
-		for(std::vector<BlockInfo>::const_iterator it = vInfo.begin(); it!= vInfo.end(); ++it)
-			((TBlock*)(it->ptrBlock))->template Write<Streamer>(output, streamer);
-	}
+        const std::vector<BlockInfo> vInfo = inputGrid.getBlocksInfo();
+        for(std::vector<BlockInfo>::const_iterator it = vInfo.begin(); it!= vInfo.end(); ++it)
+            ((TBlock*)(it->ptrBlock))->template Write<TStreamer>(output);
+    }
 
-	virtual void Read(GridType & inputGrid, std::string fileName, Streamer streamer = Streamer())
-	{
+    virtual void Read(GridType & inputGrid, std::string fileName)
+    {
         std::ifstream input(fileName.c_str(), ios::in);
 
-		input >> inputGrid;
+        input >> inputGrid;
 
-		const std::vector<BlockInfo> vInfo = inputGrid.getBlocksInfo();
-		for(std::vector<BlockInfo>::const_iterator it = vInfo.begin(); it!= vInfo.end(); ++it)
-			((TBlock*)(it->ptrBlock))->template Read<Streamer>(input, streamer);
-	}
+        const std::vector<BlockInfo> vInfo = inputGrid.getBlocksInfo();
+        for(std::vector<BlockInfo>::const_iterator it = vInfo.begin(); it!= vInfo.end(); ++it)
+            ((TBlock*)(it->ptrBlock))->template Read<TStreamer>(input);
+    }
 };
 

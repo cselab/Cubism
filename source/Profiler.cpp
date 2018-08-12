@@ -13,7 +13,7 @@
 //#include <tbb/tick_count.h>
 //using namespace tbb;
 
-void ProfileAgent::_getTime(ClockTime& time)
+// void ProfileAgent::_getTime(ClockTime& time)
 
 
-double ProfileAgent::_getElapsedTime(const ClockTime& tS, const ClockTime& tE)
+// double ProfileAgent::_getElapsedTime(const ClockTime& tS, const ClockTime& tE)

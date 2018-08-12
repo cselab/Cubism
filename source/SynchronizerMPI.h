@@ -13,7 +13,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-#include "mpi.h"
+#include <mpi.h>
 #include <omp.h>
 
 #include "BlockInfo.h"

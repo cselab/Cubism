@@ -11,6 +11,7 @@
 #include <cassert>
 #include <iostream>
 #include <vector>
+#include <string>
 #include <sstream>
 
 #ifdef _USE_HDF_
@@ -158,18 +159,18 @@ namespace SliceTypes
             return out.str();
         }
 
-        void show() const
+        void show(const std::string prefix="") const
         {
-            std::cout << "slice" << m_id << ":" << std::endl;
-            std::cout << "ID               = " << m_id << std::endl;
-            std::cout << "DIR              = " << m_dir << std::endl;
-            std::cout << "IDX              = " << m_idx<< std::endl;
-            std::cout << "COORD[0]         = " << m_coord_idx[0] << std::endl;
-            std::cout << "COORD[1]         = " << m_coord_idx[1] << std::endl;
-            std::cout << "WIDTH            = " << m_width << std::endl;
-            std::cout << "HEIGHT           = " << m_height << std::endl;
-            std::cout << "VALID            = " << m_valid << std::endl;
-            std::cout << "NUMBER OF BLOCKS = " << m_intersecting_blocks.size() << std::endl;
+            std::cout << prefix << "slice" << m_id << ":" << std::endl;
+            std::cout << prefix << "ID               = " << m_id << std::endl;
+            std::cout << prefix << "DIR              = " << m_dir << std::endl;
+            std::cout << prefix << "IDX              = " << m_idx<< std::endl;
+            std::cout << prefix << "COORD[0]         = " << m_coord_idx[0] << std::endl;
+            std::cout << prefix << "COORD[1]         = " << m_coord_idx[1] << std::endl;
+            std::cout << prefix << "WIDTH            = " << m_width << std::endl;
+            std::cout << prefix << "HEIGHT           = " << m_height << std::endl;
+            std::cout << prefix << "VALID            = " << m_valid << std::endl;
+            std::cout << prefix << "NUMBER OF BLOCKS = " << m_intersecting_blocks.size() << std::endl;
         }
 
         template <typename TStreamer>

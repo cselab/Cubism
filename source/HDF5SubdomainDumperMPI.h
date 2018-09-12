@@ -58,9 +58,9 @@ namespace SubdomainTypesMPI
                 int myrank;
                 int color = static_cast<int>( this->m_valid );
                 MPI_Comm comm = this->m_grid->getCartComm();
-                MPI_Comm sub_comm;
+                MPI_Comm subcomm;
                 MPI_Comm_rank(comm, &myrank);
-                MPI_Comm_split(comm, color, myrank, &sub_comm);
+                MPI_Comm_split(comm, color, myrank, &subcomm);
 
                 int pe_coords[3];
                 this->m_grid->peindex(pe_coords);
@@ -70,37 +70,73 @@ namespace SubdomainTypesMPI
                 unsigned long g_max_size = 0;
                 if (this->m_valid)
                 {
-                    int sub_size, my_subrank;
-                    MPI_Comm_size(sub_comm, &sub_size);
-                    MPI_Comm_rank(sub_comm, &my_subrank);
-
+                    // 1. determine dimension and create cartesian sub-communicator
                     int pe_shift[3] = {
                         pe_coords[0],
                         pe_coords[1],
                         pe_coords[2]
                     };
-                    MPI_Bcast(pe_shift, 3, MPI_INT, 0, sub_comm);
+                    MPI_Bcast(pe_shift, 3, MPI_INT, 0, subcomm);
                     for (int i = 0; i < 3; ++i)
                         pe_coords[i] -= pe_shift[i];
 
-                    std::vector<int> all_counts(3*sub_size);
-                    MPI_Allgather(this->m_subcount, 3, MPI_INT, all_counts.data(), 3, MPI_INT, sub_comm);
-
+                    int pe_subdims[3];
                     for (int i = 0; i < 3; ++i)
-                        for (int j = 0; j < pe_coords[i]; ++j)
-                            m_suboffset[i] += all_counts[3*j + i];
+                    {
+                        MPI_Allreduce(&pe_coords[i], &pe_subdims[i], 1, MPI_INT, MPI_MAX, subcomm);
+                        pe_subdims[i] += 1; // shift from index to dimension space
+                    }
 
+                    MPI_Comm subcartcomm;
+                    int periodic[3] = {true};
+                    MPI_Cart_create(subcomm, 3, pe_subdims, periodic, false, &subcartcomm);
+
+                    // 2. compute file offsets using reduced 1D communicators
+                    int subdims[][3] = {
+                        {true, false, false},
+                        {false, true, false},
+                        {false, false, true}
+                    };
+                    for (int i = 0; i < 3; ++i)
+                    {
+                        MPI_Comm dimcomm;
+                        MPI_Cart_sub(subcartcomm, subdims[i], &dimcomm);
+                        MPI_Exscan(&this->m_subcount[i], &m_suboffset[i], 1, MPI_INT, MPI_SUM, dimcomm);
+                        MPI_Comm_free(&dimcomm);
+                    }
+
+                    MPI_Comm_free(&subcartcomm);
+
+                    // 3. reduce maximum element size of subdomain to all
+                    // others in the sub-communicator
                     for (int i = 0; i < 3; ++i)
                         this->m_max_size *= static_cast<unsigned long>( this->m_subcount[i] );
-                    MPI_Allreduce(&(this->m_max_size), &g_max_size, 1, MPI_UNSIGNED_LONG, MPI_MAX, sub_comm);
+                    MPI_Allreduce(&(this->m_max_size), &g_max_size, 1, MPI_UNSIGNED_LONG, MPI_MAX, subcomm);
                 }
-                MPI_Comm_free(&sub_comm);
+                MPI_Comm_free(&subcomm);
+                // 4. update maximum size globally
                 MPI_Allreduce(&g_max_size, &(this->m_max_size), 1, MPI_UNSIGNED_LONG, MPI_MAX, comm);
             }
 
         Subdomain(const Subdomain& c) = default;
 
         inline const int (&offset() const)[3] { return m_suboffset; }
+
+        virtual void show(const std::string prefix="") const
+        {
+            std::cout << prefix << "subdomain" << this->m_id << ":" << std::endl;
+            std::cout << prefix << "ID               = " << this->m_id << std::endl;
+            std::cout << prefix << "START            = (" << this->m_start[0] << ", " << this->m_start[1] << ", " << this->m_start[2] << ")" << std::endl;
+            std::cout << prefix << "END              = (" << this->m_end[0] << ", " << this->m_end[1] << ", " << this->m_end[2] << ")" << std::endl;
+            std::cout << prefix << "BBOX_START       = (" << this->m_bbox_start[0] << ", " << this->m_bbox_start[1] << ", " << this->m_bbox_start[2] << ")" << std::endl;
+            std::cout << prefix << "BBOX_END         = (" << this->m_bbox_end[0] << ", " << this->m_bbox_end[1] << ", " << this->m_bbox_end[2] << ")" << std::endl;
+            std::cout << prefix << "DIM              = (" << this->m_subdim[0] << ", " << this->m_subdim[1] << ", " << this->m_subdim[2] << ")" << std::endl;
+            std::cout << prefix << "SUBDIM           = (" << this->m_subcount[0] << ", " << this->m_subcount[1] << ", " << this->m_subcount[2] << ")" << std::endl;
+            std::cout << prefix << "OFFSET           = (" << this->m_suboffset[0] << ", " << this->m_suboffset[1] << ", " << this->m_suboffset[2] << ")" << std::endl;
+            std::cout << prefix << "MAXSIZE          = " << this->m_max_size << std::endl;
+            std::cout << prefix << "VALID            = " << this->m_valid << std::endl;
+            std::cout << prefix << "NUMBER OF BLOCKS = " << this->m_intersecting_blocks.size() << std::endl;
+        }
 
     protected:
         int m_suboffset[3];  // index offset for my subdomain
@@ -241,6 +277,8 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
                 for(int iy=0; iy<static_cast<int>(B::sizeY); iy++)
                     for(int ix=0; ix<static_cast<int>(B::sizeX); ix++)
                     {
+                        // cell local check: continue if the cell does not
+                        // intersect the subdomain bounding box.
                         int gx = idx[0]*B::sizeX + ix;
                         int gy = idx[1]*B::sizeY + iy;
                         int gz = idx[2]*B::sizeZ + iz;
@@ -256,9 +294,10 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
 
                         TStreamer::operate(b, ix, iy, iz, (hdf5Real*)output);
 
-                        gx -= bbox_start[0]; // shift to process local
-                        gy -= bbox_start[1]; // shift to process local
-                        gz -= bbox_start[2]; // shift to process local
+                        // shift the indices to subdomain index space
+                        gx -= bbox_start[0];
+                        gy -= bbox_start[1];
+                        gz -= bbox_start[2];
 
                         hdf5Real * const ptr = array_all + NCHANNELS*(gx + NX * (gy + NY * gz));
 

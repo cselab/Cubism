@@ -102,6 +102,22 @@ namespace SubdomainTypesMPI
 
         inline const int (&offset() const)[3] { return m_suboffset; }
 
+        virtual void show(const std::string prefix="") const
+        {
+            std::cout << prefix << "subdomain" << this->m_id << ":" << std::endl;
+            std::cout << prefix << "ID               = " << this->m_id << std::endl;
+            std::cout << prefix << "START            = (" << this->m_start[0] << ", " << this->m_start[1] << ", " << this->m_start[2] << ")" << std::endl;
+            std::cout << prefix << "END              = (" << this->m_end[0] << ", " << this->m_end[1] << ", " << this->m_end[2] << ")" << std::endl;
+            std::cout << prefix << "BBOX_START       = (" << this->m_bbox_start[0] << ", " << this->m_bbox_start[1] << ", " << this->m_bbox_start[2] << ")" << std::endl;
+            std::cout << prefix << "BBOX_END         = (" << this->m_bbox_end[0] << ", " << this->m_bbox_end[1] << ", " << this->m_bbox_end[2] << ")" << std::endl;
+            std::cout << prefix << "DIM              = (" << this->m_subdim[0] << ", " << this->m_subdim[1] << ", " << this->m_subdim[2] << ")" << std::endl;
+            std::cout << prefix << "SUBDIM           = (" << this->m_subcount[0] << ", " << this->m_subcount[1] << ", " << this->m_subcount[2] << ")" << std::endl;
+            std::cout << prefix << "OFFSET           = (" << this->m_suboffset[0] << ", " << this->m_suboffset[1] << ", " << this->m_suboffset[2] << ")" << std::endl;
+            std::cout << prefix << "MAXSIZE          = " << this->m_max_size << std::endl;
+            std::cout << prefix << "VALID            = " << this->m_valid << std::endl;
+            std::cout << prefix << "NUMBER OF BLOCKS = " << this->m_intersecting_blocks.size() << std::endl;
+        }
+
     protected:
         int m_suboffset[3];  // index offset for my subdomain
     };

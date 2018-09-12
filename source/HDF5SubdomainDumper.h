@@ -176,32 +176,34 @@ namespace SubdomainTypes
                     static_cast<int>((info_last.index[1] + 1) * TBlock::sizeY - 1),
                     static_cast<int>((info_last.index[2] + 1) * TBlock::sizeZ - 1)
                 };
-                bool b_contained[3] = { false, false, false };
+                bool b_intersect[3] = { false, false, false };
                 for (size_t i = 0; i < 3; ++i)
                 {
-                    // case 1: fully contained
+                    // case 1: subdomain is fully contained in this process
+                    // dimension
                     if (process_start[i] <= m_bbox_start[i] && m_bbox_end[i] <= process_end[i])
                     {
-                        b_contained[i] = true;
+                        b_intersect[i] = true;
                         continue;
                     }
 
-                    // case 2: distributed
+                    // case 2: subdomain is partially contained in this process
+                    // dimension (distributed)
                     if (process_start[i] <= m_bbox_start[i] && m_bbox_start[i] <= process_end[i] && m_bbox_end[i] > process_end[i])
                     {
                         m_bbox_end[i] = process_end[i];
-                        b_contained[i] = true;
+                        b_intersect[i] = true;
                     }
                     else if (m_bbox_start[i] < process_start[i] && process_end[i] < m_bbox_end[i])
                     {
                         m_bbox_start[i] = process_start[i];
                         m_bbox_end[i]   = process_end[i];
-                        b_contained[i] = true;
+                        b_intersect[i] = true;
                     }
                     else if (m_bbox_start[i] < process_start[i] && process_start[i] <= m_bbox_end[i] && m_bbox_end[i] <= process_end[i])
                     {
                         m_bbox_start[i] = process_start[i];
-                        b_contained[i] = true;
+                        b_intersect[i] = true;
                     }
                 }
 
@@ -211,7 +213,7 @@ namespace SubdomainTypes
                 {
                     m_subcount[i] = m_bbox_end[i] - m_bbox_start[i] + 1;
                     m_max_size *= static_cast<unsigned long>(m_subcount[i]);
-                    m_valid = m_valid && b_contained[i];
+                    m_valid = m_valid && b_intersect[i];
                 }
 
                 // see which blocks are needed
@@ -264,17 +266,19 @@ namespace SubdomainTypes
             return out.str();
         }
 
-        void show() const
+        virtual void show(const std::string prefix="") const
         {
-            std::cout << "subdomain" << m_id << ":" << std::endl;
-            std::cout << "ID               = " << m_id << std::endl;
-            std::cout << "START            = (" << m_start[0] << ", " << m_start[1] << ", " << m_start[2] << ")" << std::endl;
-            std::cout << "END              = (" << m_end[0] << ", " << m_end[1] << ", " << m_end[2] << ")" << std::endl;
-            std::cout << "BBOX_START       = (" << m_bbox_start[0] << ", " << m_bbox_start[1] << ", " << m_bbox_start[2] << ")" << std::endl;
-            std::cout << "BBOX_END         = (" << m_bbox_end[0] << ", " << m_bbox_end[1] << ", " << m_bbox_end[2] << ")" << std::endl;
-            std::cout << "DIM              = (" << m_subdim[0] << ", " << m_subdim[1] << ", " << m_subdim[2] << ")" << std::endl;
-            std::cout << "VALID            = " << m_valid << std::endl;
-            std::cout << "NUMBER OF BLOCKS = " << m_intersecting_blocks.size() << std::endl;
+            std::cout << prefix << "subdomain" << m_id << ":" << std::endl;
+            std::cout << prefix << "ID               = " << m_id << std::endl;
+            std::cout << prefix << "START            = (" << m_start[0] << ", " << m_start[1] << ", " << m_start[2] << ")" << std::endl;
+            std::cout << prefix << "END              = (" << m_end[0] << ", " << m_end[1] << ", " << m_end[2] << ")" << std::endl;
+            std::cout << prefix << "BBOX_START       = (" << m_bbox_start[0] << ", " << m_bbox_start[1] << ", " << m_bbox_start[2] << ")" << std::endl;
+            std::cout << prefix << "BBOX_END         = (" << m_bbox_end[0] << ", " << m_bbox_end[1] << ", " << m_bbox_end[2] << ")" << std::endl;
+            std::cout << prefix << "DIM              = (" << m_subdim[0] << ", " << m_subdim[1] << ", " << m_subdim[2] << ")" << std::endl;
+            std::cout << prefix << "SUBDIM           = (" << m_subcount[0] << ", " << m_subcount[1] << ", " << m_subcount[2] << ")" << std::endl;
+            std::cout << prefix << "MAXSIZE          = " << m_max_size << std::endl;
+            std::cout << prefix << "VALID            = " << m_valid << std::endl;
+            std::cout << prefix << "NUMBER OF BLOCKS = " << m_intersecting_blocks.size() << std::endl;
         }
 
     protected:

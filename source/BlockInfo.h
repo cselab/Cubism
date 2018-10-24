@@ -67,6 +67,32 @@ struct BlockInfo
             p[j] = origin[j] + delta;
         }
     }
+
+    template <typename T>
+    inline void spacing(T h[2], int ix, int iy) const
+    {
+        const int I[2] = {ix, iy};
+        for (int i = 0; i < 2; ++i)
+        {
+            if (bUniform[i])
+                h[i] = uniform_grid_spacing[i];
+            else
+                h[i] = ptr_grid_spacing[i][I[i]];
+        }
+    }
+
+    template <typename T>
+    inline void spacing(T h[3], int ix, int iy, int iz) const
+    {
+        const int I[3] = {ix, iy, iz};
+        for (int i = 0; i < 3; ++i)
+        {
+            if (bUniform[i])
+                h[i] = uniform_grid_spacing[i];
+            else
+                h[i] = ptr_grid_spacing[i][I[i]];
+        }
+    }
 ///////////////////////////////////////////////////////////////////////////////
 
     BlockInfo(long long ID, const int idx[3], const double _pos[3], const double spacing, double h_gridpoint_, void * ptr=NULL, const bool _special=false):

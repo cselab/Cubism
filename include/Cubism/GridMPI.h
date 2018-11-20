@@ -157,9 +157,9 @@ public:
             const int nX=0, const int nY=0, const int nZ=0,
             const MPI_Comm comm = MPI_COMM_WORLD): TGrid(mapX,mapY,mapZ,nX,nY,nZ), timestamp(0), worldcomm(comm)
     {
-        assert(mapX->nblocks() == npeX*nX);
-        assert(mapY->nblocks() == npeY*nY);
-        assert(mapZ->nblocks() == npeZ*nZ);
+        assert(mapX->nblocks() == static_cast<size_t>(npeX*nX));
+        assert(mapY->nblocks() == static_cast<size_t>(npeY*nY));
+        assert(mapZ->nblocks() == static_cast<size_t>(npeZ*nZ));
 
         blocksize[0] = Block::sizeX;
         blocksize[1] = Block::sizeY;
@@ -189,7 +189,7 @@ public:
         const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
 
         MeshMap<Block>* const ptr_map[3] = {mapX, mapY, mapZ};
-        for(int i=0; i<vInfo.size(); ++i)
+        for(size_t i=0; i<vInfo.size(); ++i)
         {
             BlockInfo info = vInfo[i];
 

@@ -7,7 +7,7 @@ nonuniform ?= no
 
 extra ?=
 
-CFLAGS = -fopenmp -g -O2 -I../../source
+CFLAGS = -fopenmp -g -O2 -I../../include
 CFLAGS+= $(extra)
 # CFLAGS += -I${HDF5_ROOT}/include
 CFLAGS+= -Wall -Wextra -Wfloat-equal -Wundef -Wcast-align

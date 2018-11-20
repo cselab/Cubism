@@ -1,3 +1,4 @@
+// Does anyone love me, does anyone need me? I feel so lonely...
 /*
  *  Histogram.cpp
  *

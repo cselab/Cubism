@@ -5,25 +5,25 @@
 // Copyright 2018 ETH Zurich. All Rights Reserved.
 #include "../common.h"
 
-#include "ArgumentParser.h"
-#include "Grid.h"
-#include "GridMPI.h"
-#include "MeshMap.h"
+#include <Cubism/ArgumentParser.h>
+#include <Cubism/Grid.h>
+#include <Cubism/GridMPI.h>
+#include <Cubism/MeshMap.h>
 
 #define _USE_HDF_
-#include "HDF5Dumper.h"
-#include "HDF5Dumper_MPI.h"
+#include <Cubism/HDF5Dumper.h>
+#include <Cubism/HDF5Dumper_MPI.h>
 
-#include "HDF5SliceDumper.h"
-#include "HDF5SliceDumperMPI.h"
+#include <Cubism/HDF5SliceDumper.h>
+#include <Cubism/HDF5SliceDumperMPI.h>
 
-#include "HDF5SubdomainDumper.h"
-#include "HDF5SubdomainDumperMPI.h"
+#include <Cubism/HDF5SubdomainDumper.h>
+#include <Cubism/HDF5SubdomainDumperMPI.h>
 
 // #include "ZBinDumper.h" // requires CubismZ
 // #include "ZBinDumper_MPI.h" // requires CubismZ
 
-#include "PlainBinDumper_MPI.h"
+#include <Cubism/PlainBinDumper_MPI.h>
 
 using namespace std;
 

@@ -6,13 +6,13 @@
 #include <iostream>
 
 #include "../common.h"
-#include "ArgumentParser.h"
-#include "Grid.h"
-#include "GridMPI.h"
-#include "MeshMap.h"
-#include "SynchronizerMPI.h"
-#include "StencilInfo.h"
-#include "Profiler.h"
+#include <Cubism/ArgumentParser.h>
+#include <Cubism/Grid.h>
+#include <Cubism/GridMPI.h>
+#include <Cubism/MeshMap.h>
+#include <Cubism/SynchronizerMPI.h>
+#include <Cubism/StencilInfo.h>
+#include <Cubism/Profiler.h>
 
 using namespace std;
 

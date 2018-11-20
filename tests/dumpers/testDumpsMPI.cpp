@@ -3,6 +3,8 @@
 // Author     : Fabian Wermelinger
 // Description: Test Cubism dumping facilities
 // Copyright 2018 ETH Zurich. All Rights Reserved.
+#include <vector>
+#include <sstream>
 #include "../common.h"
 
 #include "Cubism/ArgumentParser.h"
@@ -101,7 +103,7 @@ int main(int argc, char* argv[])
     ///////////////////////////////////////////////////////////////////////////
     // HDF5 slice dumps
     {
-        // set defaults
+        // set default slices
         parser("nslices").asInt(3);
         parser("slice1_direction").asInt(0);
         parser("slice1_fraction").asDouble(0.3);
@@ -138,12 +140,51 @@ int main(int argc, char* argv[])
     ///////////////////////////////////////////////////////////////////////////
     // HDF5 subdomain dumps
     {
-        // set defaults
-        parser("nsubdomains").asInt(2);
-        parser("subdomain1_origin").asString("0.25 0.125 0.125");
-        parser("subdomain1_extent").asString("0.5 0.25 0.25");
-        parser("subdomain2_origin").asString("0.1 0.01 0.01");
-        parser("subdomain2_extent").asString("0.3 0.1 0.1");
+        // set default subdomains
+        struct SubdomainDefinition
+        {
+            double origin[3];
+            double extent[3];
+            SubdomainDefinition(
+                    const double ox, const double oy, const double oz,
+                    const double ex, const double ey, const double ez
+                    ) : origin{ox, oy, oz}, extent{ex, ey, ez}
+                { }
+        };
+        vector<SubdomainDefinition> vSd;
+        vSd.push_back( SubdomainDefinition(0.05, 0.05, 0.05, 0.9, 0.9, 0.9) );  // most of domain
+        vSd.push_back( SubdomainDefinition(0.05, 0.05, 0.05, 0.15, 0.9, 0.9) ); // yz-tile
+        vSd.push_back( SubdomainDefinition(0.05, 0.05, 0.05, 0.9, 0.15, 0.9) ); // xz-tile
+        vSd.push_back( SubdomainDefinition(0.05, 0.05, 0.05, 0.9, 0.9, 0.15) ); // xy-tile
+        vSd.push_back( SubdomainDefinition(0.05, 0.05, 0.05, 0.9, 0.15, 0.15) ); // x-stripe
+        vSd.push_back( SubdomainDefinition(0.05, 0.05, 0.05, 0.15, 0.9, 0.15) ); // y-stripe
+        vSd.push_back( SubdomainDefinition(0.05, 0.05, 0.05, 0.15, 0.15, 0.9) ); // z-stripe
+        vSd.push_back( SubdomainDefinition(0.75, 0.75, 0.75, 0.20, 0.20, 0.20) ); // upper right small piece
+        vSd.push_back( SubdomainDefinition(0.45, 0.45, 0.45, 0.10, 0.10, 0.10) ); // center piece
+
+        double origin[3], extent[3];
+        for (int i = 0; i < 3; ++i)
+        {
+            const double start = grid->getMeshMap(i).start();
+            const double end   = grid->getMeshMap(i).end();
+            origin[i] = start;
+            extent[i] = end - start;
+        }
+
+        parser("nsubdomains").asInt(vSd.size());
+        for (size_t i = 0; i < vSd.size(); ++i)
+        {
+            ostringstream so, se, sname;
+            SubdomainDefinition& sd = vSd[i];
+            for (int j = 0; j < 3; ++j)
+            {
+                so << origin[j] + sd.origin[j] * extent[j] << " ";
+                se << sd.extent[j] * extent[j] << " ";
+            }
+            sname << "subdomain" << i+1;
+            parser(sname.str() + "_origin").asString(so.str());
+            parser(sname.str() + "_extent").asString(se.str());
+        }
 
         // parser.print_args();
 

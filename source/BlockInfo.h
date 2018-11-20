@@ -68,29 +68,30 @@ struct BlockInfo
         }
     }
 
-    template <typename T>
-    inline void spacing(T h[2], int ix, int iy) const
+    // Return grid spacing dx in all dimensions for cell {ix, iy, iz}
+    template <typename T> // 2D
+    inline void spacing(T dx[2], int ix, int iy) const
     {
         const int I[2] = {ix, iy};
         for (int i = 0; i < 2; ++i)
         {
             if (bUniform[i])
-                h[i] = uniform_grid_spacing[i];
+                dx[i] = uniform_grid_spacing[i];
             else
-                h[i] = ptr_grid_spacing[i][I[i]];
+                dx[i] = ptr_grid_spacing[i][I[i]];
         }
     }
 
-    template <typename T>
-    inline void spacing(T h[3], int ix, int iy, int iz) const
+    template <typename T> // 3D
+    inline void spacing(T dx[3], int ix, int iy, int iz) const
     {
         const int I[3] = {ix, iy, iz};
         for (int i = 0; i < 3; ++i)
         {
             if (bUniform[i])
-                h[i] = uniform_grid_spacing[i];
+                dx[i] = uniform_grid_spacing[i];
             else
-                h[i] = ptr_grid_spacing[i][I[i]];
+                dx[i] = ptr_grid_spacing[i][I[i]];
         }
     }
 ///////////////////////////////////////////////////////////////////////////////

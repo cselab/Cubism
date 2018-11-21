@@ -27,6 +27,8 @@ using MyReal = float;
 
 #include <Cubism/BlockInfo.h>
 
+using namespace cubism;
+
 template <typename TReal, size_t _AOSmembers=1>
 struct Block
 {

@@ -27,6 +27,7 @@
 
 #include "Cubism/PlainBinDumper_MPI.h"
 
+using namespace cubism;
 using namespace std;
 
 // dumpers

@@ -29,6 +29,8 @@ typedef double hdf5Real;
 #include "BlockInfo.h"
 #include "MeshMap.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 ///////////////////////////////////////////////////////////////////////////////
 // helpers
 namespace SubdomainTypes
@@ -497,5 +499,7 @@ void DumpSubdomainHDF5(const TSubdomain& subdomain, const int stepID, const Real
 #warning USE OF HDF WAS DISABLED AT COMPILE TIME
 #endif
 }
+
+CUBISM_NAMESPACE_END
 
 #endif /* HDF5SUBDOMAINDUMPER_H_3C2DKYV4 */

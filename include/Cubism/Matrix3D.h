@@ -12,6 +12,10 @@
 #include <cstdlib>
 #include <algorithm>
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 template <class DataType, bool bPrimitiveType, template <typename T> class allocator>
 class Matrix3D
 {
@@ -244,3 +248,5 @@ template <class DataType> inline void SwapBytes(unsigned char * pBuffer, int nBu
 
     assert(i == nBufferSize); // se no son cazzi acidi
 }
+
+CUBISM_NAMESPACE_END

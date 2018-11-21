@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include "MeshMap.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 struct BlockInfo
 {
     long long blockID;
@@ -151,3 +153,5 @@ struct BlockInfo
 
     BlockInfo():blockID(-1), ptrBlock(NULL) {}
 };
+
+CUBISM_NAMESPACE_END

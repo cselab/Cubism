@@ -11,6 +11,10 @@
 #include <cassert>
 #include <cmath>
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 class Indexer
 {
 protected:
@@ -81,3 +85,5 @@ public:
         }
     }
 };
+
+CUBISM_NAMESPACE_END

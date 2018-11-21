@@ -28,6 +28,8 @@ typedef double hdf5Real;
 #include "BlockInfo.h"
 #include "MeshMap.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
@@ -267,3 +269,5 @@ void ReadHDF5(TGrid &grid, const std::string fname, const std::string dpath=".")
 #warning USE OF HDF WAS DISABLED AT COMPILE TIME
 #endif
 }
+
+CUBISM_NAMESPACE_END

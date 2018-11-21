@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include "Matrix3D.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 template <class DataType, bool bPrimitiveType, template <typename T> class allocator>  
 class Matrix4D
 {
@@ -190,3 +192,4 @@ template <class DataType, bool bPrimitiveType, template <typename T> class alloc
         fread((void*) m_pData, sizeof(DataType), m_nElements, f);	
 }
 
+CUBISM_NAMESPACE_END

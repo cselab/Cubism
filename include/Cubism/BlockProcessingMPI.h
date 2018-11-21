@@ -15,6 +15,8 @@
 #include "BlockProcessing.h"
 #include "SynchronizerMPI.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 class BlockProcessingMPI
 {
     template<typename TGrid, typename Lab, typename Operator>
@@ -89,3 +91,5 @@ public:
         TBBWorker<Grid, Lab, Processing>::_process(vInfo, p, grid, SynchronizerMPI, t, affinitypart);
     }
 };
+
+CUBISM_NAMESPACE_END

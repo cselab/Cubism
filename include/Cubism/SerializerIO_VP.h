@@ -13,6 +13,8 @@
 #include "Types.h"
 #include "Matrix4D.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 template<typename GridType, typename TStreamer>
 class SerializerIO_VP
 {
@@ -82,3 +84,4 @@ public:
     }
 };
 
+CUBISM_NAMESPACE_END

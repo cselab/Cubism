@@ -19,6 +19,8 @@
 #include <random> // C++11
 #include "ArgumentParser.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 ///////////////////////////////////////////////////////////////////////////////
 // Base class
 ///////////////////////////////////////////////////////////////////////////////
@@ -833,5 +835,7 @@ private:
         m_block_spacing= new double[m_Nblocks];
     }
 };
+
+CUBISM_NAMESPACE_END
 
 #endif /* MESHMAP_H_UAYWTJDH */

@@ -16,6 +16,11 @@
 #include <cassert>
 #include <sstream>
 
+#include "BlockInfo.h"
+#include "LosslessCompression.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 #define MAX_MPI_PROCS	(16*1024)	// header: 0.25MB* 8
 
 typedef struct _header
@@ -30,9 +35,6 @@ typedef float Real;
 typedef double Real;
 #endif
 
-
-#include "BlockInfo.h"
-#include "LosslessCompression.h"
 
 /*
 inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsigned *max)
@@ -286,3 +288,5 @@ void ReadZBin_MPI(TGrid &grid, const std::string f_name, const std::string read_
     MPI_File_close(&file_id);
     delete [] array_all;
 }
+
+CUBISM_NAMESPACE_END

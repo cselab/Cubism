@@ -23,6 +23,9 @@
 #include <tbb/cache_aligned_allocator.h>
 #include <tbb/task_scheduler_init.h>
 
+
+CUBISM_NAMESPACE_BEGIN
+
 namespace Environment
 {
     inline void setup(int threads=-1)
@@ -309,3 +312,4 @@ int BlockProcessing_TBB<BlockType>::s_nBlocks = 0;
  ===============================================================================================================================
  */
 
+CUBISM_NAMESPACE_END

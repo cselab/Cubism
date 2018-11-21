@@ -14,6 +14,7 @@
 #include "Cubism/StencilInfo.h"
 #include "Cubism/Profiler.h"
 
+using namespace cubism;
 using namespace std;
 
 using MyBlock   = Block<MyReal,32>;

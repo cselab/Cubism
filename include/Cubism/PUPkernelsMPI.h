@@ -9,6 +9,10 @@
 #pragma once
 #include <cstring>
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 
 inline void pack(const Real * const srcbase, Real * const dst,
                const unsigned int gptfloats,
@@ -395,3 +399,5 @@ inline void unpack_subregion(const Real * const pack, Real * const dstbase,
                     dst[selected_components[c]] = src[c];
             }
 }
+
+CUBISM_NAMESPACE_END

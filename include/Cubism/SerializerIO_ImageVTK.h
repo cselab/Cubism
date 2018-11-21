@@ -15,6 +15,8 @@
 
 #include "SerializerIO.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 template<typename GridType, typename TStreamer>
 class SerializerIO_ImageVTK
 {
@@ -138,3 +140,5 @@ public:
         writer->Write();
     }
 };
+
+CUBISM_NAMESPACE_END

@@ -9,12 +9,6 @@
 //
 #pragma once
 
-#ifdef _FLOAT_PRECISION_
-typedef float Real;
-#else
-typedef double Real;
-#endif
-
 #include "Matrix3D.h"
 #include "Grid.h"
 //#include "Concepts.h"
@@ -27,6 +21,15 @@ typedef double Real;
 #define memcpy2(a,b,c)	__bcopy((b),(a),(c))
 #else
 #define memcpy2(a,b,c)	memcpy((a),(b),(c))
+#endif
+
+
+CUBISM_NAMESPACE_BEGIN
+
+#ifdef _FLOAT_PRECISION_
+typedef float Real;
+#else
+typedef double Real;
 #endif
 
 /**
@@ -532,3 +535,5 @@ public:
         this->m_state = BlockLab<BlockType, allocator, ElementTypeT>::eMRAGBlockLab_Prepared;
     }
 };
+
+CUBISM_NAMESPACE_END

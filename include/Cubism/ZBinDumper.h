@@ -13,14 +13,17 @@
 #include <string>
 #include <stdio.h>
 #include <sstream>
+
+#include "BlockInfo.h"
+#include "LosslessCompression.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 #ifdef _FLOAT_PRECISION_
 typedef float Real;
 #else
 typedef double Real;
 #endif
-
-#include "BlockInfo.h"
-#include "LosslessCompression.h"
 
 typedef struct _header_serial
 {
@@ -219,3 +222,5 @@ void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path
     status = fclose(file_id);
     delete [] array_all;
 }
+
+CUBISM_NAMESPACE_END

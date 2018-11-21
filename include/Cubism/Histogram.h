@@ -13,6 +13,10 @@
 #include <map>
 #include <string>
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 class Histogram
 {
     MPI_Comm m_comm;
@@ -31,3 +35,5 @@ public:
     void notify(std::string sKernel, float dt);
     void consolidate();
 };
+
+CUBISM_NAMESPACE_END

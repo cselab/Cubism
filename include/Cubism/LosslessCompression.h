@@ -12,6 +12,10 @@
 #include <cstring>
 #include <zlib.h>	// always needed
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 extern "C"
 {
 #include "myfpzip.h"
@@ -73,3 +77,5 @@ inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsign
 #endif
     return compressedbytes;
 }
+
+CUBISM_NAMESPACE_END

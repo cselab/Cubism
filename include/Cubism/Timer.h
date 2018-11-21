@@ -10,6 +10,10 @@
 #pragma once
 #include <sys/time.h>
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 class Timer
 {
     struct timeval t_start, t_end;
@@ -28,3 +32,5 @@ public:
         return (t_end.tv_usec  - t_start.tv_usec)*1e-6  + (t_end.tv_sec  - t_start.tv_sec);
     }
 };
+
+CUBISM_NAMESPACE_END

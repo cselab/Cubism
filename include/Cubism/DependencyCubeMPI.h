@@ -13,6 +13,10 @@
 #include <vector>
 #include <cassert>
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 struct Region {
     int s[3], e[3];
 
@@ -349,3 +353,5 @@ public:
 
     }
 };
+
+CUBISM_NAMESPACE_END

@@ -10,6 +10,8 @@
 
 #include "GridMPI.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 template<typename MyBlockLab>
 class BlockLabMPI : public MyBlockLab
 {
@@ -86,3 +88,5 @@ public:
         MyBlockLab::release();
     }
 };
+
+CUBISM_NAMESPACE_END

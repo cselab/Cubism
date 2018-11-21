@@ -29,6 +29,9 @@
 #include <limits>
 #include <regex> // C++11
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
 
 class Value
 {
@@ -489,3 +492,5 @@ public:
         }
     }
 };
+
+CUBISM_NAMESPACE_END

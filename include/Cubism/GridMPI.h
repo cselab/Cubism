@@ -16,6 +16,8 @@
 #include "StencilInfo.h"
 #include "SynchronizerMPI.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 template < typename TGrid >
 class GridMPI : public TGrid
 {
@@ -361,3 +363,5 @@ public:
         high[2] = subdomain_high[2];
     }
 };
+
+CUBISM_NAMESPACE_END

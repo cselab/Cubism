@@ -11,6 +11,9 @@
 #include <vector>
 #include <string>
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
 
 template<typename GridType, typename TStreamer>
 class SerializerIO
@@ -45,3 +48,4 @@ public:
     }
 };
 
+CUBISM_NAMESPACE_END

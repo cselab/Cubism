@@ -14,6 +14,10 @@
 #include <iostream>
 #include <cstdlib>
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 #ifdef _FLOAT_PRECISION_
 typedef float Real;
 #else
@@ -103,3 +107,5 @@ struct StencilInfo
         return !(not0 || not1 || not2 || not3);
     }
 };
+
+CUBISM_NAMESPACE_END

@@ -30,6 +30,8 @@ typedef double hdf5Real;
 #include "BlockInfo.h"
 #include "MeshMap.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 ///////////////////////////////////////////////////////////////////////////////
 // helpers
 namespace SubdomainTypesMPI
@@ -373,5 +375,7 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const R
 #warning USE OF HDF WAS DISABLED AT COMPILE TIME
 #endif
 }
+
+CUBISM_NAMESPACE_END
 
 #endif /* HDF5SUBDOMAINDUMPERMPI_H_UAFPTNPL */

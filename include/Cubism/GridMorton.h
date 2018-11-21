@@ -15,6 +15,8 @@
 #include "Grid.h"
 #include "Indexers.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 template <typename TGrid>
 class GridMorton: public TGrid
 {
@@ -142,3 +144,5 @@ protected:
         return cached_infos;
     }
 };
+
+CUBISM_NAMESPACE_END

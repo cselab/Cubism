@@ -21,6 +21,8 @@
 #include "BlockInfo.h"
 #include "MeshMap.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 //hello git
 template <typename Block, template<typename X> class allocator=std::allocator>
 class Grid
@@ -239,3 +241,5 @@ std::ifstream& operator>> (std::ifstream& in, Grid<Block, allocator>& grid)
 
     return in;
 }
+
+CUBISM_NAMESPACE_END

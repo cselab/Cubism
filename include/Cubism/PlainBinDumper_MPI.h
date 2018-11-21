@@ -14,6 +14,10 @@
 #include <string>
 #include <sstream>
 
+#include "Common.h"
+
+CUBISM_NAMESPACE_BEGIN
+
 typedef struct _header
 {
     long offset;
@@ -115,3 +119,5 @@ void PlainReadBin_MPI(MPI_Comm comm, TReal **buffer, long *bytes, const std::str
 
     MPI_File_close(&file_id);
 }
+
+CUBISM_NAMESPACE_END

@@ -29,6 +29,8 @@ typedef double hdf5Real;
 #include "BlockInfo.h"
 #include "MeshMap.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 ///////////////////////////////////////////////////////////////////////////////
 // helpers
 namespace SliceTypes
@@ -450,5 +452,7 @@ void DumpSliceHDF5(const TSlice& slice, const int stepID, const Real t, const st
 #warning USE OF HDF WAS DISABLED AT COMPILE TIME
 #endif
 }
+
+CUBISM_NAMESPACE_END
 
 #endif /* HDF5SLICEDUMPER_H_QI4Y9HO7 */

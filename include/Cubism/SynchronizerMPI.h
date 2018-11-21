@@ -21,6 +21,7 @@
 #include "PUPkernelsMPI.h"
 #include "DependencyCubeMPI.h"
 
+CUBISM_NAMESPACE_BEGIN
 
 class SynchronizerMPI
 {
@@ -1485,3 +1486,5 @@ class MyRange
         }
     }
 };
+
+CUBISM_NAMESPACE_END

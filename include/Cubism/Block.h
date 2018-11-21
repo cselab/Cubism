@@ -35,9 +35,13 @@
 #ifndef _CUBISM_BLOCK_H_
 #define _CUBISM_BLOCK_H_
 
+// DEPRECATED?
+
 #include <cassert>
 
-namespace cubism {
+#include "Cubism.h"
+
+CUBISM_NAMESPACE_BEGIN
 
 template <typename T, int SX, int SY, int SZ>
 class Block {
@@ -73,6 +77,6 @@ public:
     }
 };
 
-}  // Namespace cubism.
+CUBISM_NAMESPACE_END
 
 #endif

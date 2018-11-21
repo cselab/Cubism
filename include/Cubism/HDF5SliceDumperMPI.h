@@ -11,6 +11,8 @@
 #include <mpi.h>
 #include "HDF5SliceDumper.h"
 
+CUBISM_NAMESPACE_BEGIN
+
 ///////////////////////////////////////////////////////////////////////////////
 // helpers
 namespace SliceTypesMPI
@@ -267,5 +269,7 @@ void DumpSliceHDF5MPI(const TSlice& slice, const int stepID, const Real t, const
 #warning USE OF HDF WAS DISABLED AT COMPILE TIME
 #endif
 }
+
+CUBISM_NAMESPACE_END
 
 #endif /* HDF5SLICEDUMPERMPI_H_ZENQHJA6 */

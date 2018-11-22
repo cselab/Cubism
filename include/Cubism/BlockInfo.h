@@ -98,10 +98,10 @@ struct BlockInfo
     }
 ///////////////////////////////////////////////////////////////////////////////
 
-    BlockInfo(long long ID, const int idx[3], const double _pos[3], const double spacing, double h_gridpoint_, void * ptr=NULL, const bool _special=false):
+    BlockInfo(long long ID, const int idx[3], const double _pos[3], const double _spacing, double h_gridpoint_, void * ptr=NULL, const bool _special=false):
     blockID(ID), ptrBlock(ptr), special(_special)
     {
-        h = spacing;
+        h = _spacing;
         h_gridpoint = h_gridpoint_;
 
         for (int i = 0; i < 3; ++i)

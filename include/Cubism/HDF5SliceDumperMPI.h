@@ -20,6 +20,13 @@ namespace SliceTypesMPI
     template <typename TGrid>
     class Slice : public SliceTypes::Slice<TGrid>
     {
+        // To generalize, check all occurences of BS and replace with
+        // the appropriate X/Y/Z.
+        static_assert(TGrid::BlockType::sizeX == TGrid::BlockType::sizeY
+                      && TGrid::BlockType::sizeX == TGrid::BlockType::sizeZ,
+                      "Only cubic block type implemented so far.");
+        static constexpr int BS = TGrid::BlockType::sizeX;
+
     public:
         template <typename TSlice>
         static std::vector<TSlice> getEntities(ArgumentParser& parser, TGrid& grid)
@@ -63,8 +70,8 @@ namespace SliceTypesMPI
             this->m_intersecting_blocks.swap(clean);
             for (size_t i = 0; i < bInfo_local.size(); ++i)
             {
-                const int start = bInfo_local[i].index[this->m_dir] * _BLOCKSIZE_;
-                if (start <= this->m_idx && this->m_idx < (start+_BLOCKSIZE_))
+                const int start = bInfo_local[i].index[this->m_dir] * BS;
+                if (start <= this->m_idx && this->m_idx < (start + BS))
                     this->m_intersecting_blocks.push_back(bInfo_local[i]);
             }
 

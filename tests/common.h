@@ -12,10 +12,7 @@ using MyReal = double;
 using MyReal = float;
 #endif /* _DOUBLE_ */
 
-#define _BLOCKSIZE_ 16
-#define _BLOCKSIZEX_ _BLOCKSIZE_
-#define _BLOCKSIZEY_ _BLOCKSIZE_
-#define _BLOCKSIZEZ_ _BLOCKSIZE_
+constexpr int BLOCK_SIZE = 16;
 
 #include <cassert>
 #include <mpi.h>
@@ -34,30 +31,32 @@ struct Block
     typedef TReal ElementType;
     typedef TReal element_type;
     typedef TReal Real;
-    static const size_t sizeX   = _BLOCKSIZE_;
-    static const size_t sizeY   = _BLOCKSIZE_;
-    static const size_t sizeZ   = _BLOCKSIZE_;
-    static const size_t members = _AOSmembers;
+    static constexpr size_t sizeX   = BLOCK_SIZE;
+    static constexpr size_t sizeY   = BLOCK_SIZE;
+    static constexpr size_t sizeZ   = BLOCK_SIZE;
+    static constexpr size_t members = _AOSmembers;
 
-    inline void clear() { memset(&m_data[0][0][0][0], 0, _BLOCKSIZE_*_BLOCKSIZE_*_BLOCKSIZE_*_AOSmembers*sizeof(TReal)); }
+    inline void clear() {
+        memset(&m_data[0][0][0][0], 0, BLOCK_SIZE * BLOCK_SIZE * BLOCK_SIZE * _AOSmembers * sizeof(TReal));
+    }
 
     inline const TReal (&operator()(const size_t ix, const size_t iy, const size_t iz) const)[_AOSmembers]
     {
-        assert(ix<_BLOCKSIZE_);
-        assert(iy<_BLOCKSIZE_);
-        assert(iz<_BLOCKSIZE_);
+        assert(ix<BLOCK_SIZE);
+        assert(iy<BLOCK_SIZE);
+        assert(iz<BLOCK_SIZE);
         return this->m_data[iz][iy][ix];
     }
 
     inline TReal (&operator()(const size_t ix, const size_t iy, const size_t iz))[_AOSmembers]
     {
-        assert(ix<_BLOCKSIZE_);
-        assert(iy<_BLOCKSIZE_);
-        assert(iz<_BLOCKSIZE_);
+        assert(ix<BLOCK_SIZE);
+        assert(iy<BLOCK_SIZE);
+        assert(iz<BLOCK_SIZE);
         return this->m_data[iz][iy][ix];
     }
 
-    TReal m_data[_BLOCKSIZE_][_BLOCKSIZE_][_BLOCKSIZE_][_AOSmembers];
+    TReal m_data[BLOCK_SIZE][BLOCK_SIZE][BLOCK_SIZE][_AOSmembers];
 };
 
 template <size_t _comp=0>

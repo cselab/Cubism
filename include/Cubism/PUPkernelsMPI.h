@@ -19,13 +19,14 @@ inline void pack(const Real * const srcbase, Real * const dst,
                const unsigned int gptfloats,
                int * selected_components, const int ncomponents,
                const int xstart, const int ystart, const int zstart,
-               const int xend, const int yend, const int zend)
+               const int xend, const int yend, const int zend,
+               const int BSX, const int BSY)
 {
     for(int idst=0, iz=zstart; iz<zend; ++iz)
         for(int iy=ystart; iy<yend; ++iy)
             for(int ix=xstart; ix<xend; ++ix)
             {
-                const Real * src = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                const Real * src = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
 
                 // bgq: s_c[ic] = ic! -> memcpy or stripes...
                 for(int ic=0; ic<ncomponents; ic++, idst++)
@@ -38,13 +39,14 @@ inline void pack_stripes1(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
                        const int xstart, const int ystart, const int zstart,
-                       const int xend, const int yend, const int zend)
+                       const int xend, const int yend, const int zend,
+                       const int BSX, const int BSY)
 {
     for(int idst=0, iz=zstart; iz<zend; ++iz)
         for(int iy=ystart; iy<yend; ++iy)
             for(int ix=xstart; ix<xend; ++ix)
             {
-                const Real * src = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                const Real * src = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
 
                 for(int ic=selstart; ic<selend; ic++, idst++)
                     dst[idst] = src[ic];
@@ -56,7 +58,8 @@ inline void pack_stripes_(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
                        const int xstart, const int ystart, const int zstart,
-                       const int xend, const int yend, const int zend)
+                       const int xend, const int yend, const int zend,
+                       const int BSX, const int BSY)
 {
     const int seldiff = selend - selstart;
     const int nbytes = seldiff*sizeof(Real);
@@ -66,7 +69,7 @@ inline void pack_stripes_(const Real * const srcbase, Real * const dst,
         {
             for(int ix=xstart; ix<xend; ++ix)
             {
-                const Real * src = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                const Real * src = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
 
                 memcpy(&dst[idst], &src[selstart], nbytes);
                 idst += seldiff;
@@ -80,18 +83,19 @@ inline void pack_stripes_x(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
                        const int xstart, const int ystart, const int zstart,
-                       const int xend, const int yend, const int zend)
+                       const int xend, const int yend, const int zend,
+                       const int BSX, const int BSY)
 {
     const int seldiff = selend - selstart;
     const int nbytes = seldiff*sizeof(Real);
-    const int _BS_XY_ = _BLOCKSIZEX_*_BLOCKSIZEY_;
+    const int _BS_XY_ = BSX*BSY;
     int idst = 0;
     for(int iz=zstart; iz<zend; ++iz)
     {
         const int iz_off = _BS_XY_*iz;
         for(int iy=ystart; iy<yend; ++iy)
         {
-            const int iy_off = _BLOCKSIZEX_*iy;
+            const int iy_off = BSX*iy;
             for(int ix=xstart; ix<xend; ++ix)
             {
                 const Real * src = srcbase + gptfloats*(ix + iy_off + iz_off);
@@ -115,7 +119,8 @@ inline void pack_stripes_unroll0(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
                        const int xstart, const int ystart, const int zstart,
-                       const int xend, const int yend, const int zend)
+                       const int xend, const int yend, const int zend,
+                       const int BSX, const int BSY)
 {
     const int seldiff = selend - selstart;
     const int nbytes = seldiff*sizeof(Real);
@@ -131,7 +136,7 @@ inline void pack_stripes_unroll0(const Real * const srcbase, Real * const dst,
             int ix = xstart;
             while (repeat-- > 0)
             {
-                    const Real * src0 = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                    const Real * src0 = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
                     const Real * src1 = src0 + gptfloats;
                     const Real * src2 = src1 + gptfloats;
                     const Real * src3 = src2 + gptfloats;
@@ -146,7 +151,7 @@ inline void pack_stripes_unroll0(const Real * const srcbase, Real * const dst,
 
             if (left == 3)
             {
-                const Real * src0 = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                const Real * src0 = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
                 const Real * src1 = src0 + gptfloats;
                 const Real * src2 = src1 + gptfloats;
 
@@ -158,7 +163,7 @@ inline void pack_stripes_unroll0(const Real * const srcbase, Real * const dst,
             }
             else if (left == 2)
             {
-                const Real * src0 = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                const Real * src0 = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
                 const Real * src1 = src0 + gptfloats;
 
                 memcpy2((char *)&dst[idst+0*seldiff], (char *)&src0[selstart], nbytes);
@@ -168,7 +173,7 @@ inline void pack_stripes_unroll0(const Real * const srcbase, Real * const dst,
             }
             else /* left == 1 */
             {
-                const Real * src0 = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                const Real * src0 = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
 
                 memcpy2((char *)&dst[idst+0*seldiff], (char *)&src0[selstart], nbytes);
                 idst += 1*seldiff;
@@ -184,7 +189,8 @@ inline void pack_stripesxx(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
                        const int xstart, const int ystart, const int zstart,
-                       const int xend, const int yend, const int zend)
+                       const int xend, const int yend, const int zend,
+                       const int BSX, const int BSY)
 {
 //	printf("xstart/end = (%d, %d)\n", xstart, xend);
     const int seldiff = selend - selstart;
@@ -197,7 +203,7 @@ inline void pack_stripesxx(const Real * const srcbase, Real * const dst,
             {
                 for(int ix=xstart; ix<xend; ++ix)
                 {
-                    const Real * src = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                    const Real * src = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
 
                     memcpy2((char *)&dst[idst], (char *)&src[selstart], nbytes);
                     idst += seldiff;
@@ -207,7 +213,7 @@ inline void pack_stripesxx(const Real * const srcbase, Real * const dst,
             {
                 for(int ix=xstart; ix<xend; ix+=8)
                 {
-                    const Real * src0 = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                    const Real * src0 = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
                     const Real * src1 = src0 + gptfloats;
                     const Real * src2 = src1 + gptfloats;
                     const Real * src3 = src2 + gptfloats;
@@ -231,7 +237,7 @@ inline void pack_stripesxx(const Real * const srcbase, Real * const dst,
             {
                 for(int ix=xstart; ix<xend; ix+=4)
                 {
-                    const Real * src0 = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                    const Real * src0 = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
                     const Real * src1 = src0 + gptfloats;
                     const Real * src2 = src1 + gptfloats;
                     const Real * src3 = src2 + gptfloats;
@@ -252,12 +258,13 @@ inline void pack_stripes(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
                        const int xstart, const int ystart, const int zstart,
-                       const int xend, const int yend, const int zend)
+                       const int xend, const int yend, const int zend,
+                       const int BSX, const int BSY)
 {
     const int seldiff = selend - selstart;
     const int nbytes = seldiff*sizeof(Real);
 
-    if ((xend - xstart) == _BLOCKSIZEX_)
+    if ((xend - xstart) == BSX)
     {
         for(int idst=0, iz=zstart; iz<zend; ++iz)
         {
@@ -265,7 +272,7 @@ inline void pack_stripes(const Real * const srcbase, Real * const dst,
             {
                     for(int ix=xstart; ix<xend; ix+=4)
                     {
-                        const Real * src0 = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                        const Real * src0 = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
                         const Real * src1 = src0 + gptfloats;
                         const Real * src2 = src1 + gptfloats;
                         const Real * src3 = src2 + gptfloats;
@@ -288,7 +295,7 @@ inline void pack_stripes(const Real * const srcbase, Real * const dst,
                     int ix = xstart;
                     //for(int ix=xstart; ix<xend; ++ix)
                     {
-                        const Real * src0 = srcbase + gptfloats*(ix + _BLOCKSIZEX_*(iy + _BLOCKSIZEY_*iz));
+                        const Real * src0 = srcbase + gptfloats*(ix + BSX*(iy + BSY*iz));
                         const Real * src1 = src0 + gptfloats;
                         const Real * src2 = src1 + gptfloats;
 

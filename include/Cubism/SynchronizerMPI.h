@@ -775,7 +775,9 @@ public:
                 for(int i=0; i<N; ++i)
                 {
                     PackInfo info = send_packinfos[i];
-                    pack(info.block, info.pack, gptfloats, &selcomponents.front(), NC, info.sx, info.sy, info.sz, info.ex, info.ey, info.ez);
+                    pack(info.block, info.pack, gptfloats, &selcomponents.front(), NC,
+                         info.sx, info.sy, info.sz, info.ex, info.ey, info.ez,
+                         blocksize[0], blocksize[1]);
                 }
             }
             else
@@ -787,7 +789,9 @@ public:
                 for(int i=0; i<N; ++i)
                 {
                     PackInfo info = send_packinfos[i];
-                    pack_stripes(info.block, info.pack, gptfloats, selstart, selend, info.sx, info.sy, info.sz, info.ex, info.ey, info.ez);
+                    pack_stripes(info.block, info.pack, gptfloats, selstart, selend,
+                                 info.sx, info.sy, info.sz, info.ex, info.ey, info.ez,
+                                 blocksize[0], blocksize[1]);
                 }
             }
         }
@@ -972,7 +976,9 @@ public:
                 for(int i=0; i<N; ++i)
                 {
                     PackInfo info = send_packinfos[i];
-                    pack(info.block, info.pack, gptfloats, &selcomponents.front(), NC, info.sx, info.sy, info.sz, info.ex, info.ey, info.ez);
+                    pack(info.block, info.pack, gptfloats, &selcomponents.front(), NC,
+                         info.sx, info.sy, info.sz, info.ex, info.ey, info.ez,
+                         blocksize[0], blocksize[1]);
                 }
             }
             else
@@ -984,7 +990,9 @@ public:
                 for(int i=0; i<N; ++i)
                 {
                     PackInfo info = send_packinfos[i];
-                    pack_stripes(info.block, info.pack, gptfloats, selstart, selend, info.sx, info.sy, info.sz, info.ex, info.ey, info.ez);
+                    pack_stripes(info.block, info.pack, gptfloats, selstart, selend,
+                                 info.sx, info.sy, info.sz, info.ex, info.ey, info.ez,
+                                 blocksize[0], blocksize[1]);
                 }
             }
 

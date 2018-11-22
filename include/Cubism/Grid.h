@@ -27,6 +27,10 @@ CUBISM_NAMESPACE_BEGIN
 template <typename Block, template<typename X> class allocator=std::allocator>
 class Grid
 {
+    // Here we actually want to ensure asap that Block::sizeX/Y/Z are defined.
+    static_assert(Block::sizeX > 0, "Block size should be a positive integer.");
+    static_assert(Block::sizeY > 0, "Block size should be a positive integer.");
+    static_assert(Block::sizeZ > 0, "Block size should be a positive integer.");
     Block * m_blocks;
     std::vector<BlockInfo> m_vInfo;
 

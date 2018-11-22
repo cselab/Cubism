@@ -25,6 +25,13 @@ namespace SliceTypes
     template <typename TGrid>
     class Slice
     {
+        // To generalize, check all occurences of BS and replace with
+        // the appropriate X/Y/Z.
+        static_assert(TGrid::BlockType::sizeX == TGrid::BlockType::sizeY
+                      && TGrid::BlockType::sizeX == TGrid::BlockType::sizeZ,
+                      "Only cubic block type implemented so far.");
+        static constexpr int BS = TGrid::BlockType::sizeX;
+
     public:
         template <typename TSlice>
         static std::vector<TSlice> getEntities(ArgumentParser& parser, TGrid& grid)
@@ -120,8 +127,8 @@ namespace SliceTypes
             std::vector<BlockInfo> bInfo_local = m_grid->getBlocksInfo();
             for (size_t i = 0; i < bInfo_local.size(); ++i)
             {
-                const int start = bInfo_local[i].index[m_dir] * _BLOCKSIZE_;
-                if (start <= m_idx && m_idx < (start+_BLOCKSIZE_))
+                const int start = bInfo_local[i].index[m_dir] * BS;
+                if (start <= m_idx && m_idx < (start + BS))
                     m_intersecting_blocks.push_back(bInfo_local[i]);
             }
 
@@ -191,7 +198,7 @@ namespace SliceTypes
         template <typename TStreamer, typename hdf5Real>
         void _YZ(hdf5Real * const data) const
         {
-            const int ix = m_idx % _BLOCKSIZE_;
+            const int ix = m_idx % BS;
             const unsigned int NCHANNELS = TStreamer::NCHANNELS;
 
 #pragma omp parallel for
@@ -224,7 +231,7 @@ namespace SliceTypes
         template <typename TStreamer, typename hdf5Real>
         void _XZ(hdf5Real * const data) const
         {
-            const int iy = m_idx % _BLOCKSIZE_;
+            const int iy = m_idx % BS;
             const unsigned int NCHANNELS = TStreamer::NCHANNELS;
 
 #pragma omp parallel for
@@ -257,7 +264,7 @@ namespace SliceTypes
         template <typename TStreamer, typename hdf5Real>
         void _YX(hdf5Real * const data) const
         {
-            const int iz = m_idx % _BLOCKSIZE_;
+            const int iz = m_idx % BS;
             const unsigned int NCHANNELS = TStreamer::NCHANNELS;
 
 #pragma omp parallel for

@@ -20,10 +20,10 @@ using namespace std;
 using MyBlock   = Block<MyReal,32>;
 using MyGrid    = Grid<MyBlock>;
 using MyGridMPI = GridMPI<MyGrid>;
-#ifdef _NONUNIFORM_
+#ifdef CUBISM_TEST_NONUNIFORM
 using MyMeshMap = MeshMap<MyBlock>;
 using MyDensity = UniformDensity;
-#endif /* _NONUNIFORM_ */
+#endif /* CUBISM_TEST_NONUNIFORM */
 
 
 template<typename TKernel, typename TGrid>
@@ -86,7 +86,7 @@ int main(int argc, char* argv[])
     const int ppdy = parser("ppdy").asInt(ppdx);
     const int ppdz = parser("ppdz").asInt(ppdx);
 
-#ifdef _NONUNIFORM_
+#ifdef CUBISM_TEST_NONUNIFORM
     MyDensity mesh_density;
     MyMeshMap* xmap = new MyMeshMap(0, 1, ppdx * bpdx);
     MyMeshMap* ymap = new MyMeshMap(0, 1, ppdy * bpdy);
@@ -97,7 +97,7 @@ int main(int argc, char* argv[])
     MyGridMPI* grid = new MyGridMPI(xmap, ymap, zmap, ppdx, ppdy, ppdz, bpdx, bpdy, bpdz);
 #else
     MyGridMPI* grid = new MyGridMPI(ppdx, ppdy, ppdz, bpdx, bpdy, bpdz);
-#endif /* _NONUNIFORM_ */
+#endif /* CUBISM_TEST_NONUNIFORM */
 
     int myrank;
     const MPI_Comm comm = grid->getCartComm();

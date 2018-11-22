@@ -6,11 +6,11 @@
 #ifndef COMMON_H_QLCQRKJP
 #define COMMON_H_QLCQRKJP
 
-#ifdef _DOUBLE_
+#ifdef CUBISM_TEST_DOUBLE
 using MyReal = double;
 #else
 using MyReal = float;
-#endif /* _DOUBLE_ */
+#endif /* CUBISM_TEST_DOUBLE */
 
 constexpr int BLOCK_SIZE = 16;
 

@@ -12,7 +12,7 @@
 #include "Cubism/GridMPI.h"
 #include "Cubism/MeshMap.h"
 
-#define _USE_HDF_
+#define CUBISM_USE_HDF
 #include "Cubism/HDF5Dumper.h"
 #include "Cubism/HDF5Dumper_MPI.h"
 
@@ -31,7 +31,7 @@ using namespace cubism;
 using namespace std;
 
 // dumpers
-#ifndef _HDF5_DOUBLE_PRECISION_
+#ifndef CUBISM_TEST_HDF5_DOUBLE_PRECISION
 typedef float hdf5Real;
 const string prec_string = "4byte";
 #else
@@ -47,10 +47,10 @@ using MySlice        = typename SliceTypes::Slice<MyGrid>;
 using MySliceMPI     = typename SliceTypesMPI::Slice<MyGridMPI>;
 using MySubdomain    = typename SubdomainTypes::Subdomain<MyGrid>;
 using MySubdomainMPI = typename SubdomainTypesMPI::Subdomain<MyGridMPI>;
-#ifdef _NONUNIFORM_
+#ifdef CUBISM_TEST_NONUNIFORM
 using MyMeshMap = MeshMap<MyBlock>;
 using MyDensity = RandomDensity;
-#endif /* _NONUNIFORM_ */
+#endif /* CUBISM_TEST_NONUNIFORM */
 
 
 int main(int argc, char* argv[])
@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
     const int ppdy = parser("ppdy").asInt(ppdx);
     const int ppdz = parser("ppdz").asInt(ppdx);
 
-#ifdef _NONUNIFORM_
+#ifdef CUBISM_TEST_NONUNIFORM
     MyDensity mesh_density;
     MyMeshMap* xmap = new MyMeshMap(0, 1, ppdx * bpdx);
     MyMeshMap* ymap = new MyMeshMap(0, 1, ppdy * bpdy);
@@ -80,7 +80,7 @@ int main(int argc, char* argv[])
     MyGridMPI* grid = new MyGridMPI(xmap, ymap, zmap, ppdx, ppdy, ppdz, bpdx, bpdy, bpdz);
 #else
     MyGridMPI* grid = new MyGridMPI(ppdx, ppdy, ppdz, bpdx, bpdy, bpdz);
-#endif /* _NONUNIFORM_ */
+#endif /* CUBISM_TEST_NONUNIFORM */
 
     int myrank;
     const MPI_Comm comm = grid->getCartComm();

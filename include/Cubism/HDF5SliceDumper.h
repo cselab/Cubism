@@ -311,7 +311,7 @@ void DumpSliceHDF5(const TSlice& slice,
                    const std::string &dpath = ".",
                    const bool bXMF = true)
 {
-#ifdef _USE_HDF_
+#ifdef CUBISM_USE_HDF
     typedef typename TSlice::GridType::BlockType B;
 
     static const unsigned int NCHANNELS = TStreamer::NCHANNELS;
@@ -355,7 +355,7 @@ void DumpSliceHDF5(const TSlice& slice,
 
         hsize_t dim[1] = {vertices.size()};
         fspace_id = H5Screate_simple(1, dim, NULL);
-#ifndef _ON_FERMI_
+#ifndef CUBISM_ON_FERMI
         dataset_id = H5Dcreate(file_id, dset_name[i].c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
         dataset_id = H5Dcreate2(file_id, dset_name[i].c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -387,7 +387,7 @@ void DumpSliceHDF5(const TSlice& slice,
 
     fapl_id = H5Pcreate(H5P_DATASET_XFER);
     fspace_id = H5Screate_simple(3, dims, NULL);
-#ifndef _ON_FERMI_
+#ifndef CUBISM_ON_FERMI
     dataset_id = H5Dcreate(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
     dataset_id = H5Dcreate2(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);

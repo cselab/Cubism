@@ -22,11 +22,11 @@ CFLAGS+= -Wpedantic -Wno-unused-parameter # does not make much sense with functi
 $(warning using precision=$(precision))
 $(warning using nonuniform=$(nonuniform))
 ifeq ("$(precision)","double")
-	CFLAGS += -D_DOUBLE_
+	CFLAGS += -DCUBISM_TEST_DOUBLE
 endif
 
 ifeq ("$(nonuniform)","yes")
-	CFLAGS += -D_NONUNIFORM_
+	CFLAGS += -DCUBISM_TEST_NONUNIFORM
 endif
 
 all: testSynchronizerMPI.cpp

@@ -14,14 +14,19 @@
 #include <utility>
 
 #ifdef _USE_HDF_
-#include <hdf5.h>
+#warning  _USE_HDF_ is deprecated, use CUBISM_USE_HDF instead.
+#define CUBISM_USE_HDF
 #endif
+
+#ifdef CUBISM_USE_HDF
+#include <hdf5.h>
 
 // Function to retrieve HDF5 type (hid_t) for a given real type.
 // If using custom types, the user should specialize this function.
 template <typename T> hid_t get_hdf5_type();
 template <> inline hid_t get_hdf5_type<float>() { return H5T_NATIVE_FLOAT; }
 template <> inline hid_t get_hdf5_type<double>() { return H5T_NATIVE_DOUBLE; }
+#endif
 
 #include "BlockInfo.h"
 #include "MeshMap.h"
@@ -40,7 +45,7 @@ void DumpHDF5(const TGrid &grid,
               const std::string &dpath = ".",
               const bool bXMF = true)
 {
-#ifdef _USE_HDF_
+#ifdef CUBISM_USE_HDF
     typedef typename TGrid::BlockType B;
 
     // fname is the base filepath tail without file type extension and
@@ -80,7 +85,7 @@ void DumpHDF5(const TGrid &grid,
 
         hsize_t dim[1] = {vertices.size()};
         fspace_id = H5Screate_simple(1, dim, NULL);
-#ifndef _ON_FERMI_
+#ifndef CUBISM_ON_FERMI
         dataset_id = H5Dcreate(file_id, dset_name[i].c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
         dataset_id = H5Dcreate2(file_id, dset_name[i].c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -135,7 +140,7 @@ void DumpHDF5(const TGrid &grid,
     fapl_id = H5Pcreate(H5P_DATASET_XFER);
 
     fspace_id = H5Screate_simple(4, dims, NULL);
-#ifndef _ON_FERMI_
+#ifndef CUBISM_ON_FERMI
     dataset_id = H5Dcreate(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
     dataset_id = H5Dcreate2(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -200,7 +205,7 @@ void DumpHDF5(const TGrid &grid,
 template<typename TStreamer, typename hdf5Real, typename TGrid>
 void ReadHDF5(TGrid &grid, const std::string fname, const std::string dpath=".")
 {
-#ifdef _USE_HDF_
+#ifdef CUBISM_USE_HDF
     typedef typename TGrid::BlockType B;
 
     // fname is the base filepath tail without file type extension and

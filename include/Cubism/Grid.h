@@ -14,7 +14,7 @@
 #include <cassert>
 #include <algorithm>
 
-#ifdef _USE_NUMA_
+#ifdef CUBISM_USE_NUMA
 #include <numa.h>
 #include <omp.h>
 #endif
@@ -67,7 +67,7 @@ protected:
         //numa touch
         #pragma omp parallel
         {
-#ifdef _USE_NUMA_
+#ifdef CUBISM_USE_NUMA
             const int cores_per_node = numa_num_configured_cpus() / numa_num_configured_nodes();
             const int mynode = omp_get_thread_num() / cores_per_node;
             numa_run_on_node(mynode);

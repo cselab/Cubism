@@ -29,15 +29,15 @@ $(warning using precision=$(precision))
 $(warning using hdf5precision=$(hdf5precision))
 $(warning using nonuniform=$(nonuniform))
 ifeq ("$(precision)","double")
-	CFLAGS += -D_DOUBLE_
+	CFLAGS += -DCUBISM_TEST_DOUBLE
 endif
 
 ifeq ("$(hdf5precision)","double")
-	CFLAGS += -D_HDF5_DOUBLE_PRECISION_
+	CFLAGS += -DCUBISM_TEST_HDF5_DOUBLE_PRECISION
 endif
 
 ifeq ("$(nonuniform)","yes")
-	CFLAGS += -D_NONUNIFORM_
+	CFLAGS += -DCUBISM_TEST__NONUNIFORM
 endif
 
 all: testDumpsMPI.cpp

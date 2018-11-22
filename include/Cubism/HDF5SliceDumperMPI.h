@@ -97,7 +97,7 @@ namespace SliceTypesMPI
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-template<typename TStreamer, typename TSlice>
+template<typename TStreamer, typename hdf5Real, typename TSlice>
 void DumpSliceHDF5MPI(const TSlice& slice,
                       const int stepID,
                       const typename TSlice::GridType::Real t,
@@ -212,9 +212,9 @@ void DumpSliceHDF5MPI(const TSlice& slice,
 
     fspace_id = H5Screate_simple(3, dims, NULL);
 #ifndef _ON_FERMI_
-    dataset_id = H5Dcreate(file_id, "data", HDF_REAL, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id = H5Dcreate(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
-    dataset_id = H5Dcreate2(file_id, "data", HDF_REAL, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id = H5Dcreate2(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #endif
 
     fspace_id = H5Dget_space(dataset_id);
@@ -225,7 +225,8 @@ void DumpSliceHDF5MPI(const TSlice& slice,
         H5Sselect_none(fspace_id);
         H5Sselect_none(mspace_id);
     }
-    status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all); if(status<0) H5Eprint1(stdout);
+    status = H5Dwrite(dataset_id, get_hdf5_type<hdf5Real>(), mspace_id, fspace_id, fapl_id, array_all);
+    if (status < 0) H5Eprint1(stdout);
 
     status = H5Sclose(mspace_id); if(status<0) H5Eprint1(stdout);
     status = H5Sclose(fspace_id); if(status<0) H5Eprint1(stdout);

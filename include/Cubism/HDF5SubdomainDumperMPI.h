@@ -15,20 +15,7 @@
 #include <sstream>
 #include <mpi.h>
 
-#ifdef _USE_HDF_
-#include <hdf5.h>
-#endif
-
-#ifndef _HDF5_DOUBLE_PRECISION_
-#define HDF_REAL H5T_NATIVE_FLOAT
-typedef  float hdf5Real;
-#else
-#define HDF_REAL H5T_NATIVE_DOUBLE
-typedef double hdf5Real;
-#endif
-
-#include "BlockInfo.h"
-#include "MeshMap.h"
+#include "HDF5Dumper.h"
 
 CUBISM_NAMESPACE_BEGIN
 
@@ -152,7 +139,7 @@ namespace SubdomainTypesMPI
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-template<typename TStreamer, typename TSubdomain>
+template<typename TStreamer, typename hdf5Real, typename TSubdomain>
 void DumpSubdomainHDF5MPI(const TSubdomain& subdomain,
                           const int stepID,
                           const typename TSubdomain::GridType::Real t,
@@ -319,9 +306,9 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain,
 
     fspace_id = H5Screate_simple(4, dims, NULL);
 #ifndef _ON_FERMI_
-    dataset_id = H5Dcreate(file_id, "data", HDF_REAL, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id = H5Dcreate(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
-    dataset_id = H5Dcreate2(file_id, "data", HDF_REAL, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id = H5Dcreate2(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #endif
 
     fspace_id = H5Dget_space(dataset_id);
@@ -332,7 +319,8 @@ void DumpSubdomainHDF5MPI(const TSubdomain& subdomain,
         H5Sselect_none(fspace_id);
         H5Sselect_none(mspace_id);
     }
-    status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all); if(status<0) H5Eprint1(stdout);
+    status = H5Dwrite(dataset_id, get_hdf5_type<hdf5Real>(), mspace_id, fspace_id, fapl_id, array_all);
+    if (status < 0) H5Eprint1(stdout);
 
     status = H5Sclose(mspace_id); if(status<0) H5Eprint1(stdout);
     status = H5Sclose(fspace_id); if(status<0) H5Eprint1(stdout);

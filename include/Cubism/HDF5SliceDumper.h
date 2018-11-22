@@ -14,20 +14,7 @@
 #include <string>
 #include <sstream>
 
-#ifdef _USE_HDF_
-#include <hdf5.h>
-#endif
-
-#ifndef _HDF5_DOUBLE_PRECISION_
-#define HDF_REAL H5T_NATIVE_FLOAT
-typedef  float hdf5Real;
-#else
-#define HDF_REAL H5T_NATIVE_DOUBLE
-typedef double hdf5Real;
-#endif
-
-#include "BlockInfo.h"
-#include "MeshMap.h"
+#include "HDF5Dumper.h"
 
 CUBISM_NAMESPACE_BEGIN
 
@@ -175,7 +162,7 @@ namespace SliceTypes
             std::cout << prefix << "NUMBER OF BLOCKS = " << m_intersecting_blocks.size() << std::endl;
         }
 
-        template <typename TStreamer>
+        template <typename TStreamer, typename hdf5Real>
         inline void extract(hdf5Real* const data) const
         {
             if (0 == m_dir)
@@ -201,7 +188,7 @@ namespace SliceTypes
         std::vector<BlockInfo> m_intersecting_blocks;
 
     private:
-        template <typename TStreamer>
+        template <typename TStreamer, typename hdf5Real>
         void _YZ(hdf5Real * const data) const
         {
             const int ix = m_idx % _BLOCKSIZE_;
@@ -234,7 +221,7 @@ namespace SliceTypes
             }
         }
 
-        template <typename TStreamer>
+        template <typename TStreamer, typename hdf5Real>
         void _XZ(hdf5Real * const data) const
         {
             const int iy = m_idx % _BLOCKSIZE_;
@@ -267,7 +254,7 @@ namespace SliceTypes
             }
         }
 
-        template <typename TStreamer>
+        template <typename TStreamer, typename hdf5Real>
         void _YX(hdf5Real * const data) const
         {
             const int iz = m_idx % _BLOCKSIZE_;
@@ -309,7 +296,7 @@ namespace SliceTypes
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-template<typename TStreamer, typename TSlice>
+template<typename TStreamer, typename hdf5Real, typename TSlice>
 void DumpSliceHDF5(const TSlice& slice,
                    const int stepID,
                    const typename TSlice::GridType::Real t,
@@ -394,9 +381,9 @@ void DumpSliceHDF5(const TSlice& slice,
     fapl_id = H5Pcreate(H5P_DATASET_XFER);
     fspace_id = H5Screate_simple(3, dims, NULL);
 #ifndef _ON_FERMI_
-    dataset_id = H5Dcreate(file_id, "data", HDF_REAL, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id = H5Dcreate(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #else
-    dataset_id = H5Dcreate2(file_id, "data", HDF_REAL, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id = H5Dcreate2(file_id, "data", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #endif
 
     fspace_id = H5Dget_space(dataset_id);
@@ -407,7 +394,8 @@ void DumpSliceHDF5(const TSlice& slice,
         H5Sselect_none(fspace_id);
         H5Sselect_none(mspace_id);
     }
-    status = H5Dwrite(dataset_id, HDF_REAL, mspace_id, fspace_id, fapl_id, array_all); if(status<0) H5Eprint1(stdout);
+    status = H5Dwrite(dataset_id, get_hdf5_type<hdf5Real>(), mspace_id, fspace_id, fapl_id, array_all);
+    if (status < 0) H5Eprint1(stdout);
 
     status = H5Sclose(mspace_id); if(status<0) H5Eprint1(stdout);
     status = H5Sclose(fspace_id); if(status<0) H5Eprint1(stdout);

@@ -23,6 +23,7 @@
 
 CUBISM_NAMESPACE_BEGIN
 
+template <typename Real>
 class SynchronizerMPI
 {
     struct I3
@@ -704,8 +705,8 @@ public:
             std::vector<PackInfo> packinfos;
             recv_subpackinfos = _setup<true>(recv, recv_thickness, blockstart, blockend, origin, packinfos);
 
-            for(std::vector<PackInfo>::const_iterator it = packinfos.begin(); it<packinfos.end(); ++it)
-                recv_packinfos[it->block].push_back(*it);
+            for (const PackInfo &pi : packinfos)
+                recv_packinfos[pi.block].push_back(pi);
         }
 
         assert(recv.pending.size() == 0);
@@ -1431,7 +1432,7 @@ class MyRange
 
         //packs
         {
-            std::map<Real *, std::vector<PackInfo> >::const_iterator it = recv_packinfos.find(const_cast<Real *>(ptrBlock));
+            auto it = recv_packinfos.find(const_cast<Real *>(ptrBlock));
 
             if( it!=recv_packinfos.end() )
             {
@@ -1440,7 +1441,7 @@ class MyRange
                 //assert(!stencil.tensorial || packs.size() <= 7 || mybpd[0]*mybpd[1]*mybpd[2] == 1);
                 //assert(stencil.tensorial || packs.size()<=3 || mybpd[0]*mybpd[1]*mybpd[2] == 1);
 
-                for(std::vector<PackInfo>::const_iterator itpack=packs.begin(); itpack!=packs.end(); ++itpack)
+                for (auto itpack=packs.cbegin(); itpack != packs.cend(); ++itpack)
                 {
                   MyRange packrange(itpack->sx, itpack->ex, itpack->sy, itpack->ey, itpack->sz, itpack->ez);
 
@@ -1459,7 +1460,7 @@ class MyRange
         //subregions inside packs
         if (stencil.tensorial)
         {
-            std::map<Real *, std::vector<SubpackInfo> >::const_iterator it = recv_subpackinfos.find(const_cast<Real *>(ptrBlock));
+            auto it = recv_subpackinfos.find(const_cast<Real *>(ptrBlock));
 
             assert(stencil.tensorial || it==recv_subpackinfos.end());
 
@@ -1469,7 +1470,7 @@ class MyRange
 
             //  assert(subpacks.size()<=12+8);
 
-                for(std::vector<SubpackInfo>::const_iterator itsubpack=subpacks.begin(); itsubpack!=subpacks.end(); ++itsubpack)
+                for (auto itsubpack = subpacks.cbegin(); itsubpack != subpacks.cend(); ++itsubpack)
                   {
                     MyRange packrange(itsubpack->sx, itsubpack->ex, itsubpack->sy, itsubpack->ey, itsubpack->sz, itsubpack->ez);
 

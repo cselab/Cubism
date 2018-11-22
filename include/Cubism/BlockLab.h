@@ -26,12 +26,6 @@
 
 CUBISM_NAMESPACE_BEGIN
 
-#ifdef _FLOAT_PRECISION_
-typedef float Real;
-#else
-typedef double Real;
-#endif
-
 /**
  * Working copy of Block + Ghosts.
  * Data of original block is copied (!) here. So when changing something in
@@ -49,6 +43,7 @@ class BlockLab
 
 public:
     typedef ElementTypeT ElementType;
+    typedef typename ElementTypeT::Real Real;  // Element type MUST provide `Real` type.
 
 protected:
     typedef TBlock BlockType;

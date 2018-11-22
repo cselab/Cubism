@@ -19,12 +19,6 @@
 
 CUBISM_NAMESPACE_BEGIN
 
-#ifdef _FLOAT_PRECISION_
-typedef float Real;
-#else
-typedef double Real;
-#endif
-
 typedef struct _header_serial
 {
     long size[8];
@@ -39,8 +33,13 @@ inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int lay
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-template<typename TStreamer, typename TGrid>
-void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::string f_name, const std::string dump_path=".", const bool bDummy=false)
+template <typename TStreamer, typename TGrid>
+void DumpZBin(const TGrid &grid,
+              const int iCounter,
+              const typename TGrid::Real t,
+              const std::string &f_name,
+              const std::string &dump_path = ".",
+              const bool bDummy = false)
 {
     typedef typename TGrid::BlockType B;
 
@@ -132,10 +131,11 @@ void DumpZBin(const TGrid &grid, const int iCounter, const Real t, const std::st
 }
 
 
-template<typename TStreamer, typename TGrid>
+template <typename TStreamer, typename TGrid>
 void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path=".")
 {
     typedef typename TGrid::BlockType B;
+    typedef typename TGrid::Real      Real;
 
     // f_name is the base filename without file type extension
     std::ostringstream filename;

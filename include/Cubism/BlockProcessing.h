@@ -83,6 +83,7 @@ public:
 template <typename Grid, typename Lab, typename ProcessingMT, int nSlots>
 class BlockProcessingMT_TBB
 {
+    typedef typename Lab::Real Real;
     ProcessingMT& processing;
 
     const BlockInfo * ptrInfos;

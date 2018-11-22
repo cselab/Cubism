@@ -55,6 +55,7 @@ public:
     // For CUBISM internals.
     typedef T ElementType;
     typedef T element_type;  // For GridMPI.
+    typedef typename T::Real Real;
 
     // Data structure to store grid point for this block.
     ElementType data[sizeZ][sizeY][sizeX];

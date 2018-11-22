@@ -30,7 +30,7 @@ template<typename TKernel, typename TGrid>
 static void process(TKernel& kernel, TGrid& grid, Profiler& prof, const int rank)
 {
     static size_t pass = 0;
-    SynchronizerMPI& Synch = grid.sync(kernel);
+    SynchronizerMPI<MyReal> & Synch = grid.sync(kernel);
 
     prof.push_start("Inner");
     const vector<BlockInfo> avail0 = Synch.avail_inner();

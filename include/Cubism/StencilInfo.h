@@ -18,12 +18,6 @@
 
 CUBISM_NAMESPACE_BEGIN
 
-#ifdef _FLOAT_PRECISION_
-typedef float Real;
-#else
-typedef double Real;
-#endif
-
 struct StencilInfo
 {
     int sx, sy, sz, ex, ey, ez;

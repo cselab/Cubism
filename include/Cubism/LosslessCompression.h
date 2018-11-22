@@ -25,6 +25,7 @@ inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsign
 inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize);
 
 
+template <typename Real>
 inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize)
 {
     int decompressedbytes = 0;
@@ -43,6 +44,7 @@ inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int lay
     return decompressedbytes;
 }
 
+template <typename Real>
 inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsigned *max)
 {
 #if 1

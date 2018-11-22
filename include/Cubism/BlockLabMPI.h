@@ -15,8 +15,13 @@ CUBISM_NAMESPACE_BEGIN
 template<typename MyBlockLab>
 class BlockLabMPI : public MyBlockLab
 {
-    const SynchronizerMPI * refSynchronizerMPI;
+public:
+    typedef typename MyBlockLab::Real Real;
+
+private:
     typedef typename MyBlockLab::BlockType BlockType;
+    typedef SynchronizerMPI<Real> SynchronizerMPIType;
+    const SynchronizerMPIType * refSynchronizerMPI;
 
 protected:
     int mypeindex[3], pesize[3], mybpd[3];
@@ -24,9 +29,9 @@ protected:
 
 public:
     template< typename TGrid >
-    void prepare(GridMPI<TGrid>& grid, const SynchronizerMPI& SynchronizerMPI)
+    void prepare(GridMPI<TGrid>& grid, const SynchronizerMPIType& synchronizer)
     {
-        refSynchronizerMPI = &SynchronizerMPI;
+        refSynchronizerMPI = &synchronizer;
         refSynchronizerMPI->getpedata(mypeindex, pesize, mybpd);
         StencilInfo stencil = refSynchronizerMPI->getstencil();
         assert(stencil.isvalid());

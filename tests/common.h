@@ -10,7 +10,6 @@
 using MyReal = double;
 #else
 using MyReal = float;
-#define _FLOAT_PRECISION_
 #endif /* _DOUBLE_ */
 
 #define _BLOCKSIZE_ 16
@@ -34,6 +33,7 @@ struct Block
 {
     typedef TReal ElementType;
     typedef TReal element_type;
+    typedef TReal Real;
     static const size_t sizeX   = _BLOCKSIZE_;
     static const size_t sizeY   = _BLOCKSIZE_;
     static const size_t sizeZ   = _BLOCKSIZE_;

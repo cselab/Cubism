@@ -153,7 +153,12 @@ namespace SubdomainTypesMPI
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
 template<typename TStreamer, typename TSubdomain>
-void DumpSubdomainHDF5MPI(const TSubdomain& subdomain, const int stepID, const Real t, const std::string fname, const std::string dpath=".", const bool bXMF=true)
+void DumpSubdomainHDF5MPI(const TSubdomain& subdomain,
+                          const int stepID,
+                          const typename TSubdomain::GridType::Real t,
+                          const std::string &fname,
+                          const std::string &dpath = ".",
+                          const bool bXMF = true)
 {
 #ifdef _USE_HDF_
     typedef typename TSubdomain::GridType::BlockType B;

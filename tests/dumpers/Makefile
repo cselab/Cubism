@@ -19,7 +19,9 @@ CFLAGS+= -Wpedantic -Wno-unused-parameter # does not make much sense with functi
 
 
 LIBS =
-# LIBS += -L${HDF5_ROOT}/lib
+ifneq (${HDF5_ROOT},)
+	LIBS += -L${HDF5_ROOT}/lib
+endif
 
 .PHONY: all clean
 

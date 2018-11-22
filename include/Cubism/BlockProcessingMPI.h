@@ -23,6 +23,7 @@ class BlockProcessingMPI
     struct TBBWorker
     {
         typedef typename TGrid::BlockType BlockType;
+        typedef typename TGrid::Real      Real;
         const std::vector<BlockInfo>& myInfo;
         Operator myrhs;
         TGrid* grid;

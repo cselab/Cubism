@@ -21,11 +21,14 @@ CUBISM_NAMESPACE_BEGIN
 template < typename TGrid >
 class GridMPI : public TGrid
 {
+public:
+    typedef typename TGrid::Real Real;
+private:
     size_t timestamp;
 
 protected:
-
-    friend class SynchronizerMPI;
+    typedef SynchronizerMPI<Real> SynchronizerMPIType;
+    friend class SynchronizerMPI<Real>;
 
     int myrank, mypeindex[3], pesize[3];
     int periodic[3];
@@ -33,7 +36,7 @@ protected:
 
     std::vector<BlockInfo> cached_blockinfo;
 
-    std::map<StencilInfo, SynchronizerMPI *> SynchronizerMPIs;
+    std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs;
 
     MPI_Comm worldcomm;
     MPI_Comm cartcomm;
@@ -213,7 +216,7 @@ public:
 
     ~GridMPI()
     {
-        for( std::map<StencilInfo, SynchronizerMPI*>::const_iterator it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
+        for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
             delete it->second;
 
         SynchronizerMPIs.clear();
@@ -286,18 +289,18 @@ public:
     }
 
     template<typename Processing>
-    SynchronizerMPI& sync(Processing& p)
+    SynchronizerMPIType& sync(Processing& p)
     {
         const StencilInfo stencil = p.stencil;
         assert(stencil.isvalid());
 
-        SynchronizerMPI * queryresult = NULL;
+        SynchronizerMPIType * queryresult = NULL;
 
-        typename std::map<StencilInfo, SynchronizerMPI*>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
+        typename std::map<StencilInfo, SynchronizerMPIType*>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
 
         if (itSynchronizerMPI == SynchronizerMPIs.end())
         {
-            queryresult = new SynchronizerMPI(stencil, getBlocksInfo(), cartcomm, mybpd, blocksize);
+            queryresult = new SynchronizerMPIType(stencil, getBlocksInfo(), cartcomm, mybpd, blocksize);
 
             SynchronizerMPIs[stencil] = queryresult;
         }
@@ -311,7 +314,7 @@ public:
     }
 
     template<typename Processing>
-    const SynchronizerMPI& get_SynchronizerMPI(Processing& p) const
+    const SynchronizerMPIType& get_SynchronizerMPI(Processing& p) const
     {
         assert((SynchronizerMPIs.find(p.stencil) != SynchronizerMPIs.end()));
 

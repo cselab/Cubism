@@ -25,6 +25,7 @@ class SerializerIO_ImageVTK
     typedef typename TBlock::ElementType TElement;
 
 public:
+    typedef typename GridType::Real Real;
 
     void Write(GridType & inputGrid, std::string fileName)
     {

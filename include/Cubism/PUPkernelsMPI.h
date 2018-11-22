@@ -14,6 +14,7 @@
 CUBISM_NAMESPACE_BEGIN
 
 
+template <typename Real>
 inline void pack(const Real * const srcbase, Real * const dst,
                const unsigned int gptfloats,
                int * selected_components, const int ncomponents,
@@ -32,6 +33,7 @@ inline void pack(const Real * const srcbase, Real * const dst,
             }
 }
 
+template <typename Real>
 inline void pack_stripes1(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
@@ -49,6 +51,7 @@ inline void pack_stripes1(const Real * const srcbase, Real * const dst,
             }
 }
 
+template <typename Real>
 inline void pack_stripes_(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
@@ -72,6 +75,7 @@ inline void pack_stripes_(const Real * const srcbase, Real * const dst,
     }
 }
 
+template <typename Real>
 inline void pack_stripes_x(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
@@ -106,6 +110,7 @@ inline void pack_stripes_x(const Real * const srcbase, Real * const dst,
 #define memcpy2(a,b,c)	memcpy((a),(b),(c))
 #endif
 
+template <typename Real>
 inline void pack_stripes_unroll0(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
@@ -174,6 +179,7 @@ inline void pack_stripes_unroll0(const Real * const srcbase, Real * const dst,
     }
 }
 
+template <typename Real>
 inline void pack_stripesxx(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
@@ -241,6 +247,7 @@ inline void pack_stripesxx(const Real * const srcbase, Real * const dst,
     }
 }
 
+template <typename Real>
 inline void pack_stripes(const Real * const srcbase, Real * const dst,
                        const unsigned int gptfloats,
                        const int selstart, const int selend,
@@ -295,6 +302,7 @@ inline void pack_stripes(const Real * const srcbase, Real * const dst,
     }
 }
 
+template <typename Real>
 inline void unpack(const Real * const pack, Real * const dstbase,
           const unsigned int gptfloats,
           const int * const selected_components, const int ncomponents,
@@ -313,6 +321,7 @@ inline void unpack(const Real * const pack, Real * const dstbase,
             }
 }
 
+template <typename Real>
 inline void unpack1(const Real * const pack, Real * const dstbase,
           const unsigned int gptfloats,
           const int * const selected_components, const int ncomponents,
@@ -335,6 +344,7 @@ inline void unpack1(const Real * const pack, Real * const dstbase,
 }
 
 
+template <typename Real>
 inline void unpack2(const Real * const pack, Real * const dstbase,
           const unsigned int gptfloats,
           const int * const selected_components, const int ncomponents,
@@ -379,6 +389,7 @@ inline void unpack2(const Real * const pack, Real * const dstbase,
 }
 
 
+template <typename Real>
 inline void unpack_subregion(const Real * const pack, Real * const dstbase,
             const unsigned int gptfloats,
             const int * const selected_components, const int ncomponents,

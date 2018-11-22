@@ -29,13 +29,6 @@ typedef struct _header
     long size[8];
 } header;
 
-#ifdef _FLOAT_PRECISION_
-typedef float Real;
-#else
-typedef double Real;
-#endif
-
-
 /*
 inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsigned *max)
 inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize);
@@ -46,7 +39,13 @@ inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int lay
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
 template<typename TStreamer, typename TGrid>
-void DumpZBin_MPI(const TGrid &grid, const int iCounter, const Real t, const std::string f_name, const std::string dump_path=".", const bool bDummy=false)
+void DumpZBin_MPI(
+        const TGrid &grid,
+        const int iCounter,
+        const TGrid::Real t,
+        const std::string &f_name,
+        const std::string &dump_path = ".",
+        const bool bDummy = false)
 {
     typedef typename TGrid::BlockType B;
 

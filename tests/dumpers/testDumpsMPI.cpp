@@ -219,7 +219,7 @@ int main(int argc, char* argv[])
         fname << "mpi_plain_bin_" << prec_string;
 
         BlockInfo info_front = grid->getBlocksInfo().front();
-        Real* const src = (Real*)info_front.ptrBlock;
+        MyReal* const src = (MyReal*)info_front.ptrBlock;
 
         const int NX = grid->getResidentBlocksPerDimension(0);
         const int NY = grid->getResidentBlocksPerDimension(1);

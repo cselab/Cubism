@@ -39,7 +39,12 @@ CUBISM_NAMESPACE_BEGIN
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
 template<typename TStreamer, typename TGrid>
-void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const Real absTime, const std::string fname, const std::string dpath=".", const bool bXMF=true)
+void DumpHDF5_MPI(const TGrid &grid,
+                  const int iCounter,
+                  const typename TGrid::Real absTime,
+                  const std::string &fname,
+                  const std::string &dpath = ".",
+                  const bool bXMF = true)
 {
 #ifdef _USE_HDF_
     typedef typename TGrid::BlockType B;

@@ -280,7 +280,8 @@ public:
     static void process(std::vector<BlockInfo>& vInfo, Processing& p, Grid& grid,
                         const Real t=0, const bool tensorial=false, int nGranularity = -1)
     {
-        const int nSlots= (int)(NTHREADS);
+        // Refactor to get the # of threads automatically or as a runtime setting.
+        const int nSlots= (int)(NTHREADS);  // <--- This should not be here!
         assert(nSlots>0);
 
         concurrent_queue<Lab *> resources;

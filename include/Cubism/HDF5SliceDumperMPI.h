@@ -10,6 +10,7 @@
 
 #include <mpi.h>
 #include "HDF5SliceDumper.h"
+#include "ArgumentParser.h"
 
 CUBISM_NAMESPACE_BEGIN
 

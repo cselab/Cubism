@@ -15,6 +15,7 @@
 #include <sstream>
 
 #include "HDF5Dumper.h"
+#include "ArgumentParser.h"
 
 CUBISM_NAMESPACE_BEGIN
 

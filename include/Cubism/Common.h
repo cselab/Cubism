@@ -11,6 +11,14 @@
 #define CUBISM_ON_FERMI
 #endif
 
+#ifdef _ALIGNBYTES_
+#warning _ALIGNBYTES_ is deprecated, use CUBISM_ALIGN_BYTES instead.
+#define CUBISM_ALIGNMENT _ALIGNBYTES_
+#elif !defined(CUBISM_ALIGNMENT)
+#define CUBISM_ALIGNMENT  // If you get duplicate definition, put all Cubism
+                          // includes after the main header include.
+#endif
+
 #ifndef CUBISM_NAMESPACE_BEGIN
 #define CUBISM_NAMESPACE_BEGIN namespace cubism {
 #endif

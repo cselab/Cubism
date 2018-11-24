@@ -238,7 +238,7 @@ void DumpHDF5_MPI(const TGrid &grid,
 }
 
 template<typename TStreamer, typename hdf5Real, typename TGrid>
-void ReadHDF5_MPI(TGrid &grid, const std::string fname, const std::string dpath=".")
+void ReadHDF5_MPI(TGrid &grid, const std::string& fname, const std::string& dpath=".")
 {
 #ifdef CUBISM_USE_HDF
     typedef typename TGrid::BlockType B;

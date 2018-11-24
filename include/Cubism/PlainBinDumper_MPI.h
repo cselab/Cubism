@@ -13,6 +13,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <mpi.h>
 
 #include "Common.h"
 
@@ -27,7 +28,7 @@ typedef struct _header
 #define DBG 0
 
 template <typename TReal>
-void PlainDumpBin_MPI(MPI_Comm comm, TReal *buffer, long bytes, const std::string f_name, const std::string dump_path=".")
+void PlainDumpBin_MPI(MPI_Comm comm, TReal *buffer, long bytes, const std::string& f_name, const std::string& dump_path=".")
 {
 	int rank, nranks;
 	MPI_Status status;
@@ -76,7 +77,7 @@ void PlainDumpBin_MPI(MPI_Comm comm, TReal *buffer, long bytes, const std::strin
 
 
 template <typename TReal>
-void PlainReadBin_MPI(MPI_Comm comm, TReal **buffer, long *bytes, const std::string f_name, const std::string read_path=".")
+void PlainReadBin_MPI(MPI_Comm comm, TReal **buffer, long *bytes, const std::string& f_name, const std::string& read_path=".")
 {
 	int rank, nranks;
 	MPI_Status status;

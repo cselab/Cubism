@@ -174,7 +174,7 @@ void DumpZBin_MPI(
 }
 
 template<typename TStreamer, typename TGrid>
-void ReadZBin_MPI(TGrid &grid, const std::string f_name, const std::string read_path=".")
+void ReadZBin_MPI(TGrid &grid, const std::string& f_name, const std::string& read_path=".")
 {
     typedef typename TGrid::BlockType B;
 

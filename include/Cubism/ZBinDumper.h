@@ -132,7 +132,7 @@ void DumpZBin(const TGrid &grid,
 
 
 template <typename TStreamer, typename TGrid>
-void ReadZBin(TGrid &grid, const std::string f_name, const std::string read_path=".")
+void ReadZBin(TGrid &grid, const std::string& f_name, const std::string& read_path=".")
 {
     typedef typename TGrid::BlockType B;
     typedef typename TGrid::Real      Real;

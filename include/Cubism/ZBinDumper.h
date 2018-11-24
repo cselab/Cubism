@@ -24,10 +24,6 @@ typedef struct _header_serial
     long size[8];
 } header_serial;
 
-/*
-inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsigned *max)
-inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize);
-*/
 
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
@@ -114,7 +110,7 @@ void DumpZBin(const TGrid &grid,
         unsigned int max = local_bytes;
         //	int layout[4] = {NCHANNELS, NX, NY, NZ};
         int layout[4] = {NX, NY, NZ, 1};
-        long compressed_bytes = ZZcompress((unsigned char *)array_all, local_bytes, layout, &max);	// "in place"
+        long compressed_bytes = ZZcompress<typename TGrid::Real>((unsigned char *)array_all, local_bytes, layout, &max);	// "in place"
 
         printf("Writing %ld bytes of Compressed data (cr = %.2f)\n", compressed_bytes, NX*NY*NZ*sizeof(Real)*NCHANNELS*1.0/compressed_bytes);
 
@@ -191,7 +187,7 @@ void ReadZBin(TGrid &grid, const std::string& f_name, const std::string& read_pa
         size_t rb_data = fread(tmp, 1, compressed_bytes, file_id);
 
         int layout[4] = {NX, NY, NZ, 1};
-        size_t decompressed_bytes = ZZdecompress(tmp, compressed_bytes, layout, (unsigned char *)array_all, local_bytes);
+        size_t decompressed_bytes = ZZdecompress<typename TGrid::Real>(tmp, compressed_bytes, layout, (unsigned char *)array_all, local_bytes);
         free(tmp);
 #if DBG
         printf("size = %ld (%ld)\n", decompressed_bytes, local_bytes); fflush(0);

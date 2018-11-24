@@ -1,10 +1,10 @@
-#include "Cubism/ArgumentParser.h"
-
 #include <cstdio>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <regex> // C++11
+
+#include "Cubism/ArgumentParser.h"
 
 CUBISM_NAMESPACE_BEGIN
 

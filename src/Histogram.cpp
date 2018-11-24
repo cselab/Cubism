@@ -7,11 +7,12 @@
  *  Copyright 2012 ETH Zurich. All rights reserved.
  *
  */
-#include "Histogram.h"
 #include <fstream>
 #include <assert.h>
 #include <math.h>
 #include <iostream>
+
+#include "Cubism/Histogram.h"
 
 using namespace std;
 

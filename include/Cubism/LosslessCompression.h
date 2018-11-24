@@ -18,11 +18,10 @@ CUBISM_NAMESPACE_BEGIN
 
 extern "C"
 {
+// FIXME: [fabianw@mavt.ethz.ch; Sat Nov 24 2018 11:25:37 PM (+0100)] CubismZ
+// dependence
 #include "myfpzip.h"
 }
-
-inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsigned *max);
-inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize);
 
 
 template <typename Real>

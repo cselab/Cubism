@@ -29,10 +29,6 @@ typedef struct _header
     long size[8];
 } header;
 
-/*
-inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsigned *max)
-inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int layout[4], unsigned char * outputbuf, const size_t maxsize);
-*/
 
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
@@ -42,7 +38,7 @@ template<typename TStreamer, typename TGrid>
 void DumpZBin_MPI(
         const TGrid &grid,
         const int iCounter,
-        const TGrid::Real t,
+        const typename TGrid::Real t,
         const std::string &f_name,
         const std::string &dump_path = ".",
         const bool bDummy = false)
@@ -140,7 +136,7 @@ void DumpZBin_MPI(
     unsigned int max = local_bytes;
 //	int layout[4] = {NCHANNELS, NX, NY, NZ};
     int layout[4] = {NX, NY, NZ, 1};
-    long compressed_bytes = ZZcompress((unsigned char *)array_all, local_bytes, layout, &max);	// "in place"
+    long compressed_bytes = ZZcompress<typename TGrid::Real>((unsigned char *)array_all, local_bytes, layout, &max);	// "in place"
 #if DBG
     printf("Writing %ld bytes of Compressed data (cr = %.2f)\n", compressed_bytes, local_bytes*1.0/compressed_bytes);
 #endif
@@ -253,7 +249,7 @@ void ReadZBin_MPI(TGrid &grid, const std::string& f_name, const std::string& rea
 
 //	int layout[4] = {NCHANNELS, NX, NY, NZ};
     int layout[4] = {NX, NY, NZ, 1};
-    size_t decompressed_bytes = ZZdecompress(tmp, compressed_bytes, layout, (unsigned char *)array_all, local_bytes);
+    size_t decompressed_bytes = ZZdecompress<typename TGrid::Real>(tmp, compressed_bytes, layout, (unsigned char *)array_all, local_bytes);
     free(tmp);
 #if DBG
     printf("rank %d, offset = %ld, size = %ld (%ld)\n", rank, offset, decompressed_bytes, local_bytes); fflush(0);

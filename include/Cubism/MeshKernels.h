@@ -17,8 +17,8 @@
 #include <cstdlib>
 #include <random> // C++11
 
-#include "MeshMap.h"
-#include "ArgumentParser.h"
+#include "Cubism/MeshMap.h"
+#include "Cubism/ArgumentParser.h"
 
 CUBISM_NAMESPACE_BEGIN
 

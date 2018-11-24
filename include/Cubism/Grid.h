@@ -97,7 +97,7 @@ protected:
 
 public:
     typedef Block BlockType;
-    typedef typename Block::Real Real;  // Block MUST provide `Real` type.
+    typedef typename Block::RealType Real;  // Block MUST provide `RealType`.
 
     Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1, const double _maxextent = 1) :
         m_blocks(NULL), maxextent(_maxextent), N(_NX*_NY*_NZ), NX(_NX), NY(_NY), NZ(_NZ),

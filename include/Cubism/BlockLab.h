@@ -43,7 +43,7 @@ class BlockLab
 
 public:
     typedef ElementTypeT ElementType;
-    typedef typename ElementTypeT::Real Real;  // Element type MUST provide `Real` type.
+    typedef typename ElementTypeT::RealType Real;  // Element type MUST provide `RealType`.
 
 protected:
     typedef TBlock BlockType;

@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -121,7 +122,7 @@ CommandlineParser::CommandlineParser(const int argc, char **argv)
                     break;
                 else
                 {
-                    if (strcmp(values.c_str(), ""))
+                    if (std::strcmp(values.c_str(), ""))
                         values += ' ';
 
                     values += argv[j];

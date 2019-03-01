@@ -280,7 +280,7 @@ void DumpSliceHDF5MPI(const TSlice& slice,
         fclose(xmf);
     }
 #else
-#warning USE OF HDF WAS DISABLED AT COMPILE TIME
+    _warn_no_hdf5();
 #endif
 }
 

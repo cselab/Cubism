@@ -33,6 +33,15 @@ template <> inline hid_t get_hdf5_type<double>() { return H5T_NATIVE_DOUBLE; }
 
 CUBISM_NAMESPACE_BEGIN
 
+inline void _warn_no_hdf5(void) {
+    static bool first = true;
+    if (first) {
+        fprintf(stderr, "USE OF HDF WAS DISABLED AT COMPILE TIME\n");
+        first = false;
+    }
+}
+
+
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
@@ -197,7 +206,7 @@ void DumpHDF5(const TGrid &grid,
         fclose(xmf);
     }
 #else
-#warning USE OF HDF WAS DISABLED AT COMPILE TIME
+    _warn_no_hdf5();
 #endif
 }
 
@@ -276,7 +285,7 @@ void ReadHDF5(TGrid &grid, const std::string& fname, const std::string& dpath=".
 
     delete [] array_all;
 #else
-#warning USE OF HDF WAS DISABLED AT COMPILE TIME
+    _warn_no_hdf5();
 #endif
 }
 

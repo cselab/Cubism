@@ -450,7 +450,7 @@ void DumpSliceHDF5(const TSlice& slice,
     }
 
 #else
-#warning USE OF HDF WAS DISABLED AT COMPILE TIME
+    _warn_no_hdf5();
 #endif
 }
 

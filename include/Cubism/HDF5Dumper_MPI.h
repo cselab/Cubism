@@ -233,7 +233,7 @@ void DumpHDF5_MPI(const TGrid &grid,
         fclose(xmf);
     }
 #else
-#warning USE OF HDF WAS DISABLED AT COMPILE TIME
+    _warn_no_hdf5();
 #endif
 }
 
@@ -325,7 +325,7 @@ void ReadHDF5_MPI(TGrid &grid, const std::string& fname, const std::string& dpat
 
     delete [] array_all;
 #else
-#warning USE OF HDF WAS DISABLED AT COMPILE TIME
+    _warn_no_hdf5();
 #endif
 }
 

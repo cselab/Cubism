@@ -34,11 +34,7 @@ template <> inline hid_t get_hdf5_type<double>() { return H5T_NATIVE_DOUBLE; }
 CUBISM_NAMESPACE_BEGIN
 
 inline void _warn_no_hdf5(void) {
-    static bool first = true;
-    if (first) {
-        fprintf(stderr, "USE OF HDF WAS DISABLED AT COMPILE TIME\n");
-        first = false;
-    }
+    fprintf(stderr, "USE OF HDF WAS DISABLED AT COMPILE TIME\n");
 }
 
 

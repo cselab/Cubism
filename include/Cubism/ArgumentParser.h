@@ -19,7 +19,7 @@
 #include <map>
 #include <string>
 
-#include "Common.h"
+#include "Cubism/Common.h"
 
 CUBISM_NAMESPACE_BEGIN
 

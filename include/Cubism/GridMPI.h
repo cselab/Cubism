@@ -54,6 +54,9 @@ public:
             const double _maxextent = 1, const MPI_Comm comm = MPI_COMM_WORLD):
       TGrid(nX, nY, nZ, _maxextent), timestamp(0), worldcomm(comm)
     {
+        assert(npeX > 0 && "Number of processes per X must be greater than 0.");
+        assert(npeY > 0 && "Number of processes per Y must be greater than 0.");
+        assert(npeZ > 0 && "Number of processes per Z must be greater than 0.");
         blocksize[0] = Block::sizeX;
         blocksize[1] = Block::sizeY;
         blocksize[2] = Block::sizeZ;

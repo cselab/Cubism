@@ -7,8 +7,8 @@
  *
  */
 #pragma once
-#include <assert.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstdio>
 #include "Matrix3D.h"
 
 CUBISM_NAMESPACE_BEGIN

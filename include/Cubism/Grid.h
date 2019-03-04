@@ -60,6 +60,9 @@ protected:
 
     void _alloc()
     {
+        assert(NX > 0 && "Number of blocks per X must be greater than 0.");
+        assert(NY > 0 && "Number of blocks per Y must be greater than 0.");
+        assert(NZ > 0 && "Number of blocks per Z must be greater than 0.");
         allocator<Block> alloc;
         m_blocks = alloc.allocate(N);
         assert(m_blocks!=NULL);

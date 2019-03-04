@@ -13,7 +13,7 @@
 #include "Grid.h"
 //#include "Concepts.h"
 // #include <omp.h>
-#include <string.h>
+#include <cstring>
 #include <string>
 
 #ifdef __bgq__
@@ -472,13 +472,8 @@ public:
     }
 
 private:
-
-    //forbidden
-    BlockLab(const BlockLab&):
-    m_state(eMRAGBlockLab_Uninitialized),
-    m_cacheBlock(NULL){abort();}
-
-    BlockLab& operator=(const BlockLab&){abort(); return *this;}
+    BlockLab(const BlockLab&) = delete;
+    BlockLab& operator=(const BlockLab&) = delete;
 };
 
 

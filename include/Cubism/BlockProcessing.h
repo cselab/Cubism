@@ -58,8 +58,7 @@ public:
     BlockProcessingMT_Simple_TBB(const BlockProcessingMT_Simple_TBB& p):
     processing(p.processing), ptrInfos(p.ptrInfos){}
 
-    //forbidden
-    BlockProcessingMT_Simple_TBB& operator=(const BlockProcessingMT_Simple_TBB& p){abort(); return *this;}
+    BlockProcessingMT_Simple_TBB& operator=(const BlockProcessingMT_Simple_TBB& p) = delete;
 
     template <typename BlockedRange>
     void operator()(const BlockedRange& r) const
@@ -144,8 +143,7 @@ public:
     ptrInfos(p.ptrInfos), m_availableLabs(p.m_availableLabs), current_time(p.current_time) {}
 
 private:
-    //forbidden
-    BlockProcessingMT_TBB& operator=(const BlockProcessingMT_TBB& p){abort(); return *this;}
+    BlockProcessingMT_TBB& operator=(const BlockProcessingMT_TBB& p) = delete;
 }; /* BlockProcessingMT_TBB */
 
 

@@ -8,6 +8,7 @@
  */
 #pragma once
 
+#include <array>
 #include <cstdlib>
 #include "MeshMap.h"
 
@@ -68,6 +69,24 @@ struct BlockInfo
             }
             p[j] = origin[j] + delta;
         }
+    }
+
+    // Return the position as an `std::array<>`,
+    // as opposed to returning it via a pointer argument.
+    template <typename T>
+    inline std::array<T, 2> pos(int ix, int iy) const
+    {
+        std::array<T, 2> result;
+        pos(result.data(), ix, iy);
+        return result;
+    }
+
+    template <typename T>
+    inline std::array<T, 3> pos(int ix, int iy, int iz) const
+    {
+        std::array<T, 3> result;
+        pos(result.data(), ix, iy, iz);
+        return result;
     }
 
     // Return grid spacing dx in all dimensions for cell {ix, iy, iz}

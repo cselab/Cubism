@@ -111,10 +111,11 @@ public:
         const double h = (maxextent / std::max(NX, std::max(NY, NZ)));
 
         const double extents[3] = {h*NX, h*NY, h*NZ};
+        constexpr int bSizes[3] = {Block::sizeX, Block::sizeY, Block::sizeZ};
         const unsigned int nBlocks[3] = {NX, NY, NZ};
         for (int i = 0; i < 3; ++i)
         {
-            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
+            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i], bSizes[i]);
             UniformDensity uniform;
             m->init(&uniform); // uniform only for this constructor
             m_mesh_maps.push_back(m);

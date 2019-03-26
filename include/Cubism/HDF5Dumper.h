@@ -74,12 +74,16 @@ void DumpHDF5(const TGrid &grid,
 
     ///////////////////////////////////////////////////////////////////////////
     // write mesh
+    const bool bUniformAllDir = grid.getMeshMap(0).uniform() &&
+                                grid.getMeshMap(1).uniform() &&
+                                grid.getMeshMap(2).uniform();
+
     std::vector<int> mesh_dims;
     std::vector<std::string> dset_name;
     dset_name.push_back("/vx");
     dset_name.push_back("/vy");
     dset_name.push_back("/vz");
-    for (size_t i = 0; i < 3; ++i)
+    for (size_t i = 0; i < 3 && not bUniformAllDir; ++i)
     {
         const MeshMap<B>& m = grid.getMeshMap(i);
         std::vector<double> vertices(m.ncells()+1, m.start());
@@ -179,19 +183,44 @@ void DumpHDF5(const TGrid &grid,
         fprintf(xmf, " <Domain>\n");
         fprintf(xmf, "   <Grid GridType=\"Uniform\">\n");
         fprintf(xmf, "     <Time Value=\"%e\"/>\n\n", absTime);
-        fprintf(xmf, "     <Topology TopologyType=\"3DRectMesh\" Dimensions=\"%d %d %d\"/>\n\n", mesh_dims[2], mesh_dims[1], mesh_dims[0]);
-        fprintf(xmf, "     <Geometry GeometryType=\"VxVyVz\">\n");
-        fprintf(xmf, "       <DataItem Name=\"mesh_vx\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[0]);
-        fprintf(xmf, "        %s:/vx\n",(filename.str()+".h5").c_str());
-        fprintf(xmf, "       </DataItem>\n");
-        fprintf(xmf, "       <DataItem Name=\"mesh_vy\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[1]);
-        fprintf(xmf, "        %s:/vy\n",(filename.str()+".h5").c_str());
-        fprintf(xmf, "       </DataItem>\n");
-        fprintf(xmf, "       <DataItem Name=\"mesh_vz\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[2]);
-        fprintf(xmf, "        %s:/vz\n",(filename.str()+".h5").c_str());
-        fprintf(xmf, "       </DataItem>\n");
-        fprintf(xmf, "     </Geometry>\n\n");
-        fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", TStreamer::getAttributeName());
+
+        if(bUniformAllDir)
+        {
+          fprintf(xmf, "     <Topology TopologyType=\"3DCORECTMesh\" Dimensions=\"%d %d %d\"/>\n", (int)dims[0], (int)dims[1], (int)dims[2]);
+          fprintf(xmf, "     <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n");
+
+          fprintf(xmf, "       <DataItem Name=\"Origin\" Dimensions=\"3\" NumberType=\"Float\" Precision=\"4\" Format=\"XML\">\n");
+          fprintf(xmf, "        %e %e %e\n", 0.,0.,0.);
+          fprintf(xmf, "       </DataItem>\n");
+
+          fprintf(xmf, "       <DataItem Name=\"Spacing\" Dimensions=\"3\" NumberType=\"Float\" Precision=\"4\" Format=\"XML\">\n");
+          fprintf(xmf, "        %e %e %e\n", grid.getH(),grid.getH(),grid.getH());
+
+          fprintf(xmf, "       </DataItem>\n");
+          fprintf(xmf, "     </Geometry>\n\n");
+          fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Node\">\n", TStreamer::getAttributeName());
+        }
+        else
+        {
+          fprintf(xmf, "     <Topology TopologyType=\"3DRectMesh\" Dimensions=\"%d %d %d\"/>\n\n", mesh_dims[2], mesh_dims[1], mesh_dims[0]);
+          fprintf(xmf, "     <Geometry GeometryType=\"VxVyVz\">\n");
+
+          fprintf(xmf, "       <DataItem Name=\"mesh_vx\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[0]);
+          fprintf(xmf, "        %s:/vx\n",(filename.str()+".h5").c_str());
+          fprintf(xmf, "       </DataItem>\n");
+
+          fprintf(xmf, "       <DataItem Name=\"mesh_vy\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[1]);
+          fprintf(xmf, "        %s:/vy\n",(filename.str()+".h5").c_str());
+          fprintf(xmf, "       </DataItem>\n");
+
+          fprintf(xmf, "       <DataItem Name=\"mesh_vz\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[2]);
+          fprintf(xmf, "        %s:/vz\n",(filename.str()+".h5").c_str());
+          fprintf(xmf, "       </DataItem>\n");
+
+          fprintf(xmf, "     </Geometry>\n\n");
+          fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", TStreamer::getAttributeName());
+        }
+
         fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", (int)dims[0], (int)dims[1], (int)dims[2], (int)dims[3], (int)sizeof(hdf5Real));
         fprintf(xmf, "        %s:/data\n",(filename.str()+".h5").c_str());
         fprintf(xmf, "       </DataItem>\n");

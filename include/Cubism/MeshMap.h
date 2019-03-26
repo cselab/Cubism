@@ -60,9 +60,11 @@ template <typename TBlock>
 class MeshMap
 {
 public:
-    MeshMap(const double xS, const double xE, const unsigned int Nblocks) :
+    // constructor used to assume uniform cells in all directions!FIX EVERYWHERE
+    MeshMap(const double xS, const double xE, const unsigned int Nblocks,
+        const int nElemPerBlock = TBlock::sizeX) :
         m_xS(xS), m_xE(xE), m_extent(xE-xS), m_Nblocks(Nblocks),
-        m_Ncells(Nblocks*TBlock::sizeX), // assumes uniform cells in all directions!
+        m_Ncells(Nblocks*nElemPerBlock), m_blockSize(nElemPerBlock),
         m_uniform(true), m_initialized(false)
     {}
 
@@ -85,8 +87,8 @@ public:
         for (std::size_t i = 0; i < m_Nblocks; ++i)
         {
             double delta_block = 0.0;
-            for (std::size_t j = 0; j < TBlock::sizeX; ++j)
-                delta_block += m_grid_spacing[i*TBlock::sizeX + j];
+            for (std::size_t j = 0; j < m_blockSize; ++j)
+                delta_block += m_grid_spacing[i * m_blockSize + j];
             m_block_spacing[i] = delta_block;
         }
 
@@ -127,13 +129,13 @@ public:
     inline double* get_grid_spacing(const unsigned int bix)
     {
         assert(m_initialized && bix >= 0 && bix < m_Nblocks);
-        return &m_grid_spacing[bix*TBlock::sizeX];
+        return &m_grid_spacing[bix * m_blockSize];
     }
 
     inline const double* get_grid_spacing(const unsigned int bix) const
     {
         assert(m_initialized && bix >= 0 && bix < m_Nblocks);
-        return &m_grid_spacing[bix*TBlock::sizeX];
+        return &m_grid_spacing[bix * m_blockSize];
     }
 
     inline double* data_grid_spacing() { return m_grid_spacing; }
@@ -145,6 +147,7 @@ private:
     const double m_extent;
     const unsigned int m_Nblocks;
     const unsigned int m_Ncells;
+    const unsigned int m_blockSize;
 
     bool m_uniform;
     bool m_initialized;

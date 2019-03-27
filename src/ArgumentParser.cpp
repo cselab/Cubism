@@ -3,7 +3,9 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <regex> // C++11
+#include <sstream>
+#include <limits>
+//#include <regex> // C++11
 
 #include "Cubism/ArgumentParser.h"
 
@@ -117,7 +119,9 @@ CommandlineParser::CommandlineParser(const int argc, char **argv)
                 // if the current value is numeric and (possibly) negative,
                 // do not interpret it as a key
                 const bool leadingDash = (argv[j][0] == '-');
-                const bool isNumeric = std::regex_match(argv[j], std::regex("(\\+|-)?[0-9]*(\\.[0-9]*)?((e|E)(\\+|-)?[0-9]*)?"));
+                const char c = argv[j][1];
+                const bool isNumeric = ((c>='0' && c<='9') || c==0)? true:false;
+                // const bool isNumeric = std::regex_match(argv[j], std::regex("(\\+|-)?[0-9]*(\\.[0-9]*)?((e|E)(\\+|-)?[0-9]*)?"));
                 if (leadingDash && !isNumeric)
                     break;
                 else

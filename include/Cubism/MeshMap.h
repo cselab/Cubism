@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cstddef>
 #include <string>
+#include <cstring>
 
 #include "Cubism/Common.h"
 
@@ -60,11 +61,26 @@ template <typename TBlock>
 class MeshMap
 {
 public:
-    MeshMap(const double xS, const double xE, const unsigned int Nblocks) :
+    MeshMap(const double xS, const double xE, const unsigned int Nblocks,
+        const int nElemPerBlock = TBlock::sizeX) :
         m_xS(xS), m_xE(xE), m_extent(xE-xS), m_Nblocks(Nblocks),
-        m_Ncells(Nblocks*TBlock::sizeX), // assumes uniform cells in all directions!
+        m_Ncells(Nblocks*nElemPerBlock), m_blockSize(nElemPerBlock),
         m_uniform(true), m_initialized(false)
     {}
+
+    MeshMap(const MeshMap& c):
+        m_xS(c.m_xS), m_xE(c.m_xE), m_extent(c.m_extent), m_Nblocks(c.m_Nblocks),
+        m_Ncells(c.m_Ncells), m_blockSize(c.m_blockSize),
+        m_uniform(c.m_uniform), m_initialized(c.m_initialized),
+        m_kernel_name(c.m_kernel_name)
+    {
+        if (m_initialized)
+        {
+            _alloc();
+            std::memcpy(m_grid_spacing, c.m_grid_spacing, m_Ncells*sizeof(double));
+            std::memcpy(m_block_spacing, c.m_block_spacing, m_Nblocks*sizeof(double));
+        }
+    }
 
     ~MeshMap()
     {
@@ -74,6 +90,8 @@ public:
             delete[] m_block_spacing;
         }
     }
+
+    MeshMap& operator=(const MeshMap& rhs) = delete;
 
     void init(const MeshDensity* const kernel, const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL)
     {
@@ -85,8 +103,8 @@ public:
         for (std::size_t i = 0; i < m_Nblocks; ++i)
         {
             double delta_block = 0.0;
-            for (std::size_t j = 0; j < TBlock::sizeX; ++j)
-                delta_block += m_grid_spacing[i*TBlock::sizeX + j];
+            for (std::size_t j = 0; j < m_blockSize; ++j)
+                delta_block += m_grid_spacing[i * m_blockSize + j];
             m_block_spacing[i] = delta_block;
         }
 
@@ -127,13 +145,13 @@ public:
     inline double* get_grid_spacing(const unsigned int bix)
     {
         assert(m_initialized && bix >= 0 && bix < m_Nblocks);
-        return &m_grid_spacing[bix*TBlock::sizeX];
+        return &m_grid_spacing[bix * m_blockSize];
     }
 
     inline const double* get_grid_spacing(const unsigned int bix) const
     {
         assert(m_initialized && bix >= 0 && bix < m_Nblocks);
-        return &m_grid_spacing[bix*TBlock::sizeX];
+        return &m_grid_spacing[bix * m_blockSize];
     }
 
     inline double* data_grid_spacing() { return m_grid_spacing; }
@@ -145,6 +163,7 @@ private:
     const double m_extent;
     const unsigned int m_Nblocks;
     const unsigned int m_Ncells;
+    const unsigned int m_blockSize;
 
     bool m_uniform;
     bool m_initialized;

@@ -1,9 +1,12 @@
 #include <cstdio>
+#include <string>
 #include <cstring>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <regex> // C++11
+#include <sstream>
+#include <limits>
 
 #include "Cubism/ArgumentParser.h"
 
@@ -98,6 +101,13 @@ bool CommandlineParser::check(std::string key) const
     return _existKey(key,mapArguments);
 }
 
+bool CommandlineParser::_isnumber(const std::string& s) const
+{
+    char* end = NULL;
+    strtod(s.c_str(), &end);
+    return end != s.c_str(); // only care if the number is numeric or not.  This includes nan and inf
+}
+
 CommandlineParser::CommandlineParser(const int argc, char **argv)
     : iArgC(argc), vArgV(argv), bStrictMode(false), bVerbose(true)
 {
@@ -115,9 +125,12 @@ CommandlineParser::CommandlineParser(const int argc, char **argv)
             for (int j=i+1; j<argc; j++)
             {
                 // if the current value is numeric and (possibly) negative,
-                // do not interpret it as a key
-                const bool leadingDash = (argv[j][0] == '-');
-                const bool isNumeric = std::regex_match(argv[j], std::regex("(\\+|-)?[0-9]*(\\.[0-9]*)?((e|E)(\\+|-)?[0-9]*)?"));
+                // do not interpret it as a key.
+                // XXX: [fabianw@mavt.ethz.ch; 2019-03-28] WARNING:
+                // This will treat -nan as a NUMBER and not as a KEY
+                std::string sval(argv[j]);
+                const bool leadingDash = (sval[0] == '-');
+                const bool isNumeric = _isnumber(sval);
                 if (leadingDash && !isNumeric)
                     break;
                 else

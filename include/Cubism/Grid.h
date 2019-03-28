@@ -39,7 +39,6 @@ protected:
     const double maxextent;
     const unsigned int N, NX, NY, NZ;
 
-    const bool m_own_mesh_maps;
     std::vector<MeshMap<Block>*> m_mesh_maps;
 
     void _dealloc()
@@ -48,13 +47,10 @@ protected:
 
         alloc.deallocate(m_blocks, N);
 
-        if (m_own_mesh_maps)
+        for (size_t i = 0; i < m_mesh_maps.size(); ++i)
         {
-            for (size_t i = 0; i < m_mesh_maps.size(); ++i)
-            {
-                delete m_mesh_maps[i];
-                m_mesh_maps[i] = NULL;
-            }
+            delete m_mesh_maps[i];
+            m_mesh_maps[i] = NULL;
         }
     }
 
@@ -103,18 +99,18 @@ public:
     typedef typename Block::RealType Real;  // Block MUST provide `RealType`.
 
     Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1, const double _maxextent = 1) :
-        m_blocks(NULL), maxextent(_maxextent), N(_NX*_NY*_NZ), NX(_NX), NY(_NY), NZ(_NZ),
-        m_own_mesh_maps(true)
+        m_blocks(NULL), maxextent(_maxextent), N(_NX*_NY*_NZ), NX(_NX), NY(_NY), NZ(_NZ)
     {
         _alloc();
 
         const double h = (maxextent / std::max(NX, std::max(NY, NZ)));
 
         const double extents[3] = {h*NX, h*NY, h*NZ};
+        constexpr int bSizes[3] = {Block::sizeX, Block::sizeY, Block::sizeZ};
         const unsigned int nBlocks[3] = {NX, NY, NZ};
         for (int i = 0; i < 3; ++i)
         {
-            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
+            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i], bSizes[i]);
             UniformDensity uniform;
             m->init(&uniform); // uniform only for this constructor
             m_mesh_maps.push_back(m);
@@ -132,19 +128,20 @@ public:
                 }
     }
 
-    Grid(MeshMap<Block>* const mapX, MeshMap<Block>* const mapY, MeshMap<Block>* const mapZ,
-            const int _NX, const int _NY=1, const int _NZ=1) :
+    Grid(const MeshMap<Block>* const mapX,
+         const MeshMap<Block>* const mapY,
+         const MeshMap<Block>* const mapZ,
+         const int _NX, const int _NY=1, const int _NZ=1) :
         m_blocks(NULL),
         maxextent(-1.0), // not used
         N(_NX*_NY*_NZ),
-        NX(_NX), NY(_NY), NZ(_NZ),
-        m_own_mesh_maps(false)
+        NX(_NX), NY(_NY), NZ(_NZ)
     {
         _alloc();
 
-        m_mesh_maps.push_back(mapX);
-        m_mesh_maps.push_back(mapY);
-        m_mesh_maps.push_back(mapZ);
+        m_mesh_maps.push_back(new MeshMap<Block>(*mapX));
+        m_mesh_maps.push_back(new MeshMap<Block>(*mapY));
+        m_mesh_maps.push_back(new MeshMap<Block>(*mapZ));
 
         for(unsigned int iz=0; iz<NZ; iz++)
             for(unsigned int iy=0; iy<NY; iy++)
@@ -153,7 +150,11 @@ public:
                     const long long blockID = _encode(ix, iy, iz);
                     const int idx[3] = {(int)ix, (int)iy, (int)iz};
 
-                    m_vInfo.push_back(BlockInfo(blockID, idx, mapX, mapY, mapZ, _linaccess(blockID)));
+                    m_vInfo.push_back(BlockInfo(blockID, idx,
+                                                m_mesh_maps[0], // mmapX
+                                                m_mesh_maps[1], // mmapY
+                                                m_mesh_maps[2], // mmapZ
+                                                _linaccess(blockID)));
                 }
     }
 

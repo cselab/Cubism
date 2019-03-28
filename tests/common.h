@@ -30,7 +30,7 @@ struct Block
 {
     typedef TReal ElementType;
     typedef TReal element_type;
-    typedef TReal Real;
+    typedef TReal RealType;
     static constexpr size_t sizeX   = BLOCK_SIZE;
     static constexpr size_t sizeY   = BLOCK_SIZE;
     static constexpr size_t sizeZ   = BLOCK_SIZE;

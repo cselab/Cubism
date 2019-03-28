@@ -16,6 +16,7 @@ CFLAGS+= -Wwrite-strings -Wmissing-declarations -Wredundant-decls
 CFLAGS+= -Wshadow -Woverloaded-virtual -Wuninitialized
 CFLAGS+= -Wpedantic -Wno-unused-parameter # does not make much sense with function overloading
 
+OBJ = ../../src/ArgumentParser.o
 
 .PHONY: all clean
 
@@ -29,8 +30,11 @@ ifeq ("$(nonuniform)","yes")
 	CFLAGS += -DCUBISM_TEST_NONUNIFORM
 endif
 
-all: testSynchronizerMPI.cpp
-	$(CC) $(CFLAGS) -o testSynchronizerMPI testSynchronizerMPI.cpp
+all: testSynchronizerMPI.cpp $(OBJ)
+	$(CC) $(CFLAGS) -o testSynchronizerMPI testSynchronizerMPI.cpp $(OBJ)
+
+%.o: %.cpp
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f testSynchronizerMPI *.o

@@ -17,6 +17,8 @@ CFLAGS+= -Wwrite-strings -Wmissing-declarations -Wredundant-decls
 CFLAGS+= -Wshadow -Woverloaded-virtual -Wuninitialized
 CFLAGS+= -Wpedantic -Wno-unused-parameter # does not make much sense with function overloading
 
+OBJ = ../../src/ArgumentParser.o
+
 
 LIBS =
 ifneq (${HDF5_ROOT},)
@@ -37,11 +39,14 @@ ifeq ("$(hdf5precision)","double")
 endif
 
 ifeq ("$(nonuniform)","yes")
-	CFLAGS += -DCUBISM_TEST__NONUNIFORM
+	CFLAGS += -DCUBISM_TEST_NONUNIFORM
 endif
 
-all: testDumpsMPI.cpp
-	$(CC) $(CFLAGS) -o testDumpsMPI testDumpsMPI.cpp $(LIBS) -lhdf5
+all: testDumpsMPI.cpp $(OBJ)
+	$(CC) $(CFLAGS) -o testDumpsMPI testDumpsMPI.cpp $(OBJ) $(LIBS) -lhdf5
+
+%.o: %.cpp
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f testDumpsMPI *.o *.h5 *.xmf *.bin *.zbin

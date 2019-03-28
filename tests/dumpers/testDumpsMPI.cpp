@@ -11,6 +11,7 @@
 #include "Cubism/Grid.h"
 #include "Cubism/GridMPI.h"
 #include "Cubism/MeshMap.h"
+#include "Cubism/MeshKernels.h"
 
 #define CUBISM_USE_HDF
 #include "Cubism/HDF5Dumper.h"

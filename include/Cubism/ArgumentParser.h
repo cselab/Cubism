@@ -61,6 +61,8 @@ private:
     char** vArgV;
     bool bStrictMode, bVerbose;
 
+    bool _isnumber(const std::string& s) const;
+
 protected:
     std::map<std::string,Value> mapArguments;
 

@@ -10,12 +10,12 @@
 #define MESHKERNELS_H_TW2DTZIH
 
 #include <cmath>
-#include <limits>
-#include <vector>
-#include <string>
-//#include <iostream>
 #include <cstdlib>
+#include <iostream>
+#include <limits>
 #include <random> // C++11
+#include <string>
+#include <vector>
 
 #include "Cubism/MeshMap.h"
 #include "Cubism/ArgumentParser.h"
@@ -48,16 +48,16 @@ public:
         gen.seed(m_seed);
         std::uniform_real_distribution<double> distribution(0.0,1.0);
 
-        double ducky = 0.0;
+        double sumDH = 0.0; // sum used for normalization of domain [xS, xE]
         for (unsigned int i = 0; i < total_cells; ++i)
         {
             buf[i] = distribution(gen);
 
             if (i >= ghostS && i < ncells + ghostS)
-                ducky += buf[i];
+                sumDH += buf[i];
         }
 
-        const double scale = (xE-xS)/ducky;
+        const double scale = (xE - xS) / sumDH;
         for (unsigned int i = 0; i < total_cells; ++i)
             buf[i] *= scale;
 
@@ -103,17 +103,17 @@ public:
 
         const double h = 1.0/total_cells;
         const double y = 1.0/B;
-        double ducky = 0.0;
+        double sumDH = 0.0;
         for (unsigned int i = 0; i < total_cells; ++i)
         {
             const double x = h*(i+0.5);
             buf[i] = 1.0/(A*std::exp(-0.5*(x-0.5)*(x-0.5)*y*y) + 1.0);
 
             if (i >= ghostS && i < ncells + ghostS)
-                ducky += buf[i];
+                sumDH += buf[i];
         }
 
-        const double scale = (xE-xS)/ducky;
+        const double scale = (xE - xS) / sumDH;
         for (unsigned int i = 0; i < total_cells; ++i)
             buf[i] *= scale;
 
@@ -169,7 +169,7 @@ public:
         const unsigned int total_cells = ncells + ghostE + ghostS;
         double* const buf = new double[total_cells];
 
-        double ducky = 0.0;
+        double sumDH = 0.0; // sum used for normalization of domain [xS, xE]
         for (unsigned int i = 0; i < ncells; ++i)
         {
             const double r = (static_cast<double>(i)+0.5)/ncells;
@@ -179,14 +179,14 @@ public:
             else
                 rho = _smooth_heaviside(r, m_B, m_A, m_c, m_eps, true);
             buf[i+ghostS] = 1.0/rho;
-            ducky += buf[i+ghostS];
+            sumDH += buf[i + ghostS];
         }
         for (unsigned int i = 0; i < ghostS; ++i)
             buf[i] = buf[ghostS];
         for (unsigned int i = 0; i < ghostE; ++i)
             buf[i+ncells+ghostS] = buf[ncells+ghostS-1];
 
-        const double scale = (xE-xS)/ducky;
+        const double scale = (xE - xS) / sumDH;
         for (unsigned int i = 0; i < total_cells; ++i)
             buf[i] *= scale;
 
@@ -208,6 +208,7 @@ public:
     virtual std::string name() const { return std::string("SmoothHeavisideDensity"); }
 };
 
+// XXX: [fabianw@mavt.ethz.ch; 2019-04-09] Deprecated in favor of BoxFadeDensity
 class SmoothHatDensity : public SmoothHeavisideDensity
 {
 protected:
@@ -233,7 +234,7 @@ public:
         const unsigned int total_cells = ncells + ghostE + ghostS;
         double* const buf = new double[total_cells];
 
-        double ducky = 0.0;
+        double sumDH = 0.0; // sum used for normalization of domain [xS, xE]
         for (unsigned int i = 0; i < ncells; ++i)
         {
             const double r = (static_cast<double>(i)+0.5)/ncells;
@@ -251,14 +252,14 @@ public:
             else
                 rho = m_B;
             buf[i+ghostS] = 1.0/rho;
-            ducky += buf[i+ghostS];
+            sumDH += buf[i + ghostS];
         }
         for (unsigned int i = 0; i < ghostS; ++i)
             buf[i] = buf[ghostS];
         for (unsigned int i = 0; i < ghostE; ++i)
             buf[i+ncells+ghostS] = buf[ncells+ghostS-1];
 
-        const double scale = (xE-xS)/ducky;
+        const double scale = (xE - xS) / sumDH;
         for (unsigned int i = 0; i < total_cells; ++i)
             buf[i] *= scale;
 
@@ -410,8 +411,13 @@ private:
             ++steps;
             if (std::abs(alpha-tmp) <= tol)
                 break;
+            // the solver converges in less than 10 iterations
+            assert(steps < 1000);
         }
-        // std::cout << "MeshMap: Newton solver: Found solution in " << steps << " steps" << std::endl;
+#ifndef NDEBUG
+        std::cout << "MeshMap: Newton solver: Found solution in " << steps
+                  << " steps" << std::endl;
+#endif
         return alpha;
     }
 
@@ -575,7 +581,7 @@ public:
         const unsigned int total_cells = ncells + ghostE + ghostS;
         double* const DH  = new double[total_cells];
         double* const Yface = new double[ncells+1];
-        double sumDH = 0;
+        double sumDH = 0; // sum used for normalization of domain [xS, xE]
         // interior
         for (unsigned int i = 0; i <= ncells; ++i)
         {
@@ -671,6 +677,8 @@ private:
                 }
                 else if (density_function == "SmoothHatDensity")
                 {
+                    // XXX: [fabianw@mavt.ethz.ch; 2019-04-09] Deprecated in
+                    // favor of BoxFadeDensity:
                     typename SmoothHatDensity::DefaultParameter p;
                     if (m_parser.exist(A)) p.A = m_parser(A).asDouble();
                     if (m_parser.exist(B)) p.B = m_parser(B).asDouble();

@@ -13,7 +13,7 @@
 #include <limits>
 #include <vector>
 #include <string>
-#include <iostream>
+//#include <iostream>
 #include <cstdlib>
 #include <random> // C++11
 
@@ -536,42 +536,41 @@ public:
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
     {
         const unsigned int total_cells = ncells + ghostE + ghostS;
-        double* const buf = new double[total_cells];
-
+        double* const DH  = new double[total_cells];
+        double* const Yface = new double[ncells+1];
+        double sumDH = 0;
         // interior
-        const unsigned int nhalf = ncells/2 + ncells%2;
-        const double h = 2.0 / ncells;
-        double ducky = 0.0;
-        for (unsigned int i = 0; i < nhalf; ++i)
+        for (unsigned int i = 0; i <= ncells; ++i)
         {
-            const double x = h*(i+0.5) - 1.0;
-            const double dh = std::sin(0.5*eta*x*M_PI) / std::sin(0.5*eta*M_PI) + 1.0;
-            buf[i+ghostS] = dh;
-            buf[ncells-1-i+ghostS] = dh;
-
-            ducky += 2*dh;
+            const double x = 2*i / (double) ncells - 1.0;// maps i to -1 : 1
+            // both x and y are mapped to -1 : 1, but one is refined @ edges
+            Yface[i] = std::sin(.5*eta*x*M_PI) / std::sin(.5*eta*M_PI);
+            // sum grid spacing together in order to enforce  sumDH == extent
+            if(i == 0) continue; // skip first face
+            assert(Yface[i]-Yface[i-1]>0 && "Requires posdef grid spacing");
+            DH[i-1+ghostS] = Yface[i] - Yface[i-1];
+            sumDH += Yface[i] - Yface[i-1];
         }
-        if (ncells%2 == 1)
-            ducky -= buf[ghostS+nhalf-1];
 
-        const double scale = (xE-xS)/ducky;
+        const double scale = (xE-xS)/sumDH;
         for (unsigned int i = 0; i < ncells; ++i)
-            buf[i+ghostS] *= scale;
+            DH[i+ghostS] *= scale;
 
         for (unsigned int i = 0; i < ncells; ++i)
-            ary[i] = buf[i+ghostS];
+            ary[i] = DH[i+ghostS];
 
         assert(ghostS == ghostE);
         if (ghost_spacing)
         {
             for (unsigned int i = 0; i < ghostS; ++i)
-                ghost_spacing[ghostS-1-i] = buf[ghostS+i];
+                ghost_spacing[ghostS-1-i] = DH[ghostS+i];
             for (unsigned int i = 0; i < ghostE; ++i)
-                ghost_spacing[i+ghostS] = buf[ncells-1+ghostS-i];
+                ghost_spacing[i+ghostS] = DH[ncells-1+ghostS-i];
         }
 
         // clean up
-        delete[] buf;
+        delete[] DH;
+        delete[] Yface;
     }
 
     virtual std::string name() const { return std::string("SinusoidalDensity"); }

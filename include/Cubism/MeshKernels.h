@@ -474,29 +474,66 @@ public:
     virtual void compute_spacing(const double xS, const double xE, const unsigned int ncells, double* const ary,
             const unsigned int ghostS=0, const unsigned int ghostE=0, double* const ghost_spacing=NULL) const
     {
+        // total number of cells along coordinate (incl. ghosts)
         const unsigned int total_cells = ncells + ghostE + ghostS;
-        double* const buf = new double[total_cells];
+        // buffer for all grid spacings (incl. ghosts)
+        double *const buf = new double[total_cells];
 
-        // interior
-        const unsigned int nhalf = ncells/2 + ncells%2;
-        const double h = 2.0 / ncells;
-        double ducky = 0.0;
-        for (unsigned int i = 0; i < nhalf; ++i)
-        {
-            const double x = h*(i+0.5);
-            const double dh = PP*x + (1.0-PP)*(1.0 - std::tanh(QQ*(1.0-x))/std::tanh(QQ));
-            buf[i+ghostS] = dh;
-            buf[ncells-1-i+ghostS] = dh;
+        // compute interior grid vertex up to channel center
+        const unsigned int ncells_half = ncells / 2;
+        const unsigned int nvert_half = ncells_half + 1;
+        // scaling factor for local coordinate \in [0,1], where 1 corresponds to
+        // the channel center.
+        const double sfac = 1.0 / ncells_half;
+        // grid spacing kernel
+        const double pp = PP;
+        const double qq = QQ;
+        auto alfonsi = [pp, qq](const double x) {
+            return pp * x + (1.0 - pp) * (1.0 - std::tanh(qq * (1.0 - x)) /
+                                                    std::tanh(qq));
+        };
 
-            ducky += 2*dh;
+        double v_m1 = -1.0; // previous vertex
+        double v_00 = 0.0;  // current vertex
+        double sumDH = 0.0; // sum used for normalization of domain [xS, xE]
+        for (unsigned int i = 0; i < nvert_half; ++i) {
+            const double x = static_cast<double>(i) * sfac;
+            v_00 = alfonsi(x);
+            if (v_m1 < 0.0) {
+                v_m1 = v_00;
+                continue;
+            }
+            const double dh = v_00 - v_m1;
+            v_m1 = v_00;
+            assert(dh > 0.0);
+            assert(i > 0);
+            buf[i + ghostS - 1] = dh;
+            sumDH += 2 * dh; // sum twice due to symmetry
         }
-        if (ncells%2 == 1)
-            ducky -= buf[ghostS+nhalf-1];
 
-        const double scale = (xE-xS)/ducky;
+        if (ncells % 2 == 1) // if number of internal cells is odd
+        {
+            v_00 = alfonsi(1.0); // vertex at channel center (in center of cell)
+            const double dh = 2.0 * (v_00 - v_m1);
+            assert(dh > 0.0);
+            buf[ncells_half + ghostS] = dh;
+            sumDH += dh; // sum once, symmetry is accounted for in dh
+
+            for (unsigned int i = 0; i < ncells_half; ++i) // mirror
+                buf[ghostS + ncells_half + i + 1] =
+                    buf[ghostS + ncells_half - i - 1];
+        } else { // if number of internal cells is even
+            for (unsigned int i = 0; i < ncells_half; ++i) // mirror
+                buf[ghostS + ncells_half + i] =
+                    buf[ghostS + ncells_half - i - 1];
+        }
+
+        // scale coordinates according to domain extent
+        const double scale = (xE - xS) / sumDH;
         for (unsigned int i = 0; i < ncells; ++i)
             buf[i+ghostS] *= scale;
 
+        // copy grid spacing back into returned array (ary)
         for (unsigned int i = 0; i < ncells; ++i)
             ary[i] = buf[i+ghostS];
 

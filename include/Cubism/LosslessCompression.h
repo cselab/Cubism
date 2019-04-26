@@ -44,7 +44,8 @@ inline size_t ZZdecompress(unsigned char * inputbuf, size_t ninputbytes, int lay
 }
 
 template <typename Real>
-inline size_t ZZcompress(unsigned char *buf, unsigned len, int layout[4], unsigned *max)
+inline size_t
+ZZcompress(unsigned char *buf, size_t len, int layout[4], size_t *max)
 {
 #if 1
     int zbufsize = 0;

@@ -23,7 +23,6 @@ class Histogram
     std::map<std::string,std::vector<float> > mk2t;
     bool isroot;
     bool bInitialized;
-    int reportID;
 
     void _print2file(std::string sKernel, std::vector<float> & buf);
     void _print_statistcis(std::string sKernel, std::vector<float> & buf);

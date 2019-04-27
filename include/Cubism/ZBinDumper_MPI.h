@@ -19,6 +19,8 @@
 #include "BlockInfo.h"
 #include "LosslessCompression.h"
 
+#define DBG 0
+
 CUBISM_NAMESPACE_BEGIN
 
 #define MAX_MPI_PROCS (16 * 1024) // header: 0.25MB* 8
@@ -246,13 +248,13 @@ void ReadZBin_MPI(TGrid &grid,
     //	size_t local_count = NX * NY * NZ * NCHANNELS;
     size_t local_count = NX * NY * NZ * 1;
     size_t local_bytes = local_count * sizeof(Real);
-    long offset;
 
     header tag;
     MPI_File_read_at(
         file_id, rank * sizeof(tag), &tag, 2 * 8, MPI_LONG, &status);
 
 #if DBG
+    long offset;
     printf("HEADER(%d):\n", rank);
     for (int i = 0; i < NCHANNELS; i++) {
         printf("channel %d: %ld %ld\n", i, tag.offset[i], tag.size[i]);
@@ -289,7 +291,9 @@ void ReadZBin_MPI(TGrid &grid,
 
         //	int layout[4] = {NCHANNELS, NX, NY, NZ};
         int layout[4] = {NX, NY, NZ, 1};
+#if DBG
         size_t decompressed_bytes =
+#endif
             ZZdecompress<typename TGrid::Real>(tmp,
                                                compressed_bytes,
                                                layout,

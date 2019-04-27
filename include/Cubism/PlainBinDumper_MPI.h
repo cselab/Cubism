@@ -13,6 +13,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <cstdlib>
 #include <mpi.h>
 
 #include "Common.h"
@@ -110,7 +111,8 @@ void PlainReadBin_MPI(MPI_Comm comm, TReal **buffer, long *bytes, const std::str
 #if DBG
     printf("Reading %ld bytes of binary data\n", lbytes);
 #endif
-    unsigned char *tmp = (unsigned char *) malloc(lbytes);
+    unsigned long *tmp = nullptr;
+    posix_memalign((void**)&tmp, 16, lbytes);
 
     long base = MAX_MPI_PROCS*sizeof(tag);	// Header
     MPI_File_read_at(file_id, base + offset, (char *)tmp, lbytes, MPI_CHAR, &status);
@@ -119,6 +121,7 @@ void PlainReadBin_MPI(MPI_Comm comm, TReal **buffer, long *bytes, const std::str
     *bytes = lbytes;
 
     MPI_File_close(&file_id);
+    free(tmp);
 }
 
 CUBISM_NAMESPACE_END

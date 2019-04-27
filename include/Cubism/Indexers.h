@@ -19,22 +19,22 @@ class Indexer
 {
 protected:
     const unsigned int sizeX, sizeY, sizeZ, sizeTotal;
-    
-public:	
-    Indexer(const unsigned int sizeX, const unsigned int sizeY, const unsigned int sizeZ):
-    sizeX(sizeX), sizeY(sizeY), sizeZ(sizeZ), sizeTotal(sizeX*sizeY*sizeZ)
+
+public:
+    Indexer(const unsigned int sizeX_, const unsigned int sizeY_, const unsigned int sizeZ_):
+    sizeX(sizeX_), sizeY(sizeY_), sizeZ(sizeZ_), sizeTotal(sizeX_*sizeY_*sizeZ_)
     {
     }
-    
+
     virtual unsigned int encode(unsigned int ix, unsigned int iy, unsigned int iz) const
     {
         const unsigned int retval = ix + sizeX*(iy + iz*sizeY);
 
         assert(retval < sizeTotal && retval>=0);
 
-        return retval; 
+        return retval;
     }
-    
+
     virtual void decode(unsigned int code, unsigned int& ix, unsigned int& iy, unsigned int& iz) const
     {
         ix = code % sizeX;
@@ -47,33 +47,33 @@ class IndexerMorton : public Indexer
 {
     unsigned int depth;
 public:
-    IndexerMorton(const unsigned int sizeX, const unsigned int sizeY, const unsigned int sizeZ):
-    Indexer(sizeX, sizeY, sizeZ)
+    IndexerMorton(const unsigned int sizeX_, const unsigned int sizeY_, const unsigned int sizeZ_):
+    Indexer(sizeX_, sizeY_, sizeZ_)
     {
         depth = (unsigned int) fmin(10., ceil(log2((double)fmax(sizeX,fmax(sizeY,sizeZ)))));
     }
-    
+
     unsigned int encode(unsigned int ix, unsigned int iy, unsigned int iz) const
     {
         unsigned int idx=0;
-        
+
         for(unsigned int counter=0;counter<depth;++counter)
         {
             const unsigned int bitmask = 1 << counter;
             const unsigned int idx0 = ix&bitmask;
             const unsigned int idx1 = iy&bitmask;
             const unsigned int idx2 = iz&bitmask;
-            
+
             idx |= ((idx0<<2*counter) | (idx1<<(2*counter+1)) | (idx2<<(2*counter+2)));
         }
-        
-        return idx; 
+
+        return idx;
     }
-    
+
     void decode(unsigned int code, unsigned int& ix, unsigned int& iy, unsigned int& iz) const
     {
         ix=iy=iz=0;
-        
+
         for(unsigned int counter=0;counter<depth;++counter)
         {
             const unsigned int bitmask_x = 1 << (counter*3+0);

@@ -106,7 +106,6 @@ protected:
 
     TBlock& operator()( int ix,  int iy = 0,  int iz = 0) const
     {
-        const int N = this->N;
         const int NX = this->NX;
         const int NY = this->NY;
         const int NZ = this->NZ;
@@ -129,7 +128,7 @@ protected:
         assert(iflat >= 0 && iflat < f2m.size());
 
         const unsigned int idx = f2m[iflat];
-        assert(idx >= 0 && idx < N);
+        assert(idx >= 0 && idx < this->N);
 
         return *(this->_linaccess(idx));
     }

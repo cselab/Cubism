@@ -232,6 +232,7 @@ namespace SubdomainTypes
             }
 
         Subdomain(const Subdomain& c) = default;
+        virtual ~Subdomain() = default;
 
         inline int id() const { return m_id; }
         inline const int (&bbox_start() const)[3] { return m_bbox_start; }

@@ -67,7 +67,7 @@ void Histogram::_print2file(string sKernel, vector<float> & buf)
     sprintf(f_name_ascii, "hist_%s", sKernel.c_str());
 
     FILE * pFile_ascii = fopen(f_name_ascii, "a");
-    for(int i=0; i<buf.size(); ++i)
+    for(size_t i=0; i<buf.size(); ++i)
         fprintf(pFile_ascii, "%e\n", buf[i]);
     fclose (pFile_ascii);
 }

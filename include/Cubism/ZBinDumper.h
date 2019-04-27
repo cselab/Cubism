@@ -17,6 +17,8 @@
 #include "BlockInfo.h"
 #include "LosslessCompression.h"
 
+#define DBG 0
+
 CUBISM_NAMESPACE_BEGIN
 
 typedef struct _header_serial {
@@ -43,7 +45,6 @@ void DumpZBin(const TGrid &grid,
     filename << dump_path << "/" << f_name;
 
     FILE *file_id;
-    int status;
 
     static const int NCHANNELS = TStreamer::NCHANNELS;
     const int NX = grid.getBlocksPerDimension(0) * B::sizeX;
@@ -119,13 +120,13 @@ void DumpZBin(const TGrid &grid,
                    compressed_bytes);
 
         tag.size[ichannel] = compressed_bytes;
-        size_t wb_data = fwrite(array_all, 1, compressed_bytes, file_id);
+        fwrite(array_all, 1, compressed_bytes, file_id);
     }
 
     fseek(file_id, 0, SEEK_SET);
-    size_t wb_header = fwrite(&tag.size[0], 1, sizeof(tag), file_id);
+    fwrite(&tag.size[0], 1, sizeof(tag), file_id);
 
-    status = fclose(file_id);
+    fclose(file_id);
 
     delete[] array_all;
 }
@@ -142,7 +143,6 @@ void ReadZBin(TGrid &grid,
     std::ostringstream filename;
     filename << read_path << "/" << f_name;
 
-    int status;
     FILE *file_id;
 
     const int NX = grid.getBlocksPerDimension(0) * B::sizeX;
@@ -168,7 +168,7 @@ void ReadZBin(TGrid &grid,
     size_t local_bytes = local_count * sizeof(Real);
 
     header_serial tag;
-    size_t rb_header = fread(&tag.size[0], 1, sizeof(tag), file_id);
+    fread(&tag.size[0], 1, sizeof(tag), file_id);
 
 #if DBG
     printf("HEADER(%d):\n", rank);
@@ -191,10 +191,12 @@ void ReadZBin(TGrid &grid,
 #endif
         unsigned char *tmp = (unsigned char *)malloc(compressed_bytes + 4096);
 
-        size_t rb_data = fread(tmp, 1, compressed_bytes, file_id);
+        fread(tmp, 1, compressed_bytes, file_id);
 
         int layout[4] = {NX, NY, NZ, 1};
+#if DBG
         size_t decompressed_bytes =
+#endif
             ZZdecompress<typename TGrid::Real>(tmp,
                                                compressed_bytes,
                                                layout,
@@ -227,7 +229,7 @@ void ReadZBin(TGrid &grid,
         }
     } /* ichannel */
 
-    status = fclose(file_id);
+    fclose(file_id);
     delete [] array_all;
 }
 

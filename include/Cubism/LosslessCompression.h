@@ -14,6 +14,8 @@
 
 #include "Common.h"
 
+#define DBG 0
+
 CUBISM_NAMESPACE_BEGIN
 
 extern "C"
@@ -48,7 +50,7 @@ inline size_t
 ZZcompress(unsigned char *buf, size_t len, int layout[4], size_t *max)
 {
 #if 1
-    int zbufsize = 0;
+    size_t zbufsize = 0;
     char *zbuf = NULL;
     zbufsize = len + 4096;
     zbuf = (char *)malloc(zbufsize);

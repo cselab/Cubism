@@ -30,7 +30,7 @@ public:
     {
         const unsigned int retval = ix + sizeX*(iy + iz*sizeY);
 
-        assert(retval < sizeTotal && retval>=0);
+        assert(retval < sizeTotal);
 
         return retval;
     }

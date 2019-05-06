@@ -120,7 +120,7 @@ void DumpSliceHDF5MPI(const TSlice& slice,
     // additional identifiers
     std::ostringstream filename;
     std::ostringstream fullpath;
-    filename << fname << "_slice" << slice.id();
+    filename << "slice_" << slice.id() << fname;
     fullpath << dpath << "/" << filename.str();
 
     static const unsigned int NCHANNELS = TStreamer::NCHANNELS;

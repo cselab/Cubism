@@ -98,8 +98,6 @@ namespace SliceTypesMPI
     };
 }
 
-enum class DumpSliceFilenameFormat { FNAME_SLICE_ID, SLICE_ID_FNAME };
-
 ///////////////////////////////////////////////////////////////////////////////
 // Dumpers
 //
@@ -110,22 +108,17 @@ enum class DumpSliceFilenameFormat { FNAME_SLICE_ID, SLICE_ID_FNAME };
 template<typename TStreamer, typename hdf5Real, typename TSlice>
 void DumpSliceHDF5MPI(
         const TSlice& slice,
-        const int stepID,
         const typename TSlice::GridType::Real t,
-        const std::string &fname,
-        const std::string &dpath = ".",
-        const bool bXMF = true,
-        const DumpSliceFilenameFormat format = DumpSliceFilenameFormat::FNAME_SLICE_ID)
+        const std::string &fileroot,  // Filename without folder or extension.
+        const std::string &dirname = ".",
+        const bool bXMF = true)
 {
 #ifdef CUBISM_USE_HDF
     typedef typename TSlice::GridType::BlockType B;
 
-    // fname is the base filepath tail without file type extension and
-    // additional identifiers
-    const std::string filename = format == DumpSliceFilenameFormat::FNAME_SLICE_ID
-            ? fname + "_slice" + std::to_string(slice.id())
-            : "slice_" + std::to_string(slice.id()) + fname;
-    std::string fullpath = dpath + "/" + filename;
+    std::string filename_h5  = fileroot + ".h5";
+    std::string fullpath_h5  = dirname + "/" + filename_h5;
+    std::string fullpath_xmf = dirname + "/" + fileroot + ".xmf";
 
     static const unsigned int NCHANNELS = TStreamer::NCHANNELS;
     const unsigned int width = slice.localWidth();
@@ -148,7 +141,7 @@ void DumpSliceHDF5MPI(
     {
         H5open();
         fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-        file_id = H5Fcreate((fullpath+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+        file_id = H5Fcreate(fullpath_h5.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
         status = H5Pclose(fapl_id);
 
         for (size_t i = 0; i < 2; ++i)
@@ -183,7 +176,7 @@ void DumpSliceHDF5MPI(
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
     status = H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL); if(status<0) H5Eprint1(stdout);
-    file_id = H5Fopen((fullpath+".h5").c_str(), H5F_ACC_RDWR, fapl_id);
+    file_id = H5Fopen(fullpath_h5.c_str(), H5F_ACC_RDWR, fapl_id);
     status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -254,7 +247,7 @@ void DumpSliceHDF5MPI(
     if (bXMF && 0 == myRank)
     {
         FILE *xmf = 0;
-        xmf = fopen((fullpath+".xmf").c_str(), "w");
+        xmf = fopen(fullpath_xmf.c_str(), "w");
         fprintf(xmf, "<?xml version=\"1.0\" ?>\n");
         fprintf(xmf, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n");
         fprintf(xmf, "<Xdmf Version=\"2.0\">\n");
@@ -267,15 +260,15 @@ void DumpSliceHDF5MPI(
         fprintf(xmf, "        %e\n", 0.0);
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "       <DataItem Name=\"mesh_vy\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[0]);
-        fprintf(xmf, "        %s:/vwidth\n",(filename+".h5").c_str());
+        fprintf(xmf, "        %s:/vwidth\n", filename_h5.c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "       <DataItem Name=\"mesh_vz\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[1]);
-        fprintf(xmf, "        %s:/vheight\n",(filename+".h5").c_str());
+        fprintf(xmf, "        %s:/vheight\n", filename_h5.c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Geometry>\n\n");
         fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", TStreamer::getAttributeName());
         fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n", (int)dims[0], (int)dims[1], (int)dims[2], (int)sizeof(hdf5Real));
-        fprintf(xmf, "        %s:/data\n",(filename+".h5").c_str());
+        fprintf(xmf, "        %s:/data\n", filename_h5.c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Attribute>\n");
         fprintf(xmf, "   </Grid>\n");

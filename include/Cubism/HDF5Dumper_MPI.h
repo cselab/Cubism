@@ -28,24 +28,19 @@ CUBISM_NAMESPACE_BEGIN
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
 template<typename TStreamer, typename hdf5Real, typename TGrid>
 void DumpHDF5_MPI(const TGrid &grid,
-                  const int iCounter,
                   const typename TGrid::Real absTime,
-                  const std::string &fname,
-                  const std::string &dpath = ".",
+                  const std::string &fileroot,  // Filename without folder or extension.
+                  const std::string &dirname = ".",
                   const bool bXMF = true)
 {
 #ifdef CUBISM_USE_HDF
     typedef typename TGrid::BlockType B;
 
+    std::string filename_h5  = fileroot + ".h5";
+    std::string fullpath_h5  = dirname + "/" + filename_h5;
+    std::string fullpath_xmf = dirname + "/" + fileroot + ".xmf";
+
     int rank;
-
-    // fname is the base filepath tail without file type extension and
-    // additional identifiers
-    std::ostringstream filename;
-    std::ostringstream fullpath;
-    filename << fname;
-    fullpath << dpath << "/" << filename.str();
-
     MPI_Comm comm = grid.getCartComm();
     MPI_Comm_rank(comm, &rank);
 
@@ -67,7 +62,7 @@ void DumpHDF5_MPI(const TGrid &grid,
     {
         H5open();
         fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-        file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+        file_id = H5Fcreate(fullpath_h5.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
         status = H5Pclose(fapl_id);
 
         for (size_t i = 0; i < 3; ++i)
@@ -102,7 +97,7 @@ void DumpHDF5_MPI(const TGrid &grid,
     H5open();
     fapl_id = H5Pcreate(H5P_FILE_ACCESS);
     status = H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL); if(status<0) H5Eprint1(stdout);
-    file_id = H5Fopen((fullpath.str()+".h5").c_str(), H5F_ACC_RDWR, fapl_id);
+    file_id = H5Fopen(fullpath_h5.c_str(), H5F_ACC_RDWR, fapl_id);
     status = H5Pclose(fapl_id); if(status<0) H5Eprint1(stdout);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -203,7 +198,7 @@ void DumpHDF5_MPI(const TGrid &grid,
     if (bXMF && rank==0)
     {
         FILE *xmf = 0;
-        xmf = fopen((fullpath.str()+".xmf").c_str(), "w");
+        xmf = fopen(fullpath_xmf.c_str(), "w");
         fprintf(xmf, "<?xml version=\"1.0\" ?>\n");
         fprintf(xmf, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n");
         fprintf(xmf, "<Xdmf Version=\"2.0\">\n");
@@ -213,18 +208,18 @@ void DumpHDF5_MPI(const TGrid &grid,
         fprintf(xmf, "     <Topology TopologyType=\"3DRectMesh\" Dimensions=\"%d %d %d\"/>\n\n", mesh_dims[2], mesh_dims[1], mesh_dims[0]);
         fprintf(xmf, "     <Geometry GeometryType=\"VxVyVz\">\n");
         fprintf(xmf, "       <DataItem Name=\"mesh_vx\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[0]);
-        fprintf(xmf, "        %s:/vx\n",(filename.str()+".h5").c_str());
+        fprintf(xmf, "        %s:/vx\n", filename_h5.c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "       <DataItem Name=\"mesh_vy\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[1]);
-        fprintf(xmf, "        %s:/vy\n",(filename.str()+".h5").c_str());
+        fprintf(xmf, "        %s:/vy\n", filename_h5.c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "       <DataItem Name=\"mesh_vz\" Dimensions=\"%d\" NumberType=\"Float\" Precision=\"8\" Format=\"HDF\">\n", mesh_dims[2]);
-        fprintf(xmf, "        %s:/vz\n",(filename.str()+".h5").c_str());
+        fprintf(xmf, "        %s:/vz\n", filename_h5.c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Geometry>\n\n");
         fprintf(xmf, "     <Attribute Name=\"data\" AttributeType=\"%s\" Center=\"Cell\">\n", TStreamer::getAttributeName());
         fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d %d\" NumberType=\"Float\" Precision=\"%d\" Format=\"HDF\">\n",(int)dims[0], (int)dims[1], (int)dims[2], (int)dims[3], (int)sizeof(hdf5Real));
-        fprintf(xmf, "        %s:/data\n",(filename.str()+".h5").c_str());
+        fprintf(xmf, "        %s:/data\n", filename_h5.c_str());
         fprintf(xmf, "       </DataItem>\n");
         fprintf(xmf, "     </Attribute>\n");
         fprintf(xmf, "   </Grid>\n");

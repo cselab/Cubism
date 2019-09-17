@@ -133,13 +133,14 @@ public:
             delete it->second;
     }
 
+/*
     ArgumentParser(const ArgumentParser& c) :
       CommandlineParser(c.getargc(), c.getargv()), commentStart(c.commentStart),
       from_commandline(c.mapArguments), from_files(c.from_files),
       from_code(c.from_code), mapRuntime(c.mapRuntime)
     {
     }
-
+*/
     void readFile(const std::string &filepath);
     Value& operator()(std::string key);
 

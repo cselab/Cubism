@@ -133,6 +133,12 @@ public:
             delete it->second;
     }
 
+    ArgumentParser(const ArgumentParser& c) = delete;
+    ArgumentParser(ArgumentParser&& c) = default;
+
+    ArgumentParser &operator=(const ArgumentParser &c) = delete;
+    ArgumentParser &operator=(ArgumentParser &&c) = default;
+
     void readFile(const std::string &filepath);
     Value& operator()(std::string key);
 

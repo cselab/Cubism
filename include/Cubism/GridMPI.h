@@ -218,7 +218,7 @@ public:
     }
 
 
-    ~GridMPI()
+    ~GridMPI() override
     {
         for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
             delete it->second;

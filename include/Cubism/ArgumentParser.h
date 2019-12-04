@@ -57,7 +57,7 @@ public:
 class CommandlineParser
 {
 private:
-    const int iArgC;
+    int iArgC;
     char** vArgV;
     bool bStrictMode, bVerbose;
 
@@ -106,7 +106,7 @@ class ArgumentParser : public CommandlineParser
     typedef std::map<std::string, Value*> pArgMap;
     typedef std::map<std::string, ArgMap* > FileMap;
 
-    const char commentStart;
+    char commentStart;
 
     // keep a reference from option origin
     ArgMap  from_commandline;

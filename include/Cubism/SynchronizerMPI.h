@@ -643,6 +643,7 @@ public:
     SynchronizerMPI(StencilInfo _stencil, std::vector<BlockInfo> _globalinfos, MPI_Comm _cartcomm, const int _mybpd[3], const int _blocksize[3]):
     cube(_mybpd[0], _mybpd[1], _mybpd[2]), stencil(_stencil), globalinfos(_globalinfos), cartcomm(_cartcomm)
     {
+        #if 0
         int myrank;
         MPI_Comm_rank(cartcomm, &myrank);
         isroot = (myrank == 0);
@@ -711,6 +712,7 @@ public:
 
         assert(recv.pending.size() == 0);
         assert(send.pending.size() == 0);
+        #endif
     }
 
     SynchronizerMPI(const SynchronizerMPI& c) = delete;
@@ -725,6 +727,13 @@ public:
 
     virtual void sync(unsigned int gptfloats, MPI_Datatype MPIREAL, const int timestamp)
     {
+        return;
+
+
+
+
+
+
         //0. wait for pending sends, couple of checks
         //1. pack all stuff
         //2. perform send/receive requests
@@ -1142,7 +1151,10 @@ public:
 
     std::vector<BlockInfo> avail_inner()
     {
+        std::vector<BlockInfo> retval =globalinfos;
+        #if 0
         std::vector<BlockInfo> retval;
+
 
         const int xorigin = mypeindex[0]*mybpd[0];
         const int yorigin = mypeindex[1]*mybpd[1];
@@ -1187,14 +1199,14 @@ public:
         assert(cube.pendingcount() != 0 || blockinfo_counter == cube.pendingcount());
         assert(blockinfo_counter != 0 || blockinfo_counter == cube.pendingcount());
         assert(blockinfo_counter != 0 || recv.pending.size() == 0);
-
+        #endif
         return retval;
     }
 
     std::vector<BlockInfo> avail_halo()
     {
         std::vector<BlockInfo> retval;
-
+        #if 0
         const int NPENDING = recv.pending.size();
 
         std::vector<MPI_Request> pending(NPENDING);
@@ -1263,7 +1275,7 @@ public:
         assert(cube.pendingcount() != 0 || blockinfo_counter == cube.pendingcount());
         assert(blockinfo_counter != 0 || blockinfo_counter == cube.pendingcount());
         assert(blockinfo_counter != 0 || recv.pending.size() == 0);
-
+        #endif
         return retval;
     }
 

@@ -43,6 +43,10 @@ void DumpZBin_MPI(const TGrid &grid,
                   const std::string &dump_path = ".",
                   const bool bDummy = false)
 {
+  std::cout << "DumpZBin_MPI skipped!\n";
+  return;
+
+
     typedef typename TGrid::BlockType B;
 
     int rank, nranks;

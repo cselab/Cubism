@@ -79,6 +79,27 @@ public:
 
 
 
+//    {
+//      
+//      int rank;
+//      MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+//      if (rank==0) refine (0,0);
+//
+//      TMeshAdaptation::m_refGrid->FillPos();
+//      TMeshAdaptation::m_refGrid->UpdateBlockInfoAll();
+//      
+//      return;
+//    }
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -150,6 +171,15 @@ public:
 
 
 
+
+
+
+
+
+
+
+
+
 #pragma omp parallel num_threads(nthreads)
     {
         int tid = omp_get_thread_num();
@@ -186,6 +216,13 @@ public:
 
    
     MPI_Barrier(MPI_COMM_WORLD);
+
+
+
+
+
+
+
 
 
 
@@ -291,7 +328,7 @@ public:
       double dudy = 0.5*( Lab_(i  ,j+1,k  ).energy-Lab_(i  ,j-1,k  ).energy);
       double dudz = 0.5*( Lab_(i  ,j  ,k+1).energy-Lab_(i  ,j  ,k-1).energy);  
       
-      #if 0
+      #if 1
         if (i==0)
           dudx = ( Lab_(i+1,j  ,k  ).energy-Lab_(i  ,j  ,k  ).energy);
         else if (i==nx-1)
@@ -470,7 +507,7 @@ protected:
         for (int j=0; j<ny; j+=2 )
         for (int i=0; i<nx; i+=2 )
         {
-         #if 0
+         #if 1
 
 
 
@@ -819,6 +856,66 @@ protected:
 
     }//m
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

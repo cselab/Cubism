@@ -94,7 +94,7 @@ class BlockLab
     virtual bool is_yperiodic() { return true; }
     virtual bool is_zperiodic() { return true; }
 
-    virtual ~BlockLab()
+    ~BlockLab()
     {
       _release(m_cacheBlock);
       _release(m_CoarsenedBlock);
@@ -449,6 +449,41 @@ class BlockLab
           CoarseFineInterpolation(info);
         }
         if (applybc) _apply_bc(info, t);
+
+
+
+
+//////////////////////////////        int r;
+//////////////////////////////        MPI_Comm_rank(MPI_COMM_WORLD,&r);
+//////////////////////////////        if (coarsened && r==0)
+//////////////////////////////        for (int k = m_CoarsenedBlock->getSize()[2]-1 ; k>=0 ; k--)
+//////////////////////////////        {           
+//////////////////////////////        	for (int j = m_CoarsenedBlock->getSize()[1]-1 ; j>=0 ; j--)
+//////////////////////////////        	{
+//////////////////////////////        		for (int i = 0 ; i < m_CoarsenedBlock->getSize()[0] ; i++)
+//////////////////////////////        		{
+//////////////////////////////        			double E1 = m_CoarsenedBlock->Access(i,j,k).ru;
+//////////////////////////////        			double E2 = m_CoarsenedBlock->Access(i,j,k).rv;
+//////////////////////////////        			double E3 = m_CoarsenedBlock->Access(i,j,k).rw;
+//////////////////////////////        			printf("(%4.2f,%4.2f,%4.2f) | ", E1,E2,E3);
+//////////////////////////////        		}
+//////////////////////////////        		std::cout <<"\n";
+//////////////////////////////        	}
+//////////////////////////////        	std::cout <<"\n\n";
+//////////////////////////////        }
+//////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+
 	}
 
 

@@ -57,7 +57,7 @@ public:
 class CommandlineParser
 {
 private:
-    int iArgC;
+    const int iArgC;
     char** vArgV;
     bool bStrictMode, bVerbose;
 
@@ -106,7 +106,7 @@ class ArgumentParser : public CommandlineParser
     typedef std::map<std::string, Value*> pArgMap;
     typedef std::map<std::string, ArgMap* > FileMap;
 
-    char commentStart;
+    const char commentStart;
 
     // keep a reference from option origin
     ArgMap  from_commandline;
@@ -132,12 +132,6 @@ public:
         for (FileMap::iterator it = from_files.begin(); it != from_files.end(); it++)
             delete it->second;
     }
-
-    ArgumentParser(const ArgumentParser& c) = delete;
-    ArgumentParser(ArgumentParser&& c) = default;
-
-    ArgumentParser &operator=(const ArgumentParser &c) = delete;
-    ArgumentParser &operator=(ArgumentParser &&c) = default;
 
     void readFile(const std::string &filepath);
     Value& operator()(std::string key);

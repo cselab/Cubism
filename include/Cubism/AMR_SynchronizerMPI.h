@@ -69,6 +69,7 @@ class SynchronizerMPI_AMR
     std::vector<std::vector<PackInfo>> send_packinfos;
 
 
+
     //grid parameters
     const int levelMax;
     int blocksPerDim [3];
@@ -89,7 +90,9 @@ class SynchronizerMPI_AMR
         return BlockInfoAll[m][n];
     }
 
- 
+
+
+   
 
     struct MyRange
     {
@@ -214,7 +217,7 @@ class SynchronizerMPI_AMR
                 
                 int kmax = (f[2] == 1) ? 2:f[2];
                 int kmin = (f[2] == 1) ? 0:f[2]; 
-            #if 1
+#if 1
                 for (int k=kmin;k<=kmax;k++)
                 for (int j=jmin;j<=jmax;j++)
                 for (int i=imin;i<=imax;i++)
@@ -234,8 +237,8 @@ class SynchronizerMPI_AMR
                         }
                       }
                     }
-                }   
-            #endif
+                }
+#endif
             }       
         }
     };
@@ -834,10 +837,19 @@ public:
 
 
 
+
+
+
+
                 
                 if (updateMap)
                 {
-    
+                    if (rank==0)
+                    {
+                        //std::cout << "rank 0 receives from rank " << r << "  k=" << k << " offset=" <<offset << "\n"; 
+                    }
+
+     
                     UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],0,  0,0,0,0,0};
                     offset += V*NC;
                 
@@ -894,7 +906,11 @@ public:
             UnPackInfo info = {search->second.offset,L[0],L[1],L[2],srcxstart, srcystart, srczstart,search->second.LX,search->second.LY,search->second.CoarseVersionOffset,search->second.CoarseVersionLX,search->second.CoarseVersionLY,CoarseVersionsrcxstart, CoarseVersionsrcystart, CoarseVersionsrczstart};
             MapOfPacks.insert(std::pair<Interface,UnPackInfo>(f[remEl[k]],info));
             count ++; 
-         
+            if (rank==0)
+            {
+               // std::cout << "rank 0 receives from rank " << r << "  k=" << remEl[k] << " offset=" <<search->second.offset << "\n"; 
+            }
+
         }
 
 
@@ -969,12 +985,14 @@ public:
             
         }
         
-        #if 0
+        #if 1
             for (int r=0;r<size;r++)
             {
                 assert( r!=rank || send_interfaces[r].size() == 0);
                 assert( r!=rank || recv_interfaces[r].size() == 0);
-               
+                
+
+
                 //if (r==rank) continue; 
                 //std::cout << " Rank " << rank << " will send/receive " << send_interfaces[r].size() << "/" << recv_interfaces[r].size() << " from/to rank " << r << "\n";
                 //std::cout << " Rank " << rank << " will send/receive " << send_buffer_size[r] << "/" << recv_buffer_size[r] << " from/to rank " << r << "\n";
@@ -993,7 +1011,11 @@ public:
 
                 const int code[3] = { f.icode[0]%3-1, (f.icode[0]/3)%3-1, (f.icode[0]/9)%3-1};              
                 const int code0[3] = { -code[0], -code[1] , -code[2]}; 
-              
+
+                
+                //if (rank !=0 && r==0)
+                //    std::cout << "rank=" <<rank << " k=" << i << " displacement="<<displacement[r]<<"\n";
+                
 
                 if (f.infos[0]->level <= f.infos[1]->level)
                 {
@@ -1143,9 +1165,70 @@ public:
                           temp.CoarseVersionLX,temp.CoarseVersionLY,
                           0,0,0,L[0],L[1],L[2],dst_sizeX,dst_sizeY,dst_sizeZ);
 
+
+                        if (rank==0)
+            {
+                const int code_s[3] = { f.icode[0]%3-1, (f.icode[0]/3)%3-1, (f.icode[0]/9)%3-1};
+                const int code_r[3] = { f.icode[1]%3-1, (f.icode[1]/3)%3-1, (f.icode[1]/9)%3-1};
+  
+
+////////////                std::cout << "Unpacking region: \n";
+////////////                std::cout << "lx,ly,lz = ("<< temp.lx << "," << temp.ly  << "," << temp.lz <<")\n";
+////////////                std::cout << "L[0],L[1],L[2] = ("<< L[0] << "," << L[1]  << "," << L[2] <<")\n";
+////////////                
+////////////                std::cout << "SrcStart= "<<temp.CoarseVersionsrcxstart << " x " << temp.CoarseVersionsrcystart  << " x " << temp.CoarseVersionsrczstart <<"\n";                
+////////////                std::cout << "Offset  = "<<temp.offset << "\n";
+////////////                std::cout << "Coarse Offset = " << temp.CoarseVersionOffset <<"\n";
+////////////                
+////////////                std::cout << "Total Offset = " << temp.offset+temp.CoarseVersionOffset <<"\n";
+////////////                
+////////////                std::cout << "Sender code = " << code_s[0] << code_s[1] << code_s[2] << "\n";
+////////////                std::cout << "Receiver code = " << code_r[0] << code_r[1] << code_r[2] << "\n";
+////////////                std::cout << "Sender  = ("<< sender.level << " , "<< sender.Z << ")   "<< sender.index[0] << " " <<sender.index[1]<< " "  << sender.index[2] <<"\n";    
+////////////
+////////////
+////////////
+////////////                std::cout << "Receiver= ("<< receiver.level << " , "<< receiver.Z << ")\n";
+////////////                std::cout << "Components=" ;for (int i=0; i<stencil.selcomponents.size(); i++) std::cout << stencil.selcomponents[i] << " " ; std::cout << "\n";
+////////////                std::cout << " \n";
+////////////
+            }
+    
         }
         else
         {
+            if (rank==0)
+            {
+            //    const int code_s[3] = { f.icode[0]%3-1, (f.icode[0]/3)%3-1, (f.icode[0]/9)%3-1};
+            //    const int code_r[3] = { f.icode[1]%3-1, (f.icode[1]/3)%3-1, (f.icode[1]/9)%3-1};
+  //
+//
+//            //    std::cout << "Unpacking region: \n";
+//            //    std::cout << "Extents = "<< temp.lx << " x " << temp.ly  << " x " << temp.lz <<"\n";
+//            //    std::cout << "SrcStart= "<<temp.srcxstart << " x " << temp.srcystart  << " x " << temp.srczstart <<"\n";                
+//            //    std::cout << "Offset  = "<<temp.offset << "\n";
+//            //    
+//            //    std::cout << "Sender code = " << code_s[0] << code_s[1] << code_s[2] << "\n";
+//            //    std::cout << "Receiver code = " << code_r[0] << code_r[1] << code_r[2] << "\n";
+//            //    std::cout << "Sender  = ("<< sender.level << " , "<< sender.Z << ")   "<< sender.index[0] << " " <<sender.index[1]<< " "  << sender.index[2] <<"\n";    
+//
+//
+//
+//            //    std::cout << "Receiver= ("<< receiver.level << " , "<< receiver.Z << ")\n";
+//            //    std::cout << "Components=" ;for (int i=0; i<stencil.selcomponents.size(); i++) std::cout << stencil.selcomponents[i] << " " ; std::cout << "\n";
+            //    std::cout << " \n";
+
+            }
+             
+            //if (receiver.level == 1 && receiver.Z == 28 && stencil.selcomponents.size() !=7 && sender.level != 1) 
+            //    return; 
+            //{
+            //    temp.srcxstart = 0;
+            //    temp.srcystart = 0;
+            //    temp.srczstart = 0;
+            //}
+
+
             unpack_subregion<Real>(&recv_buffer[sender.myrank][temp.offset],
                           &dst[0],
                           gptfloats, 

@@ -14,7 +14,8 @@
 
 #include "BlockInfo.h"
 #include "StencilInfo.h"
-#include "SynchronizerMPI.h"
+#include "AMR_SynchronizerMPI.h"
+
 
 CUBISM_NAMESPACE_BEGIN
 
@@ -27,8 +28,9 @@ private:
     size_t timestamp;
 
 protected:
-    typedef SynchronizerMPI<Real> SynchronizerMPIType;
-    friend class SynchronizerMPI<Real>;
+    typedef SynchronizerMPI_AMR<Real> SynchronizerMPIType;
+    //friend class SynchronizerMPI_AMR<Real>;
+
 
     int myrank, mypeindex[3], pesize[3];
     int periodic[3];
@@ -51,8 +53,8 @@ public:
 
     GridMPI(const int npeX, const int npeY, const int npeZ,
             const int nX, const int nY=1, const int nZ=1,
-            const double _maxextent = 1, const MPI_Comm comm = MPI_COMM_WORLD):
-      TGrid(nX, nY, nZ, _maxextent), timestamp(0), worldcomm(comm)
+            const double _maxextent = 1, const int a_levelStart = 0, const int a_levelMax =1 ,const MPI_Comm comm = MPI_COMM_WORLD):
+      TGrid(nX, nY, nZ, _maxextent, a_levelStart,a_levelMax,false), timestamp(0), worldcomm(comm)
     {
         assert(npeX > 0 && "Number of processes per X must be greater than 0.");
         assert(npeY > 0 && "Number of processes per Y must be greater than 0.");
@@ -76,87 +78,256 @@ public:
 
         int world_size;
         MPI_Comm_size(worldcomm, &world_size);
-        assert(npeX*npeY*npeZ == world_size);
+        //assert(npeX*npeY*npeZ == world_size);
+        
 
+        #if 1
+        cartcomm = worldcomm;
+        mypeindex[0] = 0;
+        mypeindex[1] = 0;
+        mypeindex[2] = 0;
+        #else
         MPI_Cart_create(worldcomm, 3, pesize, periodic, true, &cartcomm);
         MPI_Comm_rank(cartcomm, &myrank);
         MPI_Cart_coords(cartcomm, myrank, 3, mypeindex);
+        #endif
+        
 
-        const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
 
+
+        int total_blocks = nX*nY*nZ*pow(pow(2,a_levelStart),3);
+        MPI_Comm_rank(worldcomm, &myrank); 
+    
+
+        #if 0
+            std::cout << "Total blocks = " << total_blocks <<"\n";
+
+            
+            if (myrank ==0)
+            {
+                TGrid::_alloc(0,0);
+                TGrid::_alloc(0,1);
+                TGrid::_alloc(0,2);
+                TGrid::_alloc(0,3);
+            }
+            else if (myrank == 1)
+            {
+                TGrid::_alloc(0,4);
+                TGrid::_alloc(0,5);
+            }
+            else if (myrank == 2)
+            {
+                TGrid::_alloc(0,6);
+                TGrid::_alloc(0,7);
+            }
+
+
+            for (int m = 0 ; m < a_levelMax ; m++)
+            for (int n=0; n<nX*nY*nZ*pow(pow(2,m),3); n++)
+            {
+                if (m==0)
+                {
+                    if (n==0 || n==1 || n==2 || n==3)
+                        TGrid::BlockInfoAll[m][n].myrank = 0;
+                    else if (n==4 || n==5)
+                        TGrid::BlockInfoAll[m][n].myrank = 1;
+                    else if (n==6 || n==7)
+                        TGrid::BlockInfoAll[m][n].myrank = 2;
+                       
+                }
+                else
+                {
+                    TGrid::BlockInfoAll[m][n].myrank = -1;   
+                }          
+            }
+            FillPos(); 
+        #else
+
+
+
+            std::cout << "Total blocks = " << total_blocks <<"\n";
+
+
+
+
+            int my_blocks = total_blocks / world_size;
+            
+            if (myrank < total_blocks % world_size) my_blocks ++;
+            
+            int n_start = myrank* (total_blocks / world_size);
+
+            if (total_blocks % world_size > 0)
+            {
+                if (myrank < total_blocks % world_size) n_start+= myrank;
+                else                                    n_start+= total_blocks % world_size;
+   
+            }
+
+            std::cout << "rank " << myrank << " gets " << my_blocks << " \n"; 
+
+            
+            for (int n=n_start; n<n_start+my_blocks; n++)
+            {
+                TGrid::_alloc(a_levelStart,n);       
+            }
+
+
+
+
+            for (int m = 0 ; m < a_levelMax ; m++)
+            for (int n=0; n<nX*nY*nZ*pow(pow(2,m),3); n++)
+            {
+                if (m==a_levelStart)
+                {
+                    int r;
+
+                    if (total_blocks % world_size > 0)
+                    {
+                        if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size) )
+                        {
+                            int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
+                            
+                            r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
+                        }
+                        else
+                        {
+                            r = n /(total_blocks / world_size + 1);
+                        }
+                 
+
+                    }
+                    else
+                    {
+                        r = n / my_blocks;
+                    }
+                  
+
+                    TGrid::BlockInfoAll[m][n].myrank = r; 
+                }
+                else
+                {
+                    TGrid::BlockInfoAll[m][n].myrank = -1;   
+                }          
+            }
+
+
+
+            FillPos(); 
+        #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
         // Doesn't make sense to export `h_gridpoint` and `h_block` as a member
         // variable + getter, as they are not fixed values in case of
         // non-uniform grids.
-        const double h_gridpoint = _maxextent / (double)std::max(
-                getBlocksPerDimension(0) * blocksize[0],
-                std::max(getBlocksPerDimension(1) * blocksize[1],
-                         getBlocksPerDimension(2) * blocksize[2]));
-        const double h_block[3] = {
-            blocksize[0] * h_gridpoint,
-            blocksize[1] * h_gridpoint,
-            blocksize[2] * h_gridpoint,
-        };
+//        const double h_gridpoint = _maxextent / (double)std::max(
+//                getBlocksPerDimension(0) * blocksize[0],
+//                std::max(getBlocksPerDimension(1) * blocksize[1],
+//                         getBlocksPerDimension(2) * blocksize[2]));
+//        const double h_block[3] = {
+//            blocksize[0] * h_gridpoint,
+//            blocksize[1] * h_gridpoint,
+//            blocksize[2] * h_gridpoint,
+//        };
+//
+//        // setup uniform (global) meshmaps
+//        // discard single process mappings
+//        for (int i = 0; i < 3; ++i)
+//            delete this->m_mesh_maps[i];
+//        std::vector<MeshMap<Block>*> clearme;
+//        this->m_mesh_maps.swap(clearme);
+//
+//        // global number of blocks and extents
+//        const int nBlocks[3] = {
+//            mybpd[0]*pesize[0],
+//            mybpd[1]*pesize[1],
+//            mybpd[2]*pesize[2]
+//        };
+//        const double extents[3] = {
+//            h_block[0]*nBlocks[0],
+//            h_block[1]*nBlocks[1],
+//            h_block[2]*nBlocks[2]
+//        };
+//        for (int i = 0; i < 3; ++i)
+//        {
+//            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
+//            UniformDensity uniform;
+//            m->init(&uniform); // uniform only for this constructor
+//            this->m_mesh_maps.push_back(m);
+//        }
+////
+////        // This subdomain box is used by the coupling framework. Please don't
+////        // rearrange the formula for subdomain_high, as it has to exactly match
+////        // subdomain_low of the neighbouring nodes. This way the roundings are
+////        // guaranteed to be done in the same way. Well, at least without
+////        // -ffast-math. (October 2017, kicici)
+//        subdomain_low[0] = mypeindex[0] * mybpd[0] * h_block[0];
+//        subdomain_low[1] = mypeindex[1] * mybpd[1] * h_block[1];
+//        subdomain_low[2] = mypeindex[2] * mybpd[2] * h_block[2];
+//        subdomain_high[0] = (mypeindex[0] + 1) * mybpd[0] * h_block[0];
+//        subdomain_high[1] = (mypeindex[1] + 1) * mybpd[1] * h_block[1];
+//        subdomain_high[2] = (mypeindex[2] + 1) * mybpd[2] * h_block[2];
+//
 
-        // setup uniform (global) meshmaps
-        // discard single process mappings
-        for (int i = 0; i < 3; ++i)
-            delete this->m_mesh_maps[i];
-        std::vector<MeshMap<Block>*> clearme;
-        this->m_mesh_maps.swap(clearme);
+        std::cout << "mike: GridMPI::skipping cached_blockinfo initialization...\n";
 
-        // global number of blocks and extents
-        const int nBlocks[3] = {
-            mybpd[0]*pesize[0],
-            mybpd[1]*pesize[1],
-            mybpd[2]*pesize[2]
-        };
-        const double extents[3] = {
-            h_block[0]*nBlocks[0],
-            h_block[1]*nBlocks[1],
-            h_block[2]*nBlocks[2]
-        };
-        for (int i = 0; i < 3; ++i)
-        {
-            MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
-            UniformDensity uniform;
-            m->init(&uniform); // uniform only for this constructor
-            this->m_mesh_maps.push_back(m);
-        }
+//        for(size_t i=0; i<vInfo.size(); ++i)
+//        {
+//            BlockInfo info = vInfo[i];
 
-        // This subdomain box is used by the coupling framework. Please don't
-        // rearrange the formula for subdomain_high, as it has to exactly match
-        // subdomain_low of the neighbouring nodes. This way the roundings are
-        // guaranteed to be done in the same way. Well, at least without
-        // -ffast-math. (October 2017, kicici)
-        subdomain_low[0] = mypeindex[0] * mybpd[0] * h_block[0];
-        subdomain_low[1] = mypeindex[1] * mybpd[1] * h_block[1];
-        subdomain_low[2] = mypeindex[2] * mybpd[2] * h_block[2];
-        subdomain_high[0] = (mypeindex[0] + 1) * mybpd[0] * h_block[0];
-        subdomain_high[1] = (mypeindex[1] + 1) * mybpd[1] * h_block[1];
-        subdomain_high[2] = (mypeindex[2] + 1) * mybpd[2] * h_block[2];
 
-        for(size_t i=0; i<vInfo.size(); ++i)
-        {
-            BlockInfo info = vInfo[i];
+//            info.h_gridpoint = h_gridpoint;
+//            info.h = h_block[0];// only for blocksize[0]=blocksize[1]=blocksize[2]
+//
+//            for(int j=0; j<3; ++j)
+//            {
+//                info.index[j] += mypeindex[j]*mybpd[j];
+//
+//                info.origin[j] = this->m_mesh_maps[j]->block_origin(info.index[j]);
+//
+//                info.uniform_grid_spacing[j] = h_gridpoint;
+//
+//                info.block_extent[j] = this->m_mesh_maps[j]->block_width(info.index[j]);
+//
+//                info.ptr_grid_spacing[j] = this->m_mesh_maps[j]->get_grid_spacing(info.index[j]);
+//            }
 
-            info.h_gridpoint = h_gridpoint;
-            info.h = h_block[0];// only for blocksize[0]=blocksize[1]=blocksize[2]
+//            cached_blockinfo.push_back(info);
+//        }
+//
 
-            for(int j=0; j<3; ++j)
-            {
-                info.index[j] += mypeindex[j]*mybpd[j];
-
-                info.origin[j] = this->m_mesh_maps[j]->block_origin(info.index[j]);
-
-                info.uniform_grid_spacing[j] = h_gridpoint;
-
-                info.block_extent[j] = this->m_mesh_maps[j]->block_width(info.index[j]);
-
-                info.ptr_grid_spacing[j] = this->m_mesh_maps[j]->get_grid_spacing(info.index[j]);
-            }
-
-            cached_blockinfo.push_back(info);
-        }
+        MPI_Barrier(MPI_COMM_WORLD);
+        std::cout<<"GridMPI constructor called (ok)\n";
     }
 
 
@@ -167,6 +338,7 @@ public:
             const int nX=0, const int nY=0, const int nZ=0,
             const MPI_Comm comm = MPI_COMM_WORLD): TGrid(mapX,mapY,mapZ,nX,nY,nZ), timestamp(0), worldcomm(comm)
     {
+        assert(false && "GridMPI MeshMap constructor");
         assert(this->m_mesh_maps[0]->nblocks() == static_cast<size_t>(npeX*nX));
         assert(this->m_mesh_maps[1]->nblocks() == static_cast<size_t>(npeY*nY));
         assert(this->m_mesh_maps[2]->nblocks() == static_cast<size_t>(npeZ*nZ));
@@ -218,23 +390,24 @@ public:
     }
 
 
-    ~GridMPI() override
-    {
+    ~GridMPI()
+    { 
         for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
             delete it->second;
 
         SynchronizerMPIs.clear();
-        MPI_Comm_free(&cartcomm);
+        //MPI_Comm_free(&cartcomm);
     }
 
     std::vector<BlockInfo>& getBlocksInfo() override
     {
+        cached_blockinfo = TGrid::getBlocksInfo();
         return cached_blockinfo;
-    }
+  }
 
     const std::vector<BlockInfo>& getBlocksInfo() const override
     {
-        return cached_blockinfo;
+        return TGrid::getBlocksInfo();//cached_blockinfo;
     }
 
     std::vector<BlockInfo>& getResidentBlocksInfo()
@@ -247,75 +420,329 @@ public:
         return TGrid::getBlocksInfo();
     }
 
-    virtual bool avail(int ix, int iy=0, int iz=0) const override
+    virtual bool avail(int ix, int iy, int iz, int m) const override
     {
-        //return true;
-        const int originX = mypeindex[0]*mybpd[0];
-        const int originY = mypeindex[1]*mybpd[1];
-        const int originZ = mypeindex[2]*mybpd[2];
-
-        const int nX = pesize[0]*mybpd[0];
-        const int nY = pesize[1]*mybpd[1];
-        const int nZ = pesize[2]*mybpd[2];
-
-        ix = (ix + nX) % nX;
-        iy = (iy + nY) % nY;
-        iz = (iz + nZ) % nZ;
-
-        const bool xinside = (ix>= originX && ix<nX);
-        const bool yinside = (iy>= originY && iy<nY);
-        const bool zinside = (iz>= originZ && iz<nZ);
-
-        assert(TGrid::avail(ix-originX, iy-originY, iz-originZ));
-        return xinside && yinside && zinside;
+        int n = TGrid::getZforward(m,ix,iy,iz);
+        if (TGrid::BlockInfoAll[m][n].myrank == myrank) return true;
+        else                                            return false;
+        
+        //        const int originX = mypeindex[0]*mybpd[0];
+        //        const int originY = mypeindex[1]*mybpd[1];
+        //        const int originZ = mypeindex[2]*mybpd[2];
+        //
+        //        const int nX = pesize[0]*mybpd[0];
+        //        const int nY = pesize[1]*mybpd[1];
+        //        const int nZ = pesize[2]*mybpd[2];
+        //
+        //        ix = (ix + nX) % nX;
+        //        iy = (iy + nY) % nY;
+        //        iz = (iz + nZ) % nZ;
+        //
+        //        const bool xinside = (ix>= originX && ix<nX);
+        //        const bool yinside = (iy>= originY && iy<nY);
+        //        const bool zinside = (iz>= originZ && iz<nZ);
+        //
+        //        assert(TGrid::avail(ix-originX, iy-originY, iz-originZ));
+        //       
+        //        return xinside && yinside && zinside;
     }
 
-    Block& operator()(int ix, int iy=0, int iz=0) const override
+//    Block& operator()(int ix, int iy=0, int iz=0) const override
+//    {
+//        assert(false);
+//        //assuming ix,iy,iz to be global
+//        const int originX = mypeindex[0]*mybpd[0];
+//        const int originY = mypeindex[1]*mybpd[1];
+//        const int originZ = mypeindex[2]*mybpd[2];
+//
+//        const int nX = pesize[0]*mybpd[0];
+//        const int nY = pesize[1]*mybpd[1];
+//        const int nZ = pesize[2]*mybpd[2];
+//
+//        ix = (ix + nX) % nX;
+//        iy = (iy + nY) % nY;
+//        iz = (iz + nZ) % nZ;
+//
+//        assert(ix>= originX && ix<nX);
+//        assert(iy>= originY && iy<nY);
+//        assert(iz>= originZ && iz<nZ);
+//
+//        return TGrid::operator()(ix-originX, iy-originY, iz-originZ, 0);
+//    }
+
+
+
+    virtual void UpdateBlockInfoAll() override
     {
-        //assuming ix,iy,iz to be global
-        const int originX = mypeindex[0]*mybpd[0];
-        const int originY = mypeindex[1]*mybpd[1];
-        const int originZ = mypeindex[2]*mybpd[2];
 
-        const int nX = pesize[0]*mybpd[0];
-        const int nY = pesize[1]*mybpd[1];
-        const int nZ = pesize[2]*mybpd[2];
 
-        ix = (ix + nX) % nX;
-        iy = (iy + nY) % nY;
-        iz = (iz + nZ) % nZ;
+        #if 1 //stupid global update of everyting
+        
+        int rank,size;
+        MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+        MPI_Comm_size(MPI_COMM_WORLD,&size); 
 
-        assert(ix>= originX && ix<nX);
-        assert(iy>= originY && iy<nY);
-        assert(iz>= originZ && iz<nZ);
 
-        return TGrid::operator()(ix-originX, iy-originY, iz-originZ);
-    }
+        int myLength = 2*TGrid::m_vInfo.size();
+        std::vector <int> myData(myLength);
+        for (int i=0; i<myLength; i+=2)
+        {
+            myData[i  ] = TGrid::m_vInfo[i/2].level;
+            myData[i+1] = TGrid::m_vInfo[i/2].Z    ;
+        }
+
+        //2.Gather lengths of all processes and use them to allocate memory on each process
+        std::vector <int> AllLengths(size,0);
+        AllLengths[rank] = myLength;
+        MPI_Allgather(&myLength, 1, MPI_INT, &AllLengths[0], 1, MPI_INT,MPI_COMM_WORLD);
+
+        //int tmp = 0;
+        //for (int i=0;i<size;i++)
+        //    tmp += AllLengths[i];
+        //std::vector < int > AllData(tmp,-1);
+        std::vector< std::vector<int> > AllData(size);
+        for (int i=0;i<size;i++)
+            AllData[i].resize(AllLengths[i]);
+        
+
+        std::vector<int> displacement(size);
+        displacement[0] = 0;
+        for (int i=1;i<size;i++)
+        {
+            displacement[i] = &AllData[i][0]-&AllData[0][0];    //displacement[i-1] + AllLengths[i-1];
+        }
+    
+
+        MPI_Allgatherv(&myData[0], myLength, MPI_INT,
+                       &AllData[0][0], &AllLengths[0],
+                       &displacement[0], MPI_INT, MPI_COMM_WORLD);
+
+ 
+        for (int r=0 ; r<size; r++)
+        for (int index = 0; index < (int)AllData[r].size(); index += 2)
+        {
+            int level = AllData[r][index  ];
+            int Z     = AllData[r][index+1];
+     
+            TGrid::BlockInfoAll[level][Z].myrank  = r;
+            TGrid::BlockInfoAll[level][Z].TreePos = Exists;
+
+            int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
+                        TGrid::BlockInfoAll[level][Z].index[1],
+                        TGrid::BlockInfoAll[level][Z].index[2]};
+           
+            if (level<TGrid::levelMax -1)
+                for (int k=0; k<2; k++ )
+                for (int j=0; j<2; j++ )
+                for (int i=0; i<2; i++ )
+                {      
+                    int nc = TGrid::getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
+                    TGrid::BlockInfoAll[level+1][nc].TreePos = CheckCoarser;
+                    TGrid::BlockInfoAll[level+1][nc].myrank  = -1;
+                }
+            if (level>0)
+            {
+                int nf = TGrid::getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
+                TGrid::BlockInfoAll[level-1][nf].TreePos = CheckFiner;
+                TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
+            }
+        }
+
+        #else //update blocks on the boundary of process
+        
+           #if 1 //update all blocks in process boundary
+           #else //update only the blocks that changed
+           #endif
+
+        #endif
+
+    };
+
+
+
+
+
+
+
+
+
+
+    virtual void UpdateBlockInfoAll_States() 
+    {
+
+
+        #if 1 //stupid global update of everyting
+        
+        int rank,size;
+        MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+        MPI_Comm_size(MPI_COMM_WORLD,&size); 
+
+
+        int myLength = 3*TGrid::m_vInfo.size();
+        std::vector <int> myData(myLength);
+        for (int i=0; i<myLength; i+=3)
+        {
+            myData[i  ] = TGrid::m_vInfo[i/3].level;
+            myData[i+1] = TGrid::m_vInfo[i/3].Z    ;
+
+
+            if (TGrid::m_vInfo[i/3].state == Leave)
+                myData[i+2] = 0;
+            else if (TGrid::m_vInfo[i/3].state == Compress)
+                myData[i+2] = 1;
+            else if (TGrid::m_vInfo[i/3].state == Refine)
+                myData[i+2] = 2;
+        }
+
+        //2.Gather lengths of all processes and use them to allocate memory on each process
+        std::vector <int> AllLengths(size,0);
+        AllLengths[rank] = myLength;
+        MPI_Allgather(&myLength, 1, MPI_INT, &AllLengths[0], 1, MPI_INT,MPI_COMM_WORLD);
+
+
+        std::vector< std::vector<int> > AllData(size);
+        for (int i=0;i<size;i++)
+            AllData[i].resize(AllLengths[i]);
+        
+
+        std::vector<int> displacement(size);
+        displacement[0] = 0;
+        for (int i=1;i<size;i++)
+        {
+            displacement[i] = &AllData[i][0]-&AllData[0][0];    
+        }
+    
+
+        MPI_Allgatherv(&myData[0], myLength, MPI_INT,
+                       &AllData[0][0], &AllLengths[0],
+                       &displacement[0], MPI_INT, MPI_COMM_WORLD);
+
+ 
+        for (int r=0 ; r<size; r++)
+        for (int index = 0; index < (int)AllData[r].size(); index += 3)
+        {
+            int level = AllData[r][index  ];
+            int Z     = AllData[r][index+1];
+            
+            //State s   = (State)AllData[r][index+2];
+     
+            TGrid::BlockInfoAll[level][Z].myrank  = r;
+            TGrid::BlockInfoAll[level][Z].TreePos = Exists;
+            
+
+            if (AllData[r][index+2] == 0)
+            TGrid::BlockInfoAll[level][Z].state   = Leave;
+
+            else if (AllData[r][index+2] == 1)
+            TGrid::BlockInfoAll[level][Z].state   = Compress;
+
+            else if (AllData[r][index+2] == 2)
+            TGrid::BlockInfoAll[level][Z].state   = Refine;
+
+
+
+
+
+            int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
+                        TGrid::BlockInfoAll[level][Z].index[1],
+                        TGrid::BlockInfoAll[level][Z].index[2]};
+           
+            if (level<TGrid::levelMax -1)
+                for (int k=0; k<2; k++ )
+                for (int j=0; j<2; j++ )
+                for (int i=0; i<2; i++ )
+                {      
+                    int nc = TGrid::getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
+                    TGrid::BlockInfoAll[level+1][nc].TreePos = CheckCoarser;
+                    TGrid::BlockInfoAll[level+1][nc].myrank  = -1;
+                }
+            if (level>0)
+            {
+                int nf = TGrid::getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
+                TGrid::BlockInfoAll[level-1][nf].TreePos = CheckFiner;
+                TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
+            }
+        }
+
+        #else //update blocks on the boundary of process
+        
+           #if 1 //update all blocks in process boundary
+           #else //update only the blocks that changed
+           #endif
+
+        #endif
+
+    };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     template<typename Processing>
-    SynchronizerMPIType& sync(Processing& p)
+    SynchronizerMPIType * sync(Processing& p, bool per [3])
     {
+
+        //temporarily hardcoded Cstencil
+        StencilInfo Cstencil = p.stencil;
+        Cstencil.sx = -1; Cstencil.sy = -1; Cstencil.sz = -1;
+        Cstencil.ex =  2; Cstencil.ey =  2; Cstencil.ez =  2;
+        Cstencil.tensorial = true;
+
+        //also per is temporarily passed (fix later so that GridMPI does not need BlockLab to tell it if it is periodic or not!)
+
+
+        auto blockperDim = TGrid::getMaxBlocks();     
         const StencilInfo stencil = p.stencil;
         assert(stencil.isvalid());
-
         SynchronizerMPIType * queryresult = NULL;
+        
+        //typename std::map<StencilInfo, SynchronizerMPIType*>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
 
-        typename std::map<StencilInfo, SynchronizerMPIType*>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
 
-        if (itSynchronizerMPI == SynchronizerMPIs.end())
-        {
-            queryresult = new SynchronizerMPIType(stencil, getBlocksInfo(), cartcomm, mybpd, blocksize);
+       // if (itSynchronizerMPI == SynchronizerMPIs.end())
+       // {
+            queryresult = new SynchronizerMPIType(p.stencil, Cstencil, worldcomm, per, TGrid::getlevelMax(),
+                                                Block::sizeX,
+                                                Block::sizeY,
+                                                Block::sizeZ,
+                                                  blockperDim[0],
+                                                  blockperDim[1],
+                                                  blockperDim[2],
+                                                  TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
 
-            SynchronizerMPIs[stencil] = queryresult;
-        }
-        else  queryresult = itSynchronizerMPI->second;
+        //    SynchronizerMPIs[stencil] = queryresult;
+        //}
+        //else  queryresult = itSynchronizerMPI->second;
 
-        queryresult->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
-
+        queryresult->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp) ;//, TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
         timestamp = (timestamp + 1) % 32768;
-
-        return *queryresult;
+        return queryresult;
     }
+
+
+
 
     template<typename Processing>
     const SynchronizerMPIType& get_SynchronizerMPI(Processing& p) const
@@ -327,20 +754,52 @@ public:
 
     int getResidentBlocksPerDimension(int idim) const
     {
+        //assert(false);
         assert(idim>=0 && idim<3);
-        return mybpd[idim];
+        return 1;//mybpd[idim];
     }
+
+
+    int rank() const override {return myrank;}
+
+
+    virtual void FillPos() override
+    {     
+        TGrid::m_blocks.clear();
+        TGrid::m_vInfo.clear();
+        for (int m=0; m<TGrid::levelMax; m++)
+        {
+            for (int n=0; n<TGrid::NX*TGrid::NY*TGrid::NZ*pow(pow(2,m),3); n++)
+            {
+
+                if (TGrid::BlockInfoAll[m][n].TreePos == Exists && TGrid::BlockInfoAll[m][n].myrank == myrank) 
+                {
+                    TGrid::m_vInfo.push_back(TGrid::BlockInfoAll[m][n]);
+                    TGrid::m_blocks.push_back((Block*)TGrid::BlockInfoAll[m][n].ptrBlock);
+                }
+            }
+
+        }   
+    }
+
+
+
+
+
+
 
     int getBlocksPerDimension(int idim) const override
     {
+        //assert(false);
         assert(idim>=0 && idim<3);
-        return mybpd[idim]*pesize[idim];
+        return 1;//mybpd[idim]*pesize[idim];
     }
 
     void peindex(int _mypeindex[3]) const
     {
+        //assert(false);
         for(int i=0; i<3; ++i)
-            _mypeindex[i] = mypeindex[i];
+            _mypeindex[i] = 0;// mypeindex[i];
     }
 
     size_t getTimeStamp() const

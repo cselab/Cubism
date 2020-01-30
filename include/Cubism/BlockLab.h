@@ -443,6 +443,9 @@ class BlockLab
                                         m_cacheBlock->Read(ix  ,iy+1,iz+1),
                                         m_cacheBlock->Read(ix+1,iy+1,iz+1)); 
 
+          
+            assert (!isnan(coarseElement.ru));
+
           }
 
           if (applybc) _apply_bc(info, t, true); //apply BC to coarse block
@@ -452,40 +455,111 @@ class BlockLab
 
 
 
-
-//////////////////////////////        int r;
-//////////////////////////////        MPI_Comm_rank(MPI_COMM_WORLD,&r);
-//////////////////////////////        if (coarsened && r==0)
-//////////////////////////////        for (int k = m_CoarsenedBlock->getSize()[2]-1 ; k>=0 ; k--)
-//////////////////////////////        {           
-//////////////////////////////        	for (int j = m_CoarsenedBlock->getSize()[1]-1 ; j>=0 ; j--)
-//////////////////////////////        	{
-//////////////////////////////        		for (int i = 0 ; i < m_CoarsenedBlock->getSize()[0] ; i++)
-//////////////////////////////        		{
-//////////////////////////////        			double E1 = m_CoarsenedBlock->Access(i,j,k).ru;
-//////////////////////////////        			double E2 = m_CoarsenedBlock->Access(i,j,k).rv;
-//////////////////////////////        			double E3 = m_CoarsenedBlock->Access(i,j,k).rw;
-//////////////////////////////        			printf("(%4.2f,%4.2f,%4.2f) | ", E1,E2,E3);
-//////////////////////////////        		}
-//////////////////////////////        		std::cout <<"\n";
-//////////////////////////////        	}
-//////////////////////////////        	std::cout <<"\n\n";
-//////////////////////////////        }
-//////////////////////////////
-
-
-
-
-
-
-
-
-
-
-
-
 	}
 
+  
+  virtual void Print()
+  {
+    std::cout << "===================================================================================\n";
+    for (int k = m_cacheBlock->getSize()[2]-1 ; k>=0 ; k--)
+    {           
+      for (int j = m_cacheBlock->getSize()[1]-1 ; j>=0 ; j--)
+      {
+        for (int i = 0 ; i < m_cacheBlock->getSize()[0] ; i++)
+        {
+          double E1 = m_cacheBlock->Access(i,j,k).ru;
+          printf("%4.2f ", E1);
+        }
+        std::cout <<"\n";
+      }
+      std::cout <<"\n\n";
+    }
+    std::cout << "===================================================================================\n";
+  }
+
+
+  virtual void PrintCoarse()
+  {
+    std::cout << "===================================================================================\n";
+    for (int k = m_CoarsenedBlock->getSize()[2]-1 ; k>=0 ; k--)
+    {           
+      for (int j = m_CoarsenedBlock->getSize()[1]-1 ; j>=0 ; j--)
+      {
+        for (int i = 0 ; i < m_CoarsenedBlock->getSize()[0] ; i++)
+        {
+          double E1 = m_CoarsenedBlock->Access(i,j,k).ru;
+          printf("%4.2f ", E1);
+        }
+        std::cout <<"\n";
+      }
+      std::cout <<"\n\n";
+    }
+    std::cout << "===================================================================================\n";
+  }
+
+
+
+  virtual void PrintNei(BlockInfo info)
+  {
+
+    int r;
+    MPI_Comm_rank(MPI_COMM_WORLD,&r);
+    assert(info.myrank == r);
+
+    std::array <int,3> blocksPerDim = m_refGrid->getMaxBlocks();
+    int aux = pow(2,info.level);
+    NX = blocksPerDim[0]*aux;
+    NY = blocksPerDim[1]*aux;
+    NZ = blocksPerDim[2]*aux;    
+    
+    const bool xperiodic = is_xperiodic();
+    const bool yperiodic = is_yperiodic();
+    const bool zperiodic = is_zperiodic();
+
+    const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
+    const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
+    const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
+
+    const int xskip  = info.index[0]==0 ? -1 : 1;
+    const int yskip  = info.index[1]==0 ? -1 : 1;
+    const int zskip  = info.index[2]==0 ? -1 : 1;
+
+    std::string s[27] ;
+    
+    std::cout << "Block (" << info.level << "," << info.Z << ") with index = (" << info.index[0] << "," << info.index[1] << "," << info.index[2] << ") neighbors:\n"; 
+    for(int icode=0; icode<27; icode++)
+    {
+      const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
+      
+      if (icode == 1*1 + 3*1 + 9*1) s[icode] = "m";
+           
+      else if ((!xperiodic && code[0] == xskip && xskin) || 
+              (!yperiodic && code[1] == yskip && yskin) || 
+              (!zperiodic && code[2] == zskip && zskin)    ) s[icode] = "-";                
+      else
+      {
+        BlockInfo infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));
+        if      (infoNei.TreePos == CheckCoarser) s[icode] = "C";
+        else if (infoNei.TreePos == CheckFiner  ) s[icode] = "F";
+        else                                      s[icode] = "E";
+      }
+    }
+
+
+    for (int k = 2 ; k>=0 ; k--)
+    {           
+      for (int j = 2 ; j>=0 ; j--)
+      {
+        for (int i = 0 ; i < 3 ; i++)
+        {
+          int icode = i + j*3 + k*9;
+          std::cout << s[icode] << " ";
+        }
+        std::cout <<"\n";
+      }
+      std::cout <<"\n\n";
+    }
+  }
 
 
 
@@ -659,7 +733,7 @@ class BlockLab
         for(int iz=s[2]; iz<e[2]; iz+= zStep)
         {                               
           const int my_izx = ( abs(code[2])*(iz-m_stencilStart[2]) + (1-abs(code[2]) )*(iz/2-m_stencilStart[2] + (B/2)*(e[2]-s[2])/2)  )*m_nElemsPerSlice + my_ix;
-          #if 1
+          #if 0
             for(int iy=s[1]; iy<e[1]; iy+=yStep)
             {
               #if 1   
@@ -1023,7 +1097,7 @@ class BlockLab
       for(int iz=s[2]; iz<e[2]; iz++)
       {
         const int my_izx = (iz-sC[2])*m_nElemsPerSlice + my_ix;
-        #if 1
+        #if 0
           for(int iy=s[1]; iy<e[1]; iy++)
           {  
             if (code[1]==0 && code[2]==0 && iy >-m_InterpStencilStart[1] && iy <nY/2 -  m_InterpStencilEnd[1] && iz >-m_InterpStencilStart[2] && iz <nZ/2 -  m_InterpStencilEnd[2] ) continue;
@@ -1387,7 +1461,6 @@ class BlockLab
        #endif
          R = C[1][1][1] + (2*x-1)*0.25*dudx + (2*y-1)*0.25*dudy + (2*z-1)*0.25*dudz;
          
-
          //R.dummy = 1;
          //assert (!isnan(R.alpha1rho1));
          //assert (!isnan(R.alpha2rho2));
@@ -1397,6 +1470,7 @@ class BlockLab
          //assert (!isnan(R.energy));
          //assert (!isnan(R.alpha2));
          //assert (!isnan(R.dummy));
+
          //assert (abs   (R.alpha1rho1) < 1e40);
          //assert (abs   (R.alpha2rho2) < 1e40);
          //assert (abs   (R.ru)         < 1e40);

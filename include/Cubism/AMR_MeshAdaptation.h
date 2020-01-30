@@ -271,7 +271,6 @@ public:
     }
 
 
-
 protected:
   
     void refine_1(int level, int Z) 
@@ -573,331 +572,204 @@ protected:
 
 
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Virtual functions that can be overwritten by user
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    virtual void RefineBlocks(BlockType * B[8], BlockInfo parent) 
+    {
+        int tid = omp_get_thread_num();
 
+        const int nx = BlockType::sizeX;
+        const int ny = BlockType::sizeY;
+        const int nz = BlockType::sizeZ;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        int offsetX [2] = {0,nx/2};
+        int offsetY [2] = {0,ny/2};
+        int offsetZ [2] = {0,nz/2};
     
+        TLab & Lab = labs[tid];
 
-  virtual void WENOWavelets3(double cm, double c , double cp, double & left, double & right)
-  {
-  	double b1 = (c-cm)*(c-cm);
-  	double b2 = (c-cp)*(c-cp);
-  	double w1 = (1e-6 + b2)*(1e-6 + b2); //yes, 2 goes to 1 and 1 goes to 2
-  	double w2 = (1e-6 + b1)*(1e-6 + b1);
-  	double aux = 1.0 / (w1+w2);
-  	w1 *= aux; w2 *= aux;
-  	double g1,g2;
-  	g1 = 0.75*c + 0.25*cm;
-  	g2 = 1.25*c - 0.25*cp;
-  	left = g1*w1+g2*w2;
-    g1 = 1.25*c - 0.25*cm;
-  	g2 = 0.75*c + 0.25*cp;
-    right = g1*w1+g2*w2;
-  }
-
-
-  virtual void Kernel_1D(ElementType E0,ElementType E1,ElementType E2, ElementType & left, ElementType & right)
-  {
-  	left .dummy = E1.dummy - 0.125*(E2.dummy-E0.dummy);
-  	right.dummy = E1.dummy + 0.125*(E2.dummy-E0.dummy);
-  	WENOWavelets3(E0.alpha1rho1,E1.alpha1rho1,E2.alpha1rho1,left.alpha1rho1,right.alpha1rho1);
-  	WENOWavelets3(E0.alpha2rho2,E1.alpha2rho2,E2.alpha2rho2,left.alpha2rho2,right.alpha2rho2);
-  	WENOWavelets3(E0.ru        ,E1.ru        ,E2.ru        ,left.ru        ,right.ru        );
-  	WENOWavelets3(E0.rv        ,E1.rv        ,E2.rv        ,left.rv        ,right.rv        );
-  	WENOWavelets3(E0.rw        ,E1.rw        ,E2.rw        ,left.rw        ,right.rw        );
-  	WENOWavelets3(E0.alpha2    ,E1.alpha2    ,E2.alpha2    ,left.alpha2    ,right.alpha2    );
-  	WENOWavelets3(E0.energy    ,E1.energy    ,E2.energy    ,left.energy    ,right.energy    );
-  }
-        				 
-
-
-
- virtual void RefineBlocks2(BlockType * B[8], BlockInfo parent) //override
-  {
-    int tid = omp_get_thread_num();
-      
-    const int nx = BlockType::sizeX;
-    const int ny = BlockType::sizeY;
-    const int nz = BlockType::sizeZ;
-      
-    int offsetX [2] = {0,nx/2};
-    int offsetY [2] = {0,ny/2};
-    int offsetZ [2] = {0,nz/2};
-
-
-    TLab & Lab = labs[tid];
-
-
-
-
-
-    bool display = false;
-
-
-      for (int K=0; K<2; K++ )
-      for (int J=0; J<2; J++ )
-      for (int I=0; I<2; I++ )
-      {
-        BlockType & b = *B[K*4+J*2+I];
-
-        b.clear();
-
-        for (int k=0; k<nz; k+=2 )
-        for (int j=0; j<ny; j+=2 )
-        for (int i=0; i<nx; i+=2 )
+        for (int K=0; K<2; K++ )
+        for (int J=0; J<2; J++ )
+        for (int I=0; I<2; I++ )
         {
-        #if 0
+            BlockType & b = *B[K*4+J*2+I];
+            b.clear();
 
-            ElementType dudx = 0.5*( Lab(i/2+offsetX[I]+1,j/2+offsetY[J]  ,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ,k/2+offsetZ[K]  ));
-            ElementType dudy = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1,k/2+offsetZ[K]  ));
-            ElementType dudz = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]  ,k/2+offsetZ[K]+1)-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]  ,k/2+offsetZ[K]-1));
-
-            b(i  ,j  ,k  ) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
-            b(i+1,j  ,k  ) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
-            b(i  ,j+1,k  ) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
-            b(i+1,j+1,k  ) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
-            b(i  ,j  ,k+1) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
-            b(i+1,j  ,k+1) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
-            b(i  ,j+1,k+1) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
-            b(i+1,j+1,k+1) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
-        #else
-
-            const int Nweno = 3;
-            ElementType El[Nweno][Nweno][Nweno];
-            for (int i0= -Nweno/2 ; i0<= Nweno/2; i0++)
-            for (int i1= -Nweno/2 ; i1<= Nweno/2; i1++)
-            for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
+            for (int k=0; k<nz; k+=2 )
+            for (int j=0; j<ny; j+=2 )
+            for (int i=0; i<nx; i+=2 )
             {
-                El[i0+Nweno/2][i1+Nweno/2][i2+Nweno/2] = Lab(i/2+offsetX[I] + i0,j/2+offsetY[J]+ i1 ,k/2+offsetZ[K]+ i2);      
-            	           
+   
+            #if 0 //simple linear 
+    
+                ElementType dudx = 0.5*( Lab(i/2+offsetX[I]+1,j/2+offsetY[J]  ,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ,k/2+offsetZ[K]  ));
+                ElementType dudy = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1,k/2+offsetZ[K]  ));
+                ElementType dudz = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]  ,k/2+offsetZ[K]+1)-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]  ,k/2+offsetZ[K]-1));
+    
+                b(i  ,j  ,k  ) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
+                b(i+1,j  ,k  ) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
+                b(i  ,j+1,k  ) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
+                b(i+1,j+1,k  ) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
+                b(i  ,j  ,k+1) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
+                b(i+1,j  ,k+1) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
+                b(i  ,j+1,k+1) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
+                b(i+1,j+1,k+1) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
+          
+            #else //WENO3
 
-            	if (isnan(Lab(i/2+offsetX[I] + i0,j/2+offsetY[J]+ i1 ,k/2+offsetZ[K]+ i2).alpha1rho1))
-            	{
-            		std::cout << "NAN encountered for indices: ";
-            		std::cout << "(i0,i1,i2) = ("<< i0<<","<<i1<<","<<i2<<")\n";
-					display = true;
-            	}
-            }
-
-
-            ElementType Lines [Nweno][Nweno][2];
-            ElementType Planes[Nweno][4];
-            ElementType Ref          [8]; 
-
-
-            for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
-            {
+                const int Nweno = 3;
+                ElementType El[Nweno][Nweno][Nweno];
+                for (int i0= -Nweno/2 ; i0<= Nweno/2; i0++)
                 for (int i1= -Nweno/2 ; i1<= Nweno/2; i1++)
-                {
+                for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
+                    El[i0+Nweno/2][i1+Nweno/2][i2+Nweno/2] = Lab(i/2+offsetX[I] + i0,j/2+offsetY[J]+ i1 ,k/2+offsetZ[K]+ i2);      
+         
+
+                ElementType Lines [Nweno][Nweno][2];
+                ElementType Planes[Nweno][4];
+                ElementType Ref          [8]; 
+
+                for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
+                for (int i1= -Nweno/2 ; i1<= Nweno/2; i1++)
                     Kernel_1D(El[0][i1+Nweno/2][i2+Nweno/2],
-                                               El[1][i1+Nweno/2][i2+Nweno/2],
-                                               El[2][i1+Nweno/2][i2+Nweno/2],Lines[i1+Nweno/2][i2+Nweno/2][0],Lines[i1+Nweno/2][i2+Nweno/2][1]);
-                } 
-            }
-
+                              El[1][i1+Nweno/2][i2+Nweno/2],
+                              El[2][i1+Nweno/2][i2+Nweno/2],Lines[i1+Nweno/2][i2+Nweno/2][0],Lines[i1+Nweno/2][i2+Nweno/2][1]);
+                
       
-            for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
-            {
-                Kernel_1D(Lines[0][i2+Nweno/2][0],
-                            Lines[1][i2+Nweno/2][0],
-                          Lines[2][i2+Nweno/2][0],
-                          Planes[i2+Nweno/2][0],
-                          Planes[i2+Nweno/2][1]);
-      
-                Kernel_1D(Lines[0][i2+Nweno/2][1],
-                          Lines[1][i2+Nweno/2][1],
-                          Lines[2][i2+Nweno/2][1],
-                          Planes[i2+Nweno/2][2],
-                          Planes[i2+Nweno/2][3]);
-            }
-
+                for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
+                {
+                    Kernel_1D(Lines[0][i2+Nweno/2][0],
+                              Lines[1][i2+Nweno/2][0],
+                              Lines[2][i2+Nweno/2][0],
+                              Planes[i2+Nweno/2][0],
+                              Planes[i2+Nweno/2][1]);
+          
+                    Kernel_1D(Lines[0][i2+Nweno/2][1],
+                              Lines[1][i2+Nweno/2][1],
+                              Lines[2][i2+Nweno/2][1],
+                              Planes[i2+Nweno/2][2],
+                              Planes[i2+Nweno/2][3]);
+                }
+    
         
 
-      Kernel_1D(Planes[0][0],
-                    Planes[1][0],
-                  Planes[2][0],
-                  Ref[0],
-                  Ref[1]);
+                Kernel_1D(Planes[0][0],Planes[1][0],Planes[2][0],Ref[0],Ref[1]);
+                Kernel_1D(Planes[0][1],Planes[1][1],Planes[2][1],Ref[2],Ref[3]);
+                Kernel_1D(Planes[0][2],Planes[1][2],Planes[2][2],Ref[4],Ref[5]);
+                Kernel_1D(Planes[0][3],Planes[1][3],Planes[2][3],Ref[6],Ref[7]);
       
-          Kernel_1D(Planes[0][1],
-                    Planes[1][1],
-                  Planes[2][1],
-                  Ref[2],
-                  Ref[3]);
-      
-          Kernel_1D(Planes[0][2],
-                    Planes[1][2],
-                  Planes[2][2],
-                  Ref[4],
-                  Ref[5]);
-         
-          Kernel_1D(Planes[0][3],
-                    Planes[1][3],
-                  Planes[2][3],
-                  Ref[6],
-                  Ref[7]);
-      
-            b(i  ,j  ,k  ) = Ref[0];
-            b(i  ,j  ,k+1) = Ref[1];
-            b(i  ,j+1,k  ) = Ref[2];
-            b(i  ,j+1,k+1) = Ref[3];
-            b(i+1,j  ,k  ) = Ref[4];
-            b(i+1,j  ,k+1) = Ref[5];
-            b(i+1,j+1,k  ) = Ref[6];
-            b(i+1,j+1,k+1) = Ref[7];
-
-          #endif
-
-            
-
-            #if 0
-            for (int kk=0; kk<2; kk++)
-            for (int jj=0; jj<2; jj++)
-            for (int ii=0; ii<2; ii++)
-            {
-                assert  (!isnan(b(i+ii,j+jj,k+kk).alpha1rho1));
-                assert  (!isnan(b(i+ii,j+jj,k+kk).alpha2rho2));
-                assert  (!isnan(b(i+ii,j+jj,k+kk).ru        ));
-                assert  (!isnan(b(i+ii,j+jj,k+kk).rv        ));
-                assert  (!isnan(b(i+ii,j+jj,k+kk).rw        ));
-                assert  (!isnan(b(i+ii,j+jj,k+kk).alpha2    ));
-                assert  (!isnan(b(i+ii,j+jj,k+kk).energy    ));
-                assert  (!isnan(b(i+ii,j+jj,k+kk).dummy     ));
-                assert  (abs(b(i+ii,j+jj,k+kk).alpha1rho1) < 1e20 );
-                assert  (abs(b(i+ii,j+jj,k+kk).alpha2rho2) < 1e20 );
-                assert  (abs(b(i+ii,j+jj,k+kk).ru        ) < 1e20 );
-                assert  (abs(b(i+ii,j+jj,k+kk).rv        ) < 1e20 );
-                assert  (abs(b(i+ii,j+jj,k+kk).rw        ) < 1e20 );
-                assert  (abs(b(i+ii,j+jj,k+kk).alpha2    ) < 1e20 );
-                assert  (abs(b(i+ii,j+jj,k+kk).energy    ) < 1e20 );
-                assert  (abs(b(i+ii,j+jj,k+kk).dummy     ) < 1e20 );
-            }
+                b(i  ,j  ,k  ) = Ref[0];
+                b(i  ,j  ,k+1) = Ref[1];
+                b(i  ,j+1,k  ) = Ref[2];
+                b(i  ,j+1,k+1) = Ref[3];
+                b(i+1,j  ,k  ) = Ref[4];
+                b(i+1,j  ,k+1) = Ref[5];
+                b(i+1,j+1,k  ) = Ref[6];
+                b(i+1,j+1,k+1) = Ref[7];
             #endif
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-        }         
-      }
-
-
-
-    #if 1
-        if (display)
-        {           
-            Lab.Print();
-            Lab.PrintCoarse();
-            Lab.PrintNei(parent);
-
-            assert(false);
+          
+            #if 0
+                for (int kk=0; kk<2; kk++)
+                for (int jj=0; jj<2; jj++)
+                for (int ii=0; ii<2; ii++)
+                {
+                    assert  (!isnan(b(i+ii,j+jj,k+kk).alpha1rho1));
+                    assert  (!isnan(b(i+ii,j+jj,k+kk).alpha2rho2));
+                    assert  (!isnan(b(i+ii,j+jj,k+kk).ru        ));
+                    assert  (!isnan(b(i+ii,j+jj,k+kk).rv        ));
+                    assert  (!isnan(b(i+ii,j+jj,k+kk).rw        ));
+                    assert  (!isnan(b(i+ii,j+jj,k+kk).alpha2    ));
+                    assert  (!isnan(b(i+ii,j+jj,k+kk).energy    ));
+                    assert  (!isnan(b(i+ii,j+jj,k+kk).dummy     ));
+                    assert  (abs(b(i+ii,j+jj,k+kk).alpha1rho1) < 1e20 );
+                    assert  (abs(b(i+ii,j+jj,k+kk).alpha2rho2) < 1e20 );
+                    assert  (abs(b(i+ii,j+jj,k+kk).ru        ) < 1e20 );
+                    assert  (abs(b(i+ii,j+jj,k+kk).rv        ) < 1e20 );
+                    assert  (abs(b(i+ii,j+jj,k+kk).rw        ) < 1e20 );
+                    assert  (abs(b(i+ii,j+jj,k+kk).alpha2    ) < 1e20 );
+                    assert  (abs(b(i+ii,j+jj,k+kk).energy    ) < 1e20 );
+                    assert  (abs(b(i+ii,j+jj,k+kk).dummy     ) < 1e20 );
+                }
+            #endif
+            }         
         }
-    #endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  }
-
-
-
-
-
-
-  //Tag block loaded in Lab for refinement/compression; user can write own function
-  virtual State TagLoadedBlock(TLab & Lab_)
-  {
-    const int nx = BlockType::sizeX;
-    const int ny = BlockType::sizeY;
-    const int nz = BlockType::sizeZ;
-        
-    double L1   = 0.0;
-    double Linf = 0.0;
-  
-    for (int k=0; k<nz; k++ )
-    for (int j=0; j<ny; j++ )
-    for (int i=0; i<nx; i++ )
-    {
-
-
-      double dudx = 0.5*( Lab_(i+1,j  ,k  ).energy-Lab_(i-1,j  ,k  ).energy);
-      double dudy = 0.5*( Lab_(i  ,j+1,k  ).energy-Lab_(i  ,j-1,k  ).energy);
-      double dudz = 0.5*( Lab_(i  ,j  ,k+1).energy-Lab_(i  ,j  ,k-1).energy);  
-      
-      double gradMag = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
-      gradMag /= ( 1e-6 + Lab_(i,j,k).energy); 
-
-      #if 0
-        dudx = 0.5*( Lab(i+1,j  ,k  ).alpha2-Lab(i-1,j  ,k  ).alpha2);
-        dudy = 0.5*( Lab(i  ,j+1,k  ).alpha2-Lab(i  ,j-1,k  ).alpha2);
-        dudz = 0.5*( Lab(i  ,j  ,k+1).alpha2-Lab(i  ,j  ,k-1).alpha2);         
-        double gradMag1 = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
-        gradMag1 /= ( 1e-4 + Lab(i,j,k).alpha2); 
-        gradMag = max(gradMag,gradMag1);
-      #endif
-
-
-      L1 += gradMag;
-      Linf = max(Linf,gradMag);       
     }
-    L1 /= (nz*ny*nx);     
-
-    if      (Linf > tolerance_for_refinement) return Refine;
-    else if (Linf < tolerance_for_compression) return Compress;
-    else return Leave;
-  }
 
 
+    virtual void WENOWavelets3(double cm, double c , double cp, double & left, double & right)
+    {
+    	double b1 = (c-cm)*(c-cm);
+    	double b2 = (c-cp)*(c-cp);
+    	double w1 = (1e-6 + b2)*(1e-6 + b2); //yes, 2 goes to 1 and 1 goes to 2
+    	double w2 = (1e-6 + b1)*(1e-6 + b1);
+    	double aux = 1.0 / (w1+w2);
+    	w1 *= aux; w2 *= aux;
+    	double g1,g2;
+    	g1 = 0.75*c + 0.25*cm;
+    	g2 = 1.25*c - 0.25*cp;
+    	left = g1*w1+g2*w2;
+        g1 = 1.25*c - 0.25*cm;
+      	g2 = 0.75*c + 0.25*cp;
+        right = g1*w1+g2*w2;
+    }
 
-
-
-
-
-
-
+    virtual void Kernel_1D(ElementType E0,ElementType E1,ElementType E2, ElementType & left, ElementType & right)
+    {
+    	left .dummy = E1.dummy - 0.125*(E2.dummy-E0.dummy);
+    	right.dummy = E1.dummy + 0.125*(E2.dummy-E0.dummy);
+    	WENOWavelets3(E0.alpha1rho1,E1.alpha1rho1,E2.alpha1rho1,left.alpha1rho1,right.alpha1rho1);
+    	WENOWavelets3(E0.alpha2rho2,E1.alpha2rho2,E2.alpha2rho2,left.alpha2rho2,right.alpha2rho2);
+    	WENOWavelets3(E0.ru        ,E1.ru        ,E2.ru        ,left.ru        ,right.ru        );
+    	WENOWavelets3(E0.rv        ,E1.rv        ,E2.rv        ,left.rv        ,right.rv        );
+    	WENOWavelets3(E0.rw        ,E1.rw        ,E2.rw        ,left.rw        ,right.rw        );
+    	WENOWavelets3(E0.alpha2    ,E1.alpha2    ,E2.alpha2    ,left.alpha2    ,right.alpha2    );
+    	WENOWavelets3(E0.energy    ,E1.energy    ,E2.energy    ,left.energy    ,right.energy    );
+    }
+          				 
+    //Tag block loaded in Lab for refinement/compression; user can write own function
+    virtual State TagLoadedBlock(TLab & Lab_)
+    {
+        const int nx = BlockType::sizeX;
+        const int ny = BlockType::sizeY;
+        const int nz = BlockType::sizeZ;
+            
+        double L1   = 0.0;
+        double Linf = 0.0;
+      
+        for (int k=0; k<nz; k++ )
+        for (int j=0; j<ny; j++ )
+        for (int i=0; i<nx; i++ )
+        {
+    
+    
+          double dudx = 0.5*( Lab_(i+1,j  ,k  ).energy-Lab_(i-1,j  ,k  ).energy);
+          double dudy = 0.5*( Lab_(i  ,j+1,k  ).energy-Lab_(i  ,j-1,k  ).energy);
+          double dudz = 0.5*( Lab_(i  ,j  ,k+1).energy-Lab_(i  ,j  ,k-1).energy);  
+          
+          double gradMag = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
+          gradMag /= ( 1e-6 + Lab_(i,j,k).energy); 
+    
+          #if 0
+            dudx = 0.5*( Lab(i+1,j  ,k  ).alpha2-Lab(i-1,j  ,k  ).alpha2);
+            dudy = 0.5*( Lab(i  ,j+1,k  ).alpha2-Lab(i  ,j-1,k  ).alpha2);
+            dudz = 0.5*( Lab(i  ,j  ,k+1).alpha2-Lab(i  ,j  ,k-1).alpha2);         
+            double gradMag1 = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
+            gradMag1 /= ( 1e-4 + Lab(i,j,k).alpha2); 
+            gradMag = max(gradMag,gradMag1);
+          #endif
+    
+    
+          L1 += gradMag;
+          Linf = max(Linf,gradMag);       
+        }
+        L1 /= (nz*ny*nx);     
+    
+        if      (Linf > tolerance_for_refinement) return Refine;
+        else if (Linf < tolerance_for_compression) return Compress;
+        else return Leave;
+    }
 
 };
 

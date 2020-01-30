@@ -70,6 +70,30 @@ class SynchronizerMPI_AMR
 
 
 
+
+
+
+
+
+
+
+    //communication & computation overlap
+    std::vector<BlockInfo> inner_blocks;
+    std::vector<BlockInfo>  halo_blocks;
+    std::vector <MPI_Request> send_requests;
+    std::vector <MPI_Request> recv_requests;
+
+
+
+
+
+
+
+
+
+
+
+
     //grid parameters
     const int levelMax;
     int blocksPerDim [3];
@@ -475,7 +499,9 @@ public:
 
 
     void DefineInterfaces(std::vector<std::vector<Interface>> &send_interfaces, std::vector<std::vector<Interface>> &recv_interfaces)
-    {                
+    {        
+        inner_blocks.clear();
+        halo_blocks.clear();        
         send_interfaces.resize(size);
         recv_interfaces.resize(size);   
 
@@ -490,6 +516,9 @@ public:
             const int xskip  = info.index[0]==0 ? -1 : 1;
             const int yskip  = info.index[1]==0 ? -1 : 1;
             const int zskip  = info.index[2]==0 ? -1 : 1;
+
+
+            bool isInner = true;
 
             for(int icode=0; icode<27; icode++)
             {
@@ -507,6 +536,7 @@ public:
 
                 if (infoNei.TreePos == Exists && infoNei.myrank != rank)
                 {
+                  isInner = false;
                   int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
                   send_interfaces[infoNei.myrank].push_back( Interface(info,infoNei,icode,icode2) );
                   recv_interfaces[infoNei.myrank].push_back( Interface(infoNei,info,icode2,icode) );
@@ -518,6 +548,8 @@ public:
                     BlockInfo & infoNeiCoarser = getBlockInfoAll(infoNei.level-1,nCoarse);
                     if (infoNeiCoarser.myrank != rank)
                     {
+                        isInner = false;
+                  
                         int code2[3] = {-code[0],-code[1],-code[2]};
                         int icode2 = (code2[0]+1) + (code2[1]+1)*3 + (code2[2]+1)*9;
                         recv_interfaces[infoNeiCoarser.myrank].push_back( Interface(infoNeiCoarser,info,icode2,icode) );   
@@ -543,6 +575,8 @@ public:
                         BlockInfo & infoNeiFiner = getBlockInfoAll(infoNei.level+1,nFine);
                         if (infoNeiFiner.myrank != rank)
                         {
+                            isInner = false;
+                  
                             int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
                             send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode2) );
                             recv_interfaces[infoNeiFiner.myrank].push_back( Interface(infoNeiFiner,info,icode2,icode) );
@@ -632,8 +666,35 @@ public:
                         }
                     }
                 } 
-            }//icode = 0,...,26    
+            }//icode = 0,...,26  
+
+
+            if (isInner)
+                inner_blocks.push_back(info);
+            else
+                halo_blocks.push_back(info);
+
+
+
         }//i-loop
+    }
+
+
+
+
+
+    std::vector<BlockInfo> avail_inner()
+    {
+          //MPI_Waitall(size, &recv_requests[0], MPI_STATUSES_IGNORE);
+          //MPI_Waitall(size, &send_requests[0], MPI_STATUSES_IGNORE);    
+        return inner_blocks;
+    }
+
+    std::vector<BlockInfo> avail_halo()
+    {
+        MPI_Waitall(size, &recv_requests[0], MPI_STATUSES_IGNORE);
+        MPI_Waitall(size, &send_requests[0], MPI_STATUSES_IGNORE);
+        return halo_blocks;
     }
 
 
@@ -1074,15 +1135,19 @@ public:
        
         
         MPI_Barrier(MPI_COMM_WORLD);
-        std::vector <MPI_Request> send_requests(size);
-        std::vector <MPI_Request> recv_requests(size);
+        //std::vector <MPI_Request> send_requests(size);
+        //std::vector <MPI_Request> recv_requests(size);
+        
+        send_requests.resize(size);
+        recv_requests.resize(size);
+
         for (int r = 0 ; r < size; r ++ )
         {
             MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r]*NC, MPIREAL, r, timestamp , comm, &recv_requests[r]);
             MPI_Isend(&send_buffer[r][0], send_buffer_size[r]*NC, MPIREAL, r, timestamp , comm, &send_requests[r]);
         }
-        MPI_Waitall(size, &recv_requests[0], MPI_STATUSES_IGNORE);
-        MPI_Waitall(size, &send_requests[0], MPI_STATUSES_IGNORE);
+        //MPI_Waitall(size, &recv_requests[0], MPI_STATUSES_IGNORE);
+        //MPI_Waitall(size, &send_requests[0], MPI_STATUSES_IGNORE);
     }
 
 
@@ -1105,17 +1170,17 @@ public:
     }
 
 
-    std::vector<BlockInfo> avail_halo()
-    {
-        std::vector<BlockInfo> retval;
-        return retval;
-    }
-
-    std::vector<BlockInfo> avail_inner()
-    {
-        std::vector<BlockInfo> retval;
-        return retval;
-    }
+//    std::vector<BlockInfo> avail_halo()
+//    {
+//        std::vector<BlockInfo> retval;
+//        return retval;
+//    }
+//
+//    std::vector<BlockInfo> avail_inner()
+//    {
+//        std::vector<BlockInfo> retval;
+//        return retval;
+//    }
 
 
  

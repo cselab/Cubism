@@ -117,13 +117,8 @@ public:
               one_less = !atoi(s2);
         }
   
-   
-        ///////////////////////////////////////////////////////////////////////
-        //avail0 = Synch.avail_inner(); //uncomment this to go back to original
-        auto tmpCrap =  Synch->avail_inner(); //this crap is needed for now.../*mike*/
-        avail0 = (*m_refGrid).getBlocksInfo(); /*mike*/
-        ///////////////////////////////////////////////////////////////////////
-
+        avail0 = Synch->avail_inner(); 
+        
         const int Ninner = avail0.size();
         BlockInfo * ary0 = &avail0.front();
   
@@ -150,17 +145,17 @@ public:
             #pragma omp for schedule(dynamic,1)
                 for(int i=0; i<Ninner_first; i++)
                 {
-                    assert(false && "BlockProcessor_MPI assertion 2");
-                    //mylab.load(ary0[i], t);
-                    //rhs(mylab, ary0[i], *(typename TGrid::BlockType*)ary0[i].ptrBlock);
+                    mylab.load(ary0[i], t);
+                    BlockInfo & info = m_refGrid->getBlockInfoAll(ary0[i].level,ary0[i].Z);
+                    ary0[i].state = TagLoadedBlock(labs[tid]);
+                    info.state = ary0[i].state;                          
                 }
         }
 
         avail1 = Synch->avail_halo();
+       
         const int Nhalo = avail1.size();
-        BlockInfo * ary1 = nullptr; //&avail1.front(); //nullptr
-
-
+        BlockInfo * ary1 = &avail1.front(); 
 
         #pragma omp parallel num_threads(nthreads)
         {
@@ -181,9 +176,10 @@ public:
                 }
                 else
                 {
-                    assert(false && "BlockProcessor_MPI assertion 1");
-                    //    mylab.load(ary1[i], t);
-                    //    rhs(mylab, ary1[i], *(typename TGrid::BlockType*)ary1[i].ptrBlock);
+                    mylab.load(ary1[i], t);
+                    BlockInfo & info = m_refGrid->getBlockInfoAll(ary1[i].level,ary1[i].Z);
+                    ary1[i].state = TagLoadedBlock(labs[tid]);
+                    info.state = ary1[i].state;                          
                 }
             }
         }

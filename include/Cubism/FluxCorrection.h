@@ -82,7 +82,7 @@ public:
 
 
 
-template<typename TBlock, typename TLab, template<typename X> class allocator = std::allocator,typename ElementTypeT = typename TBlock::ElementType>
+template<typename TGrid, typename TBlock, typename TLab, template<typename X> class allocator = std::allocator,typename ElementTypeT = typename TBlock::ElementType>
 class FluxCorrection
 {
   public:
@@ -90,17 +90,25 @@ class FluxCorrection
     typedef typename ElementTypeT::RealType Real;
     typedef TBlock BlockType;
     typedef typename BlockType::ElementType ElementTypeBlock;
+
     typedef BlockCase <BlockType, allocator> Case;
  
   protected:
     std::map<std::array<int,2>, Case * > MapOfCases;
-    Grid<BlockType, allocator>* m_refGrid;
+    //Grid<BlockType, allocator>* 
+    TGrid * m_refGrid;
     std::vector < Case > Cases;
-    TLab temp_Lab; //needed only to call functions is_xperiodic(),is_yperiodic(),is_zperiodic()
+    
+    bool xperiodic; 
+    bool yperiodic;       
+    bool zperiodic;
+    std::array <int,3> blocksPerDim;
+
+
 
 
   public:
-    void prepare(Grid<BlockType,allocator>& grid)
+    virtual void prepare(TGrid & grid)
     {
       Cases.clear();
       MapOfCases.clear();
@@ -108,12 +116,15 @@ class FluxCorrection
       m_refGrid = &grid;
       std::vector<BlockInfo> & B = (*m_refGrid).getBlocksInfo();
 
-      std::array <int,3> blocksPerDim = (*m_refGrid).getMaxBlocks();
+      
+      TLab temp_Lab; //needed only to call functions is_xperiodic(),is_yperiodic(),is_zperiodic()
+      xperiodic = temp_Lab.is_xperiodic(); 
+      yperiodic = temp_Lab.is_yperiodic();
+      zperiodic = temp_Lab.is_zperiodic();
+      blocksPerDim = (*m_refGrid).getMaxBlocks();
+      
 
-      const bool xperiodic = temp_Lab.is_xperiodic(); 
-      const bool yperiodic = temp_Lab.is_yperiodic();
-      const bool zperiodic = temp_Lab.is_zperiodic();
-         
+
       for (auto & info: B)
       {
         int aux = pow(2,info.level);
@@ -170,14 +181,13 @@ class FluxCorrection
     {   	   
     	std::array<int,2> tmp = {level,Z}; 
 
-      auto search = MapOfCases.find(tmp);
-    
-      if (search == MapOfCases.end() )
-      {
-      	return nullptr;
-      } 
+        auto search = MapOfCases.find(tmp);
 
-		    assert ( (*search->second).level == level );
+        if (search == MapOfCases.end() )
+        {
+        	return nullptr;
+        } 
+	    assert ( (*search->second).level == level );
         assert ( (*search->second).Z     == Z     );
         return (search->second);
     }
@@ -187,16 +197,11 @@ class FluxCorrection
 
 
 
-    void FillBlockCases()
+    virtual void FillBlockCases()
     {
       //This assumes that the BlockCases have been filled by the user somehow... 
       std::vector<BlockInfo> & B = (*m_refGrid).getBlocksInfo();
-      std::array <int,3> blocksPerDim = (*m_refGrid).getMaxBlocks();
-
-      const bool xperiodic = temp_Lab.is_xperiodic(); 
-      const bool yperiodic = temp_Lab.is_yperiodic();
-      const bool zperiodic = temp_Lab.is_zperiodic();
-      
+         
     
       for (auto & info: B)
       {
@@ -240,7 +245,7 @@ class FluxCorrection
 
 
 
-    void FillCase(BlockInfo info, const int * const code)
+    virtual void FillCase(BlockInfo info, const int * const code)
     {
       int myFace    = abs( code[0]) * max(0, code[0]) + abs( code[1]) * (max(0, code[1])+2) + abs( code[2]) * (max(0, code[2])+4);
       int otherFace = abs(-code[0]) * max(0,-code[0]) + abs(-code[1]) * (max(0,-code[1])+2) + abs(-code[2]) * (max(0,-code[2])+4);
@@ -315,12 +320,7 @@ class FluxCorrection
       //This assumes that the BlockCases have been filled by the user somehow... 
       std::vector<BlockInfo>  B = (*m_refGrid).getBlocksInfo();
 
-      std::array <int,3> blocksPerDim = (*m_refGrid).getMaxBlocks();
-
-      const bool xperiodic = temp_Lab.is_xperiodic(); 
-      const bool yperiodic = temp_Lab.is_yperiodic();
-      const bool zperiodic = temp_Lab.is_zperiodic();
-      
+    
     
       for (auto & info: B)
       {
@@ -385,12 +385,12 @@ class FluxCorrection
 
                   block.tmp[i1][i2][0][0] += CoarseFace[i2+i1*N2].alpha1rho1;
                   block.tmp[i1][i2][0][1] += CoarseFace[i2+i1*N2].alpha2rho2;
-                  block.tmp[i1][i2][0][2] += CoarseFace[i2+i1*N2].ru;
-                  block.tmp[i1][i2][0][3] += CoarseFace[i2+i1*N2].rv;
-                  block.tmp[i1][i2][0][4] += CoarseFace[i2+i1*N2].rw;
-                  block.tmp[i1][i2][0][5] += CoarseFace[i2+i1*N2].energy;
-                  block.tmp[i1][i2][0][6] += CoarseFace[i2+i1*N2].alpha2;
-                  block.tmp[i1][i2][0][7] += CoarseFace[i2+i1*N2].dummy;
+                  block.tmp[i1][i2][0][2] += CoarseFace[i2+i1*N2].ru;        
+                  block.tmp[i1][i2][0][3] += CoarseFace[i2+i1*N2].rv;         
+                  block.tmp[i1][i2][0][4] += CoarseFace[i2+i1*N2].rw;         
+                  block.tmp[i1][i2][0][5] += CoarseFace[i2+i1*N2].energy;     
+                  block.tmp[i1][i2][0][6] += CoarseFace[i2+i1*N2].alpha2;     
+                  block.tmp[i1][i2][0][7] += CoarseFace[i2+i1*N2].dummy;       
 
 
                 }

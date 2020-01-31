@@ -174,9 +174,6 @@ class FluxCorrection
       }
     }
 
-
-
-
     Case * GetCase(int level, int Z)
     {   	   
     	std::array<int,2> tmp = {level,Z}; 
@@ -191,9 +188,6 @@ class FluxCorrection
         assert ( (*search->second).Z     == Z     );
         return (search->second);
     }
-
-
-
 
 
 

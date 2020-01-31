@@ -1,11 +1,7 @@
 #pragma once
 
-
-
 #include "FluxCorrection.h"
 //#include <omp.h>
-
-
 
 #ifdef __bgq__
 #include <builtins.h>
@@ -15,13 +11,8 @@
 #endif
 
 
-
-
 namespace cubism //AMR_CUBISM
 {
-
-
-
 
 
 template< typename TFluxCorrection , typename TGrid>
@@ -36,24 +27,20 @@ class FluxCorrectionMPI: public TFluxCorrection
  
   protected:
 
-
- 
     struct face
     {
       BlockInfo * infos [2];
       int icode [2];
-      
+      int offset;
       //infos[0] : Fine block
       //infos[1] : Coarse block
-
       face (BlockInfo & i0,BlockInfo & i1, int a_icode0, int a_icode1)
       {
         infos[0] = &i0;
         infos[1] = &i1;
         icode[0] = a_icode0;
         icode[1] = a_icode1;
-      }
-      
+      }     
       bool operator<(const face & other) const 
       {
         if (infos[0]->Z == other.infos[0]->Z) 
@@ -66,15 +53,6 @@ class FluxCorrectionMPI: public TFluxCorrection
         }      
       }
     };
-
-
-    struct UnPackInfo
-    {
-      int offset;
-      int lx,ly,lz;
-    };
-
-    std::map < face, UnPackInfo > MapOfPacks;
 
     int rank,size;
     std::vector< std::vector<Real> > send_buffer;
@@ -102,7 +80,6 @@ class FluxCorrectionMPI: public TFluxCorrection
 
       TFluxCorrection::prepare(grid);
 
-      MapOfPacks.clear();
       std::vector<BlockInfo> & B = (*TFluxCorrection::m_refGrid).getBlocksInfo();
       
       const int NC = 8;
@@ -210,34 +187,12 @@ class FluxCorrectionMPI: public TFluxCorrection
           L[2] = (code[2] == 0) ? blocksize[2]/2 : 1;
           int V=L[0]*L[1]*L[2];
 
-          UnPackInfo info = {offset,L[0],L[1],L[2]};
-          offset += V*NC;
-                
-          MapOfPacks.insert(std::pair<face,UnPackInfo>(f,info));
+          f.offset = offset;
+
+          offset += V*NC;        
         }
       }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     virtual void FillBlockCases() override
@@ -277,13 +232,6 @@ class FluxCorrectionMPI: public TFluxCorrection
           }        
         }//icode = 0,...,26       
       }
-
-
-
-
-
-
-
 
       //1.Pack send data
       for (int r=0; r<size; r++)
@@ -339,9 +287,6 @@ class FluxCorrectionMPI: public TFluxCorrection
       }
 
 
-
-
-
       std::vector <MPI_Request> send_requests(size);
       std::vector <MPI_Request> recv_requests(size);
         
@@ -350,13 +295,8 @@ class FluxCorrectionMPI: public TFluxCorrection
           MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &recv_requests[r]);
           MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &send_requests[r]);
       }
-
-
       MPI_Waitall(size, &recv_requests[0], MPI_STATUSES_IGNORE);
       MPI_Waitall(size, &send_requests[0], MPI_STATUSES_IGNORE);
-
-
-
 
 
       for (int r = 0 ; r < size; r ++ )
@@ -364,44 +304,16 @@ class FluxCorrectionMPI: public TFluxCorrection
         for (int index = 0; index < recv_faces[r].size(); index++)
         {
           face & f = recv_faces[r][index];
-          auto search = MapOfPacks.find(f);
-          FillCase_2(f,search->second);
+          FillCase_2(f) ;
         }
       }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       TFluxCorrection::Correct();
     }
 
 
 
-
-
-
-
-
-
-
-
-
-    void FillCase_2(face F, UnPackInfo unpack) 
+    void FillCase_2(face F)
     {
 
 
@@ -437,8 +349,7 @@ class FluxCorrectionMPI: public TFluxCorrection
         
         if ( Z != F.infos[0]->Z ) continue;
 
-
-       
+     
         int d   = myFace / 2 ;       
         int d1  = max((d+1)%3,(d+2)%3);
         int d2  = min((d+1)%3,(d+2)%3);
@@ -464,46 +375,18 @@ class FluxCorrectionMPI: public TFluxCorrection
         {
           CoarseFace[base + (i2/2)+ (i1/2)   *N2] *= coef;  
 
-          CoarseFace[base + (i2/2)+ (i1/2)   *N2].alpha1rho1 += (coef)* recv_buffer[r][unpack.offset + dis  ];
-          CoarseFace[base + (i2/2)+ (i1/2)   *N2].alpha2rho2 += (coef)* recv_buffer[r][unpack.offset + dis+1];
-          CoarseFace[base + (i2/2)+ (i1/2)   *N2].ru         += (coef)* recv_buffer[r][unpack.offset + dis+2];
-          CoarseFace[base + (i2/2)+ (i1/2)   *N2].rv         += (coef)* recv_buffer[r][unpack.offset + dis+3];
-          CoarseFace[base + (i2/2)+ (i1/2)   *N2].rw         += (coef)* recv_buffer[r][unpack.offset + dis+4];
-          CoarseFace[base + (i2/2)+ (i1/2)   *N2].energy     += (coef)* recv_buffer[r][unpack.offset + dis+5];
-          CoarseFace[base + (i2/2)+ (i1/2)   *N2].alpha2     += (coef)* recv_buffer[r][unpack.offset + dis+6];
-          CoarseFace[base + (i2/2)+ (i1/2)   *N2].dummy      += (coef)* recv_buffer[r][unpack.offset + dis+7];
+          CoarseFace[base + (i2/2)+ (i1/2)   *N2].alpha1rho1 += (coef)* recv_buffer[r][F.offset + dis  ];
+          CoarseFace[base + (i2/2)+ (i1/2)   *N2].alpha2rho2 += (coef)* recv_buffer[r][F.offset + dis+1];
+          CoarseFace[base + (i2/2)+ (i1/2)   *N2].ru         += (coef)* recv_buffer[r][F.offset + dis+2];
+          CoarseFace[base + (i2/2)+ (i1/2)   *N2].rv         += (coef)* recv_buffer[r][F.offset + dis+3];
+          CoarseFace[base + (i2/2)+ (i1/2)   *N2].rw         += (coef)* recv_buffer[r][F.offset + dis+4];
+          CoarseFace[base + (i2/2)+ (i1/2)   *N2].energy     += (coef)* recv_buffer[r][F.offset + dis+5];
+          CoarseFace[base + (i2/2)+ (i1/2)   *N2].alpha2     += (coef)* recv_buffer[r][F.offset + dis+6];
+          CoarseFace[base + (i2/2)+ (i1/2)   *N2].dummy      += (coef)* recv_buffer[r][F.offset + dis+7];
           dis += 8; 
-
-
         }
       }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     virtual void FillCase(BlockInfo info, const int * const code) override
     {
@@ -571,13 +454,6 @@ class FluxCorrectionMPI: public TFluxCorrection
         }
       }
     }
-
-
-
-  
-
-
-
 };
 
 

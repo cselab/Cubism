@@ -15,8 +15,8 @@ using namespace std;
 
 
 
-#define MortonCurve
-//#define HilbertCurve
+//#define MortonCurve
+#define HilbertCurve
 
 
 #define HACK
@@ -34,8 +34,7 @@ class SpaceFillingCurve
 protected:
     const unsigned int BX,BY,BZ;
 
-    #ifdef HilbertCurve
-    #endif
+
 
     #if   defined(MortonCurve)
         //Copy-pasted from 
@@ -51,19 +50,19 @@ protected:
             return answer;
         }
         //// DECODE 3D Morton code : For loop
-        //inline void m3D_d_for(int m, int & x,  int & y,  int & z)
-        //{
-        //    x = 0; y = 0; z = 0;
-        //    int checkbits = static_cast< int>(floor((sizeof(int) * 8.0f / 3.0f)));
-        //    for (int i = 0; i <= checkbits; ++i) {
-        //        int selector = 1;
-        //        int shift_selector = 3 * i;
-        //        int shiftback = 2 * i;
-        //        x |= (m & (selector << shift_selector)) >> (shiftback);
-        //        y |= (m & (selector << (shift_selector + 1))) >> (shiftback + 1);
-        //        z |= (m & (selector << (shift_selector + 2))) >> (shiftback + 2);
-        //    }
-        //}
+        inline void m3D_d_for(int m, int & x,  int & y,  int & z)
+        {
+            x = 0; y = 0; z = 0;
+            int checkbits = static_cast< int>(floor((sizeof(int) * 8.0f / 3.0f)));
+            for (int i = 0; i <= checkbits; ++i) {
+                int selector = 1;
+                int shift_selector = 3 * i;
+                int shiftback = 2 * i;
+                x |= (m & (selector << shift_selector)) >> (shiftback);
+                y |= (m & (selector << (shift_selector + 1))) >> (shiftback + 1);
+                z |= (m & (selector << (shift_selector + 2))) >> (shiftback + 2);
+            }
+        }
     #elif defined(HilbertCurve)
         #define adjust_rotation(rotation,nDims,bits)                            \
         do {                                                                    \
@@ -330,23 +329,62 @@ public:
         return forward(l+1,2*i,2*j,2*k);
     }  
 
-    //    void inverse(int l, int z, int & i, int & j, int & k) 
-    //    {
-    //        int p = pow (2,l);  
-    //        int ZcoorLoc = z % (p*p*p);
-    //        m3D_d_for(ZcoorLoc,i,j,k); 
-    //    
-    //        int box = z / (p*p*p);
-    //        
-    //        int kbox =  box / (BY*BX);
-    //        int jbox = (box - kbox*BY*BX)/BX; 
-    //        int ibox = (box - kbox*BY*BX-jbox*BX)%BX;
-    //      
-    //        i += ibox*  p; 
-    //        j += jbox*  p;
-    //        k += kbox*  p;
-    //        return;
-    //    }
+    
+    void inverse(int l, int z, int & i, int & j, int & k) 
+    {
+        int p = pow (2,l);  
+        int ZcoorLoc = z % (p*p*p);
+      
+    
+        #if defined(MortonCurve)
+        m3D_d_for(ZcoorLoc,i,j,k);
+        #elif defined(HilbertCurve)
+        int coord[3];
+        hilbert_i2c(3, ZcoorLoc, &coord[0]);
+        i = coord[0];
+        j = coord[1];
+        k = coord[2];
+        #else
+
+        abort();
+        #endif 
+    
+
+
+        int box = z / (p*p*p);
+        
+        int kbox =  box / (BY*BX);
+        int jbox = (box - kbox*BY*BX)/BX; 
+        int ibox = (box - kbox*BY*BX-jbox*BX)%BX;
+      
+        i += ibox*  p; 
+        j += jbox*  p;
+        k += kbox*  p;
+        return;
+    }
+
+
+
+
+    int Encode(int level, int Z)
+    {
+      int retval;
+      if (level == 0) 
+      {
+        retval = Z;
+      }
+      else 
+      {
+        int V = BX*BY*BZ * pow(pow(2,level-1),3);
+        retval = V + Z; 
+      }
+
+      return retval;
+    }
+
+
+
+
 };
 
 
@@ -442,6 +480,47 @@ struct BlockInfo
 
     BlockInfo(){};
 
+
+
+
+    bool operator<(const BlockInfo & other) const 
+    {
+      
+      if (level == other.level)
+      {
+        return (Z < other.Z);
+      }
+      else if (level < other.level)
+      {
+        int aux = pow(2, other.level- level);
+   
+        int i[3] = {other.index[0] / aux, other.index[1] / aux, other.index[2] / aux};
+      
+        SpaceFillingCurve Zcurve(3,3,3);
+        int zzz = Zcurve.forward(level,i[0],i[1],i[2]);
+
+        return (Z < zzz);
+      }
+      else 
+      {
+        int aux = pow(2, level- other.level);
+   
+        int i[3] = {index[0] / aux, index[1] / aux, index[2] / aux};
+      
+        SpaceFillingCurve Zcurve(3,3,3);
+        int zzz = Zcurve.forward(other.level,i[0],i[1],i[2]);
+
+        return (zzz < other.Z);
+      }
+
+
+
+
+
+
+    }  
+
+
     void setup(const int a_level,const double a_h, const double a_origin[3],
                const int a_Bmin[3],int a_index[3], int a_myrank, 
                TreePosition a_TreePos) 
@@ -480,6 +559,8 @@ struct BlockInfo
                                                        (index[1]+j+Bmax[1])%Bmax[1],
                                                        (index[2]+k+Bmax[2])%Bmax[2]);
         }
+
+        //blockID = Zcurve.Encode(level,Z);
     }
 
     int level_() const 

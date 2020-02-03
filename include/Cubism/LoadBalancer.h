@@ -56,23 +56,31 @@ public:
 
 
         
-        for ( auto & bb: I) 
-        {       
-            int nBlock = m_refGrid->getZforward(bb.level, 2*(bb.index[0]/2),2*(bb.index[1]/2),2*(bb.index[2]/2) ); 
-            
-            BlockInfo & b    = m_refGrid->getBlockInfoAll(bb.level,bb.Z);
-            BlockInfo & base = m_refGrid->getBlockInfoAll(b.level,nBlock);
+        for ( auto & b: I) 
+        {                  	
+            int iBase,jBase,kBase;
+            m_refGrid->Zcurve.inverse(b.level,b.Z - b.Z%8, iBase,jBase,kBase);       
+            int nBlock = m_refGrid->getZforward(b.level,   iBase,jBase,kBase ); 
+
+          
+            BlockInfo & base = m_refGrid->getBlockInfoAll(b.level,nBlock);          
+
+			BlockInfo & bCopy = m_refGrid->getBlockInfoAll(b.level,b.Z);          
+
+
+
+   
 
             if (b.Z != nBlock && base.state==Compress)
             {
                 if (base.myrank != rank && b.myrank == rank)
                 {
-                    //std::cout << "Rank " << rank << " will send block " << b.level << " " << b.Z << " to rank " << base.myrank << "\n";
             
-                    send_infos[base.myrank].push_back(&b);
+                    send_infos[base.myrank].push_back(&bCopy);
                     send_buffer2[base.myrank].push_back(b.level);
                     send_buffer2[base.myrank].push_back(b.Z    );
-                    b.myrank = base.myrank;
+                    b.myrank     = base.myrank;
+                    bCopy.myrank = base.myrank;
                 }
             }
             else if (b.Z == nBlock && base.state==Compress)
@@ -83,7 +91,6 @@ public:
                   
                     if (temp.myrank != rank)
                     {
-                        //std::cout << "Rank " << rank << " will receive block " << temp.level << " " << temp.Z << " from rank " << temp.myrank << "\n";
             
                         recv_infos[temp.myrank].push_back(&temp);
                         recv_buffer2[temp.myrank].push_back(-1);
@@ -101,117 +108,6 @@ public:
         
 
 
-    #if 0
-
-
-        for (int r=0; r<size; r++)
-        {          
-            for (int i=0; i<recv_infos[r].size(); i++)
-            {
-                BlockInfo & info = *recv_infos[r][i];
-                m_refGrid->_alloc(info.level,info.Z);
-            }
-        }
-
-
-
-        int BlockBytes = sizeof(BlockType)/sizeof(Real);
-        std::vector <MPI_Datatype> send_datatype(size);
-        std::vector <MPI_Datatype> recv_datatype(size);
-
-        for (int r=0; r<size; r++)
-        {
-            std::vector<int> send_displacement(send_infos[r].size());
-            for (int i=0; i<send_infos[r].size(); i++)
-            {
-                BlockInfo & info = *send_infos[r][i];
-                
-
-                BlockType * b1 =  (BlockType *)info.ptrBlock;
-                BlockType * b2 =  (BlockType *)(*recv_infos[r][0]).ptrBlock;
-
-
-                Real * a1 = & b1->data[0][0][0].alpha1rho1;
-                Real * a2 = & b2->data[0][0][0].alpha1rho1;
-
-
-                send_displacement[i] = a1-a2;//((Real*) info.ptrBlock - (Real*)(*send_infos[r][0]).ptrBlock);// *sizeof(Real);
-            }
-            MPI_Type_create_indexed_block(send_infos[r].size(), BlockBytes, &send_displacement[0], MPI_DOUBLE, &send_datatype[r]);
-            MPI_Type_commit(&send_datatype[r]);
-      
-
-            std::vector<int> recv_displacement(recv_infos[r].size());
-            for (int i=0; i<recv_infos[r].size(); i++)
-            {
-                BlockInfo & info = *recv_infos[r][i];
-
-                assert(info.ptrBlock != NULL);
-
-                BlockType * b1 =  (BlockType *)info.ptrBlock;
-                BlockType * b2 =  (BlockType *)(*recv_infos[r][0]).ptrBlock;
-
-
-                Real * a1 = & b1->data[0][0][0].alpha1rho1;
-                Real * a2 = & b2->data[0][0][0].alpha1rho1;
-
-                // recv_displacement[i] = ((Real*) info.ptrBlock - (Real*)(*recv_infos[r][0]).ptrBlock) ;
-            
-                recv_displacement[i] = a1-a2;
-            
-
-                std::cout << "recv_displacement =" << recv_displacement[i] << "   for rank " << rank <<"\n"; 
-            }
-            MPI_Type_create_indexed_block(recv_infos[r].size(), BlockBytes, &recv_displacement[0], MPI_DOUBLE, &recv_datatype[r]);
-            MPI_Type_commit(&recv_datatype[r]);
-        }
-
-
-        for (int r=0; r<size; r++)
-        {          
-            if (r!=rank) // && (send_infos[r].size()!=0 || recv_infos[r].size()!=0))
-            std::cout << "Rank " << rank << " will send/receive " << send_infos[r].size() << "/" << recv_infos[r].size() << " blocks to rank " << r << "\n";
-        }   
-        MPI_Barrier(MPI_COMM_WORLD);
-
-
-
-        std::vector <MPI_Request> send_requests;
-        std::vector <MPI_Request> recv_requests;
-
-
-        std::vector <std::vector<double>> HugeBuffer(size);
-        
-        for (int r = 0 ; r < size; r ++ ) if (r!=rank)
-        {
-            if (recv_infos[r].size()!=0) 
-            {
-                HugeBuffer[r].resize(8*8*8*8*2*10);
-
-
-                MPI_Request req;
-                recv_requests.push_back(req);
-                //MPI_Irecv(&recv_infos[r][0]->ptrBlock, 1, recv_datatype[r], r, 12345 , MPI_COMM_WORLD, &recv_requests[recv_requests.size()-1]);
-                
-                MPI_Irecv(&HugeBuffer[r][0], recv_infos[r].size()*8*8*8*8*2, MPI_DOUBLE, r, 12345 , MPI_COMM_WORLD, &recv_requests[recv_requests.size()-1]);
-      
-            }
-            if (send_infos[r].size()!=0) 
-            {
-                MPI_Request req;
-                send_requests.push_back(req);
-                MPI_Isend(&send_infos[r][0]->ptrBlock, 1, send_datatype[r], r, 12345 , MPI_COMM_WORLD, &send_requests[send_requests.size()-1]);
-            }    
-        }
-
-        if (recv_requests.size()!=0)
-            MPI_Waitall(recv_requests.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
-        
-        if (send_requests.size()!=0)
-            MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);
-
-
-    #else
 
         int BlockBytes = sizeof(BlockType);
 
@@ -237,13 +133,6 @@ public:
         }
 
 
-        for (int r=0; r<size; r++)
-        {          
-        //    if (r!=rank) // && (send_infos[r].size()!=0 || recv_infos[r].size()!=0))
-        //    std::cout << "Rank " << rank << " will send/receive " << send_infos[r].size() << "/" << recv_infos[r].size() << " blocks to rank " << r << "\n";
-        //    std::cout << "Rank " << rank << " will send/receive " << send_buffer2[r].size() << "/" << recv_buffer2[r].size() << " blocks to rank " << r << "\n";
-  
-        }   
 
 
 
@@ -312,9 +201,6 @@ public:
             MPI_Waitall(send_requests2.size(), &send_requests2[0], MPI_STATUSES_IGNORE);
 
 
-        #endif
-
-
 
 
         for (int r=0; r<size; r++)
@@ -329,52 +215,14 @@ public:
 
 
 
-//        //CRASHES HERE
-//        //   |
-//        //   |
-//        //   |
-//        //   V
-//
-//		for (int r=0; r<size; r++)
-//		{
-//			for (int i=0; i<send_buffer2[r].size(); i++)
-//			{
-//				std::cout << send_buffer2[r][i] << " | " ;
-//			}
-//			std::cout<<"\n";
-//		}
-//        
-//
-//
-//
-//		for (int r=0; r<size; r++)
-//		{
-//			for (int i=0; i<recv_buffer2[r].size(); i++)
-//			{
-//				std::cout << recv_buffer2[r][i] << " " ;
-//			}
-//			std::cout<<"\n";
-//		}
-        
-
-
-
-
 
         for (int r=0; r<size; r++)
         {    
             int d =0;
             for (int i=0; i<(int)recv_infos[r].size(); i++)
             {
-                //std::cout << recv_buffer2[r].size() << " " << 2*i << "\n"; 
                 int level = recv_buffer2[r][2*i  ];
                 int Z     = recv_buffer2[r][2*i+1];
-
-
-
-                //std::cout << "Rank " << rank << " received block " << level << " " << Z <<" from rank " << r << "\n";
-
-
 
                 m_refGrid->_alloc(level,Z);
                 BlockInfo info = m_refGrid->getBlockInfoAll(level,Z);
@@ -397,14 +245,243 @@ public:
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States();
 
+    }
 
-       // MPI_Barrier(MPI_COMM_WORLD);
-       // int err = 123456789;
-       // MPI_Abort(MPI_COMM_WORLD,err);
 
+
+    void Balance_Diffusion()
+    { 
+
+    	int right  = (rank == size-1) ? 0      : rank + 1;
+    	int left   = (rank == 0     ) ? size-1 : rank - 1;
+
+   
+
+    	int my_blocks = m_refGrid->getBlocksInfo().size();
+    	int right_blocks,left_blocks;
+
+    	std::vector<MPI_Request> reqs(4);
+    	
+	    MPI_Irecv(& left_blocks, 1, MPI_INT,  left, 123, MPI_COMM_WORLD, &reqs[0]);
+    	MPI_Irecv(&right_blocks, 1, MPI_INT, right, 456, MPI_COMM_WORLD, &reqs[1]);
+		
+		MPI_Isend(&my_blocks   , 1, MPI_INT,  left, 456, MPI_COMM_WORLD, &reqs[2]);
+		MPI_Isend(&my_blocks   , 1, MPI_INT, right, 123, MPI_COMM_WORLD, &reqs[3]);    
+
+      	
+      	MPI_Waitall(4, &reqs[0], MPI_STATUSES_IGNORE);
+   
+
+
+   		int nu = 4;
+
+   		int flux_left  = (my_blocks -  left_blocks) / nu; //divide by two following stability criterion for diffusion equation
+   		int flux_right = (my_blocks - right_blocks) / nu; //divide by two following stability criterion for diffusion equation
+
+   		std::vector <BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
+
+   		std::sort(SortedInfos.begin(),SortedInfos.end());
+
+
+
+
+
+		std::vector <Real> send_buffer_left; 
+  		std::vector <Real> recv_buffer_left; 
+
+		std::vector <Real> send_buffer_right; 
+  		std::vector <Real> recv_buffer_right; 
+
+
+        std::vector<int> send_buffer_left2;
+        std::vector<int> recv_buffer_left2;
+	    std::vector<int> send_buffer_right2;
+        std::vector<int> recv_buffer_right2;
+
+ 
+   		int BlockBytes = sizeof(BlockType);
+   		std::vector<MPI_Request> request;
+		if (flux_left > 0) //then I will send blocks to my left rank
+		{
+			send_buffer_left.resize(flux_left * BlockBytes / sizeof(Real) );
+	    
+        	int d = 0;
+            for (int i=0; i< flux_left; i++)
+            {
+                BlockInfo & info = SortedInfos[i];
+                BlockType * b1 =  (BlockType *)info.ptrBlock;
+                Real * a1 = & b1->data[0][0][0].alpha1rho1;
+                std::memcpy(&send_buffer_left[d], a1,BlockBytes);
+                d += BlockBytes/sizeof(Real);
+            
+                send_buffer_left2.push_back(info.level);
+                send_buffer_left2.push_back(info.Z    );
+            }
+
+            MPI_Request req;
+            request.push_back(req);
+            MPI_Isend(&send_buffer_left[0], send_buffer_left.size(), MPI_DOUBLE, left, 123 , MPI_COMM_WORLD, &request[request.size()-1]);
+
+
+            MPI_Request req2;
+            request.push_back(req2);
+            MPI_Isend(&send_buffer_left2[0],send_buffer_left2.size(), MPI_INT, left, 789 , MPI_COMM_WORLD, &request[request.size()-1]);
+        }
+		else if (flux_left < 0) //then I will receive blocks from my left rank
+		{
+			recv_buffer_left.resize( abs(flux_left) * BlockBytes / sizeof(Real) );
+
+			recv_buffer_left2.resize( abs(flux_left) * 2 );
+
+            
+            MPI_Request req;
+            request.push_back(req);
+      		MPI_Irecv(&recv_buffer_left[0], recv_buffer_left.size(), MPI_DOUBLE, left, 456 , MPI_COMM_WORLD, &request[request.size()-1]);
+
+    	    MPI_Request req2;
+            request.push_back(req2);
+      		MPI_Irecv(&recv_buffer_left2[0], recv_buffer_left2.size(), MPI_INT, left, 101112 , MPI_COMM_WORLD, &request[request.size()-1]);
+		}	
+
+
+		if (flux_right > 0) //then I will send blocks to my right rank
+		{
+			send_buffer_right.resize(flux_right * BlockBytes / sizeof(Real) );
+	    
+        	int d = 0;
+            for (int i=0; i< flux_right; i++)
+            {
+                BlockInfo & info = SortedInfos[my_blocks-i-1];
+                BlockType * b1 =  (BlockType *)info.ptrBlock;
+                Real * a1 = & b1->data[0][0][0].alpha1rho1;
+                std::memcpy(&send_buffer_right[d], a1,BlockBytes);
+                d += BlockBytes/sizeof(Real);
+
+                send_buffer_right2.push_back(info.level);
+                send_buffer_right2.push_back(info.Z    );
+            }
+
+            MPI_Request req;
+            request.push_back(req);
+            MPI_Isend(&send_buffer_right[0], send_buffer_right.size(), MPI_DOUBLE, right, 456 , MPI_COMM_WORLD, &request[request.size()-1]);
+
+            MPI_Request req2;
+            request.push_back(req2);
+            MPI_Isend(&send_buffer_right2[0],send_buffer_right2.size(), MPI_INT, right, 101112 , MPI_COMM_WORLD, &request[request.size()-1]);
+        }
+		else if (flux_right < 0) //then I will receive blocks from my right rank
+		{
+			recv_buffer_right.resize( abs(flux_right) * BlockBytes / sizeof(Real) );
+
+
+			recv_buffer_right2.resize( abs(flux_right) * 2 );
+            
+            MPI_Request req;
+            request.push_back(req);
+      		MPI_Irecv(&recv_buffer_right[0], recv_buffer_right.size(), MPI_DOUBLE, right, 123 , MPI_COMM_WORLD, &request[request.size()-1]);
+	
+	   	    MPI_Request req2;
+            request.push_back(req2);
+      		MPI_Irecv(&recv_buffer_right2[0], recv_buffer_right2.size(), MPI_INT, right, 789 , MPI_COMM_WORLD, &request[request.size()-1]);
+		}	
+
+
+
+		//std::cout << " Rank " << rank << " size =" << request.size() << " \n";
+       	//std::cout << " Rank " << rank << " will send/receive " <<  recv_buffer_left.size() << " " << recv_buffer_right.size() << " " << send_buffer_left.size() << " " << send_buffer_right.size() << "\n";
+       
+
+
+		if (request.size() != 0)
+			MPI_Waitall(request.size(), &request[0], MPI_STATUSES_IGNORE);
+
+	
+
+
+
+
+        for (int i=0; i<flux_right; i++)
+        {
+            BlockInfo & info = SortedInfos[my_blocks-i-1];
+            m_refGrid->_dealloc(info.level,info.Z);
+            BlockInfo & info1 = m_refGrid->getBlockInfoAll(info.level,info.Z);
+            info1.myrank = right;           
+			assert(info1.TreePos == Exists);
+        }
+
+        for (int i=0; i<flux_left; i++)
+        {
+            BlockInfo & info = SortedInfos[i];
+            m_refGrid->_dealloc(info.level,info.Z);
+            BlockInfo & info1 = m_refGrid->getBlockInfoAll(info.level,info.Z);
+            info1.myrank = left;	
+         	assert(info1.TreePos == Exists);
+        }
+
+
+
+
+        int d =0;
+        for (int i=0; i<-flux_left; i++)
+        {
+            int level = recv_buffer_left2[2*i  ];
+            int Z     = recv_buffer_left2[2*i+1];
+            m_refGrid->_alloc(level,Z);
+            BlockInfo & info = m_refGrid->getBlockInfoAll(level,Z);
+            BlockType * b1 =  (BlockType *)info.ptrBlock;
+            assert(b1!=NULL);
+            Real * a1 = & b1->data[0][0][0].alpha1rho1;
+            std::memcpy( a1 ,&recv_buffer_left[d],BlockBytes);
+            d += BlockBytes/sizeof(Real);
+            info.myrank  = rank;
+
+            assert(info.TreePos == Exists);
+        }
+      
+
+        d =0;
+        for (int i=0; i<-flux_right; i++)
+        {
+            int level = recv_buffer_right2[2*i  ];
+            int Z     = recv_buffer_right2[2*i+1];
+            m_refGrid->_alloc(level,Z);
+            BlockInfo & info = m_refGrid->getBlockInfoAll(level,Z);
+            BlockType * b1 =  (BlockType *)info.ptrBlock;
+            assert(b1!=NULL);
+            Real * a1 = & b1->data[0][0][0].alpha1rho1;
+            std::memcpy( a1 ,&recv_buffer_right[d],BlockBytes);
+            d += BlockBytes/sizeof(Real);
+            info.myrank  = rank;
+
+            assert(info.TreePos == Exists);
+        }
+   
+
+
+
+
+
+        m_refGrid->FillPos();
+        m_refGrid->UpdateBlockInfoAll_States();
+
+
+
+      	MPI_Barrier(MPI_COMM_WORLD);
+        if (rank==0)
+    		std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
+        for (int r=0; r<size; r++)
+        {
+        	if (r==rank)
+        		std::cout << " Rank " << rank << " has " << m_refGrid->getBlocksInfo().size() << " blocks \n";
+        	MPI_Barrier(MPI_COMM_WORLD);
+        }
+        if (rank==0)
+        	std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
+    
 
 
     }
+
 
 
 

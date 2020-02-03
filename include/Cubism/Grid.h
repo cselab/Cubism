@@ -43,14 +43,15 @@ protected:
     const int levelMax;   //Maximum refinement level allowed
     const int levelStart; //Initial refinement level      
  
-    SpaceFillingCurve Zcurve;
+    
 
 public:
    
     int N;                     //Current number of blocks
     typedef Block BlockType;
     typedef typename Block::RealType Real;  //Block MUST provide `RealType`.
-
+    
+    SpaceFillingCurve Zcurve;
 
     void _alloc() //called in class constructor
     {

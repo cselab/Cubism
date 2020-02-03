@@ -196,19 +196,10 @@ public:
         ValidStates();
 
 
-
-
         LoadBalancer <TGrid> Balancer (*m_refGrid);
         Balancer.PrepareCompression();
 
-
-
-
-
-
-
-
-
+		
 
 
         //Refinement/compression of blocks
@@ -281,6 +272,16 @@ public:
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll();
    
+
+
+
+
+
+		Balancer.Balance_Diffusion();
+
+
+
+
    
         delete [] labs;
         delete Synch;

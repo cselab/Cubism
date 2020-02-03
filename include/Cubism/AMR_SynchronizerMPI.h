@@ -338,11 +338,12 @@ class SynchronizerMPI_AMR
 
     void __FixDuplicates( Interface & f, Interface & f_dup, int lx, int ly, int lz, int lx_dup, int ly_dup, int lz_dup, int & sx,int & sy, int & sz)
     {
-        BlockInfo & sender   = * f.infos[0];
         BlockInfo & receiver     = * f.    infos[1];
         BlockInfo & receiver_dup = * f_dup.infos[1];
  
-        assert (sender.level == f_dup.infos[0]->level && sender.Z == f_dup.infos[0]->Z);
+     
+        //BlockInfo & sender   = * f.infos[0];
+        //assert (sender.level == f_dup.infos[0]->level && sender.Z == f_dup.infos[0]->Z);
 
         if (receiver.level >= receiver_dup.level )
         {
@@ -601,9 +602,13 @@ public:
 
                                 int d0,d1,d2;
 
+                                assert (code[0] !=0 || code[1] !=0 || code[2] !=0);
+                                assert (abs(code[0])+abs(code[1])+abs(code[2]) == 1);
+
+
                                 if      (code[0]!=0) {d0 = 0; d1=1; d2=2;}
                                 else if (code[1]!=0) {d0 = 1; d1=0; d2=2;}
-                                else if (code[2]!=0) {d0 = 2; d1=0; d2=1;}
+                                else /*if (code[2]!=0)*/ {d0 = 2; d1=0; d2=1;}
 
                                 code3[d0] = -code[d0];
                                 code4[d0] = -code[d0];
@@ -1199,13 +1204,6 @@ public:
 
             assert (search != MapOfPacks.end());    
         }
-   
-       
-
-
-        const int code_r[3] = { f.icode[1]%3-1, (f.icode[1]/3)%3-1, (f.icode[1]/9)%3-1};
-        int t = abs(code_r[0]) + abs(code_r[1]) + abs(code_r[2]);
-        
 
 
         UnPackInfo temp = search->second;        
@@ -1229,71 +1227,10 @@ public:
 
                           temp.CoarseVersionLX,temp.CoarseVersionLY,
                           0,0,0,L[0],L[1],L[2],dst_sizeX,dst_sizeY,dst_sizeZ);
-
-
-                        if (rank==0)
-            {
-                const int code_s[3] = { f.icode[0]%3-1, (f.icode[0]/3)%3-1, (f.icode[0]/9)%3-1};
-                const int code_r[3] = { f.icode[1]%3-1, (f.icode[1]/3)%3-1, (f.icode[1]/9)%3-1};
-  
-
-////////////                std::cout << "Unpacking region: \n";
-////////////                std::cout << "lx,ly,lz = ("<< temp.lx << "," << temp.ly  << "," << temp.lz <<")\n";
-////////////                std::cout << "L[0],L[1],L[2] = ("<< L[0] << "," << L[1]  << "," << L[2] <<")\n";
-////////////                
-////////////                std::cout << "SrcStart= "<<temp.CoarseVersionsrcxstart << " x " << temp.CoarseVersionsrcystart  << " x " << temp.CoarseVersionsrczstart <<"\n";                
-////////////                std::cout << "Offset  = "<<temp.offset << "\n";
-////////////                std::cout << "Coarse Offset = " << temp.CoarseVersionOffset <<"\n";
-////////////                
-////////////                std::cout << "Total Offset = " << temp.offset+temp.CoarseVersionOffset <<"\n";
-////////////                
-////////////                std::cout << "Sender code = " << code_s[0] << code_s[1] << code_s[2] << "\n";
-////////////                std::cout << "Receiver code = " << code_r[0] << code_r[1] << code_r[2] << "\n";
-////////////                std::cout << "Sender  = ("<< sender.level << " , "<< sender.Z << ")   "<< sender.index[0] << " " <<sender.index[1]<< " "  << sender.index[2] <<"\n";    
-////////////
-////////////
-////////////
-////////////                std::cout << "Receiver= ("<< receiver.level << " , "<< receiver.Z << ")\n";
-////////////                std::cout << "Components=" ;for (int i=0; i<stencil.selcomponents.size(); i++) std::cout << stencil.selcomponents[i] << " " ; std::cout << "\n";
-////////////                std::cout << " \n";
-////////////
-            }
-    
+   
         }
         else
         {
-            if (rank==0)
-            {
-            //    const int code_s[3] = { f.icode[0]%3-1, (f.icode[0]/3)%3-1, (f.icode[0]/9)%3-1};
-            //    const int code_r[3] = { f.icode[1]%3-1, (f.icode[1]/3)%3-1, (f.icode[1]/9)%3-1};
-  //
-//
-//            //    std::cout << "Unpacking region: \n";
-//            //    std::cout << "Extents = "<< temp.lx << " x " << temp.ly  << " x " << temp.lz <<"\n";
-//            //    std::cout << "SrcStart= "<<temp.srcxstart << " x " << temp.srcystart  << " x " << temp.srczstart <<"\n";                
-//            //    std::cout << "Offset  = "<<temp.offset << "\n";
-//            //    
-//            //    std::cout << "Sender code = " << code_s[0] << code_s[1] << code_s[2] << "\n";
-//            //    std::cout << "Receiver code = " << code_r[0] << code_r[1] << code_r[2] << "\n";
-//            //    std::cout << "Sender  = ("<< sender.level << " , "<< sender.Z << ")   "<< sender.index[0] << " " <<sender.index[1]<< " "  << sender.index[2] <<"\n";    
-//
-//
-//
-//            //    std::cout << "Receiver= ("<< receiver.level << " , "<< receiver.Z << ")\n";
-//            //    std::cout << "Components=" ;for (int i=0; i<stencil.selcomponents.size(); i++) std::cout << stencil.selcomponents[i] << " " ; std::cout << "\n";
-            //    std::cout << " \n";
-
-            }
-             
-            //if (receiver.level == 1 && receiver.Z == 28 && stencil.selcomponents.size() !=7 && sender.level != 1) 
-            //    return; 
-            //{
-            //    temp.srcxstart = 0;
-            //    temp.srcystart = 0;
-            //    temp.srczstart = 0;
-            //}
-
-
             unpack_subregion<Real>(&recv_buffer[sender.myrank][temp.offset],
                           &dst[0],
                           gptfloats, 

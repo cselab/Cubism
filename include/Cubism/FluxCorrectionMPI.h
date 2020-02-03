@@ -80,7 +80,7 @@ class FluxCorrectionMPI: public TFluxCorrection
 
       TFluxCorrection::prepare(grid);
 
-      std::vector<BlockInfo> & B = (*TFluxCorrection::m_refGrid).getBlocksInfo();
+      std::vector<BlockInfo> & BLOCKS = (*TFluxCorrection::m_refGrid).getBlocksInfo();
       
       const int NC = 8;
       
@@ -90,7 +90,7 @@ class FluxCorrectionMPI: public TFluxCorrection
       blocksize[2]=BlockType::sizeZ;
 
       //1.Define faces
-      for (auto & info: B)
+      for (auto & info: BLOCKS)
       {
         int aux = pow(2,info.level);
 
@@ -102,9 +102,6 @@ class FluxCorrectionMPI: public TFluxCorrection
         const int yskip  = info.index[1]==0 ? -1 : 1;
         const int zskip  = info.index[2]==0 ? -1 : 1;
        
-        bool storeFace[6] = {false,false,false,false,false,false};
-        bool stored = false;
-
         for(int icode=0; icode<27; icode++)
         {
           if (icode == 1*1 + 3*1 + 9*1) continue;
@@ -175,7 +172,7 @@ class FluxCorrectionMPI: public TFluxCorrection
         recv_buffer[r].resize(recv_buffer_size[r]*NC);
 
         int offset = 0;
-        for (int k = 0; k < recv_faces[r].size(); k++)
+        for (int k = 0; k < (int)recv_faces[r].size(); k++)
         {
           face & f = recv_faces[r][k];
 
@@ -238,7 +235,7 @@ class FluxCorrectionMPI: public TFluxCorrection
       {
 
         int displacement = 0;
-        for (int k=0; k<send_faces[r].size(); k++)
+        for (int k=0; k<(int)send_faces[r].size(); k++)
         {
           face & f = send_faces[r][k];
 
@@ -301,7 +298,7 @@ class FluxCorrectionMPI: public TFluxCorrection
 
       for (int r = 0 ; r < size; r ++ )
       {
-        for (int index = 0; index < recv_faces[r].size(); index++)
+        for (int index = 0; index < (int)recv_faces[r].size(); index++)
         {
           face & f = recv_faces[r][index];
           FillCase_2(f) ;
@@ -324,14 +321,12 @@ class FluxCorrectionMPI: public TFluxCorrection
 
 
       int myFace    = abs( code[0]) * max(0, code[0]) + abs( code[1]) * (max(0, code[1])+2) + abs( code[2]) * (max(0, code[2])+4);
-      int otherFace = abs(-code[0]) * max(0,-code[0]) + abs(-code[1]) * (max(0,-code[1])+2) + abs(-code[2]) * (max(0,-code[2])+4);
-    
+      
 
       std::array <int,2> temp = {info.level,info.Z};           
       auto search = TFluxCorrection::MapOfCases.find(temp);
 
 
-      assert(myFace / 2 == otherFace / 2);
       assert(search != TFluxCorrection::MapOfCases.end());
 
 

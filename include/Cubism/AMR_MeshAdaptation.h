@@ -119,9 +119,9 @@ public:
         static int one_less = 1;
         if (rounds == -1)
         {
-          char *s = getenv("MYROUNDS");
-          if (s != NULL)
-              rounds = atoi(s);
+          char *s1 = getenv("MYROUNDS");
+          if (s1 != NULL)
+              rounds = atoi(s1);
           else
               rounds = 0;
            char *s2 = getenv("USEMAXTHREADS");
@@ -308,7 +308,7 @@ protected:
         assert(level <= m_refGrid->getlevelMax()-1);
         
        
-        int nChild = m_refGrid->getZchild(level,parent.index[0],parent.index[1],parent.index[2]);
+        //int nChild = m_refGrid->getZchild(level,parent.index[0],parent.index[1],parent.index[2]);
         BlockType * Blocks [8];
           
         for (int k=0; k<2; k++ )
@@ -597,7 +597,8 @@ protected:
     ////////////////////////////////////////////////////////////////////////////////////////////////
     // Virtual functions that can be overwritten by user
     ////////////////////////////////////////////////////////////////////////////////////////////////
-    virtual void RefineBlocks(BlockType * B[8], BlockInfo parent) 
+    virtual 
+    void RefineBlocks(BlockType * B[8], BlockInfo parent) 
     {
         int tid = omp_get_thread_num();
 
@@ -720,7 +721,8 @@ protected:
     }
 
 
-    virtual void WENOWavelets3(double cm, double c , double cp, double & left, double & right)
+    //virtual 
+    void WENOWavelets3(double cm, double c , double cp, double & left, double & right)
     {
     	double b1 = (c-cm)*(c-cm);
     	double b2 = (c-cp)*(c-cp);
@@ -737,7 +739,8 @@ protected:
         right = g1*w1+g2*w2;
     }
 
-    virtual void Kernel_1D(ElementType E0,ElementType E1,ElementType E2, ElementType & left, ElementType & right)
+    //virtual 
+    void Kernel_1D(ElementType E0,ElementType E1,ElementType E2, ElementType & left, ElementType & right)
     {
     	left .dummy = E1.dummy - 0.125*(E2.dummy-E0.dummy);
     	right.dummy = E1.dummy + 0.125*(E2.dummy-E0.dummy);
@@ -751,7 +754,8 @@ protected:
     }
           				 
     //Tag block loaded in Lab for refinement/compression; user can write own function
-    virtual State TagLoadedBlock(TLab & Lab_)
+    //virtual 
+    State TagLoadedBlock(TLab & Lab_)
     {
         const int nx = BlockType::sizeX;
         const int ny = BlockType::sizeY;

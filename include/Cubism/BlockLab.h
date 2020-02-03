@@ -461,11 +461,11 @@ class BlockLab
   virtual void Print()
   {
     std::cout << "===================================================================================\n";
-    for (int k = m_cacheBlock->getSize()[2]-1 ; k>=0 ; k--)
+    for (int k = (int)m_cacheBlock->getSize()[2]-1 ; k>=0 ; k--)
     {           
-      for (int j = m_cacheBlock->getSize()[1]-1 ; j>=0 ; j--)
+      for (int j = (int)m_cacheBlock->getSize()[1]-1 ; j>=0 ; j--)
       {
-        for (int i = 0 ; i < m_cacheBlock->getSize()[0] ; i++)
+        for (int i = 0 ; i < (int)m_cacheBlock->getSize()[0] ; i++)
         {
           double E1 = m_cacheBlock->Access(i,j,k).ru;
           printf("%4.2f ", E1);
@@ -481,11 +481,11 @@ class BlockLab
   virtual void PrintCoarse()
   {
     std::cout << "===================================================================================\n";
-    for (int k = m_CoarsenedBlock->getSize()[2]-1 ; k>=0 ; k--)
+    for (int k = (int)m_CoarsenedBlock->getSize()[2]-1 ; k>=0 ; k--)
     {           
-      for (int j = m_CoarsenedBlock->getSize()[1]-1 ; j>=0 ; j--)
+      for (int j = (int)m_CoarsenedBlock->getSize()[1]-1 ; j>=0 ; j--)
       {
-        for (int i = 0 ; i < m_CoarsenedBlock->getSize()[0] ; i++)
+        for (int i = 0 ; i < (int)m_CoarsenedBlock->getSize()[0] ; i++)
         {
           double E1 = m_CoarsenedBlock->Access(i,j,k).ru;
           printf("%4.2f ", E1);

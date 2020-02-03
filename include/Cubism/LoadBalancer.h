@@ -226,7 +226,7 @@ public:
             send_buffer[r].resize(send_infos[r].size()*BlockBytes/sizeof(Real));
             recv_buffer[r].resize(recv_infos[r].size()*BlockBytes/sizeof(Real));
             int d = 0;
-            for (int i=0; i<send_infos[r].size(); i++)
+            for (int i=0; i<(int)send_infos[r].size(); i++)
             {
                 BlockInfo & info = *send_infos[r][i];
                 BlockType * b1 =  (BlockType *)info.ptrBlock;
@@ -319,7 +319,7 @@ public:
 
         for (int r=0; r<size; r++)
         {          
-            for (int i=0; i<send_infos[r].size(); i++)
+            for (int i=0; i<(int)send_infos[r].size(); i++)
             {
                 BlockInfo & info = *send_infos[r][i];
                 m_refGrid->_dealloc(info.level,info.Z);
@@ -364,7 +364,7 @@ public:
         for (int r=0; r<size; r++)
         {    
             int d =0;
-            for (int i=0; i<recv_infos[r].size(); i++)
+            for (int i=0; i<(int)recv_infos[r].size(); i++)
             {
                 //std::cout << recv_buffer2[r].size() << " " << 2*i << "\n"; 
                 int level = recv_buffer2[r][2*i  ];

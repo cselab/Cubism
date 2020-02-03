@@ -6,6 +6,18 @@
 #include "GridMPI.h"
 #include "BlockLabMPI.h"
 
+
+
+
+
+
+
+
+#include "LoadBalancer.h"
+
+
+
+
 #include <omp.h>
 #include <cstring>
 #include <string>
@@ -188,6 +200,20 @@ public:
         MPI_Barrier(MPI_COMM_WORLD);           
         
         ValidStates();
+
+
+
+
+        LoadBalancer <TGrid> Balancer (*m_refGrid);
+        Balancer.PrepareCompression();
+
+
+
+
+
+
+
+
 
 
 

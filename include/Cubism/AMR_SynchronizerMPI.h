@@ -1037,7 +1037,7 @@ public:
             DiscardDuplicates(send_interfaces[r],send_buffer_size[r],false,NC,r,count);
             DiscardDuplicates(recv_interfaces[r],recv_buffer_size[r],true ,NC,r,count);
         }
-        assert (MapOfPacks.size() == count );
+        assert ((int)MapOfPacks.size() == count );
 
         //4.Allocate buffer memory 
         send_buffer.resize(size);

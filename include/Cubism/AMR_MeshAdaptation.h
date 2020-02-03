@@ -91,12 +91,6 @@ public:
         tolerance_for_compression = Ctol; 
     }
 
-    ~MeshAdaptation()
-    {
-      delete[] labs;
-    }
-
-
     void AdaptTheMesh(double t = 0)
     {
     	time = t;

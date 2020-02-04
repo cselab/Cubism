@@ -39,9 +39,6 @@ public:
     }
 
 
-
-
-
     void PrepareCompression()
     {
         std::vector <BlockInfo> & I = m_refGrid->getBlocksInfo();
@@ -58,18 +55,12 @@ public:
         
         for ( auto & b: I) 
         {                  	
-            int iBase,jBase,kBase;
-            m_refGrid->Zcurve.inverse(b.level,b.Z - b.Z%8, iBase,jBase,kBase);       
-            int nBlock = m_refGrid->getZforward(b.level,   iBase,jBase,kBase ); 
 
-          
-            BlockInfo & base = m_refGrid->getBlockInfoAll(b.level,nBlock);          
-
+            int nBlock = m_refGrid->getZforward(b.level, 2*(b.index[0]/2),2*(b.index[1]/2),2*(b.index[2]/2) );
+         
+            BlockInfo & base  = m_refGrid->getBlockInfoAll(b.level,nBlock);          
 			BlockInfo & bCopy = m_refGrid->getBlockInfoAll(b.level,b.Z);          
-
-
-
-   
+  
 
             if (b.Z != nBlock && base.state==Compress)
             {
@@ -85,8 +76,13 @@ public:
             }
             else if (b.Z == nBlock && base.state==Compress)
             {
-                for (int n = nBlock+1; n<nBlock+8; n++)
+                for (int k=0; k<2; k++ )
+                for (int j=0; j<2; j++ )
+                for (int i=0; i<2; i++ )
                 {
+                  int n   = m_refGrid->getZforward(b.level,b.index[0]+i,b.index[1]+j,b.index[2]+k); 
+                  
+                  if (n == nBlock) continue;
                     BlockInfo & temp = m_refGrid->getBlockInfoAll(b.level,n);
                   
                     if (temp.myrank != rank)
@@ -97,26 +93,17 @@ public:
                         recv_buffer2[temp.myrank].push_back(-1);
                         temp.myrank = base.myrank;
                     }
-                }
-
-              
+                 
+                 
+                }          
             }
         }
-
-       
-
-        
-
-
-
+  
         int BlockBytes = sizeof(BlockType);
 
         std::vector< std::vector<Real> > send_buffer(size);
         std::vector< std::vector<Real> > recv_buffer(size);
-       
-
-
-      
+             
         for (int r=0; r<size; r++)
         {
             send_buffer[r].resize(send_infos[r].size()*BlockBytes/sizeof(Real));
@@ -131,12 +118,6 @@ public:
                 d += BlockBytes/sizeof(Real);
             }
         }
-
-
-
-
-
-
 
 
 
@@ -225,6 +206,7 @@ public:
                 int Z     = recv_buffer2[r][2*i+1];
 
                 m_refGrid->_alloc(level,Z);
+    
                 BlockInfo info = m_refGrid->getBlockInfoAll(level,Z);
                 BlockType * b1 =  (BlockType *)info.ptrBlock;
                 assert(b1!=NULL);
@@ -237,14 +219,8 @@ public:
 
 
 
-
-
-
-
-
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States();
-
     }
 
 
@@ -273,7 +249,7 @@ public:
    
 
 
-   		int nu = 4;
+   		int nu = 2;
 
    		int flux_left  = (my_blocks -  left_blocks) / nu; //divide by two following stability criterion for diffusion equation
    		int flux_right = (my_blocks - right_blocks) / nu; //divide by two following stability criterion for diffusion equation
@@ -281,8 +257,6 @@ public:
    		std::vector <BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
 
    		std::sort(SortedInfos.begin(),SortedInfos.end());
-
-
 
 
 

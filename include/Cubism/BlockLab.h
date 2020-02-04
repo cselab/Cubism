@@ -244,12 +244,10 @@ class BlockLab
       assert(info.TreePos == Exists);
       *m_cacheBlock     =  NAN;
       *m_CoarsenedBlock =  NAN;
-
-      //std::cout << name() << "\n";
-       
+     
       //double t0 = omp_get_wtime();
       //1.
-    {
+      {
         assert(sizeof(ElementType) == sizeof(typename BlockType::ElementType));
 
         BlockType& block = *(BlockType *)info.ptrBlock;
@@ -318,7 +316,7 @@ class BlockLab
               }
           #endif
         #endif
-    }
+      }
       //double t1 = omp_get_wtime();
       
       std::array <int,3> blocksPerDim = grid.getMaxBlocks();
@@ -408,9 +406,6 @@ class BlockLab
 
 
 
-
-
-
     void post_load(BlockInfo info, const Real t=0,bool applybc = true)
     {
         const int nX = BlockType::sizeX;
@@ -452,116 +447,111 @@ class BlockLab
           CoarseFineInterpolation(info);
         }
         if (applybc) _apply_bc(info, t);
-
-
-
-	}
+    }
 
   
-  virtual void Print()
-  {
-    std::cout << "===================================================================================\n";
-    for (int k = (int)m_cacheBlock->getSize()[2]-1 ; k>=0 ; k--)
-    {           
-      for (int j = (int)m_cacheBlock->getSize()[1]-1 ; j>=0 ; j--)
-      {
-        for (int i = 0 ; i < (int)m_cacheBlock->getSize()[0] ; i++)
-        {
-          double E1 = m_cacheBlock->Access(i,j,k).ru;
-          printf("%4.2f ", E1);
-        }
-        std::cout <<"\n";
-      }
-      std::cout <<"\n\n";
-    }
-    std::cout << "===================================================================================\n";
-  }
-
-
-  virtual void PrintCoarse()
-  {
-    std::cout << "===================================================================================\n";
-    for (int k = (int)m_CoarsenedBlock->getSize()[2]-1 ; k>=0 ; k--)
-    {           
-      for (int j = (int)m_CoarsenedBlock->getSize()[1]-1 ; j>=0 ; j--)
-      {
-        for (int i = 0 ; i < (int)m_CoarsenedBlock->getSize()[0] ; i++)
-        {
-          double E1 = m_CoarsenedBlock->Access(i,j,k).ru;
-          printf("%4.2f ", E1);
-        }
-        std::cout <<"\n";
-      }
-      std::cout <<"\n\n";
-    }
-    std::cout << "===================================================================================\n";
-  }
-
-
-
-  virtual void PrintNei(BlockInfo info)
-  {
-
-    int r;
-    MPI_Comm_rank(MPI_COMM_WORLD,&r);
-    assert(info.myrank == r);
-
-    std::array <int,3> blocksPerDim = m_refGrid->getMaxBlocks();
-    int aux = pow(2,info.level);
-    NX = blocksPerDim[0]*aux;
-    NY = blocksPerDim[1]*aux;
-    NZ = blocksPerDim[2]*aux;    
-    
-    const bool xperiodic = is_xperiodic();
-    const bool yperiodic = is_yperiodic();
-    const bool zperiodic = is_zperiodic();
-
-    const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
-    const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
-    const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
-
-    const int xskip  = info.index[0]==0 ? -1 : 1;
-    const int yskip  = info.index[1]==0 ? -1 : 1;
-    const int zskip  = info.index[2]==0 ? -1 : 1;
-
-    std::string s[27] ;
-    
-    std::cout << "Block (" << info.level << "," << info.Z << ") with index = (" << info.index[0] << "," << info.index[1] << "," << info.index[2] << ") neighbors:\n"; 
-    for(int icode=0; icode<27; icode++)
+    virtual void Print()
     {
-      const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
-      
-      if (icode == 1*1 + 3*1 + 9*1) s[icode] = "m";
-           
-      else if ((!xperiodic && code[0] == xskip && xskin) || 
-              (!yperiodic && code[1] == yskip && yskin) || 
-              (!zperiodic && code[2] == zskip && zskin)    ) s[icode] = "-";                
-      else
-      {
-        BlockInfo infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));
-        if      (infoNei.TreePos == CheckCoarser) s[icode] = "C";
-        else if (infoNei.TreePos == CheckFiner  ) s[icode] = "F";
-        else                                      s[icode] = "E";
-      }
-    }
-
-
-    for (int k = 2 ; k>=0 ; k--)
-    {           
-      for (int j = 2 ; j>=0 ; j--)
-      {
-        for (int i = 0 ; i < 3 ; i++)
+      std::cout << "===================================================================================\n";
+      for (int k = (int)m_cacheBlock->getSize()[2]-1 ; k>=0 ; k--)
+      {           
+        for (int j = (int)m_cacheBlock->getSize()[1]-1 ; j>=0 ; j--)
         {
-          int icode = i + j*3 + k*9;
-          std::cout << s[icode] << " ";
+          for (int i = 0 ; i < (int)m_cacheBlock->getSize()[0] ; i++)
+          {
+            double E1 = m_cacheBlock->Access(i,j,k).ru;
+            printf("%4.2f ", E1);
+          }
+          std::cout <<"\n";
         }
-        std::cout <<"\n";
+        std::cout <<"\n\n";
       }
-      std::cout <<"\n\n";
+      std::cout << "===================================================================================\n";
     }
-  }
-
-
+  
+  
+    virtual void PrintCoarse()
+    {
+      std::cout << "===================================================================================\n";
+      for (int k = (int)m_CoarsenedBlock->getSize()[2]-1 ; k>=0 ; k--)
+      {           
+        for (int j = (int)m_CoarsenedBlock->getSize()[1]-1 ; j>=0 ; j--)
+        {
+          for (int i = 0 ; i < (int)m_CoarsenedBlock->getSize()[0] ; i++)
+          {
+            double E1 = m_CoarsenedBlock->Access(i,j,k).ru;
+            printf("%4.2f ", E1);
+          }
+          std::cout <<"\n";
+        }
+        std::cout <<"\n\n";
+      }
+      std::cout << "===================================================================================\n";
+    }
+  
+  
+  
+    virtual void PrintNei(BlockInfo info)
+    {
+  
+      int r;
+      MPI_Comm_rank(MPI_COMM_WORLD,&r);
+      assert(info.myrank == r);
+  
+      std::array <int,3> blocksPerDim = m_refGrid->getMaxBlocks();
+      int aux = pow(2,info.level);
+      NX = blocksPerDim[0]*aux;
+      NY = blocksPerDim[1]*aux;
+      NZ = blocksPerDim[2]*aux;    
+      
+      const bool xperiodic = is_xperiodic();
+      const bool yperiodic = is_yperiodic();
+      const bool zperiodic = is_zperiodic();
+  
+      const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
+      const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
+      const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
+  
+      const int xskip  = info.index[0]==0 ? -1 : 1;
+      const int yskip  = info.index[1]==0 ? -1 : 1;
+      const int zskip  = info.index[2]==0 ? -1 : 1;
+  
+      std::string s[27] ;
+      
+      std::cout << "Block (" << info.level << "," << info.Z << ") with index = (" << info.index[0] << "," << info.index[1] << "," << info.index[2] << ") neighbors:\n"; 
+      for(int icode=0; icode<27; icode++)
+      {
+        const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
+        
+        if (icode == 1*1 + 3*1 + 9*1) s[icode] = "m";
+             
+        else if ((!xperiodic && code[0] == xskip && xskin) || 
+                (!yperiodic && code[1] == yskip && yskin) || 
+                (!zperiodic && code[2] == zskip && zskin)    ) s[icode] = "-";                
+        else
+        {
+          BlockInfo infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));
+          if      (infoNei.TreePos == CheckCoarser) s[icode] = "C";
+          else if (infoNei.TreePos == CheckFiner  ) s[icode] = "F";
+          else                                      s[icode] = "E";
+        }
+      }
+  
+  
+      for (int k = 2 ; k>=0 ; k--)
+      {           
+        for (int j = 2 ; j>=0 ; j--)
+        {
+          for (int i = 0 ; i < 3 ; i++)
+          {
+            int icode = i + j*3 + k*9;
+            std::cout << s[icode] << " ";
+          }
+          std::cout <<"\n";
+        }
+        std::cout <<"\n\n";
+      }
+    }
 
 
 
@@ -576,7 +566,7 @@ class BlockLab
       const int nY = BlockType::sizeY;
       const int nZ = BlockType::sizeZ;
       
-      BlockType& b = grid(info.index_(0) + code[0], info.index_(1) + code[1], info.index_(2) + code[2],info.level_());
+      BlockType& b = grid(info.index[0] + code[0], info.index[1] + code[1], info.index[2] + code[2],info.level);
 
       #if 1
         const int bytes = (e[0]-s[0])*sizeof(ElementType);

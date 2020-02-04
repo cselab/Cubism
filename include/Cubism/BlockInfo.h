@@ -14,10 +14,8 @@ using namespace std;
 
 
 
-
 //#define MortonCurve
-#define HilbertCurve
-
+#define HilbertCurve 
 
 #define HACK
 
@@ -427,9 +425,9 @@ struct BlockInfo
     double h;             //grid spacing
     void * auxiliary;     //Pointer to blockcase
     double origin[3];     //(x,y,z) of block's origin
+    
+
     template <typename T>
-
-
     inline void pos(T p[3], int ix, int iy, int iz) const
     {
         p[0] = origin_(0) + h_()*(ix+0.5);
@@ -485,6 +483,9 @@ struct BlockInfo
 
     bool operator<(const BlockInfo & other) const 
     {
+
+      SpaceFillingCurve Zcurve(3,3,3); //   <---------------------------  HARDCODED CRAP 
+  
       
       if (level == other.level)
       {
@@ -496,7 +497,6 @@ struct BlockInfo
    
         int i[3] = {other.index[0] / aux, other.index[1] / aux, other.index[2] / aux};
       
-        SpaceFillingCurve Zcurve(3,3,3);
         int zzz = Zcurve.forward(level,i[0],i[1],i[2]);
 
         return (Z < zzz);
@@ -507,7 +507,6 @@ struct BlockInfo
    
         int i[3] = {index[0] / aux, index[1] / aux, index[2] / aux};
       
-        SpaceFillingCurve Zcurve(3,3,3);
         int zzz = Zcurve.forward(other.level,i[0],i[1],i[2]);
 
         return (zzz < other.Z);

@@ -251,12 +251,11 @@ public:
           int m = mn_com[2*i];
           int n = mn_com[2*i+1];               
           compress(m,n);
+
           #pragma omp atomic
            c++;
         }
        /*************************************************/
-
-
 
         int temp[2] = {r,c};
         int result[2];
@@ -272,16 +271,7 @@ public:
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll();
    
-
-
-
-
-
 		Balancer.Balance_Diffusion();
-
-
-
-
    
         delete [] labs;
         delete Synch;
@@ -343,7 +333,8 @@ protected:
 
     void compress(int level, int Z)
     {
-        //assert (Z%8 ==0);
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD,&rank);      
         assert (level > 0); 
     
         BlockInfo & info = m_refGrid->getBlockInfoAll(level,Z);
@@ -356,9 +347,10 @@ protected:
           int blk = K*4+J*2+I;
           int n   = m_refGrid->getZforward(level,info.index[0]+I,info.index[1]+J,info.index[2]+K); 
           Blocks[blk] = (BlockType *)(m_refGrid->getBlockInfoAll(level,n)).ptrBlock;
+                 
           (m_refGrid->getBlockInfoAll(level,n)).myrank = -1;     
         }
-    
+   
         const int nx = BlockType::sizeX;
         const int ny = BlockType::sizeY;
         const int nz = BlockType::sizeZ;
@@ -716,7 +708,7 @@ protected:
     }
 
 
-    //virtual 
+    virtual 
     void WENOWavelets3(double cm, double c , double cp, double & left, double & right)
     {
     	double b1 = (c-cm)*(c-cm);
@@ -734,7 +726,7 @@ protected:
         right = g1*w1+g2*w2;
     }
 
-    //virtual 
+    virtual 
     void Kernel_1D(ElementType E0,ElementType E1,ElementType E2, ElementType & left, ElementType & right)
     {
     	left .dummy = E1.dummy - 0.125*(E2.dummy-E0.dummy);
@@ -749,7 +741,7 @@ protected:
     }
           				 
     //Tag block loaded in Lab for refinement/compression; user can write own function
-    //virtual 
+    virtual 
     State TagLoadedBlock(TLab & Lab_)
     {
         const int nx = BlockType::sizeX;

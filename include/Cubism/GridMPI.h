@@ -53,8 +53,10 @@ public:
 
     GridMPI(const int npeX, const int npeY, const int npeZ,
             const int nX, const int nY=1, const int nZ=1,
-            const double _maxextent = 1, const int a_levelStart = 0, const int a_levelMax =1 ,const MPI_Comm comm = MPI_COMM_WORLD):
-      TGrid(nX, nY, nZ, _maxextent, a_levelStart,a_levelMax,false), timestamp(0), worldcomm(comm)
+            const double _maxextent = 1, const int a_levelStart = 0, const int a_levelMax =1 ,const MPI_Comm comm = MPI_COMM_WORLD, const bool a_xperiodic = true,const bool a_yperiodic = true,const bool a_zperiodic = true):
+   
+
+      TGrid(nX, nY, nZ, _maxextent, a_levelStart,a_levelMax,false, a_xperiodic,a_yperiodic,a_zperiodic), timestamp(0), worldcomm(comm)
     {
         assert(npeX > 0 && "Number of processes per X must be greater than 0.");
         assert(npeY > 0 && "Number of processes per Y must be greater than 0.");
@@ -472,106 +474,13 @@ public:
 
 
 
-    virtual void UpdateBlockInfoAll() override
-    {
-
-
-        #if 1 //stupid global update of everyting
-        
-        int rank,size;
-        MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-        MPI_Comm_size(MPI_COMM_WORLD,&size); 
-
-
-        int myLength = 2*TGrid::m_vInfo.size();
-        std::vector <int> myData(myLength);
-        for (int i=0; i<myLength; i+=2)
-        {
-            myData[i  ] = TGrid::m_vInfo[i/2].level;
-            myData[i+1] = TGrid::m_vInfo[i/2].Z    ;
-        }
-
-        //2.Gather lengths of all processes and use them to allocate memory on each process
-        std::vector <int> AllLengths(size,0);
-        AllLengths[rank] = myLength;
-        MPI_Allgather(&myLength, 1, MPI_INT, &AllLengths[0], 1, MPI_INT,MPI_COMM_WORLD);
-
-        //int tmp = 0;
-        //for (int i=0;i<size;i++)
-        //    tmp += AllLengths[i];
-        //std::vector < int > AllData(tmp,-1);
-        std::vector< std::vector<int> > AllData(size);
-        for (int i=0;i<size;i++)
-            AllData[i].resize(AllLengths[i]);
-        
-
-        std::vector<int> displacement(size);
-        displacement[0] = 0;
-        for (int i=1;i<size;i++)
-        {
-            displacement[i] = &AllData[i][0]-&AllData[0][0];    //displacement[i-1] + AllLengths[i-1];
-        }
-    
-
-        MPI_Allgatherv(&myData[0], myLength, MPI_INT,
-                       &AllData[0][0], &AllLengths[0],
-                       &displacement[0], MPI_INT, MPI_COMM_WORLD);
-
- 
-        for (int r=0 ; r<size; r++)
-        for (int index = 0; index < (int)AllData[r].size(); index += 2)
-        {
-            int level = AllData[r][index  ];
-            int Z     = AllData[r][index+1];
-     
-            TGrid::BlockInfoAll[level][Z].myrank  = r;
-            TGrid::BlockInfoAll[level][Z].TreePos = Exists;
-
-            int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
-                        TGrid::BlockInfoAll[level][Z].index[1],
-                        TGrid::BlockInfoAll[level][Z].index[2]};
-           
-            if (level<TGrid::levelMax -1)
-                for (int k=0; k<2; k++ )
-                for (int j=0; j<2; j++ )
-                for (int i=0; i<2; i++ )
-                {      
-                    int nc = TGrid::getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
-                    TGrid::BlockInfoAll[level+1][nc].TreePos = CheckCoarser;
-                    TGrid::BlockInfoAll[level+1][nc].myrank  = -1;
-                }
-            if (level>0)
-            {
-                int nf = TGrid::getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
-                TGrid::BlockInfoAll[level-1][nf].TreePos = CheckFiner;
-                TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
-            }
-        }
-
-        #else //update blocks on the boundary of process
-        
-           #if 1 //update all blocks in process boundary
-           #else //update only the blocks that changed
-           #endif
-
-        #endif
-
-    };
-
-
-
-
-
-
 
 
 
 
     virtual void UpdateBlockInfoAll_States() 
     {
-
-
-        #if 1 //stupid global update of everyting
+    #if 1 //stupid global update of everyting
         
         int rank,size;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
@@ -664,15 +573,270 @@ public:
             }
         }
 
-        #else //update blocks on the boundary of process
+    #else //update blocks on the boundary of process
         
+
+        int rank,size;
+        MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+        MPI_Comm_size(MPI_COMM_WORLD,&size); 
+
+
+        int myLength = 3*TGrid::m_vInfo.size();
+        std::vector <int> myData(myLength);
+        for (int i=0; i<myLength; i+=3)
+        {
+            myData[i  ] = TGrid::m_vInfo[i/3].level;
+            myData[i+1] = TGrid::m_vInfo[i/3].Z    ;
+
+
+            if (TGrid::m_vInfo[i/3].state == Leave)
+                myData[i+2] = 0;
+            else if (TGrid::m_vInfo[i/3].state == Compress)
+                myData[i+2] = 1;
+            else if (TGrid::m_vInfo[i/3].state == Refine)
+                myData[i+2] = 2;
+        }
+
+        //2.Gather lengths of all processes and use them to allocate memory on each process
+        std::vector <int> AllLengths(size,0);
+        AllLengths[rank] = myLength;
+        MPI_Allgather(&myLength, 1, MPI_INT, &AllLengths[0], 1, MPI_INT,MPI_COMM_WORLD);
+
+
+        std::vector< std::vector<int> > AllData(size);
+        for (int i=0;i<size;i++)
+            AllData[i].resize(AllLengths[i]);
+        
+
+        std::vector<int> displacement(size);
+        displacement[0] = 0;
+        for (int i=1;i<size;i++)
+        {
+            displacement[i] = &AllData[i][0]-&AllData[0][0];    
+        }
+    
+
+        MPI_Allgatherv(&myData[0], myLength, MPI_INT,
+                       &AllData[0][0], &AllLengths[0],
+                       &displacement[0], MPI_INT, MPI_COMM_WORLD);
+
+ 
+        for (int r=0 ; r<size; r++)
+        for (int index = 0; index < (int)AllData[r].size(); index += 3)
+        {
+            int level = AllData[r][index  ];
+            int Z     = AllData[r][index+1];
+            
+            //State s   = (State)AllData[r][index+2];
+     
+            TGrid::BlockInfoAll[level][Z].myrank  = r;
+            TGrid::BlockInfoAll[level][Z].TreePos = Exists;
+            
+
+            if (AllData[r][index+2] == 0)
+            TGrid::BlockInfoAll[level][Z].state   = Leave;
+
+            else if (AllData[r][index+2] == 1)
+            TGrid::BlockInfoAll[level][Z].state   = Compress;
+
+            else if (AllData[r][index+2] == 2)
+            TGrid::BlockInfoAll[level][Z].state   = Refine;
+
+
+
+
+
+            int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
+                        TGrid::BlockInfoAll[level][Z].index[1],
+                        TGrid::BlockInfoAll[level][Z].index[2]};
+           
+            if (level<TGrid::levelMax -1)
+                for (int k=0; k<2; k++ )
+                for (int j=0; j<2; j++ )
+                for (int i=0; i<2; i++ )
+                {      
+                    int nc = TGrid::getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
+                    TGrid::BlockInfoAll[level+1][nc].TreePos = CheckCoarser;
+                    TGrid::BlockInfoAll[level+1][nc].myrank  = -1;
+                }
+            if (level>0)
+            {
+                int nf = TGrid::getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
+                TGrid::BlockInfoAll[level-1][nf].TreePos = CheckFiner;
+                TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
+            }
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
            #if 1 //update all blocks in process boundary
            #else //update only the blocks that changed
            #endif
 
-        #endif
+    #endif
 
     };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if 0
+
+    void FindBoundaryBlocks()
+    {
+        boundary_blocks.clear();
+        
+        for (int i=0; i<(int)myInfos.size(); i++)
+        {
+            BlockInfo & info = myInfos[i];
+
+            int aux = pow(2,info.level);
+            const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
+            const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
+            const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
+            const int xskip  = info.index[0]==0 ? -1 : 1;
+            const int yskip  = info.index[1]==0 ? -1 : 1;
+            const int zskip  = info.index[2]==0 ? -1 : 1;
+
+            bool isInner = true;
+
+            for(int icode=0; icode<27; icode++)
+            {
+                if (icode == 1*1 + 3*1 + 9*1) continue;
+               
+                const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
+               
+                if (!xperiodic && code[0] == xskip && xskin) continue;
+                if (!yperiodic && code[1] == yskip && yskin) continue;
+                if (!zperiodic && code[2] == zskip && zskin) continue; 
+                
+                BlockInfo & infoNei = getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));   
+
+                if (infoNei.TreePos == Exists && infoNei.myrank != rank)
+                {
+                  isInner = false;
+                }
+                else if (infoNei.TreePos == CheckCoarser)
+                {
+                    int nCoarse = getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
+                    BlockInfo & infoNeiCoarser = getBlockInfoAll(infoNei.level-1,nCoarse);
+                    if (infoNeiCoarser.myrank != rank)
+                    {
+                        isInner = false;                 
+                    }
+                }
+                else if (infoNei.TreePos == CheckFiner)
+                {
+                    int Bstep = 1; //face
+                    if      ((abs(code[0])+abs(code[1])+abs(code[2])==2 )) Bstep = 3; //edge
+                    else if ((abs(code[0])+abs(code[1])+abs(code[2])==3 )) Bstep = 4; //corner
+                   
+                    for (int B = 0 ; B <= 3 ; B += Bstep) //loop over blocks that make up face/edge/corner (respectively 4,2 or 1 blocks)
+                    {
+                        const int temp = (abs(code[0])==1) ? (B%2) : (B/2) ;
+                        int nFine = getZforward(infoNei.level+1,2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0])),
+                                                                2*info.index[1] + max(code[1],0) +code[1]  + temp *max(0, 1 - abs(code[1])),
+                                                                2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2])));
+                        BlockInfo & infoNeiFiner = getBlockInfoAll(infoNei.level+1,nFine);
+                        if (infoNeiFiner.myrank != rank)
+                        {
+                            isInner = false;              
+                        }
+                    }
+                } 
+            }//icode = 0,...,26  
+
+
+            if (!isInner)
+                halo_blocks.push_back(info);
+
+
+
+        }//i-loop
+
+
+
+
+    }
+
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -701,8 +865,9 @@ public:
 
 
     template<typename Processing>
-    SynchronizerMPIType * sync(Processing& p, bool per [3])
+    SynchronizerMPIType * sync(Processing& p)
     {
+        bool per [3] = {TGrid::xperiodic,TGrid::yperiodic,TGrid::zperiodic};
 
         //temporarily hardcoded Cstencil
         StencilInfo Cstencil = p.stencil;
@@ -727,10 +892,10 @@ public:
                                                 Block::sizeX,
                                                 Block::sizeY,
                                                 Block::sizeZ,
-                                                  blockperDim[0],
-                                                  blockperDim[1],
-                                                  blockperDim[2],
-                                                  TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
+                                                blockperDim[0],
+                                                blockperDim[1],
+                                                blockperDim[2],
+                                                TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
 
         //    SynchronizerMPIs[stencil] = queryresult;
         //}

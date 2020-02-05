@@ -269,7 +269,7 @@ public:
             std::cout <<"==============================================================\n";
         }
         m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll();
+        m_refGrid->UpdateBlockInfoAll_States();
    
 		Balancer.Balance_Diffusion();
    

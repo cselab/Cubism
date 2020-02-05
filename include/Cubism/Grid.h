@@ -42,8 +42,10 @@ protected:
     const double maxextent;        //Maximum domain extent
     const int levelMax;   //Maximum refinement level allowed
     const int levelStart; //Initial refinement level      
- 
-    
+    const bool xperiodic;
+    const bool yperiodic;
+    const bool zperiodic;
+
 
 public:
    
@@ -127,9 +129,7 @@ public:
         }   
     }
 
-    virtual void UpdateBlockInfoAll() {};
    
-
     #ifdef HACK //empty functions just to make the code compile with stretched meshes 
         std::vector<MeshMap<Block>*> m_mesh_maps;
 
@@ -182,8 +182,11 @@ public:
          const double _maxextent = 1,
          const unsigned int _levelStart = 0,
          const unsigned int _levelMax = 1,     
-         const bool AllocateBlocks = true):
-          NX(_NX), NY(_NY), NZ(_NZ), maxextent(_maxextent),levelMax(_levelMax), levelStart(_levelStart), Zcurve(NX,NY,NZ)    
+         const bool AllocateBlocks = true,
+         const bool a_xperiodic = true,
+         const bool a_yperiodic = true,
+         const bool a_zperiodic = true ):
+          NX(_NX), NY(_NY), NZ(_NZ), maxextent(_maxextent),levelMax(_levelMax), levelStart(_levelStart), xperiodic(a_xperiodic),yperiodic(a_yperiodic),zperiodic(a_zperiodic),Zcurve(NX,NY,NZ)    
     {
         N = 0 ;
         int blocksize[3] = {Block::sizeX,Block::sizeY,Block::sizeZ};

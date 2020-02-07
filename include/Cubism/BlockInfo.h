@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <limits.h>
+#include <vector>
 #include <cassert>
 
 #include "MeshMap.h"
@@ -14,8 +15,8 @@ using namespace std;
 
 
 
-//#define MortonCurve
-#define HilbertCurve 
+#define MortonCurve
+//#define HilbertCurve 
 
 #define HACK
 
@@ -24,19 +25,31 @@ using namespace std;
 namespace cubism //AMR_CUBISM
 {
 
-
+    struct UnPackInfo
+    {
+        int offset;
+        int lx,ly,lz;
+        int srcxstart, srcystart, srczstart;
+        int LX,LY;
+        int CoarseVersionOffset;     
+        int CoarseVersionLX,CoarseVersionLY;
+        int CoarseVersionsrcxstart,CoarseVersionsrcystart,CoarseVersionsrczstart;
+    
+        int level,Z,icode; 
+    };
 
 
 class SpaceFillingCurve
 {
-protected:
-    const unsigned int BX,BY,BZ;
+protected: 
 
-
+    unsigned int BX,BY,BZ;
 
     #if   defined(MortonCurve)
         //Copy-pasted from 
         //www.forceflow.be/2013/10/07/morton-encodingdecoding-through-bit-interleaving-implementations
+        #if 0
+
         inline uint64_t mortonEncode_for(unsigned int x, unsigned int y, unsigned int z) const
         {
             uint64_t answer = 0;
@@ -47,6 +60,26 @@ protected:
             }
             return answer;
         }
+
+        #else
+        // method to seperate bits from a given integer 3 positions apart
+        inline uint64_t splitBy3(unsigned int a)const{
+        uint64_t x = a & 0x1fffff; // we only look at the first 21 bits
+        x = (x | x << 32) & 0x1f00000000ffff; // shift left 32 bits, OR with self, and 00011111000000000000000000000000000000001111111111111111
+        x = (x | x << 16) & 0x1f0000ff0000ff; // shift left 32 bits, OR with self, and 00011111000000000000000011111111000000000000000011111111
+        x = (x | x << 8) & 0x100f00f00f00f00f; // shift left 32 bits, OR with self, and 0001000000001111000000001111000000001111000000001111000000000000
+        x = (x | x << 4) & 0x10c30c30c30c30c3; // shift left 32 bits, OR with self, and 0001000011000011000011000011000011000011000011000011000100000000
+        x = (x | x << 2) & 0x1249249249249249;
+        return x;
+        }
+        
+        inline uint64_t mortonEncode_for(unsigned int x, unsigned int y, unsigned int z) const {
+        uint64_t answer = 0;
+        answer |= splitBy3(x) | splitBy3(y) << 1 | splitBy3(z) << 2;
+        return answer;
+        }
+        #endif
+
         //// DECODE 3D Morton code : For loop
         inline void m3D_d_for(int m, int & x,  int & y,  int & z)
         {
@@ -280,6 +313,11 @@ protected:
     #endif
 
 public:
+
+	SpaceFillingCurve(){};
+
+	void __setup(int nx,int ny,int nz){BX = nx;BY = ny;BZ = nz;}
+
     SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ):BX(a_BX),BY(a_BY),BZ(a_BZ){}
 
     //space-filling curve (i,j,k) --> 1D index (given level l)
@@ -361,9 +399,6 @@ public:
         return;
     }
 
-
-
-
     int Encode(int level, int Z)
     {
       int retval;
@@ -379,10 +414,6 @@ public:
 
       return retval;
     }
-
-
-
-
 };
 
 
@@ -426,6 +457,10 @@ struct BlockInfo
     void * auxiliary;     //Pointer to blockcase
     double origin[3];     //(x,y,z) of block's origin
     
+
+    std::vector<UnPackInfo > unpacks;
+
+
 
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const
@@ -559,7 +594,7 @@ struct BlockInfo
                                                        (index[2]+k+Bmax[2])%Bmax[2]);
         }
 
-        //blockID = Zcurve.Encode(level,Z);
+        blockID = Zcurve.Encode(level,Z);
     }
 
     int level_() const 

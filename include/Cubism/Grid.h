@@ -47,6 +47,8 @@ protected:
     const bool zperiodic;
 
 
+    int **** Zholder;
+
 public:
    
     int N;                     //Current number of blocks
@@ -83,7 +85,7 @@ public:
         N++;        
     }
 
-    void _dealloc() //called in class destructor
+    virtual void _deallocAll() //called in class destructor
     {
         m_blocks.clear();
         m_vInfo.clear();
@@ -91,10 +93,10 @@ public:
         {
             for (int n=0; n<NX*NY*NZ*pow(pow(2,m),3); n++)
             {
-                if (BlockInfoAll[m][n].TreePos==Exists)
+                if (BlockInfoAll[m][n].TreePos==Exists) 
                 {
                     allocator <Block> alloc;
-                    alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);
+                    //alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);
                 }
             }
         }    
@@ -197,6 +199,9 @@ public:
 
              //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
         BlockInfoAll.resize(levelMax);
+        
+        Zholder = new int *** [levelMax];
+
         for (int m=0; m<levelMax; m++)
         {
             int TwoPower  = pow(2,m);
@@ -207,12 +212,23 @@ public:
             double h = h0 / TwoPower;
 
             double origin[3];
- 
+
+            Zholder[m] = new int ** [NX * TwoPower];  
+            for (int i=0; i<NX * TwoPower; i++)
+            {
+                Zholder[m][i] = new int * [NY * TwoPower];
+                for (int j=0; j<NY * TwoPower; j++)
+                    Zholder[m][i][j] = new int [NZ * TwoPower];
+            }
+
+
             for (int i=0; i<NX * TwoPower; i++)
             for (int j=0; j<NY * TwoPower; j++)
             for (int k=0; k<NZ * TwoPower; k++)
             {
                 int n = Zcurve.forward(m,i,j,k);
+
+                Zholder[m][i][j][k] = n;
                 
                 int IJK[3] = {i,j,k};
                 origin[0]  = i*blocksize[0]*h;
@@ -232,7 +248,7 @@ public:
         if (AllocateBlocks) _alloc();
     }
   
-    virtual ~Grid() {_dealloc();}
+    virtual ~Grid() {_deallocAll();}
 
     virtual bool avail(int ix, int iy, int iz, int m) const { return true; }
   
@@ -245,7 +261,9 @@ public:
         int ix = (i+TwoPower*NX) % (NX*TwoPower);
         int iy = (j+TwoPower*NY) % (NY*TwoPower);
         int iz = (k+TwoPower*NZ) % (NZ*TwoPower);
-        return Zcurve.forward(level,ix,iy,iz);
+
+        //return Zholder[level][ix][iy][iz];
+        return   Zcurve.forward(level,ix,iy,iz);
     }
 
     int getZchild(int level,int i, int j, int k)

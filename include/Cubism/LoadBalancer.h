@@ -61,7 +61,6 @@ public:
             BlockInfo & base  = m_refGrid->getBlockInfoAll(b.level,nBlock);          
 			BlockInfo & bCopy = m_refGrid->getBlockInfoAll(b.level,b.Z);          
   
-
             if (b.Z != nBlock && base.state==Compress)
             {
                 if (base.myrank != rank && b.myrank == rank)
@@ -93,10 +92,14 @@ public:
                         recv_buffer2[temp.myrank].push_back(-1);
                         temp.myrank = base.myrank;
                     }
-                 
-                 
                 }          
             }
+
+
+
+
+
+
         }
   
         int BlockBytes = sizeof(BlockType);
@@ -227,11 +230,9 @@ public:
 
     void Balance_Diffusion()
     { 
-
-    	int right  = (rank == size-1) ? 0      : rank + 1;
-    	int left   = (rank == 0     ) ? size-1 : rank - 1;
-
-   
+    	int right  = (rank == size-1) ?  MPI_PROC_NULL : rank + 1;
+    	int left   = (rank == 0     ) ?  MPI_PROC_NULL : rank - 1;
+  
 
     	int my_blocks = m_refGrid->getBlocksInfo().size();
     	int right_blocks,left_blocks;
@@ -247,12 +248,15 @@ public:
       	
       	MPI_Waitall(4, &reqs[0], MPI_STATUSES_IGNORE);
    
-
-
    		int nu = 2;
 
    		int flux_left  = (my_blocks -  left_blocks) / nu; //divide by two following stability criterion for diffusion equation
    		int flux_right = (my_blocks - right_blocks) / nu; //divide by two following stability criterion for diffusion equation
+
+
+        if (rank == size-1) flux_right = 0;
+        if (rank == 0     ) flux_left  = 0;
+
 
    		std::vector <BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
 
@@ -360,18 +364,8 @@ public:
 		}	
 
 
-
-		//std::cout << " Rank " << rank << " size =" << request.size() << " \n";
-       	//std::cout << " Rank " << rank << " will send/receive " <<  recv_buffer_left.size() << " " << recv_buffer_right.size() << " " << send_buffer_left.size() << " " << send_buffer_right.size() << "\n";
-       
-
-
 		if (request.size() != 0)
 			MPI_Waitall(request.size(), &request[0], MPI_STATUSES_IGNORE);
-
-	
-
-
 
 
         for (int i=0; i<flux_right; i++)
@@ -391,8 +385,6 @@ public:
             info1.myrank = left;	
          	assert(info1.TreePos == Exists);
         }
-
-
 
 
         int d =0;
@@ -432,9 +424,6 @@ public:
    
 
 
-
-
-
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States();
 
@@ -443,24 +432,19 @@ public:
       	MPI_Barrier(MPI_COMM_WORLD);
         if (rank==0)
     		std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
+        
         for (int r=0; r<size; r++)
         {
-        	if (r==rank)
+           	if (r==rank)
         		std::cout << " Rank " << rank << " has " << m_refGrid->getBlocksInfo().size() << " blocks \n";
         	MPI_Barrier(MPI_COMM_WORLD);
         }
         if (rank==0)
-        	std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
-    
+        	std::cout << "\n&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
+        MPI_Barrier(MPI_COMM_WORLD);
 
 
     }
-
-
-
-
-
-
 
 
 

@@ -5,14 +5,6 @@
 #include "BlockLab.h"
 #include "GridMPI.h"
 #include "BlockLabMPI.h"
-
-
-
-
-
-
-
-
 #include "LoadBalancer.h"
 
 
@@ -90,6 +82,9 @@ public:
         tolerance_for_refinement = Rtol;
         tolerance_for_compression = Ctol; 
     }
+
+    virtual
+    ~MeshAdaptation(){}
 
     void AdaptTheMesh(double t = 0)
     {
@@ -189,15 +184,20 @@ public:
                 }
             }
         }
+                           
         
-           
-        MPI_Barrier(MPI_COMM_WORLD);           
-        
+            
+        auto started = MPI_Wtime();
         ValidStates();
+        auto done = MPI_Wtime();;
+        m_refGrid->TIMINGS [5] += done-started; 
 
 
+        started = MPI_Wtime();
         LoadBalancer <TGrid> Balancer (*m_refGrid);
         Balancer.PrepareCompression();
+        done = MPI_Wtime();
+        m_refGrid->TIMINGS [6] += done-started; 
 
 		
 
@@ -271,8 +271,12 @@ public:
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States();
    
-		Balancer.Balance_Diffusion();
-   
+		
+        started = MPI_Wtime();
+        Balancer.Balance_Diffusion();
+        done = MPI_Wtime();
+        m_refGrid->TIMINGS [7] += done-started; 
+
         delete [] labs;
         delete Synch;
     }
@@ -302,13 +306,16 @@ protected:
         {      
             int nc = m_refGrid->getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);      
             BlockInfo & Child = m_refGrid->getBlockInfoAll(level+1,nc); 
+
+            //if (i==0&&k==0&&j==0)std::cout << "Refining block " << level << " " <<Z << " to get " << nc << "\n";
+          
             #pragma omp critical
             {
               m_refGrid->_alloc(level+1,nc);
             }
             Blocks [k*4 + j*2 + i] = (BlockType*) Child.ptrBlock;
         }
-  
+
         RefineBlocks(Blocks,parent);  
     }
 
@@ -428,7 +435,12 @@ protected:
             //1.Change states of blocks next to finer resolution blocks
             //2.Change states of blocks next to same resolution blocks
             //3.Compress a block only if all blocks with the same parent need compression
-    
+                
+            //bool ready = false;
+           
+            //while(!ready)
+            //{ 
+            //    ready = true;
       
             //1.
             for ( auto & b: I) if (b.level == m)
@@ -475,6 +487,7 @@ protected:
                             if (NeiState == Refine)
                             {
                                 info.state=Refine;
+             //                   ready = false;
                                 break;
                             }
                         }
@@ -482,10 +495,12 @@ protected:
                 }
             }
 
+            //MPI_Allreduce(MPI_IN_PLACE, &ready, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
+
             m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States();
+            m_refGrid->UpdateBlockInfoAll_States(true);
     
-    
+            //}//ready
     
             //2.
             for ( auto & b: I) if (b.level == m)
@@ -513,7 +528,7 @@ protected:
             }
       
             m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States();
+            m_refGrid->UpdateBlockInfoAll_States(true);
 
 
             //3.
@@ -536,7 +551,7 @@ protected:
             }
             
             m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States();
+            m_refGrid->UpdateBlockInfoAll_States(true);
 
 
             //4.
@@ -551,7 +566,7 @@ protected:
             } 
 
             m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States();
+            m_refGrid->UpdateBlockInfoAll_States(true);
         }//m
     }
 
@@ -764,12 +779,12 @@ protected:
           double gradMag = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
           gradMag /= ( 1e-6 + Lab_(i,j,k).energy); 
     
-          #if 0
-            dudx = 0.5*( Lab(i+1,j  ,k  ).alpha2-Lab(i-1,j  ,k  ).alpha2);
-            dudy = 0.5*( Lab(i  ,j+1,k  ).alpha2-Lab(i  ,j-1,k  ).alpha2);
-            dudz = 0.5*( Lab(i  ,j  ,k+1).alpha2-Lab(i  ,j  ,k-1).alpha2);         
+          #if 1
+            dudx = 0.5*( Lab_(i+1,j  ,k  ).alpha2-Lab_(i-1,j  ,k  ).alpha2);
+            dudy = 0.5*( Lab_(i  ,j+1,k  ).alpha2-Lab_(i  ,j-1,k  ).alpha2);
+            dudz = 0.5*( Lab_(i  ,j  ,k+1).alpha2-Lab_(i  ,j  ,k-1).alpha2);         
             double gradMag1 = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
-            gradMag1 /= ( 1e-4 + Lab(i,j,k).alpha2); 
+            gradMag1 /= ( 1e-6 + Lab_(i,j,k).alpha2); 
             gradMag = max(gradMag,gradMag1);
           #endif
     

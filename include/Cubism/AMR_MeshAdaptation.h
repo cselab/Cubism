@@ -190,7 +190,6 @@ public:
         auto started = MPI_Wtime();
         ValidStates();
         auto done = MPI_Wtime();;
-        m_refGrid->TIMINGS [5] += done-started; 
 
 
         started = MPI_Wtime();

@@ -305,8 +305,8 @@ public:
             printf( "SynchronizerMPI sync      :  %6.2f \n",res[1]);
             printf( "FillPos                   :  %6.2f \n",res[2]);
             printf( "FillBlockCases            :  %6.2f \n",res[3]);
-            printf( "Kernels                   :  %6.2f \n",res[4]);
-            printf( "ValidStates               :  %6.2f \n",res[5]);
+            printf( "Kernels (inner)           :  %6.2f \n",res[4]);
+            printf( "Kernels (outer)           :  %6.2f \n",res[5]);
             printf( "PrepareCompression        :  %6.2f \n",res[6]);
             printf( "BalanceDiffusion          :  %6.2f \n",res[7]);
             std::cout <<  "\n";
@@ -314,12 +314,14 @@ public:
             printf( "---> sync:: sort Interfaces   : %6.3f \n" , res[9 ]);
             printf( "---> sync:: DiscardDuplicates : %6.3f \n" , res[10]);
             printf( "---> sync:: Pack data         : %6.3f \n" , res[11]);
-            printf( "---> sync:: AverageDownAndFill: %6.3f \n" , res[12]);
-            printf( "---> sync:: UseCoarseStencil  : %6.3f \n" , res[13]);
-            printf( "---> sync:: cube              : %6.3f \n" , res[14]);
-            printf( "---> sync:: UpdateMap         : %6.3f \n" , res[15]);
-            printf( "---> sync:: DetermineStencil  : %6.3f \n" , res[16]);
-            printf( "---> sync:: Erase             : %6.3f \n" , res[17]);
+         
+
+
+
+
+
+
+
             std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
         }
 
@@ -731,13 +733,6 @@ public:
         TIMINGS[9 ] += queryresult->TIMINGS[1];
         TIMINGS[10] += queryresult->TIMINGS[2];
         TIMINGS[11] += queryresult->TIMINGS[3];
-        TIMINGS[12] += queryresult->TIMINGS[4];
-        TIMINGS[13] += queryresult->TIMINGS[5];
-        TIMINGS[14] += queryresult->TIMINGS[6];
-        TIMINGS[15] += queryresult->TIMINGS[7];
-        TIMINGS[16] += queryresult->TIMINGS[8];
-        TIMINGS[17] += queryresult->TIMINGS[9];
-
 
 
         return queryresult;

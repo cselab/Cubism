@@ -188,6 +188,27 @@ class SynchronizerMPI_AMR
             {
                 std::vector<MyRange> & me = compass[f[0] + f[1]*3 + f[2]*9];
              
+            
+                bool needme = false;
+                std::vector<MyRange> & other = compass[f[0] + f[1]*3 + f[2]*9];       
+                for (auto & o:other)
+                { 
+                    if (o.needed)
+                    {
+                        needme = true;
+
+                        for (auto & m:me   )
+                         if (m.needed && m.contains(o) )
+                         {
+                            o.needed = false;
+                            m.removedIndices.push_back(o.index);
+                            v.push_back(o.index);
+                            break;
+                         }
+                    }
+                }             
+                if (!needme) continue;
+
                 int imax = (f[0] == 1) ? 2:f[0];
                 int imin = (f[0] == 1) ? 0:f[0]; 
                 
@@ -196,13 +217,12 @@ class SynchronizerMPI_AMR
                 
                 int kmax = (f[2] == 1) ? 2:f[2];
                 int kmin = (f[2] == 1) ? 0:f[2];  
-              
+
                 for (int k=kmin;k<=kmax;k++)
                 for (int j=jmin;j<=jmax;j++)
                 for (int i=imin;i<=imax;i++)
                 {
-                    //if ( (i==1 && j==1) || (i==1 && k==1) || (j==1 && k==1)) continue;
-
+                    if (i==f[0] && j==f[1] && k==f[2]) continue;
                     std::vector<MyRange> & other = compass[i + j*3 + k*9];       
 
                     for (auto & o:other) if (o.needed)
@@ -219,6 +239,14 @@ class SynchronizerMPI_AMR
                       }
                     }
                 }
+
+
+
+
+
+
+
+
             } 
         }
     };
@@ -747,7 +775,6 @@ class SynchronizerMPI_AMR
 
         if (f.size()>0) do
         {
-        	/*--->*/auto started1 = MPI_Wtime();
         	cube C;
            	int id = f[index].infos[0]->blockID;
             int index_end=f.size();   
@@ -763,15 +790,13 @@ class SynchronizerMPI_AMR
                 	MyRange range;
                     range.index = i;
                     DetermineStencil(f[i],range);
+
                     C.compass[f[i].icode[0]].push_back(range);
                 	if (!skip_needed) skip_needed =  f[i].CoarseStencil;
                 }
             if (!skip_needed) C.__needed(remEl);
-        	/*--->*/auto done1 =MPI_Wtime();
-			/*--->*/TIMINGS [6] += done1-started1;
 
 
-			/*--->*/started1 = MPI_Wtime();
             for (auto & i:C.keepEl())
             {
                 int L [3];
@@ -790,7 +815,7 @@ class SynchronizerMPI_AMR
                 	CoarseStencilLength(&code[0],&Lc[0]);
                     Vc = Lc[0]*Lc[1]*Lc[2];
                     total_size += Vc;
-                }
+                }                    
 
                 if (updateMap)
                 {   
@@ -804,7 +829,7 @@ class SynchronizerMPI_AMR
                         info.CoarseVersionLX = Lc[0];
                         info.CoarseVersionLY = Lc[1];
                     }
-
+                    
 					getBlockInfoAll(f[k].infos[1]->level,f[k].infos[1]->Z).unpacks.push_back(info);
 
                     for (int kk=0; kk< (int)i.removedIndices.size();kk++)
@@ -816,9 +841,9 @@ class SynchronizerMPI_AMR
                         code[0] =  f[remEl1].icode[1]   %3-1;
                         code[1] = (f[remEl1].icode[1]/3)%3-1; 
                         code[2] = (f[remEl1].icode[1]/9)%3-1;
-         
+
                         DetermineStencilLength(f[remEl1].infos[0]->level,f[remEl1].infos[1]->level,&code[0],&L[0]);
-          
+                        
                         int srcx, srcy, srcz;
 
                         __FixDuplicates(f[k],f[remEl1], info.lx,info.ly,info.lz,L[0],L[1],L[2], srcx,srcy,srcz);
@@ -828,14 +853,11 @@ class SynchronizerMPI_AMR
                         int Csrcz=0;
 
                         __FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);
-                        UnPackInfo info2 = {info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,info.CoarseVersionOffset,info.CoarseVersionLX,info.CoarseVersionLY,Csrcx, Csrcy, Csrcz,f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1]};
 
-             			getBlockInfoAll(f[remEl1].infos[1]->level,f[remEl1].infos[1]->Z).unpacks.push_back(info2);
+             			getBlockInfoAll(f[remEl1].infos[1]->level,f[remEl1].infos[1]->Z).unpacks.push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,info.CoarseVersionOffset,info.CoarseVersionLX,info.CoarseVersionLY,Csrcx, Csrcy, Csrcz,f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1]});
 			        }    
                 }
             }
-        	/*--->*/done1 = MPI_Wtime();
-			/*--->*/TIMINGS [7] += done1-started1;
 
             index = index_end;
         }
@@ -1095,7 +1117,7 @@ public:
 		}
     }
 
-    double TIMINGS[10];
+    double TIMINGS[20];
 
     std::vector<BlockInfo> avail_inner()
     {
@@ -1112,19 +1134,7 @@ public:
 
     void sync(unsigned int gptfloats, MPI_Datatype MPIREAL, const int timestamp)
     { 
-        //MapOfPacks.resize(size);
-
-
-        TIMINGS[0] = 0;
-        TIMINGS[1] = 0;
-        TIMINGS[2] = 0;
-        TIMINGS[3] = 0;
-        TIMINGS[4] = 0;
-        TIMINGS[5] = 0;
-        TIMINGS[6] = 0;
-        TIMINGS[7] = 0;
-        TIMINGS[8] = 0;
-        TIMINGS[9] = 0;
+        for (int i=0;i<20;i++) TIMINGS[i] = 0;
 
         const int nX = blocksize[0];
         const int nY = blocksize[1];
@@ -1201,16 +1211,10 @@ public:
                     displacement[r]+= V*NC;
                     
                     if (f.CoarseStencil) 
-                    {
-                    	auto started1 = MPI_Wtime();
-                        
+                    {              
                         AverageDownAndFill2(send_buffer[r].data() + displacement[r],f.infos[0],code0,&selcomponents[0],NC,gptfloats);
- 
                         displacement[r] += CoarseStencilVolume(&code0[0])*NC;
- 
-   	                    auto done1 = MPI_Wtime();
- 	 					TIMINGS [4] += done1-started1;   
-                    }
+  	                }
                 }
                 else //receiver is coarser, so sender averages down data first 
                 {
@@ -1223,15 +1227,10 @@ public:
                     int V  = ( abs(code0[0])*(e[0]-s[0]) + (1-abs(code0[0]))*((e[0]-s[0])/2) ) * 
                              ( abs(code0[1])*(e[1]-s[1]) + (1-abs(code0[1]))*((e[1]-s[1])/2) ) * 
                              ( abs(code0[2])*(e[2]-s[2]) + (1-abs(code0[2]))*((e[2]-s[2])/2) ) ;
-                       
-                    auto started1 = MPI_Wtime();
-                  
+
                     AverageDownAndFill(send_buffer[r].data() + displacement[r],f.infos[0],s,e,code0,&selcomponents[0],NC, gptfloats); 
                                       
                     displacement[r]+= V*NC;             
-              	    auto done1 = MPI_Wtime();
-  					TIMINGS [4] += done1-started1;
-
                 }
             }
 

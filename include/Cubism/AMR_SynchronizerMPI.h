@@ -190,8 +190,8 @@ class SynchronizerMPI_AMR
              
             
                 bool needme = false;
-                std::vector<MyRange> & other = compass[f[0] + f[1]*3 + f[2]*9];       
-                for (auto & o:other)
+                std::vector<MyRange> & other1 = compass[f[0] + f[1]*3 + f[2]*9];       
+                for (auto & o:other1)
                 { 
                     if (o.needed)
                     {

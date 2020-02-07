@@ -344,7 +344,6 @@ class FluxCorrection
           if (!yperiodic && code[1] == yskip && yskin) continue;
           if (!zperiodic && code[2] == zskip && zskin) continue; 
 
-
           if (infoNei.TreePos == CheckFiner)
           {
             int myFace    = abs( code[0]) * max(0, code[0]) + abs( code[1]) * (max(0, code[1])+2) + abs( code[2]) * (max(0, code[2])+4);

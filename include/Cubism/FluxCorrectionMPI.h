@@ -24,6 +24,13 @@ class FluxCorrectionMPI: public TFluxCorrection
     typedef typename TFluxCorrection::BlockType BlockType;
     typedef typename TFluxCorrection::ElementTypeBlock ElementTypeBlock;
     typedef BlockCase <BlockType, allocator> Case;
+
+
+
+    double TIMINGS [10];
+
+
+
  
   protected:
 
@@ -65,6 +72,8 @@ class FluxCorrectionMPI: public TFluxCorrection
 
     virtual void prepare(TGrid & grid) override
     {
+      for (int i=0;i<10;i++)TIMINGS[i]=0;
+
       MPI_Comm_size(MPI_COMM_WORLD,&size);
       MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
@@ -109,13 +118,11 @@ class FluxCorrectionMPI: public TFluxCorrection
           const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
     
           if (abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
-               
-          BlockInfo infoNei = (*TFluxCorrection::m_refGrid).getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));
-
           if (!TFluxCorrection::xperiodic && code[0] == xskip && xskin) continue;
           if (!TFluxCorrection::yperiodic && code[1] == yskip && yskin) continue;
           if (!TFluxCorrection::zperiodic && code[2] == zskip && zskin) continue; 
 
+          BlockInfo infoNei = (*TFluxCorrection::m_refGrid).getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));
 
           int L[3];
           L[0] = (code[0] == 0) ? blocksize[0]/2 : 1;
@@ -195,9 +202,67 @@ class FluxCorrectionMPI: public TFluxCorrection
     virtual void FillBlockCases() override
     {
       //This assumes that the BlockCases have been filled by the user somehow... 
-      std::vector<BlockInfo> & B = (*TFluxCorrection::m_refGrid).getBlocksInfo();
-         
+      std::vector<BlockInfo> & B = (*TFluxCorrection::m_refGrid).getBlocksInfo();   
     
+
+      //1.Pack send data
+      for (int r=0; r<size; r++)
+      {
+
+        int displacement = 0;
+        for (int k=0; k<(int)send_faces[r].size(); k++)
+        {
+          face & f = send_faces[r][k];
+
+          BlockInfo & info = *(f.infos[0]); 
+
+          auto search = TFluxCorrection::MapOfCases.find({info.level,info.Z});
+          assert(  search != TFluxCorrection::MapOfCases.end());
+
+          Case & FineCase = (*search->second);
+        
+
+          int icode = f.icode[0];
+          const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
+          int myFace    = abs( code[0]) * max(0, code[0]) + abs( code[1]) * (max(0, code[1])+2) + abs( code[2]) * (max(0, code[2])+4);
+          std::vector< ElementType > & FineFace = FineCase.m_pData[myFace];
+
+
+          int d   = myFace / 2 ;       
+          int d1  = max((d+1)%3,(d+2)%3);
+          int d2  = min((d+1)%3,(d+2)%3);
+          int N1  = FineCase.m_vSize[d1];
+          int N2  = FineCase.m_vSize[d2];        
+        
+          for (int i1 = 0 ; i1 < N1; i1 +=2)
+          for (int i2 = 0 ; i2 < N2; i2 +=2)
+          {
+            ElementType avg = 0.25*((FineFace[i2+i1*N2]+FineFace[i2+1+i1*N2])+(FineFace[i2+(i1+1)*N2]+FineFace[i2+1+(i1+1)*N2])); 
+          
+            send_buffer[r][displacement  ] = avg.alpha1rho1;
+            send_buffer[r][displacement+1] = avg.alpha2rho2;
+            send_buffer[r][displacement+2] = avg.ru;        
+            send_buffer[r][displacement+3] = avg.rv;        
+            send_buffer[r][displacement+4] = avg.rw;        
+            send_buffer[r][displacement+5] = avg.energy;    
+            send_buffer[r][displacement+6] = avg.alpha2;    
+            send_buffer[r][displacement+7] = avg.dummy;     
+            displacement += 8;
+          } 
+        }
+      }
+
+
+      std::vector <MPI_Request> send_requests(size);
+      std::vector <MPI_Request> recv_requests(size);
+        
+      for (int r = 0 ; r < size; r ++ )
+      {
+          MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &recv_requests[r]);
+          MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &send_requests[r]);
+      }
+
+
       for (auto & info: B)
       {
         int aux = pow(2,info.level);
@@ -230,71 +295,8 @@ class FluxCorrectionMPI: public TFluxCorrection
         }//icode = 0,...,26       
       }
 
-      //1.Pack send data
-      for (int r=0; r<size; r++)
-      {
-
-        int displacement = 0;
-        for (int k=0; k<(int)send_faces[r].size(); k++)
-        {
-          face & f = send_faces[r][k];
-
-          BlockInfo & info = *(f.infos[0]); 
-
-          auto search = TFluxCorrection::MapOfCases.find({info.level,info.Z});
-          assert(  search != TFluxCorrection::MapOfCases.end());
-
-          Case & FineCase = (*search->second);
-        
-
-          int icode = f.icode[0];
-          const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
-          int myFace    = abs( code[0]) * max(0, code[0]) + abs( code[1]) * (max(0, code[1])+2) + abs( code[2]) * (max(0, code[2])+4);
-          std::vector< ElementType > & FineFace = FineCase.m_pData[myFace];
-
-
-          int d   = myFace / 2 ;       
-          int d1  = max((d+1)%3,(d+2)%3);
-          int d2  = min((d+1)%3,(d+2)%3);
-          int N1F = FineCase.m_vSize[d1];
-          int N2F = FineCase.m_vSize[d2];        
-          int N1 = N1F;
-          int N2 = N2F; 
-
-
-          assert (N1==N2);
-          assert (N1==_BLOCKSIZE_);    
-     
-          for (int i1 = 0 ; i1 < N1; i1 +=2)
-          for (int i2 = 0 ; i2 < N2; i2 +=2)
-          {
-            ElementType avg = 0.25*((FineFace[i2+i1*N2]+FineFace[i2+1+i1*N2])+(FineFace[i2+(i1+1)*N2]+FineFace[i2+1+(i1+1)*N2])); 
-          
-            send_buffer[r][displacement  ] = avg.alpha1rho1;
-            send_buffer[r][displacement+1] = avg.alpha2rho2;
-            send_buffer[r][displacement+2] = avg.ru;        
-            send_buffer[r][displacement+3] = avg.rv;        
-            send_buffer[r][displacement+4] = avg.rw;        
-            send_buffer[r][displacement+5] = avg.energy;    
-            send_buffer[r][displacement+6] = avg.alpha2;    
-            send_buffer[r][displacement+7] = avg.dummy;     
-            displacement += 8;
-          } 
-        }
-      }
-
-
-      std::vector <MPI_Request> send_requests(size);
-      std::vector <MPI_Request> recv_requests(size);
-        
-      for (int r = 0 ; r < size; r ++ )
-      {
-          MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &recv_requests[r]);
-          MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &send_requests[r]);
-      }
       MPI_Waitall(size, &recv_requests[0], MPI_STATUSES_IGNORE);
       MPI_Waitall(size, &send_requests[0], MPI_STATUSES_IGNORE);
-
 
       for (int r = 0 ; r < size; r ++ )
       {
@@ -348,12 +350,9 @@ class FluxCorrectionMPI: public TFluxCorrection
         int d   = myFace / 2 ;       
         int d1  = max((d+1)%3,(d+2)%3);
         int d2  = min((d+1)%3,(d+2)%3);
-        int N1F = CoarseCase.m_vSize[d1];
-        int N2F = CoarseCase.m_vSize[d2];        
-        int N1 = N1F;
-        int N2 = N2F;
-
-
+        int N1  = CoarseCase.m_vSize[d1];
+        int N2  = CoarseCase.m_vSize[d2];        
+      
         int base = 0 ; //(B%2)*(N1/2)+ (B/2)*(N2/2)*N1;
         if      (B==1) base = (N2/2)+ (0   )*N2; 
         else if (B==2) base = (0   )+ (N1/2)*N2; 

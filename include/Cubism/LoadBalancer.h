@@ -441,23 +441,33 @@ public:
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States();
 
-
         MPI_Allreduce(MPI_IN_PLACE,&movedBlocks,1,MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
 
 
 
-        if (rank==0)
-    		std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";       
-        MPI_Barrier(MPI_COMM_WORLD);
-        for (int r=0; r<size; r++)
         {
-           	if (r==rank)
-        		std::cout << " Rank " << rank << " has " << m_refGrid->getBlocksInfo().size() << " blocks \n";
-        	MPI_Barrier(MPI_COMM_WORLD);
+            int b = m_refGrid->getBlocksInfo().size();
+            std::vector<int> all_b(size);
+            MPI_Gather(&b, 1, MPI_INT, &all_b[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+            
+            if (rank==0)
+            {
+                std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
+                std::cout << " Distribution of blocks among ranks: \n";       
+                for (int r=0; r<size; r++)
+                    std::cout << all_b[r] << " | ";
+                std::cout << "\n";
+                std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
+            }
         }
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (rank==0)
-            std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
+
+   
+
+       
+
+
+
+
     }
 };
 

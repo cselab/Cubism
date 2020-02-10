@@ -123,7 +123,15 @@ class FluxCorrection
       yperiodic = temp_Lab.is_yperiodic();
       zperiodic = temp_Lab.is_zperiodic();
       blocksPerDim = (*m_refGrid).getMaxBlocks();
-      
+
+      for (int m=0;m<m_refGrid->getlevelMax();m++)
+      {
+        int aux = pow(pow(2,m),3);
+        for (int n=0; n<aux*blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2];n++)
+        {
+          (*m_refGrid).getBlockInfoAll(m,n).auxiliary = nullptr;
+        }
+      }
 
 
       for (auto & info: B)
@@ -172,6 +180,7 @@ class FluxCorrection
       for (size_t i = 0; i < Cases.size() ; i ++ )
       {
         MapOfCases.insert(  std::pair<std::array <int,2>,Case *>  (   {Cases[i].level,Cases[i].Z}  , &Cases[i] ) );
+        (*m_refGrid).getBlockInfoAll(Cases[i].level,Cases[i].Z).auxiliary = &Cases[i];
       }
     }
 

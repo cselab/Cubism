@@ -368,7 +368,14 @@ class SynchronizerMPI_AMR
         {
             BlockInfo & info = myInfos[i];
 
-            getBlockInfoAll(info.level,info.Z).unpacks.clear();
+            auto & unpacks = getBlockInfoAll(info.level,info.Z).unpacks;
+            for (int j=0; j< (int)unpacks.size(); j++)
+            {
+            	delete unpacks[j];
+            }
+            unpacks.clear();
+
+
             info.unpacks.clear();
 
             int aux = pow(2,info.level);
@@ -818,8 +825,8 @@ class SynchronizerMPI_AMR
 
             for (auto & i:C.keepEl())
             {
-                int L [3];
-                int Lc[3];
+                int L [3] ={0,0,0};
+                int Lc[3] ={0,0,0};
                 int k = i.index;              
                 int code[3] = { f[k].icode[1]%3-1, (f[k].icode[1]/3)%3-1, (f[k].icode[1]/9)%3-1};
 
@@ -839,6 +846,9 @@ class SynchronizerMPI_AMR
                 if (updateMap)
                 {   
                     UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,f[k].infos[0]->Z,f[k].icode[1]};
+                    UnPackInfo * info_ptr = new UnPackInfo {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,f[k].infos[0]->Z,f[k].icode[1]};
+
+
                     offset += V*NC;
 
                     if (f[k].CoarseStencil)
@@ -847,9 +857,13 @@ class SynchronizerMPI_AMR
                         info.CoarseVersionOffset = V*NC;                                       
                         info.CoarseVersionLX = Lc[0];
                         info.CoarseVersionLY = Lc[1];
+       
+                        info_ptr->CoarseVersionOffset = V*NC;                                       
+                        info_ptr->CoarseVersionLX = Lc[0];
+                        info_ptr->CoarseVersionLY = Lc[1];
                     }
                     
-					getBlockInfoAll(f[k].infos[1]->level,f[k].infos[1]->Z).unpacks.push_back(info);
+ 					getBlockInfoAll(f[k].infos[1]->level,f[k].infos[1]->Z).unpacks.push_back(info_ptr);
 
                     for (int kk=0; kk< (int)i.removedIndices.size();kk++)
                     {
@@ -869,7 +883,9 @@ class SynchronizerMPI_AMR
 
                         __FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);
 
-             			getBlockInfoAll(f[remEl1].infos[1]->level,f[remEl1].infos[1]->Z).unpacks.push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,info.CoarseVersionOffset,info.CoarseVersionLX,info.CoarseVersionLY,Csrcx, Csrcy, Csrcz,f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1]});
+                        UnPackInfo * info_ptr2 = new UnPackInfo{info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,info.CoarseVersionOffset,info.CoarseVersionLX,info.CoarseVersionLY,Csrcx, Csrcy, Csrcz,f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1]};
+
+             			getBlockInfoAll(f[remEl1].infos[1]->level,f[remEl1].infos[1]->Z).unpacks.push_back(info_ptr2);
 			        }    
                 }
             }
@@ -1328,11 +1344,13 @@ public:
         static const int nY = blocksize[1];
         static const int nZ = blocksize[2];
 
-		std::vector <UnPackInfo > & unpacks = getBlockInfoAll(info.level,info.Z).unpacks;
+		std::vector <UnPackInfo *> & unpacks = getBlockInfoAll(info.level,info.Z).unpacks;
 
   
-        for (auto & unpack : unpacks)
+        for (auto & unpack1 : unpacks)
         {       	
+
+        	auto unpack = *unpack1;
         	const int code[3] = { unpack.icode%3-1, (unpack.icode/3)%3-1, (unpack.icode/9)%3-1};
 
         	BlockInfo & other = getBlockInfoAll(unpack.level,unpack.Z);

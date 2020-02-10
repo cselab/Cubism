@@ -455,12 +455,9 @@ struct BlockInfo
     int Znei[3][3][3];    //Z-order curve index of 26 neighboring boxes (Znei[1][1][1] = Z)
     double h;             //grid spacing
     void * auxiliary;     //Pointer to blockcase
-    double origin[3];     //(x,y,z) of block's origin
-    
+    double origin[3];     //(x,y,z) of block's origin   
 
-    std::vector<UnPackInfo > unpacks;
-
-
+    std::vector<UnPackInfo * > unpacks;
 
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const

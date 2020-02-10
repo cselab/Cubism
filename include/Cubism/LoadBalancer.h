@@ -225,8 +225,6 @@ public:
         }
 
 
-
-
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States();
     }

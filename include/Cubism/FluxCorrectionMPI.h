@@ -25,13 +25,8 @@ class FluxCorrectionMPI: public TFluxCorrection
     typedef typename TFluxCorrection::ElementTypeBlock ElementTypeBlock;
     typedef BlockCase <BlockType, allocator> Case;
 
-
-
     double TIMINGS [10];
 
-
-
- 
   protected:
 
     struct face

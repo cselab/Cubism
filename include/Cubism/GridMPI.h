@@ -64,13 +64,9 @@ public:
 
     std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs;
 
-
-
     GridMPI(const int npeX, const int npeY, const int npeZ,
             const int nX, const int nY=1, const int nZ=1,
             const double _maxextent = 1, const int a_levelStart = 0, const int a_levelMax =1 ,const MPI_Comm comm = MPI_COMM_WORLD, const bool a_xperiodic = true,const bool a_yperiodic = true,const bool a_zperiodic = true):
-   
-
       TGrid(nX, nY, nZ, _maxextent, a_levelStart,a_levelMax,false, a_xperiodic,a_yperiodic,a_zperiodic), timestamp(0), worldcomm(comm)
     {
         assert(npeX > 0 && "Number of processes per X must be greater than 0.");
@@ -300,6 +296,7 @@ public:
        	MPI_Barrier(MPI_COMM_WORLD);
 
 
+        TIMINGS[8] = TIMINGS[4]+TIMINGS[5];
 
         double res [100];
         MPI_Reduce(&TIMINGS[0], &res[0] , 100, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
@@ -316,6 +313,7 @@ public:
             printf( "Kernels (outer)           :  %6.2f \n",res[5]);
             printf( "PrepareCompression        :  %6.2f \n",res[6]);
             printf( "BalanceDiffusion          :  %6.2f \n",res[7]);
+            printf( "Kernels (total)           :  %6.2f \n",res[8]);
 
 
             std::cout <<  "\n";

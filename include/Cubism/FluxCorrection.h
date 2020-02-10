@@ -106,8 +106,6 @@ class FluxCorrection
     std::array <int,3> blocksPerDim;
 
 
-
-
   public:
     virtual void prepare(TGrid & grid)
     {

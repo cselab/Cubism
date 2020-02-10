@@ -54,8 +54,9 @@ public:
       {
         int d1 = (d+1)%3;
         int d2 = (d+2)%3; 
+        
         //assume everything is initialized to 0!!!!!!!!
-        if (storedFace[2*d  ]) m_pData[2*d].resize(m_vSize[d1]*m_vSize[d2]);
+        if (storedFace[2*d  ])  m_pData[2*d].resize(m_vSize[d1]*m_vSize[d2]);
         if (storedFace[2*d+1])m_pData[2*d+1].resize(m_vSize[d1]*m_vSize[d2]);
       }
     }
@@ -313,8 +314,7 @@ class FluxCorrection
     {
       //This assumes that the BlockCases have been filled by the user somehow... 
       std::vector<BlockInfo>  B = (*m_refGrid).getBlocksInfo();
-
-    
+   
     
       for (auto & info: B)
       {

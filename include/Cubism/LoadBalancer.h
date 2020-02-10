@@ -20,6 +20,8 @@ class LoadBalancer
 public:
     typedef typename TGrid::Block BlockType;   
     typedef typename TGrid::Block::ElementType ElementType;
+
+    bool movedBlocks;
   
 protected:
     TGrid * m_refGrid;
@@ -32,6 +34,7 @@ public:
         MPI_Comm_size(MPI_COMM_WORLD,&size);
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
         m_refGrid = &grid;
+        movedBlocks = false;
     }
 
     ~LoadBalancer()
@@ -136,13 +139,14 @@ public:
                 MPI_Request req;
                 recv_requests.push_back(req);            
                 MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 12345 , MPI_COMM_WORLD, &recv_requests[recv_requests.size()-1]);
-      
+                movedBlocks = true;
             }
             if (send_infos[r].size()!=0) 
             {
                 MPI_Request req;
                 send_requests.push_back(req);
                 MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 12345 , MPI_COMM_WORLD, &send_requests[send_requests.size()-1]);
+                movedBlocks = true;
             }    
         }
 
@@ -168,13 +172,14 @@ public:
                 MPI_Request req;
                 recv_requests2.push_back(req);            
                 MPI_Irecv(&recv_buffer2[r][0], recv_buffer2[r].size(), MPI_INT, r, 1234567 , MPI_COMM_WORLD, &recv_requests2[recv_requests2.size()-1]);
-      
+                movedBlocks = true;
             }
             if (send_infos[r].size()!=0) 
             {
                 MPI_Request req;
                 send_requests2.push_back(req);
                 MPI_Isend(&send_buffer2[r][0], send_buffer2[r].size(), MPI_INT, r, 1234567 , MPI_COMM_WORLD, &send_requests2[send_requests2.size()-1]);
+                movedBlocks = true;
             }    
         }
 
@@ -281,6 +286,8 @@ public:
    		std::vector<MPI_Request> request;
 		if (flux_left > 0) //then I will send blocks to my left rank
 		{
+            movedBlocks = true;
+       
 			send_buffer_left.resize(flux_left * BlockBytes / sizeof(Real) );
 	    
         	int d = 0;
@@ -300,13 +307,16 @@ public:
             request.push_back(req);
             MPI_Isend(&send_buffer_left[0], send_buffer_left.size(), MPI_DOUBLE, left, 123 , MPI_COMM_WORLD, &request[request.size()-1]);
 
-
             MPI_Request req2;
             request.push_back(req2);
             MPI_Isend(&send_buffer_left2[0],send_buffer_left2.size(), MPI_INT, left, 789 , MPI_COMM_WORLD, &request[request.size()-1]);
         }
 		else if (flux_left < 0) //then I will receive blocks from my left rank
 		{
+
+            movedBlocks = true;
+       
+
 			recv_buffer_left.resize( abs(flux_left) * BlockBytes / sizeof(Real) );
 
 			recv_buffer_left2.resize( abs(flux_left) * 2 );
@@ -324,6 +334,9 @@ public:
 
 		if (flux_right > 0) //then I will send blocks to my right rank
 		{
+            movedBlocks = true;
+       
+
 			send_buffer_right.resize(flux_right * BlockBytes / sizeof(Real) );
 	    
         	int d = 0;
@@ -349,8 +362,9 @@ public:
         }
 		else if (flux_right < 0) //then I will receive blocks from my right rank
 		{
-			recv_buffer_right.resize( abs(flux_right) * BlockBytes / sizeof(Real) );
+            movedBlocks = true;      
 
+			recv_buffer_right.resize( abs(flux_right) * BlockBytes / sizeof(Real) );
 
 			recv_buffer_right2.resize( abs(flux_right) * 2 );
             
@@ -428,28 +442,23 @@ public:
         m_refGrid->UpdateBlockInfoAll_States();
 
 
+        MPI_Allreduce(MPI_IN_PLACE,&movedBlocks,1,MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
 
-      	MPI_Barrier(MPI_COMM_WORLD);
+
+
         if (rank==0)
-    		std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
-        
+    		std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";       
+        MPI_Barrier(MPI_COMM_WORLD);
         for (int r=0; r<size; r++)
         {
            	if (r==rank)
         		std::cout << " Rank " << rank << " has " << m_refGrid->getBlocksInfo().size() << " blocks \n";
         	MPI_Barrier(MPI_COMM_WORLD);
         }
-        if (rank==0)
-        	std::cout << "\n&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
         MPI_Barrier(MPI_COMM_WORLD);
-
-
+        if (rank==0)
+            std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
     }
-
-
-
-
-
 };
 
 

@@ -74,6 +74,10 @@ class FluxCorrectionMPI: public TFluxCorrection
     {
       for (int i=0;i<10;i++)TIMINGS[i]=0;
 
+
+      double st = MPI_Wtime();
+
+
       MPI_Comm_size(MPI_COMM_WORLD,&size);
       MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
@@ -196,6 +200,12 @@ class FluxCorrectionMPI: public TFluxCorrection
           offset += V*NC;        
         }
       }
+
+
+
+      double done = MPI_Wtime();
+      TIMINGS[0] += done - st;
+
     }
 
 
@@ -204,7 +214,9 @@ class FluxCorrectionMPI: public TFluxCorrection
       //This assumes that the BlockCases have been filled by the user somehow... 
       std::vector<BlockInfo> & B = (*TFluxCorrection::m_refGrid).getBlocksInfo();   
     
+   
 
+      double st = MPI_Wtime();
       //1.Pack send data
       for (int r=0; r<size; r++)
       {
@@ -252,17 +264,33 @@ class FluxCorrectionMPI: public TFluxCorrection
         }
       }
 
+      double done = MPI_Wtime();
+      TIMINGS[1] += done - st;
 
-      std::vector <MPI_Request> send_requests(size);
-      std::vector <MPI_Request> recv_requests(size);
+
+
+      std::vector <MPI_Request> send_requests;
+      std::vector <MPI_Request> recv_requests;
         
       for (int r = 0 ; r < size; r ++ )
       {
-          MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &recv_requests[r]);
-          MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &send_requests[r]);
+        if (recv_buffer[r].size() != 0)
+        {
+          MPI_Request req;
+          recv_requests.push_back(req);
+          MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &recv_requests.back());
+        }
+        if (send_buffer[r].size() != 0)
+        {
+          MPI_Request req;
+          send_requests.push_back(req); 
+          MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 123456 , MPI_COMM_WORLD, &send_requests.back());
+        }
       }
 
 
+
+      st = MPI_Wtime();
       for (auto & info: B)
       {
         int aux = pow(2,info.level);
@@ -294,10 +322,22 @@ class FluxCorrectionMPI: public TFluxCorrection
           }        
         }//icode = 0,...,26       
       }
+      done = MPI_Wtime();
+      TIMINGS[2] += done - st;
 
-      MPI_Waitall(size, &recv_requests[0], MPI_STATUSES_IGNORE);
-      MPI_Waitall(size, &send_requests[0], MPI_STATUSES_IGNORE);
 
+
+      st = MPI_Wtime();
+      if (recv_requests.size() > 0)
+      MPI_Waitall(recv_requests.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
+      
+      if (send_requests.size() > 0)
+      MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);
+      done = MPI_Wtime();
+      TIMINGS[3] += done - st;
+
+
+      st = MPI_Wtime();
       for (int r = 0 ; r < size; r ++ )
       {
         for (int index = 0; index < (int)recv_faces[r].size(); index++)
@@ -306,8 +346,14 @@ class FluxCorrectionMPI: public TFluxCorrection
           FillCase_2(f) ;
         }
       }
+      done = MPI_Wtime();
+      TIMINGS[4] += done - st;
 
+
+      st = MPI_Wtime();
       TFluxCorrection::Correct();
+      done = MPI_Wtime();
+      TIMINGS[5] += done - st;
     }
 
 

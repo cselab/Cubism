@@ -29,7 +29,7 @@ class GridMPI : public TGrid
 public:
     typedef typename TGrid::Real Real;
 
-    double TIMINGS [20];
+    double TIMINGS [100];
 
 
 private:
@@ -49,7 +49,6 @@ protected:
 
     std::vector<BlockInfo> cached_blockinfo;
 
-    std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs;
 
     MPI_Comm worldcomm;
     MPI_Comm cartcomm;
@@ -61,6 +60,11 @@ public:
 
     typedef typename TGrid::BlockType Block;
     typedef typename TGrid::BlockType BlockType;
+
+
+    std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs;
+
+
 
     GridMPI(const int npeX, const int npeY, const int npeZ,
             const int nX, const int nY=1, const int nZ=1,
@@ -99,7 +103,7 @@ public:
         mypeindex[2] = 0;
 
         
-        for (int k=0;k<20;k++)
+        for (int k=0;k<100;k++)
             TIMINGS[k]=0;
 
         int total_blocks = nX*nY*nZ*pow(pow(2,a_levelStart),3);
@@ -294,8 +298,11 @@ public:
         //MPI_Comm_free(&cartcomm);
 
        	MPI_Barrier(MPI_COMM_WORLD);
-        double res [20];
-        MPI_Reduce(&TIMINGS[0], &res[0] , 20, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+
+
+        double res [100];
+        MPI_Reduce(&TIMINGS[0], &res[0] , 100, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
         if (myrank == 0)
         {
         	std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
@@ -309,17 +316,19 @@ public:
             printf( "Kernels (outer)           :  %6.2f \n",res[5]);
             printf( "PrepareCompression        :  %6.2f \n",res[6]);
             printf( "BalanceDiffusion          :  %6.2f \n",res[7]);
+
+
             std::cout <<  "\n";
-            printf( "---> sync:: DefineInterfaces  : %6.3f \n" , res[8 ]);
-            printf( "---> sync:: sort Interfaces   : %6.3f \n" , res[9 ]);
-            printf( "---> sync:: DiscardDuplicates : %6.3f \n" , res[10]);
-            printf( "---> sync:: Pack data         : %6.3f \n" , res[11]);
-         
-
-
-
-
-
+            printf( "---> FluxCorrection::prepare     : %6.3f \n" , res[9 ]);
+            printf( "---> FluxCorrection::pack data   : %6.3f \n" , res[10]);
+            printf( "---> FluxCorrection::inner faces : %6.3f \n" , res[11]);
+            printf( "---> FluxCorrection::waiting     : %6.3f \n" , res[12]);
+            printf( "---> FluxCorrection::outer faces : %6.3f \n" , res[13]);
+            printf( "---> FluxCorrection::correct     : %6.3f \n" , res[14]);
+            printf( "---> FluxCorrection::            : %6.3f \n" , res[15]);
+            printf( "---> FluxCorrection::            : %6.3f \n" , res[16]);
+            printf( "---> FluxCorrection::            : %6.3f \n" , res[17]);
+            printf( "---> FluxCorrection::            : %6.3f \n" , res[18]);
 
 
             std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
@@ -693,19 +702,18 @@ public:
         Cstencil.ex =  2; Cstencil.ey =  2; Cstencil.ez =  2;
         Cstencil.tensorial = true;
 
-        //also per is temporarily passed (fix later so that GridMPI does not need BlockLab to tell it if it is periodic or not!)
-
 
         auto blockperDim = TGrid::getMaxBlocks();     
         const StencilInfo stencil = p.stencil;
         assert(stencil.isvalid());
+
         SynchronizerMPIType * queryresult = NULL;
-        
-        //typename std::map<StencilInfo, SynchronizerMPIType*>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
+             
 
+        typename std::map<StencilInfo, SynchronizerMPIType*>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
 
-       // if (itSynchronizerMPI == SynchronizerMPIs.end())
-       // {
+        if (itSynchronizerMPI == SynchronizerMPIs.end())
+        {
             queryresult = new SynchronizerMPIType(p.stencil, Cstencil, worldcomm, per, TGrid::getlevelMax(),
                                                 Block::sizeX,
                                                 Block::sizeY,
@@ -715,25 +723,20 @@ public:
                                                 blockperDim[2],
                                                 TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
 
-        //    SynchronizerMPIs[stencil] = queryresult;
-        //}
-        //else  queryresult = itSynchronizerMPI->second;
-
+            SynchronizerMPIs[stencil] = queryresult;
+            queryresult->_Setup(TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
+        }
+        else
+        {
+           queryresult = itSynchronizerMPI->second;
+        }  
+    
         queryresult->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp) ;//, TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
         timestamp = (timestamp + 1) % 32768;
-
-
 
         auto done = MPI_Wtime();
 
         TIMINGS [1] += (done-started);
-
-
-        TIMINGS[8 ] += queryresult->TIMINGS[0];
-        TIMINGS[9 ] += queryresult->TIMINGS[1];
-        TIMINGS[10] += queryresult->TIMINGS[2];
-        TIMINGS[11] += queryresult->TIMINGS[3];
-
 
         return queryresult;
     }

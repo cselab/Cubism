@@ -42,9 +42,6 @@ protected:
     const double maxextent;        //Maximum domain extent
     const int levelMax;   //Maximum refinement level allowed
     const int levelStart; //Initial refinement level      
-    const bool xperiodic;
-    const bool yperiodic;
-    const bool zperiodic;
 
 
     int **** Zholder;
@@ -54,6 +51,10 @@ public:
     int N;                     //Current number of blocks
     typedef Block BlockType;
     typedef typename Block::RealType Real;  //Block MUST provide `RealType`.
+
+    const bool xperiodic;
+    const bool yperiodic;
+    const bool zperiodic;
     
     SpaceFillingCurve Zcurve;
 

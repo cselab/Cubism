@@ -49,6 +49,8 @@ protected:
     TLab * labs;
     double time;
 
+    SynchronizerMPI_AMR<Real> * Synch;
+    int timestamp;
 public:
 
     MeshAdaptation(TGrid & grid, double Rtol,double Ctol) 
@@ -81,6 +83,18 @@ public:
     
         tolerance_for_refinement = Rtol;
         tolerance_for_compression = Ctol; 
+
+
+        auto blockperDim = m_refGrid->getMaxBlocks();          
+        bool per [3] = {m_refGrid->xperiodic,m_refGrid->yperiodic,m_refGrid->zperiodic}; 
+        StencilInfo Cstencil = stencil; 
+        Synch = new SynchronizerMPIType(stencil, Cstencil, MPI_COMM_WORLD, per, m_refGrid->getlevelMax(),
+                                              TGrid::Block::sizeX,TGrid::Block::sizeY,TGrid::Block::sizeZ,
+                                              blockperDim[0],blockperDim[1],blockperDim[2],
+                                              m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());      
+        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
+
+        timestamp = 0;
     }
 
     virtual
@@ -91,7 +105,8 @@ public:
     	time = t;
     
 
-        SynchronizerMPI_AMR<Real> * Synch = sync();
+     	Synch->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
+   		timestamp = (timestamp + 1) % 32768;
 
         vector<BlockInfo> avail0, avail1;
 
@@ -277,7 +292,32 @@ public:
         m_refGrid->TIMINGS [7] += done-started; 
 
         delete [] labs;
-        delete Synch;
+        //delete Synch;
+
+
+
+
+	
+        
+       
+		if (r !=0 || c != 0 || Balancer.movedBlocks)
+		{
+	        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
+ 			
+ 			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
+		    while (it != m_refGrid->SynchronizerMPIs.end())
+			{ 
+		       	(*it->second)._Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
+		       	it++;
+			}
+
+		}
+	
+
+
+
+
+
     }
 
 
@@ -570,28 +610,7 @@ protected:
     }
 
 
-    SynchronizerMPIType * sync()
-    {
-        auto blockperDim = m_refGrid->getMaxBlocks();     
-      
-        TLab dummy;
-        bool per [3] = {dummy.is_xperiodic(),dummy.is_yperiodic(),dummy.is_zperiodic()}; 
-
-        StencilInfo stencil(s[0],s[1],s[2],e[0],e[1],e[2],istensorial,components);
-  
-        StencilInfo Cstencil = stencil;
-  
-        SynchronizerMPIType * queryresult = NULL;
-          
-        queryresult = new SynchronizerMPIType(stencil, Cstencil, MPI_COMM_WORLD, per, m_refGrid->getlevelMax(),
-                                              TGrid::Block::sizeX,TGrid::Block::sizeY,TGrid::Block::sizeZ,
-                                              blockperDim[0],blockperDim[1],blockperDim[2],
-                                              m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());      
-        int timestamp = 0;
-        queryresult->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
-        return queryresult;
-    }
-
+   
 
 
 

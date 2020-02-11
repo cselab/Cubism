@@ -25,18 +25,6 @@ using namespace std;
 namespace cubism //AMR_CUBISM
 {
 
-    struct UnPackInfo
-    {
-        int offset;
-        int lx,ly,lz;
-        int srcxstart, srcystart, srczstart;
-        int LX,LY;
-        int CoarseVersionOffset;     
-        int CoarseVersionLX,CoarseVersionLY;
-        int CoarseVersionsrcxstart,CoarseVersionsrcystart,CoarseVersionsrczstart;
-    
-        int level,Z,icode; 
-    };
 
 
 class SpaceFillingCurve
@@ -457,8 +445,6 @@ struct BlockInfo
     void * auxiliary;     //Pointer to blockcase
     double origin[3];     //(x,y,z) of block's origin   
 
-    std::vector<UnPackInfo * > unpacks;
-
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const
     {
@@ -550,6 +536,15 @@ struct BlockInfo
 
 
     }  
+
+
+	BlockInfo(const int a_level,const double a_h, const double a_origin[3],
+               const int a_Bmin[3],int a_index[3], int a_myrank, 
+               TreePosition a_TreePos)
+	{
+		setup(a_level,a_h,a_origin,a_Bmin,a_index,a_myrank,a_TreePos);
+	};
+
 
 
     void setup(const int a_level,const double a_h, const double a_origin[3],

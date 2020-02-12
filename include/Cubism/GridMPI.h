@@ -37,10 +37,6 @@ private:
 
 protected:
     typedef SynchronizerMPI_AMR<Real> SynchronizerMPIType;
-    //friend class SynchronizerMPI_AMR<Real>;
-
-
-    std::vector <BlockInfo *> boundary_blocks; 
 
 
     int myrank, mypeindex[3], pesize[3];
@@ -49,13 +45,9 @@ protected:
 
     std::vector<BlockInfo> cached_blockinfo;
 
-
     MPI_Comm worldcomm;
     MPI_Comm cartcomm;
 
-    // Subdomain handled by this node.
-    double subdomain_low[3];
-    double subdomain_high[3];
 public:
 
     typedef typename TGrid::BlockType Block;
@@ -156,7 +148,7 @@ public:
             }          
         }
 
-        FillPos(); 
+        FillPos(true); 
 
         #if 0
 
@@ -391,6 +383,7 @@ public:
     virtual void UpdateBlockInfoAll_States(bool GlobalUpdate = true) 
     {
     
+    GlobalUpdate = true;
     double started = MPI_Wtime();
     
     if (GlobalUpdate) //stupid global update of everyting
@@ -485,9 +478,18 @@ public:
                 TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
             }
         }
+
+
+
+        FillPos();
+
     }    
     else //update blocks on the boundary of process
-    {    
+    { 
+        int err = 123456789;
+        MPI_Abort(MPI_COMM_WORLD,err);
+
+
         int rank,size;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
         MPI_Comm_size(MPI_COMM_WORLD,&size); 
@@ -761,29 +763,11 @@ public:
     int rank() const override {return myrank;}
 
 
-    virtual void FillPos() override
+    virtual void FillPos(bool CopyInfos = false) override
     { 
-
-        auto started = MPI_Wtime();
-
-        TGrid::m_blocks.clear();
-        TGrid::m_vInfo.clear();
-        for (int m=0; m<TGrid::levelMax; m++)
-        {
-            for (int n=0; n<TGrid::NX*TGrid::NY*TGrid::NZ*pow(pow(2,m),3); n++)
-            {
-
-                if (TGrid::BlockInfoAll[m][n].TreePos == Exists && TGrid::BlockInfoAll[m][n].myrank == myrank) 
-                {
-                    TGrid::m_vInfo.push_back(TGrid::BlockInfoAll[m][n]);
-                    TGrid::m_blocks.push_back((Block*)TGrid::BlockInfoAll[m][n].ptrBlock);
-                }
-            }
-
-        }  
-
+        auto started = MPI_Wtime();     
+        TGrid::FillPos(CopyInfos);
         auto done = MPI_Wtime();
-
         TIMINGS [2] += done-started; 
     }
 
@@ -822,17 +806,6 @@ public:
         return worldcomm;
     }
 
-    void getSubdomainLow(double low[3]) const {
-        low[0] = subdomain_low[0];
-        low[1] = subdomain_low[1];
-        low[2] = subdomain_low[2];
-    }
-
-    void getSubdomainHigh(double high[3]) const {
-        high[0] = subdomain_high[0];
-        high[1] = subdomain_high[1];
-        high[2] = subdomain_high[2];
-    }
 };
 
 CUBISM_NAMESPACE_END

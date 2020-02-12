@@ -282,10 +282,10 @@ public:
             std::cout << " refined:" << result[0] << "   compressed:"<< result[1] << std::endl;
             std::cout <<"==============================================================\n";
         }
-        m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States();
-   
-		
+        
+		m_refGrid->FillPos(true);
+
+
         started = MPI_Wtime();
         Balancer.Balance_Diffusion();
         done = MPI_Wtime();
@@ -294,14 +294,11 @@ public:
         delete [] labs;
         //delete Synch;
 
-
-
-
-	
-        
        
-		if (r !=0 || c != 0 || Balancer.movedBlocks)
+		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
+            m_refGrid->UpdateBlockInfoAll_States();
+
 	        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
  			
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
@@ -312,12 +309,6 @@ public:
 			}
 
 		}
-	
-
-
-
-
-
     }
 
 
@@ -360,6 +351,11 @@ protected:
 
     void refine_2(int level, int Z) 
     {
+        #pragma omp critical
+        {
+            m_refGrid->_dealloc(level,Z);
+        }
+
         BlockInfo & parent =  m_refGrid->getBlockInfoAll(level,Z);
         int p[3] = {parent.index[0],parent.index[1],parent.index[2]};      
         parent.TreePos = CheckFiner;
@@ -374,7 +370,9 @@ protected:
             Child.myrank = m_refGrid->rank();
         }
         parent.myrank = -1;
-        parent.ptrBlock = nullptr;
+  
+        //m_refGrid->_dealloc(level,Z);
+        //parent.ptrBlock = nullptr;
     }
 
     void compress(int level, int Z)
@@ -427,9 +425,21 @@ protected:
           for (int J=0; J<2; J++ )
           for (int I=0; I<2; I++ )
           {
-            if (I + J + K == 0 ) continue;
+      
             int n = m_refGrid->getZforward(level,info.index[0]+I,info.index[1]+J,info.index[2]+K); 
-            m_refGrid->_dealloc(level,n);
+      
+            if (I + J + K == 0 )
+            {
+                BlockInfo & info_change = m_refGrid->FindBlockInfo(level,n);
+
+                info_change.level = level - 1;
+                info_change.Z     = np;
+            } 
+            else
+            {
+                m_refGrid->_dealloc(level,n);
+            }
+
           }
         }
         parent.ptrBlock = info.ptrBlock;
@@ -461,13 +471,10 @@ protected:
             if (info.state==Refine   && info.level ==levelMax-1) info.state=Leave;
             if (info.state==Compress && info.level ==levelMin  ) info.state=Leave;
         }
+
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States();
       
-
-
-
-
 
         const bool xperiodic = labs[0].is_xperiodic();
         const bool yperiodic = labs[0].is_yperiodic();
@@ -530,6 +537,7 @@ protected:
                             if (NeiState == Refine)
                             {
                                 info.state=Refine;
+                                b.state = Refine;
              //                   ready = false;
                                 break;
                             }
@@ -541,7 +549,7 @@ protected:
             //MPI_Allreduce(MPI_IN_PLACE, &ready, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
 
             m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States(true);
+            m_refGrid->UpdateBlockInfoAll_States();
     
             //}//ready
     #if 0
@@ -620,6 +628,7 @@ protected:
                     if (infoNei.TreePos == Exists && infoNei.state==Refine)
                     {
                         info.state=Leave;
+                        b.state = Leave;
                         break;
                     }
                 }
@@ -634,6 +643,7 @@ protected:
                     if (infoNei.TreePos != Exists || infoNei.state != Compress )
                     {
                       info.state = Leave;
+                      b.state = Leave;
                       break;
                     }                       
                 }
@@ -643,7 +653,7 @@ protected:
             }
       
             m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States(true);
+            m_refGrid->UpdateBlockInfoAll_States();
     #endif
             //4.
             for ( auto & b: I) if (b.level == m)
@@ -652,12 +662,16 @@ protected:
                 int nBlock = m_refGrid->getZforward(m, 2*(info.index[0]/2),2*(info.index[1]/2),2*(info.index[2]/2) ); 
                 if (b.Z != nBlock)
                 {
-                  if (info.state==Compress)  info.state = Leave;  
+                  if (info.state==Compress)  
+                  {
+                        info.state = Leave;
+                        b.state = Leave;
+                  }  
                 }
             } 
 
             m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States(true);
+            m_refGrid->UpdateBlockInfoAll_States();
         }//m
     }
 

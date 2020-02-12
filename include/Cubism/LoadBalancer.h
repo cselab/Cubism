@@ -224,9 +224,8 @@ public:
             }
         }
 
-
-        m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States();
+        //m_refGrid->FillPos(true);
+        //m_refGrid->UpdateBlockInfoAll_States();
     }
 
 
@@ -436,8 +435,8 @@ public:
    
 
 
-        m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States();
+        //m_refGrid->FillPos();
+        //m_refGrid->UpdateBlockInfoAll_States();
 
         MPI_Allreduce(MPI_IN_PLACE,&movedBlocks,1,MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
 

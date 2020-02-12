@@ -16,11 +16,7 @@
 #include "MeshMap.h"
 
 
-
-
 #define HACK
-
-
 
 
 
@@ -79,8 +75,8 @@ public:
             BlockInfoAll[m][n].h_gridpoint = BlockInfoAll[m][n].h;
         #endif
 
-        //m_blocks.push_back((Block * )BlockInfoAll[m][n].ptrBlock);
-        //m_vInfo. push_back(BlockInfoAll[m][n]);
+        m_blocks.push_back((Block * )BlockInfoAll[m][n].ptrBlock);
+        m_vInfo. push_back(BlockInfoAll[m][n]);
 
         assert(BlockInfoAll[m][n].ptrBlock != NULL);
         N++;        
@@ -88,19 +84,14 @@ public:
 
     virtual void _deallocAll() //called in class destructor
     {
-        m_blocks.clear();
         m_vInfo.clear();
-        for (int m=0; m<levelMax; m++)
-        {
-            for (int n=0; n<NX*NY*NZ*pow(pow(2,m),3); n++)
-            {
-                if (BlockInfoAll[m][n].TreePos==Exists) 
-                {
-                    allocator <Block> alloc;
-                    //alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);
-                }
-            }
-        }    
+        
+        allocator <Block> alloc;
+        
+        for (size_t j = 0 ; j < m_vInfo.size() ; j++)
+            alloc.deallocate(m_blocks[j],1);         
+        
+        BlockInfoAll.clear();
     }
 
 
@@ -108,28 +99,48 @@ public:
     void _dealloc(int m, int n) //called whenever the grid is compressed
     {
         N --;        
-        m_blocks.clear();
-        m_vInfo.clear();      
         allocator <Block> alloc;
         alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);         
+        for (size_t j = 0 ; j < m_vInfo.size() ; j++)
+        {
+            if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
+            {
+                m_vInfo.erase (m_vInfo.begin() +j);
+                m_blocks.erase(m_blocks.begin()+j);
+                break;
+            }
+        }
     }
 
-    virtual void FillPos()
-    {
-        m_blocks.clear();
-        m_vInfo.clear();
-        for (int m=0; m<levelMax; m++)
-        {
-            for (int n=0; n<NX*NY*NZ*pow(pow(2,m),3); n++)
-            {
-                if (BlockInfoAll[m][n].TreePos == Exists) 
-                {
-                    m_vInfo.push_back(BlockInfoAll[m][n]);
-                    m_blocks.push_back((Block*)BlockInfoAll[m][n].ptrBlock);
-                }
-            }
 
-        }   
+    BlockInfo & FindBlockInfo(int m, int n)
+    {
+        for (size_t j = 0; j < m_vInfo.size(); j++)
+        {
+            if (m ==m_vInfo[j].level && n == m_vInfo[j].Z)
+                return m_vInfo[j];
+        }        
+        assert(false);
+    }
+
+    virtual void FillPos(bool CopyInfos = false)
+    {
+        if (CopyInfos)
+            for (size_t j = 0; j < m_vInfo.size(); j++)
+            {
+                int m = m_vInfo[j].level;
+                int n = m_vInfo[j].Z;
+                m_vInfo [j] = BlockInfoAll[m][n];
+                m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;
+            }
+        else            
+            for (size_t j = 0; j < m_vInfo.size(); j++)
+            {
+                int m = m_vInfo[j].level;
+                int n = m_vInfo[j].Z;
+                m_vInfo [j].state   = BlockInfoAll[m][n].state;
+                m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;
+            }
     }
 
    

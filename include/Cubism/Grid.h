@@ -30,7 +30,13 @@ class Grid
 protected:
     std::vector <BlockInfo> m_vInfo; //meta-data for blocks that belong to this rank
     std::vector <Block * > m_blocks; //pointers to blocks that belong to this rank
-    std::vector <std::vector<BlockInfo> > BlockInfoAll; 
+    //std::vector <std::vector<BlockInfo> > BlockInfoAll; 
+
+    std::vector <std::vector<BlockInfo *>> BlockInfoAll_ptr;
+
+
+
+
 
     const int NX;         //Total # of blocks for level 0 in X-direction  
     const int NY;         //Total # of blocks for level 0 in Y-direction
@@ -68,23 +74,25 @@ public:
     void _alloc(int m, int n) //called whenever the grid is refined
     {
         allocator <Block> alloc;
-        BlockInfoAll[m][n].ptrBlock = alloc.allocate(1);
+        BlockInfoAll_ptr[m][n]->ptrBlock = alloc.allocate(1);
+        
         //BlockInfoAll[m][n].ptrBlock = (Block*)calloc(1,sizeof(Block)); 
        
         #ifdef HACK
-            BlockInfoAll[m][n].h_gridpoint = BlockInfoAll[m][n].h;
+            BlockInfoAll_ptr[m][n]->h_gridpoint = BlockInfoAll_ptr[m][n]->h;
         #endif
 
         m_blocks.push_back((Block * )BlockInfoAll[m][n].ptrBlock);
         m_vInfo. push_back(BlockInfoAll[m][n]);
 
-        assert(BlockInfoAll[m][n].ptrBlock != NULL);
+        assert(BlockInfoAll_ptr[m][n]->ptrBlock != NULL);
         N++;        
     }
 
     virtual void _deallocAll() //called in class destructor
     {
         m_vInfo.clear();
+<<<<<<< HEAD
         
         allocator <Block> alloc;
         
@@ -92,6 +100,19 @@ public:
             alloc.deallocate(m_blocks[j],1);         
         
         BlockInfoAll.clear();
+=======
+        for (int m=0; m<levelMax; m++)
+        {
+            for (int n=0; n<NX*NY*NZ*pow(pow(2,m),3); n++)
+            {
+                if (BlockInfoAll_ptr[m][n]->TreePos==Exists) 
+                {
+                    allocator <Block> alloc;
+                    //alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);
+                }
+            }
+        }    
+>>>>>>> 2cd9b0361e261da59d097a09cf3e15f8dd6643f4
     }
 
 
@@ -100,6 +121,7 @@ public:
     {
         N --;        
         allocator <Block> alloc;
+<<<<<<< HEAD
         alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);         
         for (size_t j = 0 ; j < m_vInfo.size() ; j++)
         {
@@ -110,6 +132,9 @@ public:
                 break;
             }
         }
+=======
+        alloc.deallocate((Block*)BlockInfoAll_ptr[m][n]->ptrBlock,1);         
+>>>>>>> 2cd9b0361e261da59d097a09cf3e15f8dd6643f4
     }
 
 
@@ -128,6 +153,7 @@ public:
         if (CopyInfos)
             for (size_t j = 0; j < m_vInfo.size(); j++)
             {
+<<<<<<< HEAD
                 int m = m_vInfo[j].level;
                 int n = m_vInfo[j].Z;
                 m_vInfo [j] = BlockInfoAll[m][n];
@@ -140,6 +166,13 @@ public:
                 int n = m_vInfo[j].Z;
                 m_vInfo [j].state   = BlockInfoAll[m][n].state;
                 m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;
+=======
+                if (BlockInfoAll_ptr[m][n]->TreePos == Exists) 
+                {
+                    m_vInfo.push_back(*BlockInfoAll_ptr[m][n]);
+                    m_blocks.push_back((Block*)BlockInfoAll_ptr[m][n]->ptrBlock);
+                }
+>>>>>>> 2cd9b0361e261da59d097a09cf3e15f8dd6643f4
             }
     }
 
@@ -209,9 +242,12 @@ public:
 
 
 
-             //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
-        BlockInfoAll.resize(levelMax);
+        //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
+        //BlockInfoAll.resize(levelMax);
+        BlockInfoAll_ptr.resize(levelMax);
         
+
+
         Zholder = new int *** [levelMax];
 
         for (int m=0; m<levelMax; m++)
@@ -219,7 +255,8 @@ public:
             int TwoPower  = pow(2,m);
             const unsigned int Ntot = NX*NY*NZ*pow(TwoPower,3);
             
-            BlockInfoAll[m].resize(Ntot);
+            //BlockInfoAll[m].resize(Ntot);
+            BlockInfoAll_ptr[m].resize(Ntot);
             
             double h = h0 / TwoPower;
 
@@ -253,7 +290,14 @@ public:
                 else                    TreePos = CheckCoarser;
                 
                 int rank = (m==levelStart) ? 0 : -1;
-                BlockInfoAll[m][n].setup(m,h,origin,Bmin,IJK,rank,TreePos); //Ranks are initialized in GridMPI constructor
+                
+
+
+                BlockInfo * temp = new BlockInfo(m,h,origin,Bmin,IJK,rank,TreePos);
+                //BlockInfoAll[m][n].setup(m,h,origin,Bmin,IJK,rank,TreePos); //Ranks are initialized in GridMPI constructor
+            
+
+                BlockInfoAll_ptr[m][n] = temp; //& BlockInfoAll[m][n];
             }
         }
 
@@ -286,7 +330,8 @@ public:
     virtual Block& operator()(int ix, int iy, int iz, int m) const
     { 
         int n = getZforward(m,ix,iy,iz);
-        return  * (Block * ) BlockInfoAll[m][n].ptrBlock;  
+        //return  * (Block * ) BlockInfoAll[m][n].ptrBlock;
+        return  * (Block * ) BlockInfoAll_ptr[m][n]->ptrBlock;  
     }
 
     virtual std::array<int,3> getMaxBlocks() const
@@ -306,24 +351,70 @@ public:
 
     inline BlockInfo & getBlockInfoAll(int m, int n) 
     {
-        return BlockInfoAll[m][n];
+        return *BlockInfoAll_ptr[m][n];
     }
 
     virtual BlockInfo getBlockInfoAll(int m,int n) const
     {
-        return BlockInfoAll[m][n];
+        //assert(BlockInfoAll_ptr[m][n]->cunpacks.size() == 0);
+        return *BlockInfoAll_ptr[m][n];
     }
 
 
-    inline std::vector<std::vector<BlockInfo>> & getBlockInfoAll() 
-    {
-        return BlockInfoAll;
+//    inline std::vector<std::vector<BlockInfo >> & getBlockInfoAll() 
+//    {       
+//        BlockInfoAll.clear();
+//        BlockInfoAll.resize(levelMax);
+//            
+//
+//        for (int m=0; m<levelMax; m++)
+//        {
+//            int TwoPower  = pow(2,m);
+//            const unsigned int Ntot = NX*NY*NZ*pow(TwoPower,3);
+//            
+//            BlockInfoAll[m].resize(Ntot);
+//            
+//            for (int n=0;n<(int)Ntot;n++)
+//                BlockInfoAll[m][n] = * BlockInfoAll_ptr[m][n];
+//        }
+//
+//        return BlockInfoAll;
+//    }
+
+
+
+
+
+   inline std::vector<std::vector<BlockInfo *>> & getBlockInfoAll_ptr() 
+    {       
+        return BlockInfoAll_ptr;
     }
 
-    virtual std::vector<std::vector<BlockInfo>> getBlockInfoAll() const
-    {
-        return BlockInfoAll;
-    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     inline std::vector < Block * > & GetBlocks()

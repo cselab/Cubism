@@ -154,7 +154,7 @@ class SynchronizerMPI_AMR
    
 
 
-    std::vector <std::vector<BlockInfo *>> BlockInfoAll_ptr;
+    std::vector <std::vector<BlockInfo >> BlockInfoAll;
 
 
 
@@ -172,9 +172,9 @@ class SynchronizerMPI_AMR
     }
 
 
-    inline BlockInfo & getBlockInfoAll_ptr(int m, int n) 
+    inline BlockInfo & getBlockInfoAll(int m, int n) 
     {
-        return *BlockInfoAll_ptr[m][n];
+        return BlockInfoAll[m][n];
     }
 
 
@@ -410,7 +410,7 @@ class SynchronizerMPI_AMR
                                       (f.infos[1]->index[1]+ code[1])%2,
                                       (f.infos[1]->index[2]+ code[2])%2};       
     
-                BlockInfo  CoarseSender =  getBlockInfoAll_ptr(f.infos[1]->level,f.infos[1]->Znei_(code[0],code[1],code[2]));
+                BlockInfo  CoarseSender =  getBlockInfoAll(f.infos[1]->level,f.infos[1]->Znei_(code[0],code[1],code[2]));
     
                 int CoarseEdge[3];
               
@@ -577,7 +577,7 @@ class SynchronizerMPI_AMR
         for (int i0 = imin[0]; i0 <= imax[0]; i0++)
         {
             int n = getZforward(a.level,i0,i1,i2);
-            if ( (getBlockInfoAll_ptr(a.level,n)).TreePos == CheckCoarser )
+            if ( (getBlockInfoAll(a.level,n)).TreePos == CheckCoarser )
             {
                 retval = true;
                 break;
@@ -755,7 +755,7 @@ class SynchronizerMPI_AMR
                 
                 //if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
          
-                BlockInfo & infoNei = getBlockInfoAll_ptr(info.level,info.Znei_(code[0],code[1],code[2]));   
+                BlockInfo & infoNei = getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));   
                 if (infoNei.TreePos == CheckCoarser) Coarsened = true;
              
                 //if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
@@ -787,7 +787,7 @@ class SynchronizerMPI_AMR
                 	Coarsened = true;
 
                     int nCoarse = getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
-                    BlockInfo & infoNeiCoarser = getBlockInfoAll_ptr(infoNei.level-1,nCoarse);
+                    BlockInfo & infoNeiCoarser = getBlockInfoAll(infoNei.level-1,nCoarse);
                     if (infoNeiCoarser.myrank != rank)
                     {
                         isInner = false;
@@ -796,7 +796,7 @@ class SynchronizerMPI_AMR
                         int icode2 = (code2[0]+1) + (code2[1]+1)*3 + (code2[2]+1)*9;
                         recv_interfaces[infoNeiCoarser.myrank].push_back( Interface(infoNeiCoarser,info,icode2,icode) );   
                  
-                        BlockInfo & test = getBlockInfoAll_ptr(infoNeiCoarser.level,infoNeiCoarser.Znei_(code2[0],code2[1],code2[2]));
+                        BlockInfo & test = getBlockInfoAll(infoNeiCoarser.level,infoNeiCoarser.Znei_(code2[0],code2[1],code2[2]));
 
                         if (info.index[0]/2 == test.index[0] && info.index[1]/2 == test.index[1] && info.index[2]/2 == test.index[2])
                             send_interfaces[infoNeiCoarser.myrank].push_back( Interface(info,infoNeiCoarser,icode,icode2) );
@@ -814,7 +814,7 @@ class SynchronizerMPI_AMR
                         int nFine = getZforward(infoNei.level+1,2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0])),
                                                                 2*info.index[1] + max(code[1],0) +code[1]  + temp *max(0, 1 - abs(code[1])),
                                                                 2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2])));
-                        BlockInfo & infoNeiFiner = getBlockInfoAll_ptr(infoNei.level+1,nFine);
+                        BlockInfo & infoNeiFiner = getBlockInfoAll(infoNei.level+1,nFine);
                         if (infoNeiFiner.myrank != rank)
                         {
                             isInner = false;
@@ -1087,11 +1087,11 @@ public:
                         const int a_nx,const int a_ny,const int a_nz,
                         const int a_bx,const int a_by,const int a_bz,
                         std::vector<BlockInfo> & a_myInfos,
-                        std::vector<std::vector<BlockInfo *>> & a_BlockInfoAll_ptr):
+                        std::vector<std::vector<BlockInfo >> & a_BlockInfoAll):
     
     stencil(a_stencil),Cstencil(a_Cstencil), 
     comm(a_comm),xperiodic(a_periodic[0]),yperiodic(a_periodic[1]),zperiodic(a_periodic[2]),
-    levelMax(a_levelMax),Zcurve(a_bx,a_by,a_bz),myInfos(a_myInfos),BlockInfoAll_ptr(a_BlockInfoAll_ptr)
+    levelMax(a_levelMax),Zcurve(a_bx,a_by,a_bz),myInfos(a_myInfos),BlockInfoAll(a_BlockInfoAll)
     {
         for (int i=0;i<20;i++) TIMINGS[i] = 0;
 
@@ -1202,13 +1202,13 @@ public:
 
 
 
-    void _Setup( std::vector<BlockInfo> & a_myInfos,std::vector<std::vector<BlockInfo * >> & a_BlockInfoAll_ptr)
+    void _Setup( std::vector<BlockInfo> & a_myInfos,std::vector<std::vector<BlockInfo >> & a_BlockInfoAll)
     {
     	double started = MPI_Wtime();
         myInfos.clear();
-        BlockInfoAll_ptr.clear();
+        BlockInfoAll.clear();
     	myInfos = a_myInfos;
-        BlockInfoAll_ptr = a_BlockInfoAll_ptr;
+        BlockInfoAll = a_BlockInfoAll;
 
 
     	std::vector<int> selcomponents = stencil.selcomponents;
@@ -1357,8 +1357,7 @@ public:
         static const int nY = blocksize[1];
         static const int nZ = blocksize[2];
       
-		std::vector <UnPackInfo > & unpacks =  AllUnpacks[info.level][info.Z]; //getBlockInfoAll_ptr(info.level,info.Z).unpacks;
-
+		std::vector <UnPackInfo > & unpacks =  AllUnpacks[info.level][info.Z]; 
 
 		//assert(unpacks.size() == unpacks_2.size());
         //for (auto & unpack1 : unpacks)
@@ -1366,26 +1365,10 @@ public:
         {       	
 
         	UnPackInfo & unpack = unpacks[jj];
-        
-                //assert(unpack.offset == unpack2.offset);
-                //assert(unpack.lx == unpack2.lx);
-                //assert(unpack.ly == unpack2.ly);
-                //assert(unpack.lz == unpack2.lz);
-                //assert(unpack.LX == unpack2.LX);
-                //assert(unpack.LY == unpack2.LY);
-				//assert(unpack.srcxstart == unpack2.srcxstart);
-				//assert(unpack.srcystart == unpack2.srcystart);
-				//assert(unpack.srczstart == unpack2.srczstart);
-				//assert(unpack.CoarseVersionsrcxstart == unpack2.CoarseVersionsrcxstart);
-				//assert(unpack.CoarseVersionsrcystart == unpack2.CoarseVersionsrcystart);
-				//assert(unpack.CoarseVersionsrczstart == unpack2.CoarseVersionsrczstart);
-
-
-
 
         	const int code[3] = { unpack.icode%3-1, (unpack.icode/3)%3-1, (unpack.icode/9)%3-1};
 
-        	BlockInfo & other = getBlockInfoAll_ptr(unpack.level,unpack.Z);
+        	BlockInfo & other = getBlockInfoAll(unpack.level,unpack.Z);
 
             const int s[3] = { code[0]<1? (code[0]<0 ? stencil.sx:0 ):nX,
                                code[1]<1? (code[1]<0 ? stencil.sy:0 ):nY,

@@ -140,11 +140,11 @@ public:
                     r = n / my_blocks;
                 }
               
-                TGrid::BlockInfoAll_ptr[m][n]->myrank = r; 
+                TGrid::BlockInfoAll[m][n].myrank = r; 
             }
             else
             {
-                TGrid::BlockInfoAll_ptr[m][n]->myrank = -1;   
+                TGrid::BlockInfoAll[m][n].myrank = -1;   
             }          
         }
 
@@ -340,10 +340,10 @@ public:
         {
             for (int n=0; n<TGrid::NX*TGrid::NY*TGrid::NZ*pow(pow(2,m),3); n++)
             {
-                if (TGrid::BlockInfoAll_ptr[m][n]->TreePos==Exists && TGrid::BlockInfoAll_ptr[m][n]->myrank == myrank) 
+                if (TGrid::BlockInfoAll[m][n].TreePos==Exists && TGrid::BlockInfoAll[m][n].myrank == myrank) 
                 {
                     allocator <Block> alloc;
-                    alloc.deallocate((Block*)TGrid::BlockInfoAll_ptr[m][n]->ptrBlock,1);
+                    alloc.deallocate((Block*)TGrid::BlockInfoAll[m][n].ptrBlock,1);
                 }
             }
         }    
@@ -375,7 +375,7 @@ public:
     virtual bool avail(int ix, int iy, int iz, int m) const override
     {
         int n = TGrid::getZforward(m,ix,iy,iz);
-        if (TGrid::BlockInfoAll_ptr[m][n]->myrank == myrank) return true;
+        if (TGrid::BlockInfoAll[m][n].myrank == myrank) return true;
         else                                            return false;
     }
 
@@ -441,26 +441,26 @@ public:
             
             //State s   = (State)AllData[r][index+2];
      
-            TGrid::BlockInfoAll_ptr[level][Z]->myrank  = r;
-            TGrid::BlockInfoAll_ptr[level][Z]->TreePos = Exists;
+            TGrid::BlockInfoAll[level][Z].myrank  = r;
+            TGrid::BlockInfoAll[level][Z].TreePos = Exists;
             
 
             if (AllData[r][index+2] == 0)
-            TGrid::BlockInfoAll_ptr[level][Z]->state   = Leave;
+            TGrid::BlockInfoAll[level][Z].state   = Leave;
 
             else if (AllData[r][index+2] == 1)
-            TGrid::BlockInfoAll_ptr[level][Z]->state   = Compress;
+            TGrid::BlockInfoAll[level][Z].state   = Compress;
 
             else if (AllData[r][index+2] == 2)
-            TGrid::BlockInfoAll_ptr[level][Z]->state   = Refine;
+            TGrid::BlockInfoAll[level][Z].state   = Refine;
 
 
 
 
 
-            int p[3] = {TGrid::BlockInfoAll_ptr[level][Z]->index[0],
-                        TGrid::BlockInfoAll_ptr[level][Z]->index[1],
-                        TGrid::BlockInfoAll_ptr[level][Z]->index[2]};
+            int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
+                        TGrid::BlockInfoAll[level][Z].index[1],
+                        TGrid::BlockInfoAll[level][Z].index[2]};
            
             if (level<TGrid::levelMax -1)
                 for (int k=0; k<2; k++ )
@@ -468,14 +468,14 @@ public:
                 for (int i=0; i<2; i++ )
                 {      
                     int nc = TGrid::getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
-                    TGrid::BlockInfoAll_ptr[level+1][nc]->TreePos = CheckCoarser;
-                    TGrid::BlockInfoAll_ptr[level+1][nc]->myrank  = -1;
+                    TGrid::BlockInfoAll[level+1][nc].TreePos = CheckCoarser;
+                    TGrid::BlockInfoAll[level+1][nc].myrank  = -1;
                 }
             if (level>0)
             {
                 int nf = TGrid::getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
-                TGrid::BlockInfoAll_ptr[level-1][nf]->TreePos = CheckFiner;
-                TGrid::BlockInfoAll_ptr[level-1][nf]->myrank  = -1;
+                TGrid::BlockInfoAll[level-1][nf].TreePos = CheckFiner;
+                TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
             }
         }
 
@@ -630,22 +630,22 @@ public:
             int level = recv_buffer[r][index  ];
             int Z     = recv_buffer[r][index+1];
            
-            TGrid::BlockInfoAll_ptr[level][Z]->myrank  = r;
-            TGrid::BlockInfoAll_ptr[level][Z]->TreePos = Exists;
+            TGrid::BlockInfoAll[level][Z].myrank  = r;
+            TGrid::BlockInfoAll[level][Z].TreePos = Exists;
 
             if (recv_buffer[r][index+2] == 0)
-            TGrid::BlockInfoAll_ptr[level][Z]->state   = Leave;
+            TGrid::BlockInfoAll[level][Z].state   = Leave;
 
             else if (recv_buffer[r][index+2] == 1)
-            TGrid::BlockInfoAll_ptr[level][Z]->state   = Compress;
+            TGrid::BlockInfoAll[level][Z].state   = Compress;
 
             else if (recv_buffer[r][index+2] == 2)
-            TGrid::BlockInfoAll_ptr[level][Z]->state   = Refine;
+            TGrid::BlockInfoAll[level][Z].state   = Refine;
 
 
-            int p[3] = {TGrid::BlockInfoAll_ptr[level][Z]->index[0],
-                        TGrid::BlockInfoAll_ptr[level][Z]->index[1],
-                        TGrid::BlockInfoAll_ptr[level][Z]->index[2]};
+            int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
+                        TGrid::BlockInfoAll[level][Z].index[1],
+                        TGrid::BlockInfoAll[level][Z].index[2]};
            
             if (level<TGrid::levelMax -1)
                 for (int k=0; k<2; k++ )
@@ -653,14 +653,14 @@ public:
                 for (int i=0; i<2; i++ )
                 {      
                     int nc = TGrid::getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
-                    TGrid::BlockInfoAll_ptr[level+1][nc]->TreePos = CheckCoarser;
-                    TGrid::BlockInfoAll_ptr[level+1][nc]->myrank  = -1;
+                    TGrid::BlockInfoAll[level+1][nc].TreePos = CheckCoarser;
+                    TGrid::BlockInfoAll[level+1][nc].myrank  = -1;
                 }
             if (level>0)
             {
                 int nf = TGrid::getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
-                TGrid::BlockInfoAll_ptr[level-1][nf]->TreePos = CheckFiner;
-                TGrid::BlockInfoAll_ptr[level-1][nf]->myrank  = -1;
+                TGrid::BlockInfoAll[level-1][nf].TreePos = CheckFiner;
+                TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
             }
         }
 
@@ -710,10 +710,10 @@ public:
                                                 blockperDim[0],
                                                 blockperDim[1],
                                                 blockperDim[2],
-                                                TGrid::getBlocksInfo(),TGrid::getBlockInfoAll_ptr());
+                                                TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
 
             SynchronizerMPIs[stencil] = queryresult;
-            queryresult->_Setup(TGrid::getBlocksInfo(),TGrid::getBlockInfoAll_ptr());
+            queryresult->_Setup(TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
         }
         else
         {

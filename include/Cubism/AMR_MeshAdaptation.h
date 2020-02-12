@@ -91,8 +91,8 @@ public:
         Synch = new SynchronizerMPIType(stencil, Cstencil, MPI_COMM_WORLD, per, m_refGrid->getlevelMax(),
                                               TGrid::Block::sizeX,TGrid::Block::sizeY,TGrid::Block::sizeZ,
                                               blockperDim[0],blockperDim[1],blockperDim[2],
-                                              m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll_ptr());      
-        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll_ptr());
+                                              m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());      
+        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
 
         timestamp = 0;
     }
@@ -303,7 +303,7 @@ public:
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
 			{ 
-		       	(*it->second)._Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll_ptr());
+		       	(*it->second)._Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
 		       	it++;
 			}
 		}

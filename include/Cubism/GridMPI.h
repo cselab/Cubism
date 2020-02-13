@@ -322,6 +322,14 @@ public:
             printf( "---> FluxCorrection::            : %6.3f \n" , res[18]);
 
 
+            std::cout <<  "\n";
+            std::cout <<  "\n";
+            printf( "---> MeshAdaptation::Block Tag      : %6.3f \n" , res[30]);
+            printf( "---> MeshAdaptation::Refine         : %6.3f \n" , res[31]);
+            printf( "---> MeshAdaptation::Compress       : %6.3f \n" , res[32]);
+            printf( "---> MeshAdaptation::FillPos/Update : %6.3f \n" , res[33]);
+            printf( "---> MeshAdaptation::setup/sync     : %6.3f \n" , res[34]);
+
             std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
         }
 
@@ -920,11 +928,11 @@ public:
     virtual void FillPos(bool CopyInfos = false) override
     { 
         auto started = MPI_Wtime();     
-        TGrid::FillPos(CopyInfos);
-        auto done = MPI_Wtime();
-        TIMINGS [2] += done-started; 
+	#if 0  
+         TGrid::FillPos(true);
+        //TGrid::FillPos(CopyInfos);
 
-        #if 0
+        #else
 
         TGrid::m_blocks.clear();
         TGrid::m_vInfo.clear();
@@ -942,6 +950,8 @@ public:
 
         }   
         #endif
+        auto done = MPI_Wtime();
+        TIMINGS [2] += done-started; 
     }
 
 

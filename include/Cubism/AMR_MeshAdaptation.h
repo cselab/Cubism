@@ -104,7 +104,8 @@ public:
     {
     	time = t;
     
-
+        double started = MPI_Wtime();
+      
      	Synch->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
    		timestamp = (timestamp + 1) % 32768;
 
@@ -200,11 +201,13 @@ public:
             }
         }
                            
-        
+        double done = MPI_Wtime();
+        m_refGrid->TIMINGS [30] += done-started; 
+
             
-        auto started = MPI_Wtime();
+        started = MPI_Wtime();
         ValidStates();
-        auto done = MPI_Wtime();;
+        done = MPI_Wtime();;
 
 
         started = MPI_Wtime();
@@ -241,6 +244,8 @@ public:
           }
         }
               
+
+        started = MPI_Wtime();
         #pragma omp parallel for 
         for (size_t i=0; i<mn_ref.size()/2; i++)
         {
@@ -249,8 +254,7 @@ public:
           refine_1(m,n);
           #pragma omp atomic
             r++;
-       	}
-        
+       	}        
         #pragma omp parallel for 
         for (size_t i=0; i<mn_ref.size()/2; i++)
         {
@@ -258,7 +262,11 @@ public:
           int n = mn_ref[2*i+1]; 
           refine_2(m,n);
         }   
-    
+        done = MPI_Wtime();
+        m_refGrid->TIMINGS [31] += done-started; 
+      
+        
+        started = MPI_Wtime();
         #pragma omp parallel for 
         for (size_t i=0; i<mn_com.size()/2; i++)
         {
@@ -269,8 +277,13 @@ public:
           #pragma omp atomic
            c++;
         }
+        done = MPI_Wtime();
+        m_refGrid->TIMINGS [32] += done-started; 
+
+      
        /*************************************************/
 
+        started = MPI_Wtime();
         int temp[2] = {r,c};
         int result[2];
         MPI_Reduce(&temp, &result, 2, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -285,7 +298,12 @@ public:
         
 		m_refGrid->FillPos(true);
         m_refGrid->UpdateBlockInfoAll_States();
-          
+        done = MPI_Wtime();
+        m_refGrid->TIMINGS [33] += done-started; 
+
+
+
+  
         started = MPI_Wtime();
         Balancer.Balance_Diffusion();
         done = MPI_Wtime();
@@ -305,6 +323,10 @@ public:
 		       	it++;
 			}
 		}
+        done = MPI_Wtime();
+        m_refGrid->TIMINGS [34] += done-started; 
+
+
     }
 
 

@@ -284,8 +284,7 @@ public:
         }
         
 		m_refGrid->FillPos(true);
-
-
+       
         started = MPI_Wtime();
         Balancer.Balance_Diffusion();
         done = MPI_Wtime();
@@ -297,9 +296,7 @@ public:
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
             m_refGrid->UpdateBlockInfoAll_States();
-
 	        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
- 			
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
 			{ 
@@ -389,8 +386,6 @@ protected:
           int blk = K*4+J*2+I;
           int n   = m_refGrid->getZforward(level,info.index[0]+I,info.index[1]+J,info.index[2]+K); 
           Blocks[blk] = (BlockType *)(m_refGrid->getBlockInfoAll(level,n)).ptrBlock;
-                 
-          (m_refGrid->getBlockInfoAll(level,n)).myrank = -1;     
         }
    
         const int nx = BlockType::sizeX;
@@ -450,6 +445,7 @@ protected:
         {
             int n = m_refGrid->getZforward(level,info.index[0]+I,info.index[1]+J,info.index[2]+K); 
             m_refGrid->getBlockInfoAll(level,n).TreePos = CheckCoarser;
+            m_refGrid->getBlockInfoAll(level,n).myrank = -1;     
             m_refGrid->getBlockInfoAll(level,n).ptrBlock = NULL;
         }
     }

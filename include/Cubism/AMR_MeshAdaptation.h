@@ -284,7 +284,8 @@ public:
         }
         
 		m_refGrid->FillPos(true);
-       
+        m_refGrid->UpdateBlockInfoAll_States();
+          
         started = MPI_Wtime();
         Balancer.Balance_Diffusion();
         done = MPI_Wtime();

@@ -61,6 +61,7 @@ public:
             const double _maxextent = 1, const int a_levelStart = 0, const int a_levelMax =1 ,const MPI_Comm comm = MPI_COMM_WORLD, const bool a_xperiodic = true,const bool a_yperiodic = true,const bool a_zperiodic = true):
       TGrid(nX, nY, nZ, _maxextent, a_levelStart,a_levelMax,false, a_xperiodic,a_yperiodic,a_zperiodic), timestamp(0), worldcomm(comm)
     {
+
         assert(npeX > 0 && "Number of processes per X must be greater than 0.");
         assert(npeY > 0 && "Number of processes per Y must be greater than 0.");
         assert(npeZ > 0 && "Number of processes per Z must be greater than 0.");
@@ -380,6 +381,8 @@ public:
     }
 
 
+
+#if 0
     virtual void UpdateBlockInfoAll_States(bool GlobalUpdate = true) 
     {
     
@@ -400,41 +403,79 @@ public:
             myData[i  ] = TGrid::m_vInfo[i/3].level;
             myData[i+1] = TGrid::m_vInfo[i/3].Z    ;
 
-
             if (TGrid::m_vInfo[i/3].state == Leave)
                 myData[i+2] = 0;
             else if (TGrid::m_vInfo[i/3].state == Compress)
                 myData[i+2] = 1;
             else if (TGrid::m_vInfo[i/3].state == Refine)
                 myData[i+2] = 2;
+
+            assert(TGrid::m_vInfo[i/3].myrank == rank);
         }
 
         //2.Gather lengths of all processes and use them to allocate memory on each process
-        std::vector <int> AllLengths(size,0);
+        std::vector <int> AllLengths(size);
         AllLengths[rank] = myLength;
+
         MPI_Allgather(&myLength, 1, MPI_INT, &AllLengths[0], 1, MPI_INT,MPI_COMM_WORLD);
 
-
-        std::vector< std::vector<int> > AllData(size);
+        //std::vector< std::vector<int> > AllData(size);
+        int ** AllData = new int * [size];
         for (int i=0;i<size;i++)
-            AllData[i].resize(AllLengths[i]);
+        {
+            AllData[i] = new int [AllLengths[i]];
+            //AllData[i].resize(AllLengths[i]);
+        }
         
+
+
+
+
+
+        std::cout << " RANK  " << rank << " sends " << myLength << "\n";
 
         std::vector<int> displacement(size);
         displacement[0] = 0;
         for (int i=1;i<size;i++)
         {
-            displacement[i] = &AllData[i][0]-&AllData[0][0];    
+        //            displacement[i] = &AllData[i][0]-&AllData[0][0];    
+            displacement[i] = AllData[i]-AllData[0];    
+
+            std::cout << " rank " << rank << " i=" << i << " L= " << AllLengths[i] << " d="<< displacement[i] << "\n";
+        }
+
+        //MPI_Allgatherv(&myData[0], myLength, MPI_INT,AllData[0], &AllLengths[0],&displacement[0], MPI_INT, MPI_COMM_WORLD);
+
+
+
+        MPI_Barrier(MPI_COMM_WORLD);
+
+
+        std::vector <MPI_Request> send_requests(size);
+        std::vector <MPI_Request> recv_requests(size); 
+        for (int r=0;r<size;r++) if (r!=rank)
+        {
+            MPI_Isend(&myData [0], myLength     , MPI_INT, r, 123 , MPI_COMM_WORLD, &send_requests[r]);       
+            MPI_Irecv(&AllData[r], AllLengths[r], MPI_INT, r, 123 , MPI_COMM_WORLD, &recv_requests[r]);
+        }
+
+        for (int r=0;r<size;r++) if (r!=rank)
+        {
+            MPI_Waitall(1, &send_requests[r], MPI_STATUSES_IGNORE);     
+            MPI_Waitall(1, &recv_requests[r], MPI_STATUSES_IGNORE);
         }
     
 
-        MPI_Allgatherv(&myData[0], myLength, MPI_INT,
-                       &AllData[0][0], &AllLengths[0],
-                       &displacement[0], MPI_INT, MPI_COMM_WORLD);
+       // MPI_Allgatherv(&myData[0], myLength, MPI_INT,
+       //                &AllData[0][0], &AllLengths[0],
+       //                &displacement[0], MPI_INT, MPI_COMM_WORLD);
 
  
+        std::cout << " rank " << rank << " completed gather.\n";
+
+
         for (int r=0 ; r<size; r++)
-        for (int index = 0; index < (int)AllData[r].size(); index += 3)
+        for (int index = 0; index < /*(int)AllData[r].size()*/ AllLengths[r]; index += 3)
         {
             int level = AllData[r][index  ];
             int Z     = AllData[r][index+1];
@@ -482,6 +523,18 @@ public:
 
 
         FillPos();
+
+
+        for (int i=0;i<size;i++)
+        {
+            delete [] AllData[i];
+        }
+        delete [] AllData;    
+
+
+
+
+
 
     }    
     else //update blocks on the boundary of process
@@ -673,6 +726,117 @@ public:
     TIMINGS [0] += done - started;
     
     };
+#else
+    void UpdateBlockInfoAll_States(bool GlobalUpdate = true) 
+    {  
+        int rank,size;
+        MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+        MPI_Comm_size(MPI_COMM_WORLD,&size); 
+
+        FillPos(true);
+
+        size_t myLength = 3*TGrid::m_vInfo.size();
+        int * myData = new int[myLength];
+
+        for (size_t i=0; i<myLength; i+=3)
+        {
+            myData[i  ] = TGrid::m_vInfo[i/3].level;
+            myData[i+1] = TGrid::m_vInfo[i/3].Z    ;
+            if      (TGrid::m_vInfo[i/3].state == Leave   ) myData[i+2] = 0;
+            else if (TGrid::m_vInfo[i/3].state == Compress) myData[i+2] = 1;
+            else if (TGrid::m_vInfo[i/3].state == Refine  ) myData[i+2] = 2;
+            assert(TGrid::m_vInfo[i/3].myrank == rank);
+        }
+
+        //2.Gather lengths of all processes and use them to allocate memory on each process
+        int * AllLengths = new int [size];
+        MPI_Allgather(&myLength, 1, MPI_INT, &AllLengths[0], 1, MPI_INT,MPI_COMM_WORLD);
+        assert((size_t)AllLengths[rank] == myLength);
+
+        int ** AllData = new int * [size];
+        for (int i=0;i<size;i++)
+        {
+            assert(AllLengths[i]>0);
+            AllData[i] = new int [AllLengths[i]];
+        }
+          
+        #if 0
+            std::vector<int> displacement(size);
+            for (int i=0;i<size;i++)
+            {
+                displacement[i] = AllData[i]-AllData[0];    
+            }
+            MPI_Allgatherv(&myData[0], myLength, MPI_INT,AllData[0], &AllLengths[0],&displacement[0], MPI_INT, MPI_COMM_WORLD);
+        #else
+            MPI_Barrier(MPI_COMM_WORLD);
+            std::vector <MPI_Request> send_requests(size);
+            std::vector <MPI_Request> recv_requests(size); 
+            for (int r=0;r<size;r++) if (r!=rank)
+            {
+                MPI_Isend(&myData [0], myLength     , MPI_INT, r, r + rank , MPI_COMM_WORLD, &send_requests[r]);       
+                MPI_Irecv(&AllData[r][0], AllLengths[r], MPI_INT, r, r + rank , MPI_COMM_WORLD, &recv_requests[r]);            
+            }
+            for (int r=0;r<size;r++) if (r!=rank)
+            {
+                MPI_Waitall(1, &send_requests[r], MPI_STATUSES_IGNORE);     
+                MPI_Waitall(1, &recv_requests[r], MPI_STATUSES_IGNORE);
+            }
+        #endif
+        
+        for (int r=0 ; r<size; r++) if (r!=rank)
+        for (int index__ = 0; index__ < AllLengths[r]; index__ += 3)
+        {
+            int level = AllData[r][index__  ];
+            int Z     = AllData[r][index__+1];            
+
+            assert (level >=0);
+            assert (level < TGrid::levelMax);            
+            auto blockperDim = TGrid::getMaxBlocks(); 
+            int Zmax = blockperDim[0]*blockperDim[1]*blockperDim[2]*pow(pow(2,level),3);
+            assert (Z >=0 );
+            assert (Z < Zmax);
+
+
+            TGrid::BlockInfoAll[level][Z].myrank  = r;
+            TGrid::BlockInfoAll[level][Z].TreePos = Exists;
+  
+            if      (AllData[r][index__+2] == 0) TGrid::BlockInfoAll[level][Z].state = Leave;
+            else if (AllData[r][index__+2] == 1) TGrid::BlockInfoAll[level][Z].state = Compress;
+            else if (AllData[r][index__+2] == 2) TGrid::BlockInfoAll[level][Z].state = Refine;
+
+            int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
+                        TGrid::BlockInfoAll[level][Z].index[1],
+                        TGrid::BlockInfoAll[level][Z].index[2]};
+           
+            if (level<TGrid::levelMax -1)
+                for (int k=0; k<2; k++ )
+                for (int j=0; j<2; j++ )
+                for (int i=0; i<2; i++ )
+                {      
+                    int nc = TGrid::getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
+                    TGrid::BlockInfoAll[level+1][nc].TreePos = CheckCoarser;
+                    TGrid::BlockInfoAll[level+1][nc].myrank  = -1;
+                }
+            if (level>0)
+            {
+                int nf = TGrid::getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
+                TGrid::BlockInfoAll[level-1][nf].TreePos = CheckFiner;
+                TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
+            }
+        }
+        FillPos(true);
+
+
+        for (int i=0;i<size;i++)
+        {
+            delete [] AllData[i];
+        }
+        delete [] AllData;    
+        delete [] AllLengths;
+        delete [] myData;
+    }
+#endif
+
 
 
 
@@ -759,6 +923,25 @@ public:
         TGrid::FillPos(CopyInfos);
         auto done = MPI_Wtime();
         TIMINGS [2] += done-started; 
+
+        #if 0
+
+        TGrid::m_blocks.clear();
+        TGrid::m_vInfo.clear();
+        for (int m=0; m<TGrid::levelMax; m++)
+        {
+            for (int n=0; n<TGrid::NX*TGrid::NY*TGrid::NZ*pow(pow(2,m),3); n++)
+            {
+
+                if (TGrid::BlockInfoAll[m][n].TreePos == Exists && TGrid::BlockInfoAll[m][n].myrank == myrank) 
+                {
+                    TGrid::m_vInfo.push_back(TGrid::BlockInfoAll[m][n]);
+                    TGrid::m_blocks.push_back((Block*)TGrid::BlockInfoAll[m][n].ptrBlock);
+                }
+            }
+
+        }   
+        #endif
     }
 
 

@@ -718,13 +718,6 @@ class SynchronizerMPI_AMR
             }
   
 
-        AllUnpacks.clear();
-        AllUnpacks.resize(levelMax);
-        for (int m=0;m<levelMax;m++)
-        	AllUnpacks[m].resize(blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2]* pow(pow(2,m),3));
-
-
-
         for (int i=0; i<(int)myInfos.size(); i++)
         {
             BlockInfo & info = myInfos[i];
@@ -1105,6 +1098,14 @@ public:
         blocksPerDim[0] = a_bx;
         blocksPerDim[1] = a_by;
         blocksPerDim[2] = a_bz;
+
+        AllUnpacks.clear();
+        AllUnpacks.resize(levelMax);
+        for (int m=0;m<levelMax;m++)
+        {
+            size_t nMax = blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2]* pow(pow(2,m),3);
+            AllUnpacks[m].resize(nMax);
+        }
     
 		if (AllStencils.size() == 0)
 		{
@@ -1204,6 +1205,14 @@ public:
 
     void _Setup( std::vector<BlockInfo> & a_myInfos,std::vector<std::vector<BlockInfo >> & a_BlockInfoAll)
     {
+
+        for (int m=0;m<levelMax;m++)
+            for (int n=0; n <blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2]* pow(pow(2,m),3); n++)
+                AllUnpacks[m][n].clear();
+
+
+
+
     	double started = MPI_Wtime();
         myInfos.clear();
         BlockInfoAll.clear();
@@ -1359,11 +1368,8 @@ public:
       
 		std::vector <UnPackInfo > & unpacks =  AllUnpacks[info.level][info.Z]; 
 
-		//assert(unpacks.size() == unpacks_2.size());
-        //for (auto & unpack1 : unpacks)
         for (size_t jj=0; jj< unpacks.size(); jj++)
-        {       	
-
+        {
         	UnPackInfo & unpack = unpacks[jj];
 
         	const int code[3] = { unpack.icode%3-1, (unpack.icode/3)%3-1, (unpack.icode/9)%3-1};
@@ -1387,7 +1393,7 @@ public:
                 0,0,0,unpack.lx,unpack.ly,unpack.lz,Length[0],Length[1],Length[2]);
                       
                 
-                if (unpack.CoarseVersionOffset != 0)
+                if (unpack.CoarseVersionOffset >= 0)
                 {
                     const int sC[3] = {(stencil.sx-1)/2+ Cstencil.sx,
                                        (stencil.sy-1)/2+ Cstencil.sy,

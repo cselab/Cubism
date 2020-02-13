@@ -16,6 +16,9 @@
 #include "MeshMap.h"
 
 
+
+
+#include<mpi.h>
 #define HACK
 
 
@@ -41,7 +44,7 @@ protected:
     const int levelStart; //Initial refinement level      
 
 
-    int **** Zholder;
+    //int **** Zholder;
 
 public:
    
@@ -107,6 +110,7 @@ public:
             if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
             {
                 m_vInfo.erase (m_vInfo.begin() +j);
+                //alloc.deallocate(m_blocks[j],1);
                 m_blocks.erase(m_blocks.begin()+j);
                 break;
             }
@@ -134,6 +138,9 @@ public:
                 int m = m_vInfo[j].level;
                 int n = m_vInfo[j].Z;
                 m_vInfo [j] = BlockInfoAll[m][n];
+
+                assert(BlockInfoAll[m][n].TreePos == Exists);
+
                 m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;
             }
         else            
@@ -142,6 +149,9 @@ public:
                 int m = m_vInfo[j].level;
                 int n = m_vInfo[j].Z;
                 m_vInfo [j].state   = BlockInfoAll[m][n].state;
+
+                assert(BlockInfoAll[m][n].TreePos == Exists);
+
                 m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;
             }
     }
@@ -210,12 +220,10 @@ public:
         int Bmin[3] = {NX, NY, NZ};
         double h0 = (maxextent / std::max(NX*Block::sizeX, std::max(NY*Block::sizeY, NZ*Block::sizeZ)));
 
-
-
         //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
         BlockInfoAll.resize(levelMax);
 
-        Zholder = new int *** [levelMax];
+        //Zholder = new int *** [levelMax];
 
         for (int m=0; m<levelMax; m++)
         {
@@ -228,12 +236,12 @@ public:
 
             double origin[3];
 
-            Zholder[m] = new int ** [NX * TwoPower];  
+            //Zholder[m] = new int ** [NX * TwoPower];  
             for (int i=0; i<NX * TwoPower; i++)
             {
-                Zholder[m][i] = new int * [NY * TwoPower];
-                for (int j=0; j<NY * TwoPower; j++)
-                    Zholder[m][i][j] = new int [NZ * TwoPower];
+            //    Zholder[m][i] = new int * [NY * TwoPower];
+            //    for (int j=0; j<NY * TwoPower; j++)
+            //        Zholder[m][i][j] = new int [NZ * TwoPower];
             }
 
 
@@ -243,7 +251,7 @@ public:
             {
                 int n = Zcurve.forward(m,i,j,k);
 
-                Zholder[m][i][j][k] = n;
+                //Zholder[m][i][j][k] = n;
                 
                 int IJK[3] = {i,j,k};
                 origin[0]  = i*blocksize[0]*h;

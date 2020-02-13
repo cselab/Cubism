@@ -138,28 +138,23 @@ public:
             {
                 MPI_Request req;
                 recv_requests.push_back(req);            
-                MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 12345 , MPI_COMM_WORLD, &recv_requests[recv_requests.size()-1]);
+                MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 12345 , MPI_COMM_WORLD, &recv_requests.back() );//&recv_requests[(int)recv_requests.size()-1]);
                 movedBlocks = true;
             }
             if (send_infos[r].size()!=0) 
             {
                 MPI_Request req;
                 send_requests.push_back(req);
-                MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 12345 , MPI_COMM_WORLD, &send_requests[send_requests.size()-1]);
+                MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 12345 , MPI_COMM_WORLD, &send_requests.back());//&send_requests[(int)send_requests.size()-1]);
                 movedBlocks = true;
             }    
         }
-
+      
         if (recv_requests.size()!=0)
             MPI_Waitall(recv_requests.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
         
         if (send_requests.size()!=0)
             MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);
-
-
-
-
-
 
 
         std::vector <MPI_Request> send_requests2;
@@ -171,14 +166,14 @@ public:
             {
                 MPI_Request req;
                 recv_requests2.push_back(req);            
-                MPI_Irecv(&recv_buffer2[r][0], recv_buffer2[r].size(), MPI_INT, r, 1234567 , MPI_COMM_WORLD, &recv_requests2[recv_requests2.size()-1]);
+                MPI_Irecv(&recv_buffer2[r][0], recv_buffer2[r].size(), MPI_INT, r, 1234567 , MPI_COMM_WORLD, &recv_requests2.back());//&recv_requests2[recv_requests2.size()-1]);
                 movedBlocks = true;
             }
             if (send_infos[r].size()!=0) 
             {
                 MPI_Request req;
                 send_requests2.push_back(req);
-                MPI_Isend(&send_buffer2[r][0], send_buffer2[r].size(), MPI_INT, r, 1234567 , MPI_COMM_WORLD, &send_requests2[send_requests2.size()-1]);
+                MPI_Isend(&send_buffer2[r][0], send_buffer2[r].size(), MPI_INT, r, 1234567 , MPI_COMM_WORLD, &send_requests2.back());// &send_requests2[send_requests2.size()-1]);
                 movedBlocks = true;
             }    
         }
@@ -302,11 +297,11 @@ public:
 
             MPI_Request req;
             request.push_back(req);
-            MPI_Isend(&send_buffer_left[0], send_buffer_left.size(), MPI_DOUBLE, left, 123 , MPI_COMM_WORLD, &request[request.size()-1]);
+            MPI_Isend(&send_buffer_left[0], send_buffer_left.size(), MPI_DOUBLE, left, 123 , MPI_COMM_WORLD, &request.back());
 
             MPI_Request req2;
             request.push_back(req2);
-            MPI_Isend(&send_buffer_left2[0],send_buffer_left2.size(), MPI_INT, left, 789 , MPI_COMM_WORLD, &request[request.size()-1]);
+            MPI_Isend(&send_buffer_left2[0],send_buffer_left2.size(), MPI_INT, left, 789 , MPI_COMM_WORLD, &request.back());
         }
 		else if (flux_left < 0) //then I will receive blocks from my left rank
 		{
@@ -321,11 +316,11 @@ public:
             
             MPI_Request req;
             request.push_back(req);
-      		MPI_Irecv(&recv_buffer_left[0], recv_buffer_left.size(), MPI_DOUBLE, left, 456 , MPI_COMM_WORLD, &request[request.size()-1]);
+      		MPI_Irecv(&recv_buffer_left[0], recv_buffer_left.size(), MPI_DOUBLE, left, 456 , MPI_COMM_WORLD, &request.back());//&request[request.size()-1]);
 
     	    MPI_Request req2;
             request.push_back(req2);
-      		MPI_Irecv(&recv_buffer_left2[0], recv_buffer_left2.size(), MPI_INT, left, 101112 , MPI_COMM_WORLD, &request[request.size()-1]);
+      		MPI_Irecv(&recv_buffer_left2[0], recv_buffer_left2.size(), MPI_INT, left, 101112 , MPI_COMM_WORLD, &request.back());//&request[request.size()-1]);
 		}	
 
 
@@ -351,11 +346,11 @@ public:
 
             MPI_Request req;
             request.push_back(req);
-            MPI_Isend(&send_buffer_right[0], send_buffer_right.size(), MPI_DOUBLE, right, 456 , MPI_COMM_WORLD, &request[request.size()-1]);
+            MPI_Isend(&send_buffer_right[0], send_buffer_right.size(), MPI_DOUBLE, right, 456 , MPI_COMM_WORLD, &request.back());//&request[request.size()-1]);
 
             MPI_Request req2;
             request.push_back(req2);
-            MPI_Isend(&send_buffer_right2[0],send_buffer_right2.size(), MPI_INT, right, 101112 , MPI_COMM_WORLD, &request[request.size()-1]);
+            MPI_Isend(&send_buffer_right2[0],send_buffer_right2.size(), MPI_INT, right, 101112 , MPI_COMM_WORLD, &request.back());//&request[request.size()-1]);
         }
 		else if (flux_right < 0) //then I will receive blocks from my right rank
 		{
@@ -367,11 +362,11 @@ public:
             
             MPI_Request req;
             request.push_back(req);
-      		MPI_Irecv(&recv_buffer_right[0], recv_buffer_right.size(), MPI_DOUBLE, right, 123 , MPI_COMM_WORLD, &request[request.size()-1]);
+      		MPI_Irecv(&recv_buffer_right[0], recv_buffer_right.size(), MPI_DOUBLE, right, 123 , MPI_COMM_WORLD,&request.back());// &request[request.size()-1]);
 	
 	   	    MPI_Request req2;
             request.push_back(req2);
-      		MPI_Irecv(&recv_buffer_right2[0], recv_buffer_right2.size(), MPI_INT, right, 789 , MPI_COMM_WORLD, &request[request.size()-1]);
+      		MPI_Irecv(&recv_buffer_right2[0], recv_buffer_right2.size(), MPI_INT, right, 789 , MPI_COMM_WORLD, &request.back());//&request[request.size()-1]);
 		}	
 
 
@@ -385,7 +380,6 @@ public:
             m_refGrid->_dealloc(info.level,info.Z);
             BlockInfo & info1 = m_refGrid->getBlockInfoAll(info.level,info.Z);
             info1.myrank = right;           
-			assert(info1.TreePos == Exists);
         }
 
         for (int i=0; i<flux_left; i++)
@@ -394,7 +388,6 @@ public:
             m_refGrid->_dealloc(info.level,info.Z);
             BlockInfo & info1 = m_refGrid->getBlockInfoAll(info.level,info.Z);
             info1.myrank = left;	
-         	assert(info1.TreePos == Exists);
         }
 
 
@@ -405,6 +398,7 @@ public:
             int Z     = recv_buffer_left2[2*i+1];
             m_refGrid->_alloc(level,Z);
             BlockInfo & info = m_refGrid->getBlockInfoAll(level,Z);
+            info.TreePos = Exists;
             BlockType * b1 =  (BlockType *)info.ptrBlock;
             assert(b1!=NULL);
             Real * a1 = & b1->data[0][0][0].alpha1rho1;
@@ -423,6 +417,7 @@ public:
             int Z     = recv_buffer_right2[2*i+1];
             m_refGrid->_alloc(level,Z);
             BlockInfo & info = m_refGrid->getBlockInfoAll(level,Z);
+            info.TreePos = Exists;
             BlockType * b1 =  (BlockType *)info.ptrBlock;
             assert(b1!=NULL);
             Real * a1 = & b1->data[0][0][0].alpha1rho1;

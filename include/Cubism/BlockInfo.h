@@ -453,6 +453,8 @@ struct BlockInfo
     void * auxiliary;     //Pointer to blockcase
     double origin[3];     //(x,y,z) of block's origin   
 
+    bool changed = true;
+
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const
     {

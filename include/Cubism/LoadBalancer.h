@@ -147,6 +147,8 @@ public:
                 assert(b1!=NULL);
                 Real * a1 = & b1->data[0][0][0].alpha1rho1;
                 std::memcpy( a1 ,recv_blocks[r][i].data,BlockBytes);
+
+                info.changed = true;
             }
         }
     }
@@ -257,6 +259,7 @@ public:
             Real * a1 = & b1->data[0][0][0].alpha1rho1;
             std::memcpy( a1 ,recv_left[i].data,BlockBytes);            
             info.myrank  = rank;
+            info.changed = true;
         }
       
         for (int i=0; i<-flux_right; i++)
@@ -271,6 +274,7 @@ public:
             Real * a1 = & b1->data[0][0][0].alpha1rho1;
             std::memcpy( a1 ,recv_right[i].data,BlockBytes);
             info.myrank  = rank;
+            info.changed = true;
         }
    
 

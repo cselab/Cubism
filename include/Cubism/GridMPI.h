@@ -300,7 +300,7 @@ public:
 
             printf( "UpdateBlockInfoAll_States :  %6.2f \n",res[0]);
             printf( "SynchronizerMPI sync      :  %6.2f \n",res[1]);
-            printf( "FillPos                   :  %6.2f \n",res[2]);
+            printf( "Fillpos                   :  %6.2f \n",res[2]);
             printf( "FillBlockCases            :  %6.2f \n",res[3]);
             printf( "Kernels (inner)           :  %6.2f \n",res[4]);
             printf( "Kernels (outer)           :  %6.2f \n",res[5]);
@@ -327,7 +327,7 @@ public:
             printf( "---> MeshAdaptation::Block Tag      : %6.3f \n" , res[30]);
             printf( "---> MeshAdaptation::Refine         : %6.3f \n" , res[31]);
             printf( "---> MeshAdaptation::Compress       : %6.3f \n" , res[32]);
-            printf( "---> MeshAdaptation::FillPos/Update : %6.3f \n" , res[33]);
+            printf( "---> MeshAdaptation::Fillpos/Update : %6.3f \n" , res[33]);
             printf( "---> MeshAdaptation::setup/sync     : %6.3f \n" , res[34]);
 
             std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
@@ -745,17 +745,38 @@ public:
 
         FillPos(true);
 
-        size_t myLength = 3*TGrid::m_vInfo.size();
+
+
+        std::vector <BlockInfo> ChangedInfos; 
+        for (auto & info: TGrid::m_vInfo)
+        {
+        	int m = info.level;
+        	int n = info.Z;
+        	if (TGrid::getBlockInfoAll(m,n).changed)
+        	{
+        		TGrid::getBlockInfoAll(m,n).changed = false;
+        		info.changed = false;
+        		ChangedInfos.push_back(info);
+        	}
+        }
+
+
+
+
+
+
+
+        size_t myLength = 3*ChangedInfos.size(); //TGrid::m_vInfo.size();
         int * myData = new int[myLength];
 
         for (size_t i=0; i<myLength; i+=3)
         {
-            myData[i  ] = TGrid::m_vInfo[i/3].level;
-            myData[i+1] = TGrid::m_vInfo[i/3].Z    ;
-            if      (TGrid::m_vInfo[i/3].state == Leave   ) myData[i+2] = 0;
-            else if (TGrid::m_vInfo[i/3].state == Compress) myData[i+2] = 1;
-            else if (TGrid::m_vInfo[i/3].state == Refine  ) myData[i+2] = 2;
-            assert(TGrid::m_vInfo[i/3].myrank == rank);
+            myData[i  ] = ChangedInfos[i/3].level; 
+            myData[i+1] = ChangedInfos[i/3].Z    ; 
+            if      (ChangedInfos[i/3].state == Leave   ) myData[i+2] = 0;
+            else if (ChangedInfos[i/3].state == Compress) myData[i+2] = 1;
+            else if (ChangedInfos[i/3].state == Refine  ) myData[i+2] = 2;
+            assert(ChangedInfos[i/3].myrank == rank);
         }
 
         //2.Gather lengths of all processes and use them to allocate memory on each process

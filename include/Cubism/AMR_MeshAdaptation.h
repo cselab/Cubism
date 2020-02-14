@@ -7,9 +7,6 @@
 #include "BlockLabMPI.h"
 #include "LoadBalancer.h"
 
-
-
-
 #include <omp.h>
 #include <cstring>
 #include <string>
@@ -121,6 +118,8 @@ public:
 
         MPI_Barrier(MPI_COMM_WORLD);
   
+        bool CallValidStates = false;
+
     #if 1  
         avail0 = Synch->avail_inner(); 
         const int Ninner = avail0.size();
@@ -137,7 +136,8 @@ public:
                 mylab.load(ary0[i], t);
                 BlockInfo & info = m_refGrid->getBlockInfoAll(ary0[i].level,ary0[i].Z);
                 ary0[i].state = TagLoadedBlock(labs[tid]);
-                info.state = ary0[i].state;  
+                info.state = ary0[i].state;
+                if (info.state != Leave) CallValidStates = true;  
             }
         }
 
@@ -156,6 +156,7 @@ public:
                 BlockInfo & info = m_refGrid->getBlockInfoAll(ary1[i].level,ary1[i].Z);
                 ary1[i].state = TagLoadedBlock(labs[tid]);
                 info.state = ary1[i].state;                          
+            	if (info.state != Leave) CallValidStates = true;
             }
         }
     #else
@@ -250,7 +251,7 @@ public:
             
 
         started = MPI_Wtime();
-        ValidStates();
+        if (CallValidStates) ValidStates();
         done = MPI_Wtime();
         m_refGrid->TIMINGS [6] += done-started; 
 
@@ -287,7 +288,7 @@ public:
         }
               
 
-        started = MPI_Wtime();
+        /*------------->*/started = MPI_Wtime();
         #pragma omp parallel for 
         for (size_t i=0; i<mn_ref.size()/2; i++)
         {
@@ -304,11 +305,10 @@ public:
           int n = mn_ref[2*i+1]; 
           refine_2(m,n);
         }   
-        done = MPI_Wtime();
-        m_refGrid->TIMINGS [31] += done-started; 
+        /*------------->*/done = MPI_Wtime();
+        /*------------->*/m_refGrid->TIMINGS [31] += done-started; 
       
-        
-        started = MPI_Wtime();
+        /*------------->*/started = MPI_Wtime();
         #pragma omp parallel for 
         for (size_t i=0; i<mn_com.size()/2; i++)
         {
@@ -319,10 +319,8 @@ public:
           #pragma omp atomic
            c++;
         }
-        done = MPI_Wtime();
-        m_refGrid->TIMINGS [32] += done-started; 
-
-      
+        /*------------->*/done = MPI_Wtime();
+        /*------------->*/m_refGrid->TIMINGS [32] += done-started; 
        /*************************************************/
 
         started = MPI_Wtime();
@@ -352,7 +350,6 @@ public:
         m_refGrid->TIMINGS [7] += done-started; 
 
         delete [] labs;
-        //delete Synch;
        
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
@@ -367,8 +364,6 @@ public:
 		}
         done = MPI_Wtime();
         m_refGrid->TIMINGS [34] += done-started; 
-
-
     }
 
 
@@ -518,27 +513,37 @@ protected:
 
     void ValidStates() 
     {
+        static std::array <int,3> blocksPerDim = m_refGrid->getMaxBlocks();
+        static const bool xperiodic = labs[0].is_xperiodic();
+        static const bool yperiodic = labs[0].is_yperiodic();
+        static const bool zperiodic = labs[0].is_zperiodic();
+        static const int  levelMin = 0;
+        static const int  levelMax = m_refGrid->getlevelMax();
+
         std::vector <BlockInfo> & I = m_refGrid->getBlocksInfo();
-        std::array <int,3> blocksPerDim = m_refGrid->getMaxBlocks();
-     
-        int levelMin = 0;
-        int levelMax = m_refGrid->getlevelMax();
-               
         for ( auto & b: I)
         {
             BlockInfo & info = m_refGrid->getBlockInfoAll(b.level,b.Z);
-            if (info.state==Refine   && info.level ==levelMax-1) info.state=Leave;
-            if (info.state==Compress && info.level ==levelMin  ) info.state=Leave;
+            if (info.state==Refine   && info.level ==levelMax-1)
+            {
+                info.state=Leave;
+                b.state = Leave;
+             	info.changed=true;
+                b.changed=true;                   
+            }
+
+            if (info.state==Compress && info.level ==levelMin  )
+            {
+                info.state=Leave;
+                b.state = Leave;
+                info.changed=true;
+                b.changed=true;
+            }
+
         }
 
-        m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States();
-      
-
-        const bool xperiodic = labs[0].is_xperiodic();
-        const bool yperiodic = labs[0].is_yperiodic();
-        const bool zperiodic = labs[0].is_zperiodic();
-     
+           
         for (int m=levelMax-1; m>=levelMin; m--)
         { 
             //1.Change states of blocks next to finer resolution blocks
@@ -597,6 +602,8 @@ protected:
                             {
                                 info.state=Refine;
                                 b.state = Refine;
+                                info.changed=true;
+                				b.changed=true;
              //                   ready = false;
                                 break;
                             }
@@ -607,7 +614,6 @@ protected:
 
             //MPI_Allreduce(MPI_IN_PLACE, &ready, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
 
-            m_refGrid->FillPos();
             m_refGrid->UpdateBlockInfoAll_States();
     
             //}//ready
@@ -639,6 +645,8 @@ protected:
                     {
                         info.state=Leave;
                         b.state = Leave;
+                        info.changed=true;
+                        b.changed=true;
                         break;
                     }
                 }
@@ -654,13 +662,13 @@ protected:
                     {
                       info.state = Leave;
                       b.state = Leave;
+                      info.changed=true;
+                      b.changed=true;
                       break;
                     }                       
                 }
             }
       
-            m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States();
             //4.
             for ( auto & b: I) if (b.level == m)
             {
@@ -672,13 +680,15 @@ protected:
                   {
                         info.state = Leave;
                         b.state = Leave;
+                        info.changed=true;
+                        b.changed=true;
                   }  
                 }
             } 
-
-            m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States();
         }//m
+    
+
+        m_refGrid->UpdateBlockInfoAll_States();
     }
 
 

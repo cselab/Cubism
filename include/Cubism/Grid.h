@@ -215,15 +215,16 @@ public:
          const bool a_zperiodic = true ):
           NX(_NX), NY(_NY), NZ(_NZ), maxextent(_maxextent),levelMax(_levelMax), levelStart(_levelStart), xperiodic(a_xperiodic),yperiodic(a_yperiodic),zperiodic(a_zperiodic),Zcurve(NX,NY,NZ)    
     {
+
+        BlockInfo dummy;
+        int temp = dummy.blocks_per_dim (0,NX,NY,NZ);
+  
         N = 0 ;
         int blocksize[3] = {Block::sizeX,Block::sizeY,Block::sizeZ};
-        int Bmin[3] = {NX, NY, NZ};
         double h0 = (maxextent / std::max(NX*Block::sizeX, std::max(NY*Block::sizeY, NZ*Block::sizeZ)));
 
         //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
         BlockInfoAll.resize(levelMax);
-
-        //Zholder = new int *** [levelMax];
 
         for (int m=0; m<levelMax; m++)
         {
@@ -236,22 +237,12 @@ public:
 
             double origin[3];
 
-            //Zholder[m] = new int ** [NX * TwoPower];  
-            for (int i=0; i<NX * TwoPower; i++)
-            {
-            //    Zholder[m][i] = new int * [NY * TwoPower];
-            //    for (int j=0; j<NY * TwoPower; j++)
-            //        Zholder[m][i][j] = new int [NZ * TwoPower];
-            }
-
-
             for (int i=0; i<NX * TwoPower; i++)
             for (int j=0; j<NY * TwoPower; j++)
             for (int k=0; k<NZ * TwoPower; k++)
             {
                 int n = Zcurve.forward(m,i,j,k);
 
-                //Zholder[m][i][j][k] = n;
                 
                 int IJK[3] = {i,j,k};
                 origin[0]  = i*blocksize[0]*h;
@@ -265,7 +256,7 @@ public:
                 
                 int rank = (m==levelStart) ? 0 : -1;
                 
-                BlockInfoAll[m][n].setup(m,h,origin,Bmin,IJK,rank,TreePos); //Ranks are initialized in GridMPI constructor    
+                BlockInfoAll[m][n].setup(m,h,origin,IJK,rank,TreePos); //Ranks are initialized in GridMPI constructor    
             }
         }
 
@@ -285,8 +276,6 @@ public:
         int ix = (i+TwoPower*NX) % (NX*TwoPower);
         int iy = (j+TwoPower*NY) % (NY*TwoPower);
         int iz = (k+TwoPower*NZ) % (NZ*TwoPower);
-
-        //return Zholder[level][ix][iy][iz];
         return   Zcurve.forward(level,ix,iy,iz);
     }
 

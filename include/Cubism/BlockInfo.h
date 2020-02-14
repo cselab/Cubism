@@ -421,9 +421,26 @@ enum State
   Compress=-1
 };
 
-
 struct BlockInfo
 {
+    static int blocks_per_dim (int i, int nx = 0,int ny = 0,int nz = 0)
+    {
+      static int a [3] = {nx,ny,nz};
+      return a[i];
+    }
+
+    static int forward (int level, int ix, int iy, int iz)
+    {
+      static SpaceFillingCurve Zcurve (blocks_per_dim(0),blocks_per_dim(1),blocks_per_dim(2));
+      return Zcurve.forward(level,ix,iy,iz);
+    }
+
+    static int Encode (int level, int Z)
+    {
+      static SpaceFillingCurve Zcurve (blocks_per_dim(0),blocks_per_dim(1),blocks_per_dim(2));
+      return Zcurve.Encode(level,Z);
+    }
+
     long long blockID;
     int index[3];         //(i,j,k) coordinates of block at given refinement level
     void * ptrBlock;      //Pointer to data stored in user-defined Block
@@ -487,10 +504,7 @@ struct BlockInfo
     BlockInfo(){};
 
     bool operator<(const BlockInfo & other) const 
-    {
-
-      SpaceFillingCurve Zcurve(3,3,3); //   <---------------------------  HARDCODED CRAP   
-      
+    {      
       if (level == other.level)
       {
         return (Z < other.Z);
@@ -498,33 +512,27 @@ struct BlockInfo
       else if (level < other.level)
       {
         int aux = pow(2, other.level- level);
-   
         int i[3] = {other.index[0] / aux, other.index[1] / aux, other.index[2] / aux};
-      
-        int zzz = Zcurve.forward(level,i[0],i[1],i[2]);
-
+        int zzz = forward(level,i[0],i[1],i[2]);
         return (Z < zzz);
       }
       else 
       {
         int aux = pow(2, level- other.level);
-   
         int i[3] = {index[0] / aux, index[1] / aux, index[2] / aux};
-      
-        int zzz = Zcurve.forward(other.level,i[0],i[1],i[2]);
-
+        int zzz = forward(other.level,i[0],i[1],i[2]);
         return (zzz < other.Z);
       }
     }  
 
 
-  	BlockInfo(const int a_level,const double a_h, const double a_origin[3],const int a_Bmin[3],int a_index[3], int a_myrank,TreePosition a_TreePos)
+  	BlockInfo(const int a_level,const double a_h, const double a_origin[3],int a_index[3], int a_myrank,TreePosition a_TreePos)
   	{
-  		setup(a_level,a_h,a_origin,a_Bmin,a_index,a_myrank,a_TreePos);
+  		setup(a_level,a_h,a_origin,a_index,a_myrank,a_TreePos);
   	};
 
 
-    void setup(const int a_level,const double a_h, const double a_origin[3],const int a_Bmin[3],int a_index[3], int a_myrank, TreePosition a_TreePos) 
+    void setup(const int a_level,const double a_h, const double a_origin[3],int a_index[3], int a_myrank, TreePosition a_TreePos) 
     {
         myrank    = a_myrank;
         TreePos   = a_TreePos;
@@ -545,22 +553,18 @@ struct BlockInfo
         block_extent[2] = h* _BLOCKSIZE_;
         
         const int TwoPower = pow(2,level);
-        const int Bmax[3] = {a_Bmin[0]*TwoPower,a_Bmin[1]*TwoPower,a_Bmin[2]*TwoPower};
-
-        
-        SpaceFillingCurve Zcurve(a_Bmin[0],a_Bmin[1],a_Bmin[2]);
-        Z = Zcurve.forward(level,index[0],index[1],index[2]);
+        const int Bmax[3] = {blocks_per_dim(0)*TwoPower,blocks_per_dim(1)*TwoPower,blocks_per_dim(2)*TwoPower};
+ 
+        Z = forward(level,index[0],index[1],index[2]);
 
         for (int i=-1; i<2; i++)
         for (int j=-1; j<2; j++)
         for (int k=-1; k<2; k++)
         {
-            Znei[i+1][j+1][k+1] = Zcurve.forward(level,(index[0]+i+Bmax[0])%Bmax[0],
-                                                       (index[1]+j+Bmax[1])%Bmax[1],
-                                                       (index[2]+k+Bmax[2])%Bmax[2]);
+            Znei[i+1][j+1][k+1] = forward(level,(index[0]+i+Bmax[0])%Bmax[0],(index[1]+j+Bmax[1])%Bmax[1],(index[2]+k+Bmax[2])%Bmax[2]);
         }
 
-        blockID = Zcurve.Encode(level,Z);
+        blockID = Encode(level,Z);
     }
 
     int Znei_(int i, int j, int k) const

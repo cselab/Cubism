@@ -89,9 +89,10 @@ public:
         bool per [3] = {m_refGrid->xperiodic,m_refGrid->yperiodic,m_refGrid->zperiodic}; 
         StencilInfo Cstencil = stencil; 
         Synch = new SynchronizerMPIType(stencil, Cstencil, MPI_COMM_WORLD, per, m_refGrid->getlevelMax(),
-                                              TGrid::Block::sizeX,TGrid::Block::sizeY,TGrid::Block::sizeZ,
-                                              blockperDim[0],blockperDim[1],blockperDim[2],
-                                              m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());      
+                                        TGrid::Block::sizeX,TGrid::Block::sizeY,TGrid::Block::sizeZ,
+                                             blockperDim[0],     blockperDim[1],     blockperDim[2],
+                                        m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());      
+
         Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
 
         timestamp = 0;
@@ -117,6 +118,47 @@ public:
         for (int i=0; i<nthreads; i++)
           labs[i].prepare(*m_refGrid, *Synch);
 
+
+        MPI_Barrier(MPI_COMM_WORLD);
+  
+    #if 1  
+        avail0 = Synch->avail_inner(); 
+        const int Ninner = avail0.size();
+        BlockInfo * ary0 = &avail0.front();
+        
+        #pragma omp parallel num_threads(nthreads)
+        {
+            int tid = omp_get_thread_num();
+            TLab& mylab = labs[tid];
+
+            #pragma omp for schedule(dynamic,1)
+            for(int i=0; i<Ninner; i++)
+            {
+                mylab.load(ary0[i], t);
+                BlockInfo & info = m_refGrid->getBlockInfoAll(ary0[i].level,ary0[i].Z);
+                ary0[i].state = TagLoadedBlock(labs[tid]);
+                info.state = ary0[i].state;  
+            }
+        }
+
+        avail1 = Synch->avail_halo();
+        const int Nhalo = avail1.size();
+        BlockInfo * ary1 = &avail1.front(); 
+        #pragma omp parallel num_threads(nthreads)
+        {
+            int tid = omp_get_thread_num();
+            TLab& mylab = labs[tid];
+    
+            #pragma omp for schedule(dynamic,1)
+            for(int i=0; i<Nhalo; i++)
+            {
+                mylab.load(ary1[i], t);
+                BlockInfo & info = m_refGrid->getBlockInfoAll(ary1[i].level,ary1[i].Z);
+                ary1[i].state = TagLoadedBlock(labs[tid]);
+                info.state = ary1[i].state;                          
+            }
+        }
+    #else
 
         MPI_Barrier(MPI_COMM_WORLD); //is it necessary?? 
 
@@ -200,22 +242,22 @@ public:
                 }
             }
         }
-                           
+    #endif
+
+
         double done = MPI_Wtime();
         m_refGrid->TIMINGS [30] += done-started; 
-
             
+
         started = MPI_Wtime();
         ValidStates();
-        done = MPI_Wtime();;
-
-
-        started = MPI_Wtime();
-        LoadBalancer <TGrid> Balancer (*m_refGrid);
-        Balancer.PrepareCompression();
         done = MPI_Wtime();
         m_refGrid->TIMINGS [6] += done-started; 
 
+
+        LoadBalancer <TGrid> Balancer (*m_refGrid);
+        Balancer.PrepareCompression();
+ 
 		
 
 
@@ -432,7 +474,7 @@ protected:
             }
         } 
         
-        int np = m_refGrid->getZforward(level-1,info.index_(0)/2,info.index_(1)/2,info.index_(2)/2);           
+        int np = m_refGrid->getZforward(level-1,info.index[0]/2,info.index[1]/2,info.index[2]/2);           
         BlockInfo & parent = m_refGrid->getBlockInfoAll(level-1,np);
         parent.myrank =m_refGrid->rank();
         #pragma omp critical
@@ -532,7 +574,7 @@ protected:
                     if (!xperiodic && code[0] == xskip && xskin) continue;
                     if (!yperiodic && code[1] == yskip && yskin) continue;
                     if (!zperiodic && code[2] == zskip && zskin) continue;   
-                        BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level_(),info.Znei_(code[0],code[1],code[2]) );
+                        BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]) );
                       
                     if (infoNei.TreePos == CheckFiner && info.state!=Refine)
                     {
@@ -569,55 +611,6 @@ protected:
             m_refGrid->UpdateBlockInfoAll_States();
     
             //}//ready
-    #if 0
-            //2.
-            for ( auto & b: I) if (b.level == m)
-            {
-                BlockInfo & info =  m_refGrid->getBlockInfoAll(m,b.Z);
-                int aux = pow(2,info.level);
-                const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
-                const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
-                const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
-                const int xskip  = info.index[0]==0 ? -1 : 1;
-                const int yskip  = info.index[1]==0 ? -1 : 1;
-                const int zskip  = info.index[2]==0 ? -1 : 1;
-                for(int icode=0; icode<27; icode++)
-                {
-                    if (icode == 1*1 + 3*1 + 9*1) continue;
-                    const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
-                    if (!xperiodic && code[0] == xskip && xskin) continue;
-                    if (!yperiodic && code[1] == yskip && yskin) continue;
-                    if (!zperiodic && code[2] == zskip && zskin) continue;   
-                    BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level_(),info.Znei_(code[0],code[1],code[2]) );
-                    
-                    if (infoNei.TreePos == Exists && infoNei.state==Refine && info.state==Compress)
-                        info.state=Leave;
-                }
-            }
-      
-            m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States(true);
-
-
-            //3.
-            for ( auto & b: I) if (b.level == m)
-            {
-              BlockInfo & info =  m_refGrid->getBlockInfoAll(m,b.Z);       
-              if (info.state==Compress)
-                for (int i= 2*(info.index[0]/2); i <= 2*(info.index[0]/2)+1; i++)
-                for (int j= 2*(info.index[1]/2); j <= 2*(info.index[1]/2)+1; j++)
-                for (int k= 2*(info.index[2]/2); k <= 2*(info.index[2]/2)+1; k++)
-                {
-                    int n = m_refGrid->getZforward(m,i,j,k);
-                    BlockInfo & infoNei = m_refGrid->getBlockInfoAll(m,n);
-                    if (infoNei.TreePos != Exists || infoNei.state != Compress )
-                    {
-                      info.state = Leave;
-                      break;
-                    }                       
-                }
-            }           
-    #else
             
             //2. and 3.
             for ( auto & b: I) if (b.level == m)
@@ -640,7 +633,7 @@ protected:
                     if (!xperiodic && code[0] == xskip && xskin) continue;
                     if (!yperiodic && code[1] == yskip && yskin) continue;
                     if (!zperiodic && code[2] == zskip && zskin) continue;   
-                    BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level_(),info.Znei_(code[0],code[1],code[2]) );
+                    BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]) );
                     
                     if (infoNei.TreePos == Exists && infoNei.state==Refine)
                     {
@@ -664,14 +657,10 @@ protected:
                       break;
                     }                       
                 }
-
-
-
             }
       
             m_refGrid->FillPos();
             m_refGrid->UpdateBlockInfoAll_States();
-    #endif
             //4.
             for ( auto & b: I) if (b.level == m)
             {
@@ -794,8 +783,7 @@ protected:
                 b(i+1,j+1,k  ) = Ref[6];
                 b(i+1,j+1,k+1) = Ref[7];
             #endif
-
-          
+         
             #if 0
                 for (int kk=0; kk<2; kk++)
                 for (int jj=0; jj<2; jj++)
@@ -860,9 +848,9 @@ protected:
     virtual 
     State TagLoadedBlock(TLab & Lab_)
     {
-        const int nx = BlockType::sizeX;
-        const int ny = BlockType::sizeY;
-        const int nz = BlockType::sizeZ;
+        static const int nx = BlockType::sizeX;
+        static const int ny = BlockType::sizeY;
+        static const int nz = BlockType::sizeZ;
             
         double L1   = 0.0;
         double Linf = 0.0;
@@ -871,8 +859,6 @@ protected:
         for (int j=0; j<ny; j++ )
         for (int i=0; i<nx; i++ )
         {
-    
-    
           double dudx = 0.5*( Lab_(i+1,j  ,k  ).energy-Lab_(i-1,j  ,k  ).energy);
           double dudy = 0.5*( Lab_(i  ,j+1,k  ).energy-Lab_(i  ,j-1,k  ).energy);
           double dudz = 0.5*( Lab_(i  ,j  ,k+1).energy-Lab_(i  ,j  ,k-1).energy);  
@@ -888,7 +874,6 @@ protected:
             gradMag1 /= ( 1e-6 + Lab_(i,j,k).alpha2); 
             gradMag = max(gradMag,gradMag1);
           #endif
-    
     
           L1 += gradMag;
           Linf = max(Linf,gradMag);       

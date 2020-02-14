@@ -949,9 +949,9 @@ class BlockLab
                 char * ptrDest = (char*)&m_CoarsenedBlock->LinAccess(my_izx + (iy-offset[1])*m_vSize0);
                 int CoarseEdge[3];
 
-                CoarseEdge[0] = (code[0] == 0) ? 0 :   (   ( (info.index_(0)%2 ==0)&&(infoNei.index_(0)>info.index_(0)) ) || ( (info.index_(0)%2 ==1)&&(infoNei.index_(0)<info.index_(0)) )  )? 1:0  ;
-                CoarseEdge[1] = (code[1] == 0) ? 0 :   (   ( (info.index_(1)%2 ==0)&&(infoNei.index_(1)>info.index_(1)) ) || ( (info.index_(1)%2 ==1)&&(infoNei.index_(1)<info.index_(1)) )  )? 1:0  ;
-                CoarseEdge[2] = (code[2] == 0) ? 0 :   (   ( (info.index_(2)%2 ==0)&&(infoNei.index_(2)>info.index_(2)) ) || ( (info.index_(2)%2 ==1)&&(infoNei.index_(2)<info.index_(2)) )  )? 1:0  ;
+                CoarseEdge[0] = (code[0] == 0) ? 0 :   (   ( (info.index[0]%2 ==0)&&(infoNei.index[0]>info.index[0]) ) || ( (info.index[0]%2 ==1)&&(infoNei.index[0]<info.index[0]) )  )? 1:0  ;
+                CoarseEdge[1] = (code[1] == 0) ? 0 :   (   ( (info.index[1]%2 ==0)&&(infoNei.index[1]>info.index[1]) ) || ( (info.index[1]%2 ==1)&&(infoNei.index[1]<info.index[1]) )  )? 1:0  ;
+                CoarseEdge[2] = (code[2] == 0) ? 0 :   (   ( (info.index[2]%2 ==0)&&(infoNei.index[2]>info.index[2]) ) || ( (info.index[2]%2 ==1)&&(infoNei.index[2]<info.index[2]) )  )? 1:0  ;
                                
                 const char * ptrSrc = (const char*)&b(s[0] + max(code[0],0)*nX/2 + (1-abs(code[0]))*base[0]*nX/2 - code[0]*nX  + CoarseEdge[0] *code[0]*nX/2    , 
                                                         iy + max(code[1],0)*nY/2 + (1-abs(code[1]))*base[1]*nY/2 - code[1]*nY  + CoarseEdge[1] *code[1]*nY/2    , 
@@ -1073,9 +1073,9 @@ class BlockLab
                                
     
 
-     if (!grid.avail(info.index_(0) + code[0], info.index_(1) + code[1], info.index_(2) + code[2],info.level_())) return;
+     if (!grid.avail(info.index[0] + code[0], info.index[1] + code[1], info.index[2] + code[2],info.level)) return;
      
-      BlockType& b = grid(info.index_(0) + code[0], info.index_(1) + code[1], info.index_(2) + code[2],info.level_());
+      BlockType& b = grid(info.index[0] + code[0], info.index[1] + code[1], info.index[2] + code[2],info.level);
 
       const int bytes = (e[0]-s[0])*sizeof(ElementType);
       if (!bytes) return;
@@ -1266,13 +1266,13 @@ class BlockLab
       const bool yperiodic = is_yperiodic();
       const bool zperiodic = is_zperiodic();
       std::array <int,3> blocksPerDim = grid.getMaxBlocks();
-      int aux = pow(2,info.level_());
-      const bool xskin = info.index_(0)==0 || info.index_(0)==blocksPerDim[0]*aux-1;
-      const bool yskin = info.index_(1)==0 || info.index_(1)==blocksPerDim[1]*aux-1;
-      const bool zskin = info.index_(2)==0 || info.index_(2)==blocksPerDim[2]*aux-1;
-      const int xskip  = info.index_(0)==0 ? -1 : 1;
-      const int yskip  = info.index_(1)==0 ? -1 : 1;
-      const int zskip  = info.index_(2)==0 ? -1 : 1;
+      int aux = pow(2,info.level);
+      const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
+      const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
+      const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
+      const int xskip  = info.index[0]==0 ? -1 : 1;
+      const int yskip  = info.index[1]==0 ? -1 : 1;
+      const int zskip  = info.index[2]==0 ? -1 : 1;
 
       for(int icode=0; icode<27; icode++)
       {

@@ -422,18 +422,9 @@ enum State
 };
 
 
-
-
-
-
-
-
-
 struct BlockInfo
 {
-    #ifdef HACK
-        long long blockID;
-    #endif
+    long long blockID;
     int index[3];         //(i,j,k) coordinates of block at given refinement level
     void * ptrBlock;      //Pointer to data stored in user-defined Block
     int myrank;           //MPI rank to which the associated block currently belongs
@@ -448,9 +439,9 @@ struct BlockInfo
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const
     {
-        p[0] = origin_(0) + h_()*(ix+0.5);
-        p[1] = origin_(1) + h_()*(iy+0.5);
-        p[2] = origin_(2) + h_()*(iz+0.5);
+        p[0] = origin[0] + h*(ix+0.5);
+        p[1] = origin[1] + h*(iy+0.5);
+        p[2] = origin[2] + h*(iz+0.5);
     }
    
     template <typename T>
@@ -460,7 +451,6 @@ struct BlockInfo
         pos(result.data(), ix, iy, iz);
         return result;
     }
-
 
     #ifdef HACK
         bool special;
@@ -473,9 +463,9 @@ struct BlockInfo
         template <typename T> // 3D
         inline void spacing(T dx[3], int ix, int iy, int iz) const
         {
-            dx[0] = h_();
-            dx[1] = h_();
-            dx[2] = h_();
+            dx[0] = h;
+            dx[1] = h;
+            dx[2] = h;
         }
     
         BlockInfo(long long ID, const int idx[3], const double _pos[3], const double _spacing, double h_gridpoint_, void * ptr=NULL, const bool _special=false):
@@ -496,14 +486,10 @@ struct BlockInfo
 
     BlockInfo(){};
 
-
-
-
     bool operator<(const BlockInfo & other) const 
     {
 
-      SpaceFillingCurve Zcurve(3,3,3); //   <---------------------------  HARDCODED CRAP 
-  
+      SpaceFillingCurve Zcurve(3,3,3); //   <---------------------------  HARDCODED CRAP   
       
       if (level == other.level)
       {
@@ -529,27 +515,16 @@ struct BlockInfo
 
         return (zzz < other.Z);
       }
-
-
-
-
-
-
     }  
 
 
-	BlockInfo(const int a_level,const double a_h, const double a_origin[3],
-               const int a_Bmin[3],int a_index[3], int a_myrank, 
-               TreePosition a_TreePos)
-	{
-		setup(a_level,a_h,a_origin,a_Bmin,a_index,a_myrank,a_TreePos);
-	};
+  	BlockInfo(const int a_level,const double a_h, const double a_origin[3],const int a_Bmin[3],int a_index[3], int a_myrank,TreePosition a_TreePos)
+  	{
+  		setup(a_level,a_h,a_origin,a_Bmin,a_index,a_myrank,a_TreePos);
+  	};
 
 
-
-    void setup(const int a_level,const double a_h, const double a_origin[3],
-               const int a_Bmin[3],int a_index[3], int a_myrank, 
-               TreePosition a_TreePos) 
+    void setup(const int a_level,const double a_h, const double a_origin[3],const int a_Bmin[3],int a_index[3], int a_myrank, TreePosition a_TreePos) 
     {
         myrank    = a_myrank;
         TreePos   = a_TreePos;
@@ -557,8 +532,7 @@ struct BlockInfo
         index [1] = a_index[1];
         index [2] = a_index[2];
         state  = Leave;
-        if (ptrBlock != NULL) h_gridpoint = h_();
-
+        if (ptrBlock != NULL) h_gridpoint = h;
 
         level     = a_level;
         h         = a_h;
@@ -589,46 +563,14 @@ struct BlockInfo
         blockID = Zcurve.Encode(level,Z);
     }
 
-    int level_() const 
-    {
-        assert (ptrBlock != NULL);
-        return level; //static_cast<BaseBlock*>(ptrBlock)->level;
-    }
-
-    int Z_() const
-    {
-        assert (ptrBlock != NULL);
-        return Z; //static_cast<BaseBlock*>(ptrBlock)->Z;
-    }
-
-    int index_(int i) const
-    {
-        assert (i>=0 && i<3);
-        return index[i];
-    }
-
     int Znei_(int i, int j, int k) const
     {
-        assert(abs(i)<=1);
-        assert(abs(j)<=1);
-        assert(abs(k)<=1);
-        //assert (ptrBlock != NULL);
-
-        return Znei[1+i][1+j][1+k];//static_cast<BaseBlock*>(ptrBlock)->Znei[1+i][1+j][1+k];
+      assert(abs(i)<=1);
+      assert(abs(j)<=1);
+      assert(abs(k)<=1);
+      return Znei[1+i][1+j][1+k];
     }
 
-    double origin_(int i) const
-    {
-        assert (i>=0 && i<3);
-        assert (ptrBlock != NULL);
-        return origin[i];//static_cast<BaseBlock*>(ptrBlock)->origin[i];
-    }
-
-    double h_() const
-    {
-        assert (ptrBlock != NULL);
-        return h;//static_cast<BaseBlock*>(ptrBlock)->h;
-    }
 };
 
 }//namespace AMR_CUBISM

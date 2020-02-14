@@ -414,9 +414,9 @@ class SynchronizerMPI_AMR
     
                 int CoarseEdge[3];
               
-                CoarseEdge[0] = (code[0] == 0) ? 0 :   (   ( (f.infos[1]->index[0]%2 ==0)&&(CoarseSender.index_(0)>f.infos[1]->index_(0)) ) || ( (f.infos[1]->index_(0)%2 ==1)&&(CoarseSender.index_(0)<f.infos[1]->index_(0)) )  )? 1:0  ;
-                CoarseEdge[1] = (code[1] == 0) ? 0 :   (   ( (f.infos[1]->index[1]%2 ==0)&&(CoarseSender.index_(1)>f.infos[1]->index_(1)) ) || ( (f.infos[1]->index_(1)%2 ==1)&&(CoarseSender.index_(1)<f.infos[1]->index_(1)) )  )? 1:0  ;
-                CoarseEdge[2] = (code[2] == 0) ? 0 :   (   ( (f.infos[1]->index[2]%2 ==0)&&(CoarseSender.index_(2)>f.infos[1]->index_(2)) ) || ( (f.infos[1]->index_(2)%2 ==1)&&(CoarseSender.index_(2)<f.infos[1]->index_(2)) )  )? 1:0  ;
+                CoarseEdge[0] = (code[0] == 0) ? 0 :   (   ( (f.infos[1]->index[0]%2 ==0)&&(CoarseSender.index[0]>f.infos[1]->index[0]) ) || ( (f.infos[1]->index[0]%2 ==1)&&(CoarseSender.index[0]<f.infos[1]->index[0]) )  )? 1:0  ;
+                CoarseEdge[1] = (code[1] == 0) ? 0 :   (   ( (f.infos[1]->index[1]%2 ==0)&&(CoarseSender.index[1]>f.infos[1]->index[1]) ) || ( (f.infos[1]->index[1]%2 ==1)&&(CoarseSender.index[1]<f.infos[1]->index[1]) )  )? 1:0  ;
+                CoarseEdge[2] = (code[2] == 0) ? 0 :   (   ( (f.infos[1]->index[2]%2 ==0)&&(CoarseSender.index[2]>f.infos[1]->index[2]) ) || ( (f.infos[1]->index[2]%2 ==1)&&(CoarseSender.index[2]<f.infos[1]->index[2]) )  )? 1:0  ;
                                    
                 Coarse_Range.sx = s[0] + max(code[0],0)*nX/2 + (1-abs(code[0]))*base[0]*nX/2 - code[0]*nX  + CoarseEdge[0] *code[0]*nX/2;     
                 Coarse_Range.sy = s[1] + max(code[1],0)*nY/2 + (1-abs(code[1]))*base[1]*nY/2 - code[1]*nY  + CoarseEdge[1] *code[1]*nY/2;     

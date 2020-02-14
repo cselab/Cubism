@@ -304,7 +304,7 @@ public:
             printf( "FillBlockCases            :  %6.2f \n",res[3]);
             printf( "Kernels (inner)           :  %6.2f \n",res[4]);
             printf( "Kernels (outer)           :  %6.2f \n",res[5]);
-            printf( "PrepareCompression        :  %6.2f \n",res[6]);
+            printf( "ValidStates               :  %6.2f \n",res[6]);
             printf( "BalanceDiffusion          :  %6.2f \n",res[7]);
             printf( "Kernels (total)           :  %6.2f \n",res[8]);
 
@@ -737,6 +737,8 @@ public:
 #else
     void UpdateBlockInfoAll_States(bool GlobalUpdate = true) 
     {  
+        double started = MPI_Wtime();
+        
         int rank,size;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
         MPI_Comm_size(MPI_COMM_WORLD,&size); 
@@ -795,15 +797,7 @@ public:
         for (int index__ = 0; index__ < AllLengths[r]; index__ += 3)
         {
             int level = AllData[r][index__  ];
-            int Z     = AllData[r][index__+1];            
-
-            assert (level >=0);
-            assert (level < TGrid::levelMax);            
-            auto blockperDim = TGrid::getMaxBlocks(); 
-            int Zmax = blockperDim[0]*blockperDim[1]*blockperDim[2]*pow(pow(2,level),3);
-            assert (Z >=0 );
-            assert (Z < Zmax);
-
+            int Z     = AllData[r][index__+1];
 
             TGrid::BlockInfoAll[level][Z].myrank  = r;
             TGrid::BlockInfoAll[level][Z].TreePos = Exists;
@@ -842,6 +836,10 @@ public:
         delete [] AllData;    
         delete [] AllLengths;
         delete [] myData;
+
+
+            double done = MPI_Wtime();
+        TIMINGS [0] += done - started;
     }
 #endif
 
@@ -927,35 +925,12 @@ public:
 
     virtual void FillPos(bool CopyInfos = false) override
     { 
-        auto started = MPI_Wtime();     
-	#if 0  
-         TGrid::FillPos(true);
-        //TGrid::FillPos(CopyInfos);
-
-        #else
-
-        TGrid::m_blocks.clear();
-        TGrid::m_vInfo.clear();
-        for (int m=0; m<TGrid::levelMax; m++)
-        {
-            for (int n=0; n<TGrid::NX*TGrid::NY*TGrid::NZ*pow(pow(2,m),3); n++)
-            {
-
-                if (TGrid::BlockInfoAll[m][n].TreePos == Exists && TGrid::BlockInfoAll[m][n].myrank == myrank) 
-                {
-                    TGrid::m_vInfo.push_back(TGrid::BlockInfoAll[m][n]);
-                    TGrid::m_blocks.push_back((Block*)TGrid::BlockInfoAll[m][n].ptrBlock);
-                }
-            }
-
-        }   
-        #endif
-        auto done = MPI_Wtime();
-        TIMINGS [2] += done-started; 
+        /*-------------->*/auto started = MPI_Wtime();     	   
+        //TGrid::FillPos(true);
+        TGrid::FillPos(CopyInfos);
+        /*-------------->*/auto done = MPI_Wtime();
+        /*-------------->*/TIMINGS [2] += done-started; 
     }
-
-
-
 
 
 

@@ -337,7 +337,7 @@ public:
         }
         
 		m_refGrid->FillPos(true);
-        m_refGrid->UpdateBlockInfoAll_States();
+        m_refGrid->UpdateBlockInfoAll_States(true);
         done = MPI_Wtime();
         m_refGrid->TIMINGS [33] += done-started; 
 
@@ -353,7 +353,7 @@ public:
        
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
-            m_refGrid->UpdateBlockInfoAll_States();
+            m_refGrid->UpdateBlockInfoAll_States(true);
 	        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
@@ -542,7 +542,7 @@ protected:
 
         }
 
-        m_refGrid->UpdateBlockInfoAll_States();
+        m_refGrid->UpdateBlockInfoAll_States(false);
            
         for (int m=levelMax-1; m>=levelMin; m--)
         { 
@@ -614,7 +614,7 @@ protected:
 
             //MPI_Allreduce(MPI_IN_PLACE, &ready, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
 
-            m_refGrid->UpdateBlockInfoAll_States();
+            m_refGrid->UpdateBlockInfoAll_States(false);
     
             //}//ready
             
@@ -688,7 +688,7 @@ protected:
         }//m
     
 
-        m_refGrid->UpdateBlockInfoAll_States();
+        m_refGrid->UpdateBlockInfoAll_States(false);
     }
 
 

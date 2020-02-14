@@ -735,7 +735,7 @@ public:
     
     };
 #else
-    void UpdateBlockInfoAll_States(bool GlobalUpdate = true) 
+    void UpdateBlockInfoAll_States(bool GlobalUpdate) 
     {  
         double started = MPI_Wtime();
         
@@ -743,16 +743,14 @@ public:
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
         MPI_Comm_size(MPI_COMM_WORLD,&size); 
 
-        FillPos(true);
-
-
-
         std::vector <BlockInfo> ChangedInfos; 
         for (auto & info: TGrid::m_vInfo)
         {
         	int m = info.level;
         	int n = info.Z;
-        	if (TGrid::getBlockInfoAll(m,n).changed)
+        	
+            if (GlobalUpdate) ChangedInfos.push_back(info);
+        	else if (TGrid::getBlockInfoAll(m,n).changed)
         	{
         		TGrid::getBlockInfoAll(m,n).changed = false;
         		info.changed = false;

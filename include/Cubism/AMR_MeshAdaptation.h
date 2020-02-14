@@ -542,7 +542,7 @@ protected:
 
         }
 
-        m_refGrid->UpdateBlockInfoAll_States(false);
+        m_refGrid->UpdateBlockInfoAll_States(true);
            
         for (int m=levelMax-1; m>=levelMin; m--)
         { 
@@ -688,7 +688,7 @@ protected:
         }//m
     
 
-        m_refGrid->UpdateBlockInfoAll_States(false);
+        m_refGrid->UpdateBlockInfoAll_States(true);
     }
 
 

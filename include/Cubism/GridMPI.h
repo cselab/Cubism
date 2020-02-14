@@ -736,7 +736,10 @@ public:
     };
 #else
     void UpdateBlockInfoAll_States(bool GlobalUpdate) 
-    {  
+    {
+
+        //GlobalUpdate = true;
+
         double started = MPI_Wtime();
         
         int rank,size;

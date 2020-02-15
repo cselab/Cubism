@@ -278,7 +278,10 @@ public:
         }
    
 
-        MPI_Allreduce(MPI_IN_PLACE,&movedBlocks,1,MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
+        //MPI_Allreduce(MPI_IN_PLACE,&movedBlocks,1,MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
+        int temp = movedBlocks ? 1:0;
+        MPI_Allreduce(MPI_IN_PLACE,&temp,1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
+        movedBlocks = (temp == 1);
 
 
         {

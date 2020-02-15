@@ -15,12 +15,8 @@
 #include "BlockInfo.h"
 #include "MeshMap.h"
 
-
-
-
 #include<mpi.h>
 #define HACK
-
 
 
 namespace cubism //AMR_CUBISM
@@ -69,7 +65,7 @@ public:
         FillPos();
     }
 
-    void _alloc(int m, int n) //called whenever the grid is refined
+    virtual void _alloc(int m, int n) //called whenever the grid is refined
     {
         allocator <Block> alloc;
         BlockInfoAll[m][n].ptrBlock = alloc.allocate(1);
@@ -97,8 +93,6 @@ public:
         BlockInfoAll.clear();
 
     }
-
-
 
     void _dealloc(int m, int n) //called whenever the grid is compressed
     {
@@ -268,8 +262,7 @@ public:
     virtual bool avail(int ix, int iy, int iz, int m) const { return true; }
   
     virtual int rank() const { return 0; }
-  
-
+ 
     int getZforward(const int level,const int i, const int j, const int k) const 
     {
         int TwoPower = pow(2,level);
@@ -295,68 +288,15 @@ public:
         return {NX,NY,NZ};
     }
 
-    inline int getlevelMax()
-    {
-        return levelMax;
-    }
-
-    inline int getlevelMax() const 
-    {
-        return levelMax;
-    }
-
-    inline BlockInfo & getBlockInfoAll(int m, int n) 
-    {
-        return BlockInfoAll[m][n];
-    }
-
-    virtual BlockInfo getBlockInfoAll(int m,int n) const
-    {
-        return BlockInfoAll[m][n];
-    }
-
-
-
-
-
-    inline std::vector<std::vector<BlockInfo >> & getBlockInfoAll() 
-    {       
-        return BlockInfoAll;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    inline std::vector < Block * > & GetBlocks()
-    {
-    	return  m_blocks;
-    }
-
-    inline const std::vector < Block * > & GetBlocks() const 
-    {
-        return  m_blocks;
-    }   
-
-    virtual std::vector<BlockInfo>& getBlocksInfo()
-    {
-        return m_vInfo;
-    }
-
-    virtual const std::vector<BlockInfo>& getBlocksInfo() const 
-    {
-        return m_vInfo;
-    }
+    inline int getlevelMax()       {return levelMax;}
+    inline int getlevelMax() const {return levelMax;}
+    inline  BlockInfo & getBlockInfoAll(int m,int n)      {return BlockInfoAll[m][n];}
+    virtual BlockInfo   getBlockInfoAll(int m,int n) const{return BlockInfoAll[m][n];}
+    inline std::vector<std::vector<BlockInfo >> & getBlockInfoAll() {return BlockInfoAll;}
+    inline       std::vector < Block * > & GetBlocks()       {return  m_blocks;}
+    inline const std::vector < Block * > & GetBlocks() const {return  m_blocks;}   
+    virtual       std::vector<BlockInfo>& getBlocksInfo()       {return m_vInfo;}
+    virtual const std::vector<BlockInfo>& getBlocksInfo() const {return m_vInfo;}
 };
 
 }//namespace AMR_CUBISM

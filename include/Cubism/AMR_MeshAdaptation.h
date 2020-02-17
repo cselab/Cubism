@@ -342,7 +342,6 @@ public:
         done = MPI_Wtime();
         m_refGrid->TIMINGS [33] += done-started; 
 
-
         started = MPI_Wtime();
         Balancer.Balance_Diffusion();
 
@@ -353,7 +352,7 @@ public:
        
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
-            m_refGrid->UpdateBlockInfoAll_States(false);
+            m_refGrid->UpdateBlockInfoAll_States(true);
 	        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
@@ -540,7 +539,7 @@ protected:
 
         }
         
-        m_refGrid->FillPos(false);
+        m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States(true);   
         
         for (int m=levelMax-1; m>=levelMin; m--)

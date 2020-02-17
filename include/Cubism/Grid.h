@@ -31,7 +31,6 @@ protected:
     std::vector <Block * > m_blocks; //pointers to blocks that belong to this rank
     std::vector <std::vector<BlockInfo> > BlockInfoAll; 
 
-
     const int NX;         //Total # of blocks for level 0 in X-direction  
     const int NY;         //Total # of blocks for level 0 in Y-direction
     const int NZ;         //Total # of blocks for level 0 in Z-direction
@@ -39,12 +38,9 @@ protected:
     const int levelMax;   //Maximum refinement level allowed
     const int levelStart; //Initial refinement level      
 
-
-    //int **** Zholder;
-
 public:
    
-    int N;                     //Current number of blocks
+    int N;                //Current number of blocks
     typedef Block BlockType;
     typedef typename Block::RealType Real;  //Block MUST provide `RealType`.
 
@@ -92,7 +88,6 @@ public:
             alloc.deallocate(m_blocks[j],1);         
         
         BlockInfoAll.clear();
-
     }
 
     void _dealloc(int m, int n) //called whenever the grid is compressed
@@ -106,7 +101,6 @@ public:
             if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
             {
                 m_vInfo.erase (m_vInfo.begin() +j);
-                //alloc.deallocate(m_blocks[j],1);
                 m_blocks.erase(m_blocks.begin()+j);
                 break;
             }
@@ -212,11 +206,13 @@ public:
     {
 
         BlockInfo dummy;
-        int temp = dummy.blocks_per_dim (0,NX,NY,NZ);
+        int nx = dummy.blocks_per_dim(0,NX,NY,NZ);
+        int ny = dummy.blocks_per_dim(1,NX,NY,NZ);
+        int nz = dummy.blocks_per_dim(2,NX,NY,NZ);
   
         N = 0 ;
         int blocksize[3] = {Block::sizeX,Block::sizeY,Block::sizeZ};
-        double h0 = (maxextent / std::max(NX*Block::sizeX, std::max(NY*Block::sizeY, NZ*Block::sizeZ)));
+        double h0 = (maxextent / std::max(nx*Block::sizeX, std::max(ny*Block::sizeY, nz*Block::sizeZ)));
 
         //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
         BlockInfoAll.resize(levelMax);
@@ -294,7 +290,6 @@ public:
     
     inline  BlockInfo & getBlockInfoAll(int m,int n)      {return BlockInfoAll[m][n];}
     virtual BlockInfo   getBlockInfoAll(int m,int n) const{return BlockInfoAll[m][n];}
-
 
     inline std::vector<std::vector<BlockInfo >> & getBlockInfoAll() {return BlockInfoAll;}
     inline       std::vector < Block * > & GetBlocks()       {return  m_blocks;}

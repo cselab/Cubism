@@ -248,9 +248,13 @@ public:
 
         double done = MPI_Wtime();
         m_refGrid->TIMINGS [30] += done-started; 
-            
 
         started = MPI_Wtime();
+
+        int tmp = CallValidStates ? 1:0;
+        MPI_Allreduce(MPI_IN_PLACE,&tmp,1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
+        CallValidStates = (tmp == 1);
+ 
         if (CallValidStates) ValidStates();
         done = MPI_Wtime();
         m_refGrid->TIMINGS [6] += done-started; 
@@ -258,9 +262,6 @@ public:
 
         LoadBalancer <TGrid> Balancer (*m_refGrid);
         Balancer.PrepareCompression();
- 
-		
-
 
         //Refinement/compression of blocks
         /*************************************************/
@@ -307,7 +308,7 @@ public:
         }   
         /*------------->*/done = MPI_Wtime();
         /*------------->*/m_refGrid->TIMINGS [31] += done-started; 
-      
+
         /*------------->*/started = MPI_Wtime();
         #pragma omp parallel for 
         for (size_t i=0; i<mn_com.size()/2; i++)
@@ -330,22 +331,21 @@ public:
         int rank;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
         if (rank ==0)
-        {     
+        {
             std::cout <<"==============================================================\n";
             std::cout << " refined:" << result[0] << "   compressed:"<< result[1] << std::endl;
             std::cout <<"==============================================================\n";
         }
         
-		m_refGrid->FillPos(true);
-        m_refGrid->UpdateBlockInfoAll_States(true);
+		m_refGrid->FillPos();
+        m_refGrid->UpdateBlockInfoAll_States(false);
         done = MPI_Wtime();
         m_refGrid->TIMINGS [33] += done-started; 
 
 
-
-  
         started = MPI_Wtime();
         Balancer.Balance_Diffusion();
+
         done = MPI_Wtime();
         m_refGrid->TIMINGS [7] += done-started; 
 
@@ -353,7 +353,7 @@ public:
        
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
-            m_refGrid->UpdateBlockInfoAll_States(true);
+            m_refGrid->UpdateBlockInfoAll_States(false);
 	        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
@@ -391,8 +391,6 @@ protected:
         {      
             int nc = m_refGrid->getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);      
             BlockInfo & Child = m_refGrid->getBlockInfoAll(level+1,nc); 
-
-            //if (i==0&&k==0&&j==0)std::cout << "Refining block " << level << " " <<Z << " to get " << nc << "\n";
           
             #pragma omp critical
             {
@@ -400,7 +398,6 @@ protected:
             }
             Blocks [k*4 + j*2 + i] = (BlockType*) Child.ptrBlock;
         }
-
         RefineBlocks(Blocks,parent);  
     }
 
@@ -484,7 +481,7 @@ protected:
             if (I + J + K == 0 )
             {
                 BlockInfo & info_change = m_refGrid->FindBlockInfo(level,n);
-
+                //info_change = m_refGrid->getBlockInfoAll(level-1,np);
                 info_change.level = level - 1;
                 info_change.Z     = np;
             } 
@@ -521,6 +518,7 @@ protected:
         static const int  levelMax = m_refGrid->getlevelMax();
 
         std::vector <BlockInfo> & I = m_refGrid->getBlocksInfo();
+
         for ( auto & b: I)
         {
             BlockInfo & info = m_refGrid->getBlockInfoAll(b.level,b.Z);
@@ -529,7 +527,7 @@ protected:
                 info.state=Leave;
                 b.state = Leave;
              	info.changed=true;
-                b.changed=true;                   
+                b.changed=true;
             }
 
             if (info.state==Compress && info.level ==levelMin  )
@@ -541,9 +539,10 @@ protected:
             }
 
         }
-
-        m_refGrid->UpdateBlockInfoAll_States(true);
-           
+        
+        m_refGrid->FillPos(false);
+        m_refGrid->UpdateBlockInfoAll_States(true);   
+        
         for (int m=levelMax-1; m>=levelMin; m--)
         { 
             //1.Change states of blocks next to finer resolution blocks
@@ -554,14 +553,15 @@ protected:
            
             //while(!ready)
             //{ 
-            //    ready = true;
-      
+            //ready = true;
             //1.
             for ( auto & b: I) if (b.level == m)
-            {
+            {          
                 BlockInfo & info =  m_refGrid->getBlockInfoAll(m,b.Z);
             
-                assert(b.TreePos == Exists);
+                assert(b.TreePos == Exists    );
+                assert (b.level  == m         );
+                assert (b.level  == info.level);
 
                 int TwoPower = pow(2,info.level);
                 const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*TwoPower-1;
@@ -584,6 +584,10 @@ protected:
                     if (infoNei.TreePos == CheckFiner && info.state!=Refine)
                     {
                         info.state=Leave;
+                        b.state = Leave;
+                        info.changed=true;
+                        b.changed=true;
+ 
                         int Bstep = 1; //face
                         if      ((abs(code[0])+abs(code[1])+abs(code[2])==2 )) Bstep = 3; //edge
                         else if ((abs(code[0])+abs(code[1])+abs(code[2])==3 )) Bstep = 4; //corner
@@ -600,22 +604,21 @@ protected:
                             State NeiState = FinerNei.state;
                             if (NeiState == Refine)
                             {
-                                info.state=Refine;
+                                info.state = Refine;
                                 b.state = Refine;
                                 info.changed=true;
                 				b.changed=true;
-             //                   ready = false;
+                                //ready = false;
                                 break;
                             }
                         }
                     }
                 }
             }
-
             //MPI_Allreduce(MPI_IN_PLACE, &ready, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
 
             m_refGrid->UpdateBlockInfoAll_States(false);
-    
+            
             //}//ready
             
             //2. and 3.
@@ -668,7 +671,8 @@ protected:
                     }                       
                 }
             }
-      
+ 
+            m_refGrid->UpdateBlockInfoAll_States(false);
             //4.
             for ( auto & b: I) if (b.level == m)
             {
@@ -687,8 +691,7 @@ protected:
             } 
         }//m
     
-
-        m_refGrid->UpdateBlockInfoAll_States(true);
+        m_refGrid->UpdateBlockInfoAll_States(false);
     }
 
 

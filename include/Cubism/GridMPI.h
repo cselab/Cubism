@@ -18,7 +18,6 @@
 #include "AMR_SynchronizerMPI.h"
 
 
-
 #include <chrono>
 
 CUBISM_NAMESPACE_BEGIN
@@ -69,7 +68,6 @@ public:
         blocksize[1] = Block::sizeY;
         blocksize[2] = Block::sizeZ;
 
-        
         mybpd[0] = nX;
         mybpd[1] = nY;
         mybpd[2] = nZ;
@@ -359,11 +357,21 @@ public:
     }
 
 
+    virtual void _alloc(int m, int n) override 
+    {
+        TGrid::_alloc(m,n);
+        TGrid::BlockInfoAll[m][n].myrank = myrank;
+        TGrid::m_vInfo.back().myrank = myrank;
+    }
+
+
+
+
+
 
     std::vector<BlockInfo>& getBlocksInfo() override
     {
-        cached_blockinfo = TGrid::getBlocksInfo();
-        return cached_blockinfo;
+        return TGrid::getBlocksInfo();
     }
 
     const std::vector<BlockInfo>& getBlocksInfo() const override
@@ -735,12 +743,9 @@ public:
     
     };
 #else
-    void UpdateBlockInfoAll_States(bool GlobalUpdate) 
+    void UpdateBlockInfoAll_States(bool GlobalUpdate = true) 
     {
-
-        //GlobalUpdate = true;
-
-        double started = MPI_Wtime();
+        /*---------------->*/double started = MPI_Wtime();
         
         int rank,size;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
@@ -751,23 +756,19 @@ public:
         {
         	int m = info.level;
         	int n = info.Z;
-        	
-            if (GlobalUpdate) ChangedInfos.push_back(info);
-        	else if (TGrid::getBlockInfoAll(m,n).changed)
-        	{
-        		TGrid::getBlockInfoAll(m,n).changed = false;
-        		info.changed = false;
-        		ChangedInfos.push_back(info);
-        	}
+            #if 0
+                ChangedInfos.push_back(info);
+        	#else
+                if (TGrid::getBlockInfoAll(m,n).changed)
+        	    {
+        	    	TGrid::getBlockInfoAll(m,n).changed = false;
+        	    	info.changed = false;
+        	    	ChangedInfos.push_back(info);
+        	    }
+            #endif
         }
 
-
-
-
-
-
-
-        size_t myLength = 3*ChangedInfos.size(); //TGrid::m_vInfo.size();
+        size_t myLength = 3*ChangedInfos.size(); 
         int * myData = new int[myLength];
 
         for (size_t i=0; i<myLength; i+=3)
@@ -788,8 +789,9 @@ public:
         int ** AllData = new int * [size];
         for (int i=0;i<size;i++)
         {
-            assert(AllLengths[i]>0);
-            AllData[i] = new int [AllLengths[i]];
+            assert(AllLengths[i]>=0);
+            if (AllLengths[i] > 0)
+                AllData[i] = new int [AllLengths[i]];
         }
           
         #if 0
@@ -848,11 +850,10 @@ public:
                 TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
             }
         }
-        FillPos(true);
-
 
         for (int i=0;i<size;i++)
         {
+            if (AllLengths[i] > 0)
             delete [] AllData[i];
         }
         delete [] AllData;    
@@ -860,8 +861,8 @@ public:
         delete [] myData;
 
 
-            double done = MPI_Wtime();
-        TIMINGS [0] += done - started;
+        /*---------------->*/double done = MPI_Wtime();
+        /*---------------->*/TIMINGS [0] += done - started;
     }
 #endif
 
@@ -945,13 +946,30 @@ public:
     int rank() const override {return myrank;}
 
 
-    virtual void FillPos(bool CopyInfos = false) override
+    virtual void FillPos(bool CopyInfos = true) override
     { 
+        #if 1
         /*-------------->*/auto started = MPI_Wtime();     	   
-        //TGrid::FillPos(true);
         TGrid::FillPos(CopyInfos);
         /*-------------->*/auto done = MPI_Wtime();
         /*-------------->*/TIMINGS [2] += done-started; 
+        #else
+        TGrid::m_blocks.clear();
+        TGrid::m_vInfo.clear();
+        for (int m=0; m<TGrid::levelMax; m++)
+        {
+            int TwoPower  = pow(2,m);
+            const unsigned int Ntot = TGrid::NX*TGrid::NY*TGrid::NZ*pow(TwoPower,3);
+            for (int n=0; n<Ntot; n++)
+            {
+                if (TGrid::BlockInfoAll[m][n].TreePos == Exists && TGrid::BlockInfoAll[m][n].myrank == myrank)
+                {
+                    TGrid::m_vInfo.push_back(TGrid::BlockInfoAll[m][n]);
+                    TGrid::m_blocks.push_back((Block*)TGrid::BlockInfoAll[m][n].ptrBlock);
+                }
+            }
+        }
+        #endif
     }
 
 

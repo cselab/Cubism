@@ -69,6 +69,7 @@ public:
     {
         allocator <Block> alloc;
         BlockInfoAll[m][n].ptrBlock = alloc.allocate(1);
+        BlockInfoAll[m][n].changed = true;
         
         //BlockInfoAll[m][n].ptrBlock = (Block*)calloc(1,sizeof(Block)); 
        
@@ -98,7 +99,8 @@ public:
     {
         N --;        
         allocator <Block> alloc;
-        alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);         
+        alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);
+        BlockInfoAll[m][n].changed = true;       
         for (size_t j = 0 ; j < m_vInfo.size() ; j++)
         {
             if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
@@ -124,7 +126,7 @@ public:
         return m_vInfo[0]; //to silence warnings
     }
 
-    virtual void FillPos(bool CopyInfos = false)
+    virtual void FillPos(bool CopyInfos = true)
     {
         if (CopyInfos)
             for (size_t j = 0; j < m_vInfo.size(); j++)
@@ -133,8 +135,8 @@ public:
                 int n = m_vInfo[j].Z;
                 m_vInfo [j] = BlockInfoAll[m][n];
 
+                assert(BlockInfoAll[m][n].state == m_vInfo [j].state);
                 assert(BlockInfoAll[m][n].TreePos == Exists);
-
                 m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;
             }
         else            
@@ -142,10 +144,9 @@ public:
             {
                 int m = m_vInfo[j].level;
                 int n = m_vInfo[j].Z;
+
                 m_vInfo [j].state   = BlockInfoAll[m][n].state;
-
                 assert(BlockInfoAll[m][n].TreePos == Exists);
-
                 m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;
             }
     }
@@ -290,8 +291,11 @@ public:
 
     inline int getlevelMax()       {return levelMax;}
     inline int getlevelMax() const {return levelMax;}
+    
     inline  BlockInfo & getBlockInfoAll(int m,int n)      {return BlockInfoAll[m][n];}
     virtual BlockInfo   getBlockInfoAll(int m,int n) const{return BlockInfoAll[m][n];}
+
+
     inline std::vector<std::vector<BlockInfo >> & getBlockInfoAll() {return BlockInfoAll;}
     inline       std::vector < Block * > & GetBlocks()       {return  m_blocks;}
     inline const std::vector < Block * > & GetBlocks() const {return  m_blocks;}   

@@ -113,19 +113,21 @@ public:
                 MPI_Request req;
                 requests.push_back(req);            
                 MPI_Irecv(&recv_blocks[r][0], recv_blocks[r].size(), MPI_BLOCK , r, 123450 , MPI_COMM_WORLD, &requests.back() );
-                movedBlocks = true;
             }
             if (send_blocks[r].size()!=0) 
             {
                 MPI_Request req;
                 requests.push_back(req);
                 MPI_Isend(&send_blocks[r][0], send_blocks[r].size(), MPI_BLOCK, r, 123450 , MPI_COMM_WORLD, &requests.back());
-                movedBlocks = true;
+                
             }    
         }
       
         if (requests.size()!=0)
+        {
+            movedBlocks = true;
             MPI_Waitall(requests.size(), &requests[0], MPI_STATUSES_IGNORE);        
+        }
 
         for (int r=0; r<size; r++)
             for (int i=0; i<(int)send_blocks[r].size(); i++)
@@ -191,10 +193,8 @@ public:
 
         if (flux_left > 0) //then I will send blocks to my left rank
         {
-            movedBlocks = true;        
             for (int i=0; i< flux_left; i++)
                 send_left.push_back({SortedInfos[i]});
-
             MPI_Request req;
             request.push_back(req);
             MPI_Isend(&send_left[0], send_left.size(), MPI_BLOCK, left, 7890 , MPI_COMM_WORLD, &request.back());
@@ -202,7 +202,6 @@ public:
         }
         else if (flux_left < 0) //then I will receive blocks from my left rank
         {
-            movedBlocks = true;
             recv_left.resize( abs(flux_left)  );            
             MPI_Request req;
             request.push_back(req);
@@ -212,7 +211,6 @@ public:
 
         if (flux_right > 0) //then I will send blocks to my right rank
         {
-            movedBlocks = true;
             for (int i=0; i< flux_right; i++)
                 send_right.push_back({SortedInfos[my_blocks-i-1]});
             MPI_Request req;
@@ -221,7 +219,6 @@ public:
         }
         else if (flux_right < 0) //then I will receive blocks from my right rank
         {
-            movedBlocks = true;      
             recv_right.resize( abs(flux_right) );
             MPI_Request req;
             request.push_back(req);
@@ -229,7 +226,10 @@ public:
         }   
 
         if (request.size() != 0)
+        {
+            movedBlocks = true;      
             MPI_Waitall(request.size(), &request[0], MPI_STATUSES_IGNORE);
+        }
 
 
         for (int i=0; i<flux_right; i++)
@@ -278,11 +278,10 @@ public:
         }
    
 
-        //MPI_Allreduce(MPI_IN_PLACE,&movedBlocks,1,MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE,&movedBlocks,1,MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
         int temp = movedBlocks ? 1:0;
         MPI_Allreduce(MPI_IN_PLACE,&temp,1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
         movedBlocks = (temp == 1);
-
 
         {
             int b = m_refGrid->getBlocksInfo().size();

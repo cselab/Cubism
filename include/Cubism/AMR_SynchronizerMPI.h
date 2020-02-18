@@ -20,14 +20,16 @@ struct Interface
     BlockInfo * infos [2];
     int icode [2];
     bool CoarseStencil;
+    size_t ind;
 
-    Interface (BlockInfo & i0, BlockInfo & i1, int a_icode0, int a_icode1)
+    Interface (BlockInfo & i0, BlockInfo & i1, int a_icode0, int a_icode1, size_t a_ind)
     {
         infos[0] = &i0;
         infos[1] = &i1;
         icode[0] = a_icode0;
         icode[1] = a_icode1;
         CoarseStencil = false;
+        ind = a_ind;
     }
     bool operator<(const Interface & other) const 
     {
@@ -150,21 +152,21 @@ class SynchronizerMPI_AMR
     int blocksPerDim [3];
     int blocksize[3];
     SpaceFillingCurve Zcurve;
-    std::vector <BlockInfo> myInfos;
-   
+ 
+
+    size_t myInfos_size;  
+    BlockInfo * myInfos;
+    
+    std::vector < std::vector<BlockInfo > * > BlockInfoAll;
+    std::vector< std::vector<UnPackInfo> > AllUnpacks;
 
 
-    std::vector <std::vector<BlockInfo >> BlockInfoAll;
-
-
-
-    std::vector <std::vector< std::vector<UnPackInfo> >> AllUnpacks;
 
 
 
     int getZforward(const int level,const int i, const int j, const int k) const 
     {
-        int TwoPower = pow(2,level);
+        int TwoPower = 1<<level;//pow(2,level);
         int ix = (i+TwoPower*blocksPerDim[0]) % (blocksPerDim[0]*TwoPower);
         int iy = (j+TwoPower*blocksPerDim[1]) % (blocksPerDim[1]*TwoPower);
         int iz = (k+TwoPower*blocksPerDim[2]) % (blocksPerDim[2]*TwoPower);
@@ -174,7 +176,7 @@ class SynchronizerMPI_AMR
 
     inline BlockInfo & getBlockInfoAll(int m, int n) 
     {
-        return BlockInfoAll[m][n];
+        return (*BlockInfoAll[m])[n];
     }
 
 
@@ -410,7 +412,7 @@ class SynchronizerMPI_AMR
                                       (f.infos[1]->index[1]+ code[1])%2,
                                       (f.infos[1]->index[2]+ code[2])%2};       
     
-                BlockInfo  CoarseSender =  getBlockInfoAll(f.infos[1]->level,f.infos[1]->Znei_(code[0],code[1],code[2]));
+                const BlockInfo & CoarseSender =  getBlockInfoAll(f.infos[1]->level,f.infos[1]->Znei_(code[0],code[1],code[2]));
     
                 int CoarseEdge[3];
               
@@ -710,7 +712,8 @@ class SynchronizerMPI_AMR
       
             std::vector <int> maxZ (levelMax,-1  );
             std::vector <int> minZ (levelMax,100000);
-            for (int i=0; i<(int)myInfos.size(); i++)
+            
+            for (int i=0; i<(int)myInfos_size; i++)
             {
                 BlockInfo & info = myInfos[i];
                 maxZ[info.level] = std::max(maxZ[info.level],info.Z);
@@ -718,11 +721,15 @@ class SynchronizerMPI_AMR
             }
   
 
-        for (int i=0; i<(int)myInfos.size(); i++)
+        for (int i=0; i<(int)myInfos_size; i++)
         {
             BlockInfo & info = myInfos[i];
+            info.halo_block_id = -1;  
 
-            int aux = pow(2,info.level);
+            size_t ind = halo_blocks.size();
+
+
+            int aux = 1<<info.level;//pow(2,info.level);
             const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
             const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
             const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
@@ -766,8 +773,8 @@ class SynchronizerMPI_AMR
                     //}                   
                     isInner = false;
                     int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
-                    Interface FS (info,infoNei,icode,icode2);
-                    Interface FR (infoNei,info,icode2,icode);
+                    Interface FS (info,infoNei,icode,icode2,ind);
+                    Interface FR (infoNei,info,icode2,icode,ind);
                     send_interfaces[infoNei.myrank].push_back( FS );
                     recv_interfaces[infoNei.myrank].push_back( FR );              
                     ToBeChecked.push_back(infoNei.myrank);
@@ -787,12 +794,12 @@ class SynchronizerMPI_AMR
                   
                         int code2[3] = {-code[0],-code[1],-code[2]};
                         int icode2 = (code2[0]+1) + (code2[1]+1)*3 + (code2[2]+1)*9;
-                        recv_interfaces[infoNeiCoarser.myrank].push_back( Interface(infoNeiCoarser,info,icode2,icode) );   
+                        recv_interfaces[infoNeiCoarser.myrank].push_back( Interface(infoNeiCoarser,info,icode2,icode,ind) );   
                  
                         BlockInfo & test = getBlockInfoAll(infoNeiCoarser.level,infoNeiCoarser.Znei_(code2[0],code2[1],code2[2]));
 
                         if (info.index[0]/2 == test.index[0] && info.index[1]/2 == test.index[1] && info.index[2]/2 == test.index[2])
-                            send_interfaces[infoNeiCoarser.myrank].push_back( Interface(info,infoNeiCoarser,icode,icode2) );
+                            send_interfaces[infoNeiCoarser.myrank].push_back( Interface(info,infoNeiCoarser,icode,icode2,ind) );
                     }
                 }
                 else if (infoNei.TreePos == CheckFiner)
@@ -813,8 +820,8 @@ class SynchronizerMPI_AMR
                             isInner = false;
                   
                             int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
-                            send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode2) );
-                            recv_interfaces[infoNeiFiner.myrank].push_back( Interface(infoNeiFiner,info,icode2,icode) );
+                            send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode2,ind) );
+                            recv_interfaces[infoNeiFiner.myrank].push_back( Interface(infoNeiFiner,info,icode2,icode,ind) );
 
                            
                             if (Bstep == 3) //if I'm filling an edge then I'm also filling a corner
@@ -826,7 +833,7 @@ class SynchronizerMPI_AMR
                                 code3[2] = (code[2]==0) ? ( B==0 ? 1 : -1): -code[2];
 
                                 int icode3 = (code3[0]+1) + (code3[1]+1)*3 + (code3[2]+1)*9;
-                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3) );
+                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3,ind) );
                             }
                             else if (Bstep == 1) //if I'm filling a face then I'm also filling two edges and a corner
                             {
@@ -896,9 +903,9 @@ class SynchronizerMPI_AMR
                                 int icode4 = (code4[0]+1) + (code4[1]+1)*3 + (code4[2]+1)*9;
                                 int icode5 = (code5[0]+1) + (code5[1]+1)*3 + (code5[2]+1)*9;
                          
-                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3) );
-                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode4) );
-                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode5) );
+                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3,ind) );
+                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode4,ind) );
+                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode5,ind) );
 
                             }
          
@@ -909,9 +916,13 @@ class SynchronizerMPI_AMR
 
 
             if (isInner)
+            {
+                info.halo_block_id = -1;
                 inner_blocks.push_back(info);
+            }
             else
             {
+                info.halo_block_id = halo_blocks.size();
                 halo_blocks.push_back(info);
             }
 
@@ -929,8 +940,11 @@ class SynchronizerMPI_AMR
 
         }//i-loop
 
-
-
+        for (int i=0; i<(int)myInfos_size; i++)
+        {
+            BlockInfo & info = myInfos[i];
+            getBlockInfoAll(info.level,info.Z).halo_block_id = info.halo_block_id;  
+        }
 
        
 
@@ -956,12 +970,9 @@ class SynchronizerMPI_AMR
     {    
         total_size = 0;
         int index = 0;
-
-        std::vector<int> remEl;
-
-
         int offset = 0;
 
+        std::vector<int> remEl;
 
         if (f.size()>0) do
         {
@@ -1018,13 +1029,11 @@ class SynchronizerMPI_AMR
                         info.CoarseVersionOffset = V*NC;                                       
                         info.CoarseVersionLX = Lc[0];
                         info.CoarseVersionLY = Lc[1];
-                    }
+                    }                   
                     
- 					//getBlockInfoAll_ptr(f[k].infos[1]->level,f[k].infos[1]->Z).unpacks.push_back(info);
- 					AllUnpacks[f[k].infos[1]->level][f[k].infos[1]->Z].push_back(info);
-
-
-				
+                    assert (f[k].infos[1]->halo_block_id >= 0 );
+                    AllUnpacks[f[k].infos[1]->halo_block_id].push_back(info);
+			
                     for (int kk=0; kk< (int)i.removedIndices.size();kk++)
                     {
                         int remEl1 = i.removedIndices[kk];
@@ -1041,18 +1050,22 @@ class SynchronizerMPI_AMR
                         int Csrcy=0;
                         int Csrcz=0;
 
-                        __FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);                        
-             
-             			//getBlockInfoAll_ptr(f[remEl1].infos[1]->level,f[remEl1].infos[1]->Z).unpacks.push_back(
-	         				
+                        __FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);                                    
+         				
 	         			UnPackInfo info2 = 	{info.offset,L[0],L[1],L[2],srcx, srcy, srcz,
-	         					info.LX,info.LY,info.CoarseVersionOffset,
-	         					info.CoarseVersionLX,info.CoarseVersionLY,
+	         					info.LX,info.LY,
+                                info.CoarseVersionOffset,
+	         					info.CoarseVersionLX,
+                                info.CoarseVersionLY,
 	         					Csrcx, Csrcy, Csrcz,
 	         					f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1]};
-			        
-						AllUnpacks[ f[remEl1].infos[1]->level  ][  f[remEl1].infos[1]->Z  ].push_back(info2);
-			        }    
+
+
+                        assert (f[remEl1].infos[1]->halo_block_id >= 0 );
+                        AllUnpacks[f[remEl1].infos[1]->halo_block_id].push_back(info2);
+
+
+                    }    
                 }
             }
 
@@ -1084,9 +1097,18 @@ public:
     
     stencil(a_stencil),Cstencil(a_Cstencil), 
     comm(a_comm),xperiodic(a_periodic[0]),yperiodic(a_periodic[1]),zperiodic(a_periodic[2]),
-    levelMax(a_levelMax),Zcurve(a_bx,a_by,a_bz),myInfos(a_myInfos),BlockInfoAll(a_BlockInfoAll)
+    levelMax(a_levelMax),Zcurve(a_bx,a_by,a_bz)//,myInfos(a_myInfos)//,BlockInfoAll(a_BlockInfoAll)
     {
         for (int i=0;i<20;i++) TIMINGS[i] = 0;
+
+       
+
+        myInfos_size = a_myInfos.size();
+        myInfos = &a_myInfos[0];
+
+        BlockInfoAll.resize(levelMax);
+        for (int m=0;m<levelMax;m++)
+            BlockInfoAll[m] = &a_BlockInfoAll[m];
 
         MPI_Comm_rank(comm,&rank);
         MPI_Comm_size(comm,&size);
@@ -1097,16 +1119,8 @@ public:
         blocksize[2] = a_nz;
         blocksPerDim[0] = a_bx;
         blocksPerDim[1] = a_by;
-        blocksPerDim[2] = a_bz;
+        blocksPerDim[2] = a_bz;     
 
-        AllUnpacks.clear();
-        AllUnpacks.resize(levelMax);
-        for (int m=0;m<levelMax;m++)
-        {
-            size_t nMax = blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2]* pow(pow(2,m),3);
-            AllUnpacks[m].resize(nMax);
-        }
-    
 		if (AllStencils.size() == 0)
 		{
 			AllStencils.resize(3*27);
@@ -1206,19 +1220,24 @@ public:
     void _Setup( std::vector<BlockInfo> & a_myInfos,std::vector<std::vector<BlockInfo >> & a_BlockInfoAll)
     {
 
+
+        double started = MPI_Wtime();
+        double s1 = MPI_Wtime();
+
+        
+        myInfos_size = a_myInfos.size();
+        myInfos = &a_myInfos[0];
+        
         for (int m=0;m<levelMax;m++)
-            for (int n=0; n <blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2]* pow(pow(2,m),3); n++)
-                AllUnpacks[m][n].clear();
+            BlockInfoAll[m] = &a_BlockInfoAll[m];
+
+
+        double d1 = MPI_Wtime();
+        TIMINGS[17] = d1-s1;
 
 
 
-
-    	double started = MPI_Wtime();
-        myInfos.clear();
-        BlockInfoAll.clear();
-    	myInfos = a_myInfos;
-        BlockInfoAll = a_BlockInfoAll;
-
+        s1 = MPI_Wtime();
 
     	std::vector<int> selcomponents = stencil.selcomponents;
         std::sort(selcomponents.begin(), selcomponents.end());
@@ -1228,13 +1247,23 @@ public:
    	    //1.Find all interfaces with neighboring ranks 
         DefineInterfaces();
 
+        AllUnpacks.clear();
+        AllUnpacks.resize(halo_blocks.size());
+        
+
         //2.Sort interfaces 
         for (int r=0; r<size; r++)
         {
             std::sort (send_interfaces[r].begin(), send_interfaces[r].end());
             std::sort (recv_interfaces[r].begin(), recv_interfaces[r].end());
         }   
-      
+
+        d1 = MPI_Wtime();
+        TIMINGS[18] = d1-s1;
+
+
+
+        s1 = MPI_Wtime();     
         //3.Determine buffer sizes      
         send_buffer     .clear();
         recv_buffer     .clear();
@@ -1252,6 +1281,10 @@ public:
             send_buffer[r].resize(send_buffer_size[r]*NC, 666.0);
             recv_buffer[r].resize(recv_buffer_size[r]*NC, 777.0);          
         }  
+
+        d1 = MPI_Wtime();
+        TIMINGS[19] = d1-s1;
+
 
 
         double done = MPI_Wtime();
@@ -1366,7 +1399,11 @@ public:
         static const int nY = blocksize[1];
         static const int nZ = blocksize[2];
       
-		std::vector <UnPackInfo > & unpacks =  AllUnpacks[info.level][info.Z]; 
+        int id = info.halo_block_id;
+        if (id < 0) return;
+	     
+        std::vector <UnPackInfo > & unpacks =  AllUnpacks[id];     
+
 
         for (size_t jj=0; jj< unpacks.size(); jj++)
         {

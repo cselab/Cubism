@@ -455,6 +455,8 @@ struct BlockInfo
 
     bool changed = true;
 
+    size_t halo_block_id = -666;
+
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const
     {

@@ -53,7 +53,7 @@ public:
     void _alloc() //called in class constructor
     {
         int m=levelStart;
-        int TwoPower = pow(2,m);
+        int TwoPower = 1<<m;  //pow(2,m);
         for (int n=0; n<NX*NY*NZ*pow(TwoPower,3); n++) 
         {
             _alloc(m,n);
@@ -222,7 +222,7 @@ public:
 
         for (int m=0; m<levelMax; m++)
         {
-            int TwoPower  = pow(2,m);
+            int TwoPower  = 1<<m;//pow(2,m);
             const unsigned int Ntot = NX*NY*NZ*pow(TwoPower,3);
             
             BlockInfoAll[m].resize(Ntot);
@@ -259,17 +259,24 @@ public:
   
     virtual ~Grid() {_deallocAll();}
 
-    virtual bool avail(int ix, int iy, int iz, int m) const { return true; }
+    virtual bool avail1(int ix, int iy, int iz, int m) const { return true; }
+
+    virtual bool avail(int m, int n) const 
+    {
+        return true;
+    }
+
+
   
     virtual int rank() const { return 0; }
  
     int getZforward(const int level,const int i, const int j, const int k) const 
     {
-        int TwoPower = pow(2,level);
+        int TwoPower = 1<<level;//pow(2,level);
         int ix = (i+TwoPower*NX) % (NX*TwoPower);
         int iy = (j+TwoPower*NY) % (NY*TwoPower);
         int iz = (k+TwoPower*NZ) % (NZ*TwoPower);
-        return   Zcurve.forward(level,ix,iy,iz);
+        return   Zcurve.forward(level,ix,iy,iz);  
     }
 
     int getZchild(int level,int i, int j, int k)

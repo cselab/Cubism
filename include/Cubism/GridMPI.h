@@ -328,6 +328,16 @@ public:
             printf( "---> MeshAdaptation::Fillpos/Update : %6.3f \n" , res[33]);
             printf( "---> MeshAdaptation::setup/sync     : %6.3f \n" , res[34]);
 
+
+
+
+            printf( "---> _Setup::clearing   %6.3f \n" , res[95]);
+            printf( "---> _Setup::sorting    %6.3f \n" , res[96]);
+            printf( "---> _Setup::discarding %6.3f \n" , res[97]);
+
+
+
+
             std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
         }
 
@@ -389,12 +399,18 @@ public:
         return TGrid::getBlocksInfo();
     }
 
-    virtual bool avail(int ix, int iy, int iz, int m) const override
+    virtual bool avail1(int ix, int iy, int iz, int m) const override
     {
         int n = TGrid::getZforward(m,ix,iy,iz);
         if (TGrid::BlockInfoAll[m][n].myrank == myrank) return true;
         else                                            return false;
     }
+
+    virtual bool avail(int m, int n) const override
+    {
+        return (TGrid::BlockInfoAll[m][n].myrank == myrank);
+    }
+
 
 
 
@@ -722,6 +738,10 @@ public:
 
             SynchronizerMPIs[stencil] = queryresult;
             queryresult->_Setup(TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
+            TIMINGS [95] += queryresult->TIMINGS[17];
+            TIMINGS [96] += queryresult->TIMINGS[18];
+            TIMINGS [97] += queryresult->TIMINGS[19];
+
         }
         else
         {
@@ -735,6 +755,8 @@ public:
         auto done = MPI_Wtime();
 
         TIMINGS [1] += (done-started);
+
+
 
         return queryresult;
     }

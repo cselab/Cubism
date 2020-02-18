@@ -294,7 +294,7 @@ public:
         for (size_t i=0; i<mn_ref.size()/2; i++)
         {
           int m = mn_ref[2*i];
-          int n = mn_ref[2*i+1]; 
+          int n = mn_ref[2*i+1];           
           refine_1(m,n);
           #pragma omp atomic
             r++;
@@ -354,11 +354,22 @@ public:
 		{
             m_refGrid->UpdateBlockInfoAll_States(true);
 	        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
+            
+            m_refGrid->TIMINGS [95] += Synch->TIMINGS[17];
+            m_refGrid->TIMINGS [96] += Synch->TIMINGS[18];
+            m_refGrid->TIMINGS [97] += Synch->TIMINGS[19];
+
+
+
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
 			{ 
 		       	(*it->second)._Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
-		       	it++;
+		        m_refGrid->TIMINGS [95] += (*it->second).TIMINGS[17];
+                m_refGrid->TIMINGS [96] += (*it->second).TIMINGS[18];
+                m_refGrid->TIMINGS [97] += (*it->second).TIMINGS[19];
+                it++;
+ 
 			}
 		}
         done = MPI_Wtime();
@@ -545,11 +556,11 @@ protected:
             //2.Change states of blocks next to same resolution blocks
             //3.Compress a block only if all blocks with the same parent need compression
                 
-            bool ready = false;
+            //bool ready = false;
            
             //while(!ready)
             //{ 
-            ready = true;
+            //ready = true;
             //1.
             for ( auto & b: I) if (b.level == m)
             {          
@@ -559,7 +570,7 @@ protected:
                 assert (b.level  == m         );
                 assert (b.level  == info.level);
 
-                int TwoPower = pow(2,info.level);
+                int TwoPower = 1<<info.level;//pow(2,info.level);
                 const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*TwoPower-1;
                 const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*TwoPower-1;
                 const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*TwoPower-1;
@@ -579,7 +590,7 @@ protected:
                       
                     if (infoNei.TreePos == CheckFiner && info.state!=Refine)
                     {
-                        if (!info.changed) ready = false;
+                        //if (!info.changed) ready = false;
 
                         info.state=Leave;
                         b.state = Leave;
@@ -626,7 +637,7 @@ protected:
 
                 if (info.state != Compress) continue;
 
-                int aux = pow(2,info.level);
+                int aux = 1<<info.level;//pow(2,info.level);
                 const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
                 const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
                 const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;

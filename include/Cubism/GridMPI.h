@@ -398,19 +398,23 @@ public:
 
 
 
-#if 0
-    void UpdateBoundary () 
+#if 1
+    void UpdateBoundary() 
     {
         int rank,size;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
         MPI_Comm_size(MPI_COMM_WORLD,&size); 
-     
+            
         std::vector < std::vector <int> > send_buffer(size);
     
         auto blocksPerDim = TGrid::getMaxBlocks(); 
-      
+        
+        std::set<int> All_receivers;
+
         for (auto & info: TGrid::m_vInfo)
         {
+            std::set<int> receivers;
+
             int aux = pow(2,info.level);
 
             const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
@@ -420,11 +424,8 @@ public:
             const int  yskip = info.index[1]==0 ? -1 : 1;
             const int  zskip = info.index[2]==0 ? -1 : 1;
 
-            bool isInner = true;
-            
+            bool isInner = true;  
 
-            std::set   <int> receivers;
-          
             for(int icode=0; icode<27; icode++)
             {
                 if (icode == 1*1 + 3*1 + 9*1) continue;
@@ -441,6 +442,7 @@ public:
                 {
                   isInner = false;           
                   receivers.insert(infoNei.myrank);
+                  All_receivers.insert(infoNei.myrank);
                 }
                 else if (infoNei.TreePos == CheckCoarser)
                 {
@@ -450,6 +452,7 @@ public:
                     {
                         isInner = false;                 
                         receivers.insert(infoNeiCoarser.myrank);
+                        All_receivers.insert(infoNeiCoarser.myrank);
                     }
                 }
                 else if (infoNei.TreePos == CheckFiner)
@@ -469,6 +472,7 @@ public:
                         {
                             isInner = false; 
                             receivers.insert(infoNeiFiner.myrank);
+                            All_receivers.insert(infoNeiFiner.myrank);
                         }
                     }
                 }
@@ -495,43 +499,37 @@ public:
             }
         }
 
-
         std::vector<MPI_Request> send_requests;
         std::vector<MPI_Request> recv_requests;
-   
-
-        
-
-        std::set <int> receivers;
 
         for (int r=0; r<size; r++) if (send_buffer[r].size() != 0)
         {
-            receivers.insert(r);
-
             send_requests.resize(send_requests.size()+1);
             MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_INT, r, 123 , MPI_COMM_WORLD, &send_requests[send_requests.size()-1]);
         }
-
-          
+         
         std::vector < std::vector <int> > recv_buffer(size);
-
-        std::set<int>::iterator it = receivers.begin();
-        while (it != receivers.end())
+        std::set<int>::iterator it = All_receivers.begin();
+        while (it != All_receivers.end())
         {   
             int r = *it;         
             int recv_size;
             MPI_Status status;          
             MPI_Probe(r, 123, MPI_COMM_WORLD,&status);
             MPI_Get_count(&status, MPI_INT, &recv_size);
-            recv_buffer[r].resize(recv_size);
-            recv_requests.resize(recv_requests.size()+1);
-            MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_INT, r, 123 , MPI_COMM_WORLD, &recv_requests[recv_requests.size()-1]);
-        
+            
+            if (recv_size > 0)
+            {
+                recv_buffer[r].resize(recv_size);
+                recv_requests.resize(recv_requests.size()+1);
+                MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_INT, r, 123 , MPI_COMM_WORLD, &recv_requests[recv_requests.size()-1]);
+            }
+
             it++;
         }
-
-        MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);     
-        MPI_Waitall(recv_requests.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
+   
+        MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);     
+        MPI_Waitall(recv_requests.size(), recv_requests.data(), MPI_STATUSES_IGNORE);
        
 
 

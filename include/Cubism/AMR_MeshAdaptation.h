@@ -340,7 +340,7 @@ public:
 		m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States(false);
         done = MPI_Wtime();
-        m_refGrid->TIMINGS [33] += done-started; 
+        m_refGrid->TIMINGS [33] += done-started;
 
         started = MPI_Wtime();
         Balancer.Balance_Diffusion();
@@ -479,10 +479,7 @@ protected:
       
             if (I + J + K == 0 )
             {
-                BlockInfo & info_change = m_refGrid->FindBlockInfo(level,n);
-                //info_change = m_refGrid->getBlockInfoAll(level-1,np);
-                info_change.level = level - 1;
-                info_change.Z     = np;
+                m_refGrid->FindBlockInfo(level,n,level - 1,np);
             } 
             else
             {
@@ -540,19 +537,19 @@ protected:
         }
         
         m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States(true);   
+        m_refGrid->UpdateBlockInfoAll_States(true);
         
         for (int m=levelMax-1; m>=levelMin; m--)
-        { 
+        {
             //1.Change states of blocks next to finer resolution blocks
             //2.Change states of blocks next to same resolution blocks
             //3.Compress a block only if all blocks with the same parent need compression
                 
-            //bool ready = false;
+            bool ready = false;
            
             //while(!ready)
             //{ 
-            //ready = true;
+            ready = true;
             //1.
             for ( auto & b: I) if (b.level == m)
             {          
@@ -582,10 +579,13 @@ protected:
                       
                     if (infoNei.TreePos == CheckFiner && info.state!=Refine)
                     {
+                        if (!info.changed) ready = false;
+
                         info.state=Leave;
                         b.state = Leave;
                         info.changed=true;
                         b.changed=true;
+                        
  
                         int Bstep = 1; //face
                         if      ((abs(code[0])+abs(code[1])+abs(code[2])==2 )) Bstep = 3; //edge
@@ -607,7 +607,6 @@ protected:
                                 b.state = Refine;
                                 info.changed=true;
                 				b.changed=true;
-                                //ready = false;
                                 break;
                             }
                         }
@@ -617,7 +616,7 @@ protected:
             //MPI_Allreduce(MPI_IN_PLACE, &ready, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
 
             m_refGrid->UpdateBlockInfoAll_States(false);
-            
+            //m_refGrid->UpdateBoundary();
             //}//ready
             
             //2. and 3.

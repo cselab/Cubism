@@ -108,16 +108,19 @@ public:
     }
 
 
-    BlockInfo & FindBlockInfo(int m, int n)
+    void FindBlockInfo(int m, int n, int m_new, int n_new)
     {
         for (size_t j = 0; j < m_vInfo.size(); j++)
         {
             if (m ==m_vInfo[j].level && n == m_vInfo[j].Z)
-                return m_vInfo[j];
+            {
+                m_vInfo[j] = BlockInfoAll[m_new][n_new];
+                m_blocks[j] = (Block*)BlockInfoAll[m_new][n_new].ptrBlock;
+                return;
+            }
         }
 
-        assert (false && " FindBlockInfo did not find block.\n");
-        return m_vInfo[0]; //to silence warnings
+
     }
 
     virtual void FillPos(bool CopyInfos = true)

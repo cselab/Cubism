@@ -218,11 +218,7 @@ class SynchronizerMPI_AMR
 
     int getZforward(const int level,const int i, const int j, const int k) const 
     {
-        int TwoPower = 1<<level;//pow(2,level);
-        int ix = (i+TwoPower*blocksPerDim[0]) % (blocksPerDim[0]*TwoPower);
-        int iy = (j+TwoPower*blocksPerDim[1]) % (blocksPerDim[1]*TwoPower);
-        int iz = (k+TwoPower*blocksPerDim[2]) % (blocksPerDim[2]*TwoPower);
-        return Zcurve.forward(level,ix,iy,iz);
+        return Zcurve.forward(level,i,j,k);
     }
 
 
@@ -234,12 +230,9 @@ class SynchronizerMPI_AMR
 
     struct cube //could be more efficient, fix later
     {
-        std::vector< std::vector<MyRange> > compass;
+        std::vector <MyRange>  compass [27];
 
-        cube()
-        {
-            compass.resize(27);
-        }
+        cube(){}
     
         std::vector<MyRange> keepEl()
         {
@@ -605,33 +598,6 @@ class SynchronizerMPI_AMR
 
         int imin [3];
         int imax [3];
-    #if 0 
-        for (int d=0; d<3; d++)
-            if (a.index[d] == b.index[d])
-            {
-                imin[d] = a.index[d] - 1;
-                imax[d] = a.index[d] + 1;
-            }
-            else
-            {
-                imin[d] = min(a.index[d],b.index[d]);
-                imax[d] = max(a.index[d],b.index[d]);
-            }
-    
-        bool retval = false;
-
-        for (int i2 = imin[2]; i2 <= imax[2]; i2++)
-        for (int i1 = imin[1]; i1 <= imax[1]; i1++)
-        for (int i0 = imin[0]; i0 <= imax[0]; i0++)
-        {
-            int n = getZforward(a.level,i0,i1,i2);
-            if ( (getBlockInfoAll(a.level,n)).TreePos == CheckCoarser )
-            {
-                retval = true;
-                break;
-            }
-        }
-    #else
         for (int d=0; d<3; d++)
         {
             imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
@@ -651,13 +617,6 @@ class SynchronizerMPI_AMR
                 break;
             }
         } 
-
-    #endif
-
-
-
-
-
         return retval;
     }
 
@@ -775,12 +734,13 @@ class SynchronizerMPI_AMR
         inner_blocks.clear();
         halo_blocks.clear();        
 
-        send_interfaces.clear();
-        recv_interfaces.clear();
+        for (int r=0; r<size; r++)
+        {
+            send_interfaces[r].clear();
+            recv_interfaces[r].clear();
+        }
 
-        send_interfaces.resize(size);
-        recv_interfaces.resize(size);  
-      
+        
             std::vector <int> maxZ (levelMax,-1  );
             std::vector <int> minZ (levelMax,100000);
             
@@ -831,7 +791,7 @@ class SynchronizerMPI_AMR
                 BlockInfo & infoNei = getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));   
                 if (infoNei.TreePos == CheckCoarser) Coarsened = true;
              
-                //if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
+                if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
     
                 if (infoNei.TreePos == Exists && infoNei.myrank != rank)
                 {
@@ -861,7 +821,8 @@ class SynchronizerMPI_AMR
                 {
                 	Coarsened = true;
 
-                    int nCoarse = infoNei.Zparent;
+                    int nCoarse = infoNei.Z /8; //not sure if this works for Hilbert (probably yes)
+                    //int nCoarse =infoNei.Zparent;
 
                     BlockInfo & infoNeiCoarser = getBlockInfoAll(infoNei.level-1,nCoarse);
                     if (infoNeiCoarser.myrank != rank)
@@ -892,12 +853,6 @@ class SynchronizerMPI_AMR
                         int nFine = getZforward(infoNei.level+1,2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0])),
                                                                 2*info.index[1] + max(code[1],0) +code[1]  + temp *max(0, 1 - abs(code[1])),
                                                                 2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2])));
-                        
-
-
-
-
-
 
                         BlockInfo & infoNeiFiner = getBlockInfoAll(infoNei.level+1,nFine);
                         if (infoNeiFiner.myrank != rank)
@@ -1100,8 +1055,21 @@ class SynchronizerMPI_AMR
 
 
             Clock.start(4);
-            for (auto & i:C.keepEl())
+
+
+            int pos[27] = {0};
+            std::vector<MyRange *> keepEl;
+            for (int i=index; i<index_end;i++)
             {
+                if (C.compass[f[i].icode[0]][pos[f[i].icode[0]]].needed)
+                    keepEl.push_back(&C.compass[f[i].icode[0]][pos[f[i].icode[0]]]);
+                pos[f[i].icode[0]] ++ ;
+            }      
+
+            for (auto & ii:keepEl)//(auto & i:C.keepEl())
+            {
+                auto i = *ii;
+
                 int L [3] ={0,0,0};
                 int Lc[3] ={0,0,0};
                 int k = i.index;              
@@ -1260,6 +1228,11 @@ public:
         blocksPerDim[0] = a_bx;
         blocksPerDim[1] = a_by;
         blocksPerDim[2] = a_bz;     
+
+        send_interfaces.resize(size);
+        recv_interfaces.resize(size);  
+      
+
 
 		if (AllStencils.size() == 0)
 		{

@@ -116,7 +116,7 @@ public:
           labs[i].prepare(*m_refGrid, *Synch);
         double started = MPI_Wtime();
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD); 
   
         bool CallValidStates = false;
 
@@ -160,9 +160,6 @@ public:
             }
         }
     #else
-
-        MPI_Barrier(MPI_COMM_WORLD); //is it necessary?? 
-
         static int rounds = -1;
         static int one_less = 1;
         if (rounds == -1)

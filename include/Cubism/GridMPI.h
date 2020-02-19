@@ -284,9 +284,6 @@ public:
         SynchronizerMPIs.clear();
         //MPI_Comm_free(&cartcomm);
 
-       	MPI_Barrier(MPI_COMM_WORLD);
-
-
         TIMINGS[8] = TIMINGS[4]+TIMINGS[5];
 
         double res [100];

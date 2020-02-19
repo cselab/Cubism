@@ -20,16 +20,14 @@ struct Interface
     BlockInfo * infos [2];
     int icode [2];
     bool CoarseStencil;
-    size_t ind;
 
-    Interface (BlockInfo & i0, BlockInfo & i1, int a_icode0, int a_icode1, size_t a_ind)
+    Interface (BlockInfo & i0, BlockInfo & i1, int a_icode0, int a_icode1)
     {
         infos[0] = &i0;
         infos[1] = &i1;
         icode[0] = a_icode0;
         icode[1] = a_icode1;
         CoarseStencil = false;
-        ind = a_ind;
     }
     bool operator<(const Interface & other) const 
     {
@@ -725,10 +723,7 @@ class SynchronizerMPI_AMR
         {
             BlockInfo & info = myInfos[i];
             info.halo_block_id = -1;  
-
-            size_t ind = halo_blocks.size();
-
-
+          
             int aux = 1<<info.level;//pow(2,info.level);
             const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
             const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
@@ -773,8 +768,8 @@ class SynchronizerMPI_AMR
                     //}                   
                     isInner = false;
                     int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
-                    Interface FS (info,infoNei,icode,icode2,ind);
-                    Interface FR (infoNei,info,icode2,icode,ind);
+                    Interface FS (info,infoNei,icode,icode2);
+                    Interface FR (infoNei,info,icode2,icode);
                     send_interfaces[infoNei.myrank].push_back( FS );
                     recv_interfaces[infoNei.myrank].push_back( FR );              
                     ToBeChecked.push_back(infoNei.myrank);
@@ -794,12 +789,12 @@ class SynchronizerMPI_AMR
                   
                         int code2[3] = {-code[0],-code[1],-code[2]};
                         int icode2 = (code2[0]+1) + (code2[1]+1)*3 + (code2[2]+1)*9;
-                        recv_interfaces[infoNeiCoarser.myrank].push_back( Interface(infoNeiCoarser,info,icode2,icode,ind) );   
+                        recv_interfaces[infoNeiCoarser.myrank].push_back( Interface(infoNeiCoarser,info,icode2,icode) );   
                  
                         BlockInfo & test = getBlockInfoAll(infoNeiCoarser.level,infoNeiCoarser.Znei_(code2[0],code2[1],code2[2]));
 
                         if (info.index[0]/2 == test.index[0] && info.index[1]/2 == test.index[1] && info.index[2]/2 == test.index[2])
-                            send_interfaces[infoNeiCoarser.myrank].push_back( Interface(info,infoNeiCoarser,icode,icode2,ind) );
+                            send_interfaces[infoNeiCoarser.myrank].push_back( Interface(info,infoNeiCoarser,icode,icode2) );
                     }
                 }
                 else if (infoNei.TreePos == CheckFiner)
@@ -820,8 +815,8 @@ class SynchronizerMPI_AMR
                             isInner = false;
                   
                             int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
-                            send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode2,ind) );
-                            recv_interfaces[infoNeiFiner.myrank].push_back( Interface(infoNeiFiner,info,icode2,icode,ind) );
+                            send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode2) );
+                            recv_interfaces[infoNeiFiner.myrank].push_back( Interface(infoNeiFiner,info,icode2,icode) );
 
                            
                             if (Bstep == 3) //if I'm filling an edge then I'm also filling a corner
@@ -833,7 +828,7 @@ class SynchronizerMPI_AMR
                                 code3[2] = (code[2]==0) ? ( B==0 ? 1 : -1): -code[2];
 
                                 int icode3 = (code3[0]+1) + (code3[1]+1)*3 + (code3[2]+1)*9;
-                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3,ind) );
+                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3) );
                             }
                             else if (Bstep == 1) //if I'm filling a face then I'm also filling two edges and a corner
                             {
@@ -903,9 +898,9 @@ class SynchronizerMPI_AMR
                                 int icode4 = (code4[0]+1) + (code4[1]+1)*3 + (code4[2]+1)*9;
                                 int icode5 = (code5[0]+1) + (code5[1]+1)*3 + (code5[2]+1)*9;
                          
-                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3,ind) );
-                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode4,ind) );
-                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode5,ind) );
+                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3) );
+                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode4) );
+                                send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode5) );
 
                             }
          

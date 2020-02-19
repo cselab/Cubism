@@ -162,10 +162,6 @@ class SynchronizerMPI_AMR
     BlockInfo * myInfos;
     
     std::vector < std::vector<BlockInfo > * > BlockInfoAll;
-    //std::vector< std::vector<UnPackInfo> > AllUnpacks;
-
-
-
 
     struct UnpacksManagerStruct
     {
@@ -422,9 +418,7 @@ class SynchronizerMPI_AMR
 
     //void DetermineStencil(const Interface & f, MyRange & retval /*range*/, bool CoarseVersion = false)
     MyRange & DetermineStencil(const Interface & f,bool CoarseVersion = false)
-    {
-        auto started =MPI_Wtime();
-         
+    {   
         
         if (CoarseVersion)
         {
@@ -578,8 +572,6 @@ class SynchronizerMPI_AMR
             }
         }
         #endif
-        auto done = MPI_Wtime(); //std::chrono::high_resolution_clock::now();
-        TIMINGS [8] += done-started;
     }
 
     void DetermineStencilLength(const int level_sender, const int level_receiver, /*const int * code,*/ const int icode, int * L)
@@ -605,9 +597,7 @@ class SynchronizerMPI_AMR
     }
 
     bool UseCoarseStencil (Interface & f)
-    {
-        auto started1 = MPI_Wtime();
-        
+    {       
         BlockInfo & a = *f.infos[0];
         BlockInfo & b = *f.infos[1];
 
@@ -615,7 +605,7 @@ class SynchronizerMPI_AMR
 
         int imin [3];
         int imax [3];
-     
+    #if 0 
         for (int d=0; d<3; d++)
             if (a.index[d] == b.index[d])
             {
@@ -641,9 +631,32 @@ class SynchronizerMPI_AMR
                 break;
             }
         }
- 
-        auto done1 = MPI_Wtime();
-        TIMINGS [5] += done1-started1;
+    #else
+        for (int d=0; d<3; d++)
+        {
+            imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
+            imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
+        }    
+
+        bool retval = false;
+
+        for (int i2 = imin[2]; i2 <= imax[2]; i2++)
+        for (int i1 = imin[1]; i1 <= imax[1]; i1++)
+        for (int i0 = imin[0]; i0 <= imax[0]; i0++)
+        {
+            int n = a.Znei_(i0,i1,i2);  ///getZforward(a.level,i0,i1,i2);
+            if ( (getBlockInfoAll(a.level,n)).TreePos == CheckCoarser )
+            {
+                retval = true;
+                break;
+            }
+        } 
+
+    #endif
+
+
+
+
 
         return retval;
     }
@@ -756,7 +769,9 @@ class SynchronizerMPI_AMR
 
 
     void DefineInterfaces()
-    {    
+    {   
+        Clock.start(7);
+
         inner_blocks.clear();
         halo_blocks.clear();        
 
@@ -779,12 +794,16 @@ class SynchronizerMPI_AMR
         UnpacksManager.clear();
         std::vector<size_t> lengths;
 
+        Clock.finish(7);
+
+
+
         for (int i=0; i<(int)myInfos_size; i++)
         {
             BlockInfo & info = myInfos[i];
             info.halo_block_id = -1;  
           
-            int aux = 1<<info.level;//pow(2,info.level);
+            int aux = 1<<info.level;
             const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
             const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
             const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
@@ -792,15 +811,10 @@ class SynchronizerMPI_AMR
             const int yskip  = info.index[1]==0 ? -1 : 1;
             const int zskip  = info.index[2]==0 ? -1 : 1;
 
-
             bool isInner = true;
 
-            
             std::vector < int > ToBeChecked;
             bool Coarsened = false;
-
-            
-
 
             size_t recv_interfaces_total = 0;
 
@@ -840,7 +854,6 @@ class SynchronizerMPI_AMR
                     ToBeChecked.push_back(send_interfaces[infoNei.myrank].size()-1);
                     ToBeChecked.push_back(recv_interfaces[infoNei.myrank].size()-1);   
 
-
                     recv_interfaces_total++;          
                 }
 
@@ -848,7 +861,9 @@ class SynchronizerMPI_AMR
                 {
                 	Coarsened = true;
 
-                    int nCoarse = getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
+                    //int nCoarse = getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
+                    int nCoarse = infoNei.Z / 8; //works for Morton curve, not sure for Hilbert
+
                     BlockInfo & infoNeiCoarser = getBlockInfoAll(infoNei.level-1,nCoarse);
                     if (infoNeiCoarser.myrank != rank)
                     {
@@ -878,6 +893,13 @@ class SynchronizerMPI_AMR
                         int nFine = getZforward(infoNei.level+1,2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0])),
                                                                 2*info.index[1] + max(code[1],0) +code[1]  + temp *max(0, 1 - abs(code[1])),
                                                                 2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2])));
+                        
+
+
+
+
+
+
                         BlockInfo & infoNeiFiner = getBlockInfoAll(infoNei.level+1,nFine);
                         if (infoNeiFiner.myrank != rank)
                         {
@@ -978,6 +1000,7 @@ class SynchronizerMPI_AMR
                 } 
             }//icode = 0,...,26  
 
+            Clock.start(8);
 
             if (isInner)
             {
@@ -992,6 +1015,10 @@ class SynchronizerMPI_AMR
                 lengths.push_back(recv_interfaces_total);
             }
 
+            Clock.finish(8);
+
+
+            Clock.start(10);
             if (Coarsened)
             { 
             	
@@ -1003,9 +1030,14 @@ class SynchronizerMPI_AMR
             	}
 
             }
+            Clock.finish(10);
+
+            
 
         }//i-loop
 
+
+        Clock.start(9);
 
         UnpacksManager._allocate(halo_blocks.size(),&lengths[0]);
 
@@ -1014,6 +1046,8 @@ class SynchronizerMPI_AMR
             BlockInfo & info = myInfos[i];
             getBlockInfoAll(info.level,info.Z).halo_block_id = info.halo_block_id;  
         }    
+
+        Clock.finish(9);
     }
 
 
@@ -1042,7 +1076,7 @@ class SynchronizerMPI_AMR
 
         if (f.size()>0) do
         {
-            double s1 = MPI_Wtime(); 
+            Clock.start(3);
         	cube C;
            	int id = f[index].infos[0]->blockID;
             int index_end=f.size();   
@@ -1062,9 +1096,11 @@ class SynchronizerMPI_AMR
                 	if (!skip_needed) skip_needed =  f[i].CoarseStencil;
                 }
             if (!skip_needed) C.__needed(remEl);
-            double d1 = MPI_Wtime();
-            TIMINGS[13] += d1-s1;
+            Clock.finish(3);
 
+
+
+            Clock.start(4);
             for (auto & i:C.keepEl())
             {
                 int L [3] ={0,0,0};
@@ -1085,7 +1121,7 @@ class SynchronizerMPI_AMR
                     total_size += Vc;
                 }                    
 
-                s1 = MPI_Wtime();
+                Clock.start(5);
                 if (updateMap)
                 {   
                     UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,f[k].infos[0]->Z,f[k].icode[1]};
@@ -1101,7 +1137,6 @@ class SynchronizerMPI_AMR
                     }                   
                     
                     assert (f[k].infos[1]->halo_block_id >= 0 );
-                    //AllUnpacks[f[k].infos[1]->halo_block_id].push_back(info);
 			        UnpacksManager.add(info,f[k].infos[1]->halo_block_id);
 
 
@@ -1121,7 +1156,8 @@ class SynchronizerMPI_AMR
                         int Csrcy=0;
                         int Csrcz=0;
 
-                        __FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);                                    
+                        if (f[k].CoarseStencil)
+                            __FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);                                    
          				
 	         			UnPackInfo info2 = 	{info.offset,L[0],L[1],L[2],srcx, srcy, srcz,
 	         					info.LX,info.LY,
@@ -1133,21 +1169,19 @@ class SynchronizerMPI_AMR
 
 
                         assert (f[remEl1].infos[1]->halo_block_id >= 0 );
-                        //AllUnpacks[f[remEl1].infos[1]->halo_block_id].push_back(info2);
                         UnpacksManager.add(info2,f[remEl1].infos[1]->halo_block_id);
 
 
                     }    
                 }
-                d1 = MPI_Wtime();
-                TIMINGS[14] += d1-s1;
+                Clock.finish(5);
             }
+            Clock.finish(4);
 
             index = index_end;
         }
         while (index < (int)f.size());
 
-        double s1 = MPI_Wtime();
         for (int k=0; k<(int)remEl.size();k++)
             f[remEl[k]].ToBeKept = false;
         //std::sort(remEl.begin(), remEl.end());
@@ -1155,10 +1189,9 @@ class SynchronizerMPI_AMR
         //{  
         //    f.erase(f.begin()+remEl[k]-k);           
         //}
-        double d1 = MPI_Wtime();
-        TIMINGS[15] += d1-s1;
-
     }
+
+
 
 
 
@@ -1166,6 +1199,40 @@ class SynchronizerMPI_AMR
     int sLength[3*27*3];
 
 public:
+
+
+    struct clock
+    {
+        double TIMINGS[20];
+        double s[20];
+        double e[20];
+
+        clock()
+        {
+            reset();
+        }
+
+        void reset()
+        {
+            for (int i = 0; i < 20; i ++)
+                TIMINGS[i] = 0;
+        }
+
+        void start(int i)
+        {
+            s[i] = MPI_Wtime();
+        }
+
+        void finish(int i)
+        {
+            e[i] = MPI_Wtime();
+            TIMINGS[i] += e[i] - s[i];
+        }
+    };
+
+    clock Clock;
+
+
     SynchronizerMPI_AMR(StencilInfo a_stencil,StencilInfo a_Cstencil,MPI_Comm a_comm, 
                         const bool a_periodic[3],const int a_levelMax,
                         const int a_nx,const int a_ny,const int a_nz,
@@ -1175,12 +1242,8 @@ public:
     
     stencil(a_stencil),Cstencil(a_Cstencil), 
     comm(a_comm),xperiodic(a_periodic[0]),yperiodic(a_periodic[1]),zperiodic(a_periodic[2]),
-    levelMax(a_levelMax),Zcurve(a_bx,a_by,a_bz)//,myInfos(a_myInfos)//,BlockInfoAll(a_BlockInfoAll)
+    levelMax(a_levelMax),Zcurve(a_bx,a_by,a_bz)
     {
-        for (int i=0;i<20;i++) TIMINGS[i] = 0;
-
-       
-
         myInfos_size = a_myInfos.size();
         myInfos = &a_myInfos[0];
 
@@ -1278,7 +1341,6 @@ public:
         }
     }
 
-    double TIMINGS[20];
 
     std::vector<BlockInfo> avail_inner()
     {
@@ -1296,28 +1358,15 @@ public:
 
 
     void _Setup( std::vector<BlockInfo> & a_myInfos,std::vector<std::vector<BlockInfo >> & a_BlockInfoAll)
-    {
+    {   
+        Clock.reset();
 
-        for (int i=0;i<20;i++) TIMINGS[i] = 0;
 
-
-        double started = MPI_Wtime();
-        double s1 = MPI_Wtime();
-
-        
         myInfos_size = a_myInfos.size();
         myInfos = &a_myInfos[0];
         
         for (int m=0;m<levelMax;m++)
             BlockInfoAll[m] = &a_BlockInfoAll[m];
-
-
-        double d1 = MPI_Wtime();
-        TIMINGS[17] = d1-s1;
-
-
-
-        s1 = MPI_Wtime();
 
     	std::vector<int> selcomponents = stencil.selcomponents;
         std::sort(selcomponents.begin(), selcomponents.end());
@@ -1325,35 +1374,37 @@ public:
         const int NC = selcomponents.size();
 
    	    //1.Find all interfaces with neighboring ranks 
+        Clock.start(0);
         DefineInterfaces();
+        Clock.finish(0);     
 
-        //AllUnpacks.clear();
-        //AllUnpacks.resize(halo_blocks.size());
-        
+
 
         //2.Sort interfaces 
+        Clock.start(1);
         for (int r=0; r<size; r++)
         {
             std::sort (send_interfaces[r].begin(), send_interfaces[r].end());
             std::sort (recv_interfaces[r].begin(), recv_interfaces[r].end());
         }   
-
-        d1 = MPI_Wtime();
-        TIMINGS[18] = d1-s1;
+        Clock.finish(1);
 
 
-
-        s1 = MPI_Wtime();     
         //3.Determine buffer sizes      
+        Clock.start(6);
         send_buffer     .clear();
         recv_buffer     .clear();
         send_buffer_size.clear();
         recv_buffer_size.clear();
-
         send_buffer     .resize(size);
         recv_buffer     .resize(size);    
         send_buffer_size.resize(size,0);
         recv_buffer_size.resize(size,0);
+        Clock.finish(6);
+
+
+
+        Clock.start(2);
         for (int r=0; r<size; r++)
         {
             DiscardDuplicates(send_interfaces[r],send_buffer_size[r],false,NC,r);
@@ -1361,21 +1412,12 @@ public:
             send_buffer[r].resize(send_buffer_size[r]*NC, 666.0);
             recv_buffer[r].resize(recv_buffer_size[r]*NC, 777.0);          
         }  
-
-        d1 = MPI_Wtime();
-        TIMINGS[19] = d1-s1;
-
-
-
-        double done = MPI_Wtime();
-  		TIMINGS[0] += done-started;
+        Clock.finish(2);
     }
 
 
     void sync(unsigned int gptfloats, MPI_Datatype MPIREAL, const int timestamp)
     { 
-    	double started = MPI_Wtime();
-
         static const int nX = blocksize[0];
         static const int nY = blocksize[1];
         static const int nZ = blocksize[2];
@@ -1390,6 +1432,7 @@ public:
 		{
 		    send_packinfos.clear();
 		}   
+
 
         //Pack data         
         send_packinfos.resize(size);
@@ -1414,10 +1457,10 @@ public:
                     displacement[r]+= V*NC;
                     
                     if (f.CoarseStencil) 
-                    {              
+                    {   
                         AverageDownAndFill2(send_buffer[r].data() + displacement[r],f.infos[0],code0,&selcomponents[0],NC,gptfloats);
                         displacement[r] += CoarseStencilVolume(&code0[0])*NC;
-  	                }
+                    }
                 }
                 else //receiver is coarser, so sender averages down data first 
                 {
@@ -1433,7 +1476,7 @@ public:
 
                     AverageDownAndFill(send_buffer[r].data() + displacement[r],f.infos[0],s,e,code0,&selcomponents[0],NC, gptfloats); 
                                       
-                    displacement[r]+= V*NC;             
+                    displacement[r]+= V*NC;  
                 }
             }
 
@@ -1450,8 +1493,7 @@ public:
                 assert(info.pack  != nullptr);
             }
         }
-       
- 
+        
             
         send_requests.resize(size);
         recv_requests.resize(size);
@@ -1462,9 +1504,6 @@ public:
             MPI_Isend(&send_buffer[r][0], send_buffer_size[r]*NC, MPIREAL, r, timestamp , comm, &send_requests[r]);
         }  
 
-
-        double done = MPI_Wtime();
-  		TIMINGS[1] += done-started;   
     }
 
 

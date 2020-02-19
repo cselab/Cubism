@@ -102,7 +102,7 @@ public:
     {
     	time = t;
     
-        double started = MPI_Wtime();
+
       
      	Synch->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
    		timestamp = (timestamp + 1) % 32768;
@@ -114,7 +114,7 @@ public:
         labs = new TLab[nthreads];
         for (int i=0; i<nthreads; i++)
           labs[i].prepare(*m_refGrid, *Synch);
-
+        double started = MPI_Wtime();
 
         MPI_Barrier(MPI_COMM_WORLD);
   
@@ -355,15 +355,10 @@ public:
             m_refGrid->UpdateBlockInfoAll_States(true);
 	        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
             
-            m_refGrid->TIMINGS [95] += Synch->TIMINGS[17];
-            m_refGrid->TIMINGS [96] += Synch->TIMINGS[18];
-            m_refGrid->TIMINGS [97] += Synch->TIMINGS[19];
-
-
-            m_refGrid->TIMINGS [92] += Synch->TIMINGS[13];
-            m_refGrid->TIMINGS [93] += Synch->TIMINGS[14];
-            m_refGrid->TIMINGS [94] += Synch->TIMINGS[15];
-
+            for (int i=0;i<20;i++)
+            {
+                m_refGrid->TIMINGS[60+i] += Synch->Clock.TIMINGS[i];
+            }
 
 
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
@@ -371,15 +366,11 @@ public:
 			{ 
 		       	(*it->second)._Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
 		      
-                m_refGrid->TIMINGS [92] += (*it->second).TIMINGS[13];
-                m_refGrid->TIMINGS [93] += (*it->second).TIMINGS[14];
-                m_refGrid->TIMINGS [94] += (*it->second).TIMINGS[15];
-
-                m_refGrid->TIMINGS [95] += (*it->second).TIMINGS[17];
-                m_refGrid->TIMINGS [96] += (*it->second).TIMINGS[18];
-                m_refGrid->TIMINGS [97] += (*it->second).TIMINGS[19];
+                for (int i=0;i<20;i++)
+                {
+                    m_refGrid->TIMINGS[60+i] += (*it->second).Clock.TIMINGS[i];
+                }
                 it++;
- 
 			}
 		}
         done = MPI_Wtime();

@@ -329,19 +329,29 @@ public:
             printf( "---> MeshAdaptation::setup/sync     : %6.3f \n" , res[34]);
 
 
-
-
-            printf( "---> _Setup::clearing   %6.3f \n" , res[95]);
-            printf( "---> _Setup::sorting    %6.3f \n" , res[96]);
-            printf( "---> _Setup::discarding %6.3f \n" , res[97]);
-
-
-
-            printf( "---> _Setup::discarding  cude      %6.3f \n" , res[92]);
-            printf( "---> _Setup::discarding  updateMap %6.3f \n" , res[93]);
-            printf( "---> _Setup::discarding  erase     %6.3f \n" , res[94]);
-  
-
+            std::cout <<  "\n";           
+            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces()          :  %6.3f \n" , res[60]);
+            printf( "------>  AMR_SynchronizerMPI:: Sort Interfaces             :  %6.3f \n" , res[61]);
+            printf( "------>  AMR_SynchronizerMPI:: DiscardDuplicates()         :  %6.3f \n" , res[62]);
+            printf( "------>  AMR_SynchronizerMPI:: DiscardDuplicates::cube     :  %6.3f \n" , res[63]);
+            printf( "------>  AMR_SynchronizerMPI:: DiscardDuplicates::keepEl   :  %6.3f \n" , res[64]);
+            printf( "------>  AMR_SynchronizerMPI:: DiscardDuplicates::updateMap:  %6.3f \n" , res[65]);
+            printf( "------>  AMR_SynchronizerMPI:: Clearing send/recv buffers  :  %6.3f \n" , res[66]);
+            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces:clear stuff:  %6.3f \n" , res[67]);
+            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces:post check1:  %6.3f \n" , res[68]);
+            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces:post alloc :  %6.3f \n" , res[69]);
+            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces:post check2:  %6.3f \n" , res[70]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[70]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[71]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[72]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[73]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[74]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[75]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[76]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[77]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[78]);
+            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[79]);
+ 
             std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
         }
 
@@ -741,16 +751,12 @@ public:
                                                 TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
 
             SynchronizerMPIs[stencil] = queryresult;
-            queryresult->_Setup(TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
-            TIMINGS [95] += queryresult->TIMINGS[17];
-            TIMINGS [96] += queryresult->TIMINGS[18];
-            TIMINGS [97] += queryresult->TIMINGS[19];
-            TIMINGS [92] += queryresult->TIMINGS[13];
-            TIMINGS [93] += queryresult->TIMINGS[14];
-            TIMINGS [94] += queryresult->TIMINGS[15];
+            queryresult->_Setup(TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());           
 
-
-
+            for (int i=0;i<20;i++)
+            {
+                TIMINGS[60+i] += queryresult->Clock.TIMINGS[i];
+            }
 
         }
         else

@@ -861,8 +861,7 @@ class SynchronizerMPI_AMR
                 {
                 	Coarsened = true;
 
-                    //int nCoarse = getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
-                    int nCoarse = infoNei.Z / 8; //works for Morton curve, not sure for Hilbert
+                    int nCoarse = infoNei.Zparent;
 
                     BlockInfo & infoNeiCoarser = getBlockInfoAll(infoNei.level-1,nCoarse);
                     if (infoNeiCoarser.myrank != rank)

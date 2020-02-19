@@ -456,6 +456,7 @@ struct BlockInfo
     bool changed = true;
 
     int halo_block_id;
+    int Zparent;
 
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const
@@ -569,6 +570,16 @@ struct BlockInfo
         }
 
         blockID = Encode(level,Z);
+
+        if (level == 0)
+        {
+          Zparent = 0;
+        }
+        else
+        {
+          Zparent = forward(level-1,(index[0]/2+Bmax[0])%Bmax[0],(index[1]/2+Bmax[1])%Bmax[1],(index[2]/2+Bmax[2])%Bmax[2]);
+        }
+
     }
 
     int Znei_(int i, int j, int k) const

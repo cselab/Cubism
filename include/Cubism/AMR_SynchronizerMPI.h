@@ -21,6 +21,9 @@ struct Interface
     int icode [2];
     bool CoarseStencil;
 
+
+    bool ToBeKept;
+
     Interface (BlockInfo & i0, BlockInfo & i1, int a_icode0, int a_icode1)
     {
         infos[0] = &i0;
@@ -28,6 +31,9 @@ struct Interface
         icode[0] = a_icode0;
         icode[1] = a_icode1;
         CoarseStencil = false;
+
+
+        ToBeKept = true;
     }
     bool operator<(const Interface & other) const 
     {
@@ -156,7 +162,59 @@ class SynchronizerMPI_AMR
     BlockInfo * myInfos;
     
     std::vector < std::vector<BlockInfo > * > BlockInfoAll;
-    std::vector< std::vector<UnPackInfo> > AllUnpacks;
+    //std::vector< std::vector<UnPackInfo> > AllUnpacks;
+
+
+
+
+    struct UnpacksManagerStruct
+    {
+        UnPackInfo ** unpacks;
+        size_t blocks;
+        size_t * sizes;
+
+        UnpacksManagerStruct()
+        {
+            sizes = nullptr;
+        }
+
+        void clear()
+        {
+            if (sizes != nullptr)
+            {
+            delete [] sizes;
+            for (size_t i=0; i< blocks; i++)
+                delete [] unpacks[i];
+            delete [] unpacks;
+            }
+        }       
+
+        ~UnpacksManagerStruct()
+        {
+            clear();
+        }
+
+        void _allocate(size_t a_blocks, size_t * L)
+        {
+            blocks  = a_blocks;
+            unpacks = new UnPackInfo * [blocks];
+            sizes   = new size_t [blocks];    
+            for (size_t i=0; i<blocks; i++)
+            {
+                sizes[i] = 0;
+                unpacks[i] = new UnPackInfo [L[i]];
+            }
+        }
+
+
+        void add(UnPackInfo & info, size_t block_id)
+        {
+            unpacks[block_id][sizes[block_id]] = info;
+            sizes[block_id] ++;
+        }
+    };
+
+    UnpacksManagerStruct UnpacksManager;
 
 
 
@@ -718,6 +776,8 @@ class SynchronizerMPI_AMR
                 minZ[info.level] = std::min(minZ[info.level],info.Z);
             }
   
+        UnpacksManager.clear();
+        std::vector<size_t> lengths;
 
         for (int i=0; i<(int)myInfos_size; i++)
         {
@@ -739,6 +799,10 @@ class SynchronizerMPI_AMR
             std::vector < int > ToBeChecked;
             bool Coarsened = false;
 
+            
+
+
+            size_t recv_interfaces_total = 0;
 
             for(int icode=0; icode<27; icode++)
             {
@@ -774,7 +838,10 @@ class SynchronizerMPI_AMR
                     recv_interfaces[infoNei.myrank].push_back( FR );              
                     ToBeChecked.push_back(infoNei.myrank);
                     ToBeChecked.push_back(send_interfaces[infoNei.myrank].size()-1);
-                    ToBeChecked.push_back(recv_interfaces[infoNei.myrank].size()-1);             
+                    ToBeChecked.push_back(recv_interfaces[infoNei.myrank].size()-1);   
+
+
+                    recv_interfaces_total++;          
                 }
 
                 else if (infoNei.TreePos == CheckCoarser)
@@ -795,6 +862,8 @@ class SynchronizerMPI_AMR
 
                         if (info.index[0]/2 == test.index[0] && info.index[1]/2 == test.index[1] && info.index[2]/2 == test.index[2])
                             send_interfaces[infoNeiCoarser.myrank].push_back( Interface(info,infoNeiCoarser,icode,icode2) );
+
+                        recv_interfaces_total++;
                     }
                 }
                 else if (infoNei.TreePos == CheckFiner)
@@ -817,7 +886,7 @@ class SynchronizerMPI_AMR
                             int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
                             send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode2) );
                             recv_interfaces[infoNeiFiner.myrank].push_back( Interface(infoNeiFiner,info,icode2,icode) );
-
+                            recv_interfaces_total++;
                            
                             if (Bstep == 3) //if I'm filling an edge then I'm also filling a corner
                             {
@@ -919,6 +988,8 @@ class SynchronizerMPI_AMR
             {
                 info.halo_block_id = halo_blocks.size();
                 halo_blocks.push_back(info);
+
+                lengths.push_back(recv_interfaces_total);
             }
 
             if (Coarsened)
@@ -935,14 +1006,14 @@ class SynchronizerMPI_AMR
 
         }//i-loop
 
+
+        UnpacksManager._allocate(halo_blocks.size(),&lengths[0]);
+
         for (int i=0; i<(int)myInfos_size; i++)
         {
             BlockInfo & info = myInfos[i];
             getBlockInfoAll(info.level,info.Z).halo_block_id = info.halo_block_id;  
-        }
-
-       
-
+        }    
     }
 
 
@@ -971,6 +1042,7 @@ class SynchronizerMPI_AMR
 
         if (f.size()>0) do
         {
+            double s1 = MPI_Wtime(); 
         	cube C;
            	int id = f[index].infos[0]->blockID;
             int index_end=f.size();   
@@ -990,7 +1062,8 @@ class SynchronizerMPI_AMR
                 	if (!skip_needed) skip_needed =  f[i].CoarseStencil;
                 }
             if (!skip_needed) C.__needed(remEl);
-
+            double d1 = MPI_Wtime();
+            TIMINGS[13] += d1-s1;
 
             for (auto & i:C.keepEl())
             {
@@ -1012,6 +1085,7 @@ class SynchronizerMPI_AMR
                     total_size += Vc;
                 }                    
 
+                s1 = MPI_Wtime();
                 if (updateMap)
                 {   
                     UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,f[k].infos[0]->Z,f[k].icode[1]};
@@ -1027,8 +1101,10 @@ class SynchronizerMPI_AMR
                     }                   
                     
                     assert (f[k].infos[1]->halo_block_id >= 0 );
-                    AllUnpacks[f[k].infos[1]->halo_block_id].push_back(info);
-			
+                    //AllUnpacks[f[k].infos[1]->halo_block_id].push_back(info);
+			        UnpacksManager.add(info,f[k].infos[1]->halo_block_id);
+
+
                     for (int kk=0; kk< (int)i.removedIndices.size();kk++)
                     {
                         int remEl1 = i.removedIndices[kk];
@@ -1057,23 +1133,30 @@ class SynchronizerMPI_AMR
 
 
                         assert (f[remEl1].infos[1]->halo_block_id >= 0 );
-                        AllUnpacks[f[remEl1].infos[1]->halo_block_id].push_back(info2);
+                        //AllUnpacks[f[remEl1].infos[1]->halo_block_id].push_back(info2);
+                        UnpacksManager.add(info2,f[remEl1].infos[1]->halo_block_id);
 
 
                     }    
                 }
+                d1 = MPI_Wtime();
+                TIMINGS[14] += d1-s1;
             }
 
             index = index_end;
         }
         while (index < (int)f.size());
 
-
-        std::sort(remEl.begin(), remEl.end());
+        double s1 = MPI_Wtime();
         for (int k=0; k<(int)remEl.size();k++)
-        {  
-            f.erase(f.begin()+remEl[k]-k);
-        }
+            f[remEl[k]].ToBeKept = false;
+        //std::sort(remEl.begin(), remEl.end());
+        //for (int k=0; k<(int)remEl.size();k++)
+        //{  
+        //    f.erase(f.begin()+remEl[k]-k);           
+        //}
+        double d1 = MPI_Wtime();
+        TIMINGS[15] += d1-s1;
 
     }
 
@@ -1215,6 +1298,8 @@ public:
     void _Setup( std::vector<BlockInfo> & a_myInfos,std::vector<std::vector<BlockInfo >> & a_BlockInfoAll)
     {
 
+        for (int i=0;i<20;i++) TIMINGS[i] = 0;
+
 
         double started = MPI_Wtime();
         double s1 = MPI_Wtime();
@@ -1242,8 +1327,8 @@ public:
    	    //1.Find all interfaces with neighboring ranks 
         DefineInterfaces();
 
-        AllUnpacks.clear();
-        AllUnpacks.resize(halo_blocks.size());
+        //AllUnpacks.clear();
+        //AllUnpacks.resize(halo_blocks.size());
         
 
         //2.Sort interfaces 
@@ -1314,6 +1399,8 @@ public:
             for (int i=0; i<(int) send_interfaces[r].size(); i++)
             {
                 Interface & f = send_interfaces[r][i];
+
+                if (!f.ToBeKept) continue;
 
                 const int code[3] = { f.icode[0]%3-1, (f.icode[0]/3)%3-1, (f.icode[0]/9)%3-1};              
                 const int code0[3] = { -code[0], -code[1] , -code[2]}; 
@@ -1397,12 +1484,11 @@ public:
         int id = info.halo_block_id;
         if (id < 0) return;
 	     
-        std::vector <UnPackInfo > & unpacks =  AllUnpacks[id];     
-
-
-        for (size_t jj=0; jj< unpacks.size(); jj++)
+        UnPackInfo * unpacks =  UnpacksManager.unpacks[id];     
+   
+        for (size_t jj=0; jj< UnpacksManager.sizes[id]; jj++)
         {
-        	UnPackInfo & unpack = unpacks[jj];
+            UnPackInfo & unpack = unpacks[jj];
 
         	const int code[3] = { unpack.icode%3-1, (unpack.icode/3)%3-1, (unpack.icode/9)%3-1};
 

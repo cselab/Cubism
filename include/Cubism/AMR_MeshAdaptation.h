@@ -360,12 +360,22 @@ public:
             m_refGrid->TIMINGS [97] += Synch->TIMINGS[19];
 
 
+            m_refGrid->TIMINGS [92] += Synch->TIMINGS[13];
+            m_refGrid->TIMINGS [93] += Synch->TIMINGS[14];
+            m_refGrid->TIMINGS [94] += Synch->TIMINGS[15];
+
+
 
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
 			{ 
 		       	(*it->second)._Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
-		        m_refGrid->TIMINGS [95] += (*it->second).TIMINGS[17];
+		      
+                m_refGrid->TIMINGS [92] += (*it->second).TIMINGS[13];
+                m_refGrid->TIMINGS [93] += (*it->second).TIMINGS[14];
+                m_refGrid->TIMINGS [94] += (*it->second).TIMINGS[15];
+
+                m_refGrid->TIMINGS [95] += (*it->second).TIMINGS[17];
                 m_refGrid->TIMINGS [96] += (*it->second).TIMINGS[18];
                 m_refGrid->TIMINGS [97] += (*it->second).TIMINGS[19];
                 it++;

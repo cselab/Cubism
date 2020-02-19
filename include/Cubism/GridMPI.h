@@ -337,6 +337,10 @@ public:
 
 
 
+            printf( "---> _Setup::discarding  cude      %6.3f \n" , res[92]);
+            printf( "---> _Setup::discarding  updateMap %6.3f \n" , res[93]);
+            printf( "---> _Setup::discarding  erase     %6.3f \n" , res[94]);
+  
 
             std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
         }
@@ -741,6 +745,12 @@ public:
             TIMINGS [95] += queryresult->TIMINGS[17];
             TIMINGS [96] += queryresult->TIMINGS[18];
             TIMINGS [97] += queryresult->TIMINGS[19];
+            TIMINGS [92] += queryresult->TIMINGS[13];
+            TIMINGS [93] += queryresult->TIMINGS[14];
+            TIMINGS [94] += queryresult->TIMINGS[15];
+
+
+
 
         }
         else

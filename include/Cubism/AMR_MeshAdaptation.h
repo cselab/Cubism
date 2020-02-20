@@ -87,10 +87,9 @@ public:
         StencilInfo Cstencil = stencil; 
         Synch = new SynchronizerMPIType(stencil, Cstencil, MPI_COMM_WORLD, per, m_refGrid->getlevelMax(),
                                         TGrid::Block::sizeX,TGrid::Block::sizeY,TGrid::Block::sizeZ,
-                                             blockperDim[0],     blockperDim[1],     blockperDim[2],
-                                        m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());      
+                                             blockperDim[0],     blockperDim[1],     blockperDim[2]);      
 
-        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
+        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll());
 
         timestamp = 0;
     }
@@ -350,7 +349,7 @@ public:
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
             m_refGrid->UpdateBlockInfoAll_States(true);
-	        Synch->_Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
+	        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll());
             
             for (int i=0;i<20;i++)
             {
@@ -361,7 +360,7 @@ public:
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
 			{ 
-		       	(*it->second)._Setup(m_refGrid->getBlocksInfo(),m_refGrid->getBlockInfoAll());
+		       	(*it->second)._Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll());
 		      
                 for (int i=0;i<20;i++)
                 {

@@ -739,17 +739,12 @@ public:
         if (itSynchronizerMPI == SynchronizerMPIs.end())
         {
             queryresult = new SynchronizerMPIType(p.stencil, Cstencil, worldcomm, per, TGrid::getlevelMax(),
-                                                Block::sizeX,
-                                                Block::sizeY,
-                                                Block::sizeZ,
-                                                blockperDim[0],
-                                                blockperDim[1],
-                                                blockperDim[2],
-                                                TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
+                                                Block::sizeX,Block::sizeY,Block::sizeZ,
+                                                blockperDim[0],blockperDim[1],blockperDim[2]);
 
+
+            queryresult->_Setup(& (TGrid::getBlocksInfo())[0],(TGrid::getBlocksInfo()).size() ,TGrid::getBlockInfoAll());           
             SynchronizerMPIs[stencil] = queryresult;
-            queryresult->_Setup(TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());           
-
             for (int i=0;i<20;i++)
             {
                 TIMINGS[60+i] += queryresult->Clock.TIMINGS[i];

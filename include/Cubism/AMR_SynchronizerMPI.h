@@ -371,8 +371,13 @@ class SynchronizerMPI_AMR
     //communication & computation overlap
     std::vector<BlockInfo> inner_blocks;
     std::vector<BlockInfo>  halo_blocks;
-    std::vector <MPI_Request> send_requests;
-    std::vector <MPI_Request> recv_requests;
+    std::vector <MPI_Request> data_requests;
+
+
+
+
+
+
 
     //grid parameters
     const int levelMax;
@@ -384,11 +389,12 @@ class SynchronizerMPI_AMR
     std::vector < std::vector<BlockInfo > * > BlockInfoAll;
 
 
-    std::vector < std::vector <UnPackInfo> > manyUnpacks;
+    
     std::set <int> ReceiveFrom;
+    std::set <int> SendTo;
 
 
-    std::vector < std::array<int,2> > MapOfInfos;
+
 
 
     struct UnpacksManagerStruct
@@ -396,10 +402,18 @@ class SynchronizerMPI_AMR
         UnPackInfo ** unpacks;
         size_t blocks;
         size_t * sizes;
+        int size;
 
+        std::vector < std::vector <UnPackInfo> > manyUnpacks;
+        std::vector <MPI_Request> pack_requests;
+        std::vector < std::vector<UnPackInfo> > manyUnpacks_recv;
+
+        std::vector < std::array<int,2> > MapOfInfos;
+        
         UnpacksManagerStruct()
         {
             sizes = nullptr;
+            MPI_Comm_size(MPI_COMM_WORLD,&size);
         }
 
         void clear()
@@ -411,6 +425,13 @@ class SynchronizerMPI_AMR
                 delete [] unpacks[i];
             delete [] unpacks;
             }
+
+            manyUnpacks.clear();
+            manyUnpacks.resize(size);
+            manyUnpacks_recv.clear();
+            manyUnpacks_recv.resize(size);
+            MapOfInfos.clear();
+
         }       
 
         ~UnpacksManagerStruct()
@@ -436,6 +457,59 @@ class SynchronizerMPI_AMR
             unpacks[block_id][sizes[block_id]] = info;
             sizes[block_id] ++;
         }
+
+        
+        void SendPacks(int * recv_sizes)
+        {
+            pack_requests.clear();
+
+            int timestamp = 2;
+
+            for (int r = 0; r< size; r++) if (manyUnpacks[r].size()>0)
+            {
+                pack_requests.resize(pack_requests.size()+1);
+                MPI_Isend(manyUnpacks[r].data(), sizeof(UnPackInfo)*manyUnpacks[r].size() , MPI_CHAR, r, timestamp , MPI_COMM_WORLD, &pack_requests.back());
+            }
+           
+            for (int r = 0; r< size; r++) if (recv_sizes[r] > 0)
+            {
+                int number_amount;
+                MPI_Status status;
+                MPI_Probe(r, timestamp, MPI_COMM_WORLD, &status);
+                MPI_Get_count(&status, MPI_INT, &number_amount);
+                number_amount *= sizeof(int);
+                manyUnpacks_recv[r].resize(  number_amount/sizeof(UnPackInfo)   );            
+                
+                pack_requests.resize(pack_requests.size()+1);
+                MPI_Irecv(manyUnpacks_recv[r].data(), sizeof(UnPackInfo)*manyUnpacks_recv[r].size() , MPI_CHAR, r, timestamp , MPI_COMM_WORLD, &pack_requests.back());
+            }
+
+            MPI_Waitall(pack_requests.size(), pack_requests.data(), MPI_STATUSES_IGNORE);
+        }
+
+
+
+        void MapIDs()
+        {
+            std::sort(MapOfInfos.begin(),MapOfInfos.end());
+
+            //MPI_Waitall(pack_requests.size(), pack_requests.data(), MPI_STATUSES_IGNORE);
+            
+            for (int r=0; r<size; r++)
+            for (size_t i=0; i < manyUnpacks_recv[r].size(); i++)
+            {
+                UnPackInfo & info = manyUnpacks_recv[r][i];
+    
+                std::array <int,2> element = {info.IDreceiver,-1};
+                auto low=std::lower_bound (MapOfInfos.begin(), MapOfInfos.end(), element);
+                int Target = (*low)[1];
+                assert(Target >=0);
+                add(info,Target);
+            }
+        }
+
+
+
     };
 
     UnpacksManagerStruct UnpacksManager;
@@ -616,7 +690,7 @@ class SynchronizerMPI_AMR
                     info.CoarseVersionLY = Lc[1];
                 }                   
                     
-                Synch_ptr->manyUnpacks[r].push_back(info);
+                Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info);
 
                 
                 for (int kk=0; kk< (int)i.removedIndices.size();kk++)
@@ -643,7 +717,7 @@ class SynchronizerMPI_AMR
                         Csrcx, Csrcy, Csrcz,
                         f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1],f[remEl1].infos[1]->blockID};
 
-                    Synch_ptr->manyUnpacks[r].push_back(info2);
+                    Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info2);
                 } 
             }
         }
@@ -799,10 +873,9 @@ class SynchronizerMPI_AMR
     {   
         /*-------->*/Clock.start(7);
         ReceiveFrom.clear();
+        SendTo.clear();
         inner_blocks.clear();
         halo_blocks.clear(); 
-        manyUnpacks.clear();
-        manyUnpacks.resize(size);
         std::vector<int> offsets(size,0);       
         for (int r=0; r<size; r++)
         {
@@ -819,7 +892,6 @@ class SynchronizerMPI_AMR
         }
         UnpacksManager.clear();
         std::vector<size_t> lengths;
-        MapOfInfos.clear();
         /*-------->*/Clock.finish(7);     
 
 
@@ -871,6 +943,7 @@ class SynchronizerMPI_AMR
                     ToBeChecked.push_back(send_interfaces[infoNei.myrank].size()-1);
 
                     ReceiveFrom.insert (infoNei.myrank);
+                    SendTo.insert (infoNei.myrank);
 
                     DM.Add(infoNei.myrank, send_interfaces[infoNei.myrank].size()-1 );
                     l++;
@@ -897,6 +970,7 @@ class SynchronizerMPI_AMR
                         {
                             send_interfaces[infoNeiCoarser.myrank].push_back( Interface(info,infoNeiCoarser,icode,icode2) );
                             DM.Add(infoNeiCoarser.myrank, send_interfaces[infoNeiCoarser.myrank].size()-1 );
+                            SendTo.insert (infoNeiCoarser.myrank);
                         }
 
                         l++;
@@ -924,6 +998,8 @@ class SynchronizerMPI_AMR
                             int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
                             send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode2) );
                             DM.Add(infoNeiFiner.myrank,send_interfaces[infoNeiFiner.myrank].size()-1 );
+
+                            SendTo.insert (infoNeiFiner.myrank);
 
                             l++;
 
@@ -1036,7 +1112,7 @@ class SynchronizerMPI_AMR
                 info.halo_block_id = halo_blocks.size();
                 halo_blocks.push_back(info);
                 lengths.push_back(l);
-                MapOfInfos.push_back( {info.blockID,info.halo_block_id} );
+                UnpacksManager.MapOfInfos.push_back( {info.blockID,info.halo_block_id} );
             }
 
             Clock.finish(8);
@@ -1071,7 +1147,7 @@ class SynchronizerMPI_AMR
             getBlockInfoAll(info.level,info.Z).halo_block_id = info.halo_block_id;  
         }    
 
-        std::sort(MapOfInfos.begin(),MapOfInfos.end());
+        
         Clock.finish(9);
     }
 
@@ -1130,7 +1206,7 @@ public:
         blocksPerDim[2] = a_bz;
         send_interfaces.resize(size);
         send_packinfos.resize(size);
-        send_buffer_size.resize(size);     
+        send_buffer_size.resize(size);  
     }
 
 
@@ -1141,8 +1217,7 @@ public:
 
     std::vector<BlockInfo> avail_halo()
     {
-        MPI_Waitall(size, &recv_requests[0], MPI_STATUSES_IGNORE);
-        MPI_Waitall(size, &send_requests[0], MPI_STATUSES_IGNORE);
+        MPI_Waitall(data_requests.size(), data_requests.data(), MPI_STATUSES_IGNORE);
         return halo_blocks;
     }
 
@@ -1174,84 +1249,32 @@ public:
         recv_buffer     .resize(size);
         recv_buffer_size.resize(size,0);
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-        
+       
         int timestamp = 1;
 
-
-        std::vector<MPI_Request> send_requests1(size);
-        std::vector<MPI_Request> recv_requests1(size);
-
-        std::vector<MPI_Request> send_requests2(size);
-        std::vector<MPI_Request> recv_requests2(size);
-
-        std::vector < std::vector<UnPackInfo> > manyUnpacks_recv(size);
-
-
-        std::vector <int> ss1(size);
-
-        for (int r = 0; r< size; r++)
+        std::vector <int> ss1(size,0);
+        std::vector <int> ss (size,0);
+        std::vector<MPI_Request> requests;
+        for (auto r : ReceiveFrom)
+        {
+            requests.resize(requests.size()+1);
+            MPI_Irecv(&ss[r],1,MPI_INT,r,timestamp,comm,&requests.back());
+        }
+        for (auto r : SendTo)
         {
             ss1[r] = send_buffer[r].size();
-
-            MPI_Isend(manyUnpacks[r].data(), sizeof(UnPackInfo)*manyUnpacks[r].size() , 
-                                  MPI_CHAR, r, timestamp , comm, &send_requests1[r]);
-
-
-            MPI_Isend(&ss1[r], 1 , MPI_INT, r , timestamp, comm, &send_requests2[r]);
+            requests.resize(requests.size()+1);
+            MPI_Isend(&ss1[r],1,MPI_INT,r,timestamp,comm,&requests.back());
         }
-
-        std::vector <int> ss(size);
-
-        for (int r = 0; r< size; r++)
-        {
-            int number_amount;
-            MPI_Status status;
-            MPI_Probe(r, timestamp, MPI_COMM_WORLD, &status);
-            MPI_Get_count(&status, MPI_INT, &number_amount);
-            number_amount *= sizeof(int);
-            manyUnpacks_recv[r].resize(  number_amount/sizeof(UnPackInfo)   );            
-            MPI_Irecv(manyUnpacks_recv[r].data(), sizeof(UnPackInfo)*manyUnpacks_recv[r].size() , 
-                                        MPI_CHAR, r, timestamp , comm, &recv_requests1[r]);
-
-            MPI_Irecv(&ss[r],1,MPI_INT,r,timestamp,comm,&recv_requests2[r]);
-        }
-
-        MPI_Waitall(size, &recv_requests1[0], MPI_STATUSES_IGNORE);
-        MPI_Waitall(size, &send_requests1[0], MPI_STATUSES_IGNORE);
-
-        MPI_Waitall(size, &recv_requests2[0], MPI_STATUSES_IGNORE);
-        MPI_Waitall(size, &send_requests2[0], MPI_STATUSES_IGNORE);
-
-
+        MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
         for (int r=0;r<size;r++)
         {
             recv_buffer_size[r] = ss[r]/NC;
             recv_buffer[r].resize(recv_buffer_size[r]*NC, 777.0);          
-
         }
-
-        for (int r=0; r<size; r++)
-        for (size_t i=0; i < manyUnpacks_recv[r].size(); i++)
-        {
-            UnPackInfo & info = manyUnpacks_recv[r][i];
-
-            std::array <int,2> element = {info.IDreceiver,-1};
-            auto low=std::lower_bound (MapOfInfos.begin(), MapOfInfos.end(), element);
-            int Target = (*low)[1];
-            assert(Target >=0);
-            UnpacksManager.add(info,Target);
-        }
-
-
+        UnpacksManager.SendPacks(recv_buffer_size.data());
+        UnpacksManager.MapIDs();
        
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////
     }
 
 
@@ -1323,13 +1346,27 @@ public:
             }
         }
              
-        send_requests.resize(size);
-        recv_requests.resize(size);
+        
+
+
+
+        data_requests.clear();
         for (int r = 0 ; r < size; r ++ )
         {
-            MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r]*NC, MPIREAL, r, timestamp , comm, &recv_requests[r]);
-            MPI_Isend(&send_buffer[r][0], send_buffer_size[r]*NC, MPIREAL, r, timestamp , comm, &send_requests[r]);  
+            if (recv_buffer_size[r] > 0)
+            {
+                data_requests.resize(data_requests.size()+1);
+                MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r]*NC, MPIREAL, r, timestamp , comm, &data_requests.back());
+            }
+            if (send_buffer_size[r] > 0)
+            {
+                data_requests.resize(data_requests.size()+1);
+                MPI_Isend(&send_buffer[r][0], send_buffer_size[r]*NC, MPIREAL, r, timestamp , comm, &data_requests.back());
+            }   
         }
+
+
+        //wtf UnpacksManager.MapIDs();
     }
 
 

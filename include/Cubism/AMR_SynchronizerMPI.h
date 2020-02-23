@@ -500,6 +500,8 @@ class SynchronizerMPI_AMR
 
             for (int i=0; i<size; i++)
                 manyUnpacks_position[i] = 0;
+            manyUnpacks_recv.clear();
+            manyUnpacks_recv.resize(size);
 
             MapOfInfos.clear();
         }       

@@ -81,7 +81,8 @@ public:
         tolerance_for_refinement = Rtol;
         tolerance_for_compression = Ctol; 
 
-
+        timestamp = 0;
+        
         auto blockperDim = m_refGrid->getMaxBlocks();          
         bool per [3] = {m_refGrid->xperiodic,m_refGrid->yperiodic,m_refGrid->zperiodic}; 
         StencilInfo Cstencil = stencil; 
@@ -89,9 +90,9 @@ public:
                                         TGrid::Block::sizeX,TGrid::Block::sizeY,TGrid::Block::sizeZ,
                                              blockperDim[0],     blockperDim[1],     blockperDim[2]);      
 
-        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll());
+        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
 
-        timestamp = 0;
+        
     }
 
     virtual
@@ -106,7 +107,7 @@ public:
      	Synch->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
    		timestamp = (timestamp + 1) % 32768;
 
-        vector<BlockInfo> avail0, avail1;
+        vector<BlockInfo *> avail0, avail1;
 
         const int nthreads = omp_get_max_threads();
     
@@ -122,7 +123,7 @@ public:
     #if 1  
         avail0 = Synch->avail_inner(); 
         const int Ninner = avail0.size();
-        BlockInfo * ary0 = &avail0.front();
+        //BlockInfo * ary0 = &avail0.front();
         
         #pragma omp parallel num_threads(nthreads)
         {
@@ -132,17 +133,18 @@ public:
             #pragma omp for schedule(dynamic,1)
             for(int i=0; i<Ninner; i++)
             {
-                mylab.load(ary0[i], t);
-                BlockInfo & info = m_refGrid->getBlockInfoAll(ary0[i].level,ary0[i].Z);
-                ary0[i].state = TagLoadedBlock(labs[tid]);
-                info.state = ary0[i].state;
+                BlockInfo & ary0 = * avail0[i];
+                mylab.load(ary0, t);
+                BlockInfo & info = m_refGrid->getBlockInfoAll(ary0.level,ary0.Z);
+                ary0.state = TagLoadedBlock(labs[tid]);
+                info.state = ary0.state;
                 if (info.state != Leave) CallValidStates = true;  
             }
         }
 
         avail1 = Synch->avail_halo();
         const int Nhalo = avail1.size();
-        BlockInfo * ary1 = &avail1.front(); 
+        //BlockInfo * ary1 = &avail1.front(); 
         #pragma omp parallel num_threads(nthreads)
         {
             int tid = omp_get_thread_num();
@@ -151,10 +153,11 @@ public:
             #pragma omp for schedule(dynamic,1)
             for(int i=0; i<Nhalo; i++)
             {
-                mylab.load(ary1[i], t);
-                BlockInfo & info = m_refGrid->getBlockInfoAll(ary1[i].level,ary1[i].Z);
-                ary1[i].state = TagLoadedBlock(labs[tid]);
-                info.state = ary1[i].state;                          
+                BlockInfo & ary1 = * avail1[i];
+                mylab.load(ary1, t);
+                BlockInfo & info = m_refGrid->getBlockInfoAll(ary1.level,ary1.Z);
+                ary1.state = TagLoadedBlock(labs[tid]);
+                info.state = ary1.state;                          
             	if (info.state != Leave) CallValidStates = true;
             }
         }
@@ -349,7 +352,7 @@ public:
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
             m_refGrid->UpdateBlockInfoAll_States(true);
-	        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll());
+	        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
             
             for (int i=0;i<20;i++)
             {
@@ -360,7 +363,7 @@ public:
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
 			{ 
-		       	(*it->second)._Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll());
+		       	(*it->second)._Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
 		      
                 for (int i=0;i<20;i++)
                 {

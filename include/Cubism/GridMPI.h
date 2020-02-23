@@ -327,27 +327,25 @@ public:
 
 
             std::cout <<  "\n";           
-            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces()          :  %6.3f \n" , res[60]);
-            printf( "------>  AMR_SynchronizerMPI:: Sort Interfaces             :  %6.3f \n" , res[61]);
-            printf( "------>  AMR_SynchronizerMPI:: DiscardDuplicates()         :  %6.3f \n" , res[62]);
-            printf( "------>  AMR_SynchronizerMPI:: DiscardDuplicates::cube     :  %6.3f \n" , res[63]);
-            printf( "------>  AMR_SynchronizerMPI:: DiscardDuplicates::keepEl   :  %6.3f \n" , res[64]);
-            printf( "------>  AMR_SynchronizerMPI:: DiscardDuplicates::updateMap:  %6.3f \n" , res[65]);
-            printf( "------>  AMR_SynchronizerMPI:: Clearing send/recv buffers  :  %6.3f \n" , res[66]);
-            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces:clear stuff:  %6.3f \n" , res[67]);
-            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces:post check1:  %6.3f \n" , res[68]);
-            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces:post alloc :  %6.3f \n" , res[69]);
-            printf( "------>  AMR_SynchronizerMPI:: DefineInterfaces:post check2:  %6.3f \n" , res[70]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[70]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[71]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[72]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[73]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[74]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[75]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[76]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[77]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[78]);
-            //printf( "------>  AMR_SynchronizerMPI::   %6.3f \n" , res[79]);
+            printf( "------>  DefineInterfaces total time        :  %6.3f \n" , res[60]);
+            printf( "------>  DefineInterfaces initial clearing  :  %6.3f \n" , res[61]);
+            printf( "------>  DefineInterfaces same level        :  %6.3f \n" , res[62]);
+            printf( "------>  DefineInterfaces check coarser     :  %6.3f \n" , res[63]);
+            printf( "------>  DefineInterfaces check finer       :  %6.3f \n" , res[64]);
+            printf( "------>  DefineInterfaces isInner post      :  %6.3f \n" , res[65]);
+            printf( "------>  DefineInterfaces useCoarseStencil  :  %6.3f \n" , res[66]);
+            printf( "------>  DefineInterfaces remove duplicates :  %6.3f \n" , res[67]);
+            printf( "------>  DefineInterfaces halo block id     :  %6.3f \n" , res[68]);
+            printf( "------>  DefineInterfaces Fill cube         :  %6.3f \n" , res[69]);
+            printf( "------>  DefineInterfaces process duplicates:  %6.3f \n" , res[70]);
+
+
+
+
+
+
+
+
  
             std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
         }
@@ -743,7 +741,7 @@ public:
                                                 blockperDim[0],blockperDim[1],blockperDim[2]);
 
 
-            queryresult->_Setup(& (TGrid::getBlocksInfo())[0],(TGrid::getBlocksInfo()).size() ,TGrid::getBlockInfoAll());           
+            queryresult->_Setup(& (TGrid::getBlocksInfo())[0],(TGrid::getBlocksInfo()).size() ,TGrid::getBlockInfoAll(),timestamp);           
             SynchronizerMPIs[stencil] = queryresult;
             for (int i=0;i<20;i++)
             {

@@ -458,6 +458,13 @@ struct BlockInfo
     int halo_block_id;
     int Zparent;
 
+
+
+    int Zchild[2][2][2];
+
+
+
+
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const
     {
@@ -579,6 +586,16 @@ struct BlockInfo
         {
           Zparent = forward(level-1,(index[0]/2+Bmax[0])%Bmax[0],(index[1]/2+Bmax[1])%Bmax[1],(index[2]/2+Bmax[2])%Bmax[2]);
         }
+
+
+        for (int i=0; i<2; i++)
+        for (int j=0; j<2; j++)
+        for (int k=0; k<2; k++)
+        {
+          Zchild[i][j][k] = forward(level+1, 2*index[0]+i,2*index[1]+j,2*index[2]+k);
+        }
+
+
 
     }
 

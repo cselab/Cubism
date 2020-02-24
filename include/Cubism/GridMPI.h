@@ -328,7 +328,10 @@ public:
 
             std::cout <<  "\n";           
             printf( "------>  DefineInterfaces total time        :  %6.3f \n" , res[60]);
-            printf( "------>  DefineInterfaces initial clearing  :  %6.3f \n" , res[61]);
+
+            printf( "------>  Waitall for sizes                  :  %6.3f \n" , res[61]);
+
+
             printf( "------>  DefineInterfaces same level        :  %6.3f \n" , res[62]);
             printf( "------>  DefineInterfaces check coarser     :  %6.3f \n" , res[63]);
             printf( "------>  DefineInterfaces check finer       :  %6.3f \n" , res[64]);

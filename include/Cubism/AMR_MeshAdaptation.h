@@ -105,9 +105,7 @@ public:
     {
 
     	time = t;
-    
-
-      
+         
      	Synch->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
    		timestamp = (timestamp + 1) % 32768;
 

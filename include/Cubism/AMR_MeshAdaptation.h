@@ -96,10 +96,14 @@ public:
     }
 
     virtual
-    ~MeshAdaptation(){}
+    ~MeshAdaptation()
+    {
+    	delete Synch;
+    }
 
     void AdaptTheMesh(double t = 0)
     {
+
     	time = t;
     
 
@@ -351,6 +355,8 @@ public:
        
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
+
+            std::cout << "Setup called from MeshAdaptation : " << Balancer.movedBlocks << "\n";
             m_refGrid->UpdateBlockInfoAll_States(true);
 	        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
             

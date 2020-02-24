@@ -1,3 +1,4 @@
+#if 0
 /*
  *  SynchronizerMPI.h
  *  Cubism
@@ -1509,3 +1510,4 @@ class MyRange
 };
 
 CUBISM_NAMESPACE_END
+#endif

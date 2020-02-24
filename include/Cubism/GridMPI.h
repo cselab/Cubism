@@ -384,10 +384,6 @@ public:
     }
 
 
-
-
-
-
     std::vector<BlockInfo>& getBlocksInfo() override
     {
         return TGrid::getBlocksInfo();

@@ -453,7 +453,7 @@ struct BlockInfo
     void * auxiliary;     //Pointer to blockcase
     double origin[3];     //(x,y,z) of block's origin   
 
-    bool changed = true;
+    bool changed {true};
 
     int halo_block_id;
     int Zparent;

@@ -38,6 +38,8 @@ void DumpZBin(const TGrid &grid,
               const std::string &dump_path = ".",
               const bool bDummy = false)
 {
+    std::cout << "DumpZBin skipped.\n"; return;
+
     typedef typename TGrid::BlockType B;
 
     // f_name is the base filename without file type extension
@@ -136,6 +138,7 @@ void ReadZBin(TGrid &grid,
               const std::string &f_name,
               const std::string &read_path = ".")
 {
+    std::cout << "ReadZBin skipped.\n"; return;
     typedef typename TGrid::BlockType B;
     typedef typename TGrid::Real Real;
 

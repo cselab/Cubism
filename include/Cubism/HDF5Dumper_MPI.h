@@ -127,6 +127,7 @@ void DumpHDF5_MPI(const TGrid &grid,
 
     H5close();
 
+    delete [] array_block;
 
 
 

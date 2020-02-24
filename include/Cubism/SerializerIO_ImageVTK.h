@@ -29,6 +29,7 @@ public:
 
     void Write(GridType & inputGrid, std::string fileName)
     {
+        std::cout << "SerializerIO_ImageVTK Write skipped.\n"; return;
         static const int BX = TBlock::sizeX;
         static const int BY = TBlock::sizeY;
         static const int BZ = TBlock::sizeZ;
@@ -83,6 +84,8 @@ public:
     template<typename TLab>
     void WriteLabs(GridType & inputGrid, std::string fileName, const Real time=0)
     {
+
+        std::cout << "WriteLabs skipped.\n"; return;
         const std::vector<BlockInfo> vInfo = inputGrid.getBlocksInfo();
 
         static const int BX = TBlock::sizeX;

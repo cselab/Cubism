@@ -31,6 +31,8 @@ typedef struct _header
 template <typename TReal>
 void PlainDumpBin_MPI(MPI_Comm comm, TReal *buffer, long bytes, const std::string& f_name, const std::string& dump_path=".")
 {
+    std::cout << "PlainDumpBin_MPI skipped.\n"; return;
+
 	int rank, nranks;
 	MPI_Status status;
 	MPI_File file_id;
@@ -80,6 +82,7 @@ void PlainDumpBin_MPI(MPI_Comm comm, TReal *buffer, long bytes, const std::strin
 template <typename TReal>
 void PlainReadBin_MPI(MPI_Comm comm, TReal **buffer, long *bytes, const std::string& f_name, const std::string& read_path=".")
 {
+    std::cout << "PlainReadBin_MPI skipped.\n"; return;
 	int rank, nranks;
 	MPI_Status status;
 	MPI_File file_id;

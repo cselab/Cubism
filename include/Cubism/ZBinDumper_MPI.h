@@ -203,6 +203,9 @@ void ReadZBin_MPI(TGrid &grid,
                   const std::string &f_name,
                   const std::string &read_path = ".")
 {
+
+    std::cout << "ReadZBin_MPI skipped\n"; return;
+
     typedef typename TGrid::BlockType B;
 
     int rank, nranks;

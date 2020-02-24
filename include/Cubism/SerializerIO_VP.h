@@ -27,6 +27,7 @@ public:
 
     void Write(GridType & inputGrid, std::string fileName)
     {
+        std::cout << "SerializerIO_VP Write skipped .\n"; return;
         typedef typename GridType::BlockType TBlock;
 
         assert(rank==0);

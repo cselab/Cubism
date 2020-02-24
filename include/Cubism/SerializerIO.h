@@ -27,6 +27,7 @@ public:
     // Virtual methods
     virtual void Write(GridType & inputGrid, std::string fileName)
     {
+        std::cout << "SerializerIO Write skipped.\n"; return;
         std::ofstream output(fileName.c_str(),  ios::out);
 
         output << inputGrid;
@@ -38,6 +39,7 @@ public:
 
     virtual void Read(GridType & inputGrid, std::string fileName)
     {
+        std::cout << "SerializerIO Read skipped.\n"; return;
         std::ifstream input(fileName.c_str(), ios::in);
 
         input >> inputGrid;

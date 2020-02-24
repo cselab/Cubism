@@ -15,6 +15,61 @@
 CUBISM_NAMESPACE_BEGIN
 
 
+template <typename T>
+class GrowingVector
+{
+
+    size_t pos;
+    size_t s;
+
+ public:
+    std::vector<T> v;
+    GrowingVector() {pos = 0;}
+    GrowingVector(size_t size         ){resize(size      );}
+    GrowingVector(size_t size, T value){resize(size,value);}
+
+    void resize(size_t new_size, T value){v.resize(new_size,value); s = new_size; }
+    void resize(size_t new_size         ){v.resize(new_size      ); s = new_size; }
+
+    size_t size(){return s;}
+
+    void clear(){pos = 0; s = 0;}
+
+    void push_back(T value)
+    {
+        if (pos < v.size()) v[pos] = value;
+        else                v.push_back(value);
+        pos++;
+        s ++;
+    }
+
+    T * data (){return v.data();}
+ 
+    T & operator[](size_t i)
+    { 
+        return  v[i];
+    }
+
+    T & back()
+    {
+        return v[pos-1];
+    }
+
+
+
+
+    void EraseAll()
+    {
+        v.clear();
+        pos = 0;
+        s   = 0;
+    }
+};
+
+
+
+
+
 struct Interface
 {
     BlockInfo * infos [2];
@@ -41,18 +96,17 @@ struct MyRange
     int sx, sy, sz, ex, ey, ez;                     
     bool needed;
     std::vector<int> removedIndices;
-
     bool avg_down;
 
-
-
-    int type; //face,edge,corner
-    bool SameLevel;
-
+    int type;
 
     bool contains(MyRange r) const
     {
         if (avg_down != r.avg_down) return false;
+
+
+        if (type < r.type ) return false;
+
 
         int V  = (  ez-  sz)*(  ey-  sy)*(  ex-  sx);
         int Vr = (r.ez-r.sz)*(r.ey-r.sy)*(r.ex-r.sx);
@@ -93,7 +147,7 @@ struct UnPackInfo
     int CoarseVersionLX,CoarseVersionLY;
     int CoarseVersionsrcxstart,CoarseVersionsrcystart,CoarseVersionsrczstart;
     int level,Z,icode; 
-    int IDreceiver;
+    long long IDreceiver;
 };
 
 struct StencilManager
@@ -125,11 +179,9 @@ struct StencilManager
             sLength[3*icode+1] =  code[1]<1? (code[1]<0 ? -stencil.sy:blocksize[1]):stencil.ey-1;
             sLength[3*icode+2] =  code[2]<1? (code[2]<0 ? -stencil.sz:blocksize[2]):stencil.ez-1;
 
-
             sLength[3*(icode+27)+0] = code[0]<1? (code[0]<0 ? -stencil.sx:blocksize[0]/2):stencil.ex-1;
             sLength[3*(icode+27)+1] = code[1]<1? (code[1]<0 ? -stencil.sy:blocksize[1]/2):stencil.ey-1;
             sLength[3*(icode+27)+2] = code[2]<1? (code[2]<0 ? -stencil.sz:blocksize[2]/2):stencil.ez-1;
-
 
             sLength[3*(icode+2*27)+0] = code[0]<1? (code[0]<0 ? -((stencil.sx-1)/2+ Cstencil.sx):blocksize[0]/2):(stencil.ex)/2+ Cstencil.ex -1;
             sLength[3*(icode+2*27)+1] = code[1]<1? (code[1]<0 ? -((stencil.sy-1)/2+ Cstencil.sy):blocksize[1]/2):(stencil.ey)/2+ Cstencil.ey -1;
@@ -348,82 +400,6 @@ struct StencilManager
 
 
 
-template <typename T>
-class MyVector
-{
-    std::vector<T> data;
-    size_t pos;
-
-public:
-
-    MyVector()
-    {
-        pos = 0;
-    }
-
-    MyVector(size_t size)
-    {
-        resize(size);
-    }
-
-    MyVector(size_t size, T value)
-    {
-        resize(size,value);
-    }
-
-    void resize(size_t new_size, T value)
-    {
-        data.resize(new_size,value);
-    }
-
-    void resize(size_t new_size)
-    {
-        data.resize(new_size);
-    }  
-
-    void clear()
-    {
-        pos = 0;
-    }
-
-    void push_back(T value)
-    {
-        if (pos < data.size())
-        {
-            data[pos] = value;
-        }
-        else
-        {
-            data.push_back(value);
-        }
-        pos++;
-    }
-
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 template <typename Real>
@@ -437,18 +413,28 @@ class SynchronizerMPI_AMR
     int size;
     const bool xperiodic,yperiodic,zperiodic;
 
-    std::vector< std::vector<Real> > send_buffer;
-    std::vector< std::vector<Real> > recv_buffer;
-    std::vector<std::vector<Interface>> send_interfaces;
-    std::vector<int> send_buffer_size;
-    std::vector<int> recv_buffer_size;
-
     struct PackInfo { Real * block, * pack; int sx, sy, sz, ex, ey, ez; };
-    std::vector<std::vector<PackInfo>> send_packinfos;
 
-    //communication & computation overlap
+
+#if 0
+    std::vector< std::vector<Real> > send_buffer;
+    std::vector< std::vector<Real> > recv_buffer; 
+    std::vector<std::vector<Interface>> send_interfaces;
+    std::vector<std::vector<PackInfo>> send_packinfos;
+#else
+    std::vector< GrowingVector<Real     >> send_buffer;
+    std::vector< GrowingVector<Real     >> recv_buffer; 
+    std::vector< GrowingVector<Interface>> send_interfaces;
+    std::vector< GrowingVector<PackInfo >> send_packinfos;
+#endif
+    
     std::vector<BlockInfo * > inner_blocks;
     std::vector<BlockInfo * >  halo_blocks;
+
+    std::vector<int> send_buffer_size;
+    std::vector<int> recv_buffer_size;
+   
+
     std::vector <MPI_Request> data_requests;
 
     //grid parameters
@@ -462,29 +448,30 @@ class SynchronizerMPI_AMR
  
     std::set <int> Neighbors;
 
-
     struct UnpacksManagerStruct
     {
-        UnPackInfo *** unpacks;
+        //UnPackInfo *** unpacks;
         size_t blocks;
         size_t * sizes;
         int size;
 
-        std::vector < std::vector <UnPackInfo> > manyUnpacks;
-        std::vector <MPI_Request> pack_requests;
-        std::vector < std::vector<UnPackInfo> > manyUnpacks_recv;
+        std::vector < GrowingVector<UnPackInfo> > manyUnpacks;
+        std::vector < GrowingVector<UnPackInfo> > manyUnpacks_recv;
 
+
+
+        GrowingVector < GrowingVector < UnPackInfo * >  > unpacks;
+
+
+
+        std::vector <MPI_Request> pack_requests;       
         std::vector < std::array<int,2> > MapOfInfos;
 
-
-        std::vector<size_t> manyUnpacks_position;
-        
         UnpacksManagerStruct()
         {
             sizes = nullptr;
             MPI_Comm_size(MPI_COMM_WORLD,&size);
             manyUnpacks_recv.resize(size);
-            manyUnpacks_position.resize(size);
             manyUnpacks.resize(size);
         }
 
@@ -492,35 +479,26 @@ class SynchronizerMPI_AMR
         {
             if (sizes != nullptr)
             {
-            delete [] sizes;
-            for (size_t i=0; i< blocks; i++)
-                delete [] unpacks[i];
-            delete [] unpacks;
-            }
+                delete [] sizes;
+                for (size_t i=0; i< blocks; i++)
+                {
+                    //delete [] unpacks[i];
+                    unpacks[i].clear();
+                }
+                unpacks.clear();
+                //delete [] unpacks;
 
+
+
+
+            }
             for (int i=0; i<size; i++)
-                manyUnpacks_position[i] = 0;
-            manyUnpacks_recv.clear();
-            manyUnpacks_recv.resize(size);
-
+            {
+                manyUnpacks[i].clear();
+                manyUnpacks_recv[i].clear();
+            }
             MapOfInfos.clear();
-        }       
-
-
-
-        void CollectUnpack(UnPackInfo & info, int r)
-        {
-            if (manyUnpacks_position[r] < manyUnpacks[r].size())
-            {
-                manyUnpacks[r][manyUnpacks_position[r]] = info;
-            }
-            else
-            {
-                manyUnpacks[r].push_back(info);
-            }
-            manyUnpacks_position[r] ++;   
         }
-
 
         ~UnpacksManagerStruct()
         {
@@ -530,31 +508,31 @@ class SynchronizerMPI_AMR
         void _allocate(size_t a_blocks, size_t * L)
         {
             blocks  = a_blocks;
-            unpacks = new UnPackInfo ** [blocks];
-            sizes   = new size_t [blocks];    
+            //unpacks = new UnPackInfo ** [blocks];
+            unpacks.resize(blocks);
+            sizes   = new size_t [blocks];
             for (size_t i=0; i<blocks; i++)
             {
                 sizes[i] = 0;
-                unpacks[i] = new UnPackInfo * [L[i]];
+                //unpacks[i] = new UnPackInfo * [L[i]];
+                unpacks[i].resize(L[i]);
+
             }
         }
-
 
         void add(UnPackInfo & info, size_t block_id)
         {
             unpacks[block_id][sizes[block_id]] = &info;
             sizes[block_id] ++;
         }
-
         
         void SendPacks(int * recv_sizes, int timestamp)
         {
             assert (pack_requests.size() == 0);
-
-            for (int r = 0; r< size; r++) if   (manyUnpacks_position[r]>0)// (manyUnpacks[r].size()>0)
+            for (int r = 0; r< size; r++) if (manyUnpacks[r].size() > 0) 
             {
                 pack_requests.resize(pack_requests.size()+1);
-                MPI_Isend(manyUnpacks[r].data(), sizeof(UnPackInfo)*manyUnpacks_position[r]/*manyUnpacks[r].size()*/ , MPI_CHAR, r, timestamp , MPI_COMM_WORLD, &pack_requests.back());
+                MPI_Isend(manyUnpacks[r].data(), sizeof(UnPackInfo)*manyUnpacks[r].size() , MPI_CHAR, r, timestamp , MPI_COMM_WORLD, &pack_requests.back());
             }
            
             for (int r = 0; r< size; r++) if (recv_sizes[r] > 0)
@@ -564,35 +542,32 @@ class SynchronizerMPI_AMR
                 MPI_Probe(r, timestamp, MPI_COMM_WORLD, &status);
                 MPI_Get_count(&status, MPI_INT, &number_amount);
                 number_amount *= sizeof(int);
-                manyUnpacks_recv[r].resize(  number_amount/sizeof(UnPackInfo)   );            
+                manyUnpacks_recv[r].resize(number_amount/sizeof(UnPackInfo));            
                 
                 pack_requests.resize(pack_requests.size()+1);
                 MPI_Irecv(manyUnpacks_recv[r].data(), sizeof(UnPackInfo)*manyUnpacks_recv[r].size() , MPI_CHAR, r, timestamp , MPI_COMM_WORLD, &pack_requests.back());
             }
         }
 
-
-
         void MapIDs()
         {
             if (pack_requests.size() > 0) 
             {
-            MPI_Waitall(pack_requests.size(), pack_requests.data(), MPI_STATUSES_IGNORE);
-            pack_requests.clear();
-
-            std::sort(MapOfInfos.begin(),MapOfInfos.end());
-           
-            for (int r=0; r<size; r++)
-            for (size_t i=0; i < manyUnpacks_recv[r].size(); i++)
-            {
-                UnPackInfo & info = manyUnpacks_recv[r][i];
-    
-                std::array <int,2> element = {info.IDreceiver,-1};
-                auto low=std::lower_bound (MapOfInfos.begin(), MapOfInfos.end(), element);
-                int Target = (*low)[1];
-                assert(Target >=0);
-                add(info,Target);
-            }          
+                MPI_Waitall(pack_requests.size(), pack_requests.data(), MPI_STATUSES_IGNORE);
+                pack_requests.clear();
+                std::sort(MapOfInfos.begin(),MapOfInfos.end());
+               
+                for (int r=0; r<size; r++)
+                for (size_t i=0; i < manyUnpacks_recv[r].size(); i++)
+                {
+                    UnPackInfo & info = manyUnpacks_recv[r][i];
+        
+                    std::array <int,2> element = {info.IDreceiver,-1};
+                    auto low=std::lower_bound (MapOfInfos.begin(), MapOfInfos.end(), element);
+                    int Target = (*low)[1];
+                    assert(Target >=0);
+                    add(info,Target);
+                }          
             }
       
         }
@@ -605,11 +580,21 @@ class SynchronizerMPI_AMR
 
     struct DuplicatesManager
     {
-
         struct cube //could be more efficient, fix later
         {
-            std::vector <MyRange>  compass [27];
-    
+            //std::vector <MyRange>  compass [27];
+            GrowingVector <MyRange> compass [27];
+
+            void clear()
+            {
+                for (int i=0;i<27;i++) compass[i].clear();
+            }
+
+            void EraseAll()
+            {
+                for (int i=0;i<27;i++) compass[i].EraseAll();
+            }
+     
             cube(){}
         
             std::vector<MyRange *> keepEl()
@@ -618,16 +603,21 @@ class SynchronizerMPI_AMR
             
                 for (int i=0; i<27; i++)
                 {
-                    std::vector<MyRange> & ranges = compass[i];
-                    for (auto & r:ranges) if (r.needed)
-                        retval.push_back(&r);
+                    for (size_t j=0; j< compass[i].size() ; j++)
+                    {
+                        if (compass[i][j].needed)
+                            retval.push_back(&compass[i][j]);
+                    }
                 }    
-    
-                //std::sort(retval.begin(),retval.end());
-                
                 return retval;
             }
         
+
+
+
+
+
+
             void __needed(std::vector<int> & v)
             {
                 static constexpr std::array <int,3> faces_and_edges [18] = {
@@ -639,18 +629,20 @@ class SynchronizerMPI_AMR
                 for (auto & f:faces_and_edges)
                 if ( compass[f[0] + f[1]*3 + f[2]*9].size() != 0 )
                 {
-                    std::vector<MyRange> & me = compass[f[0] + f[1]*3 + f[2]*9];
-                 
-                
+                    auto & me = compass[f[0] + f[1]*3 + f[2]*9];
+
                     bool needme = false;
-                    std::vector<MyRange> & other1 = compass[f[0] + f[1]*3 + f[2]*9];       
-                    for (auto & o:other1)
+                    auto & other1 = compass[f[0] + f[1]*3 + f[2]*9];       
+                    for (size_t j1=0; j1<other1.size(); j1++)
                     { 
+                        auto & o = other1[j1];
                         if (o.needed)
                         {
                             needme = true;
     
-                            for (auto & m:me   )
+                            for (size_t j=0; j<me.size(); j++)
+                            {
+                             auto & m = me[j];
                              if (m.needed && m.contains(o) )
                              {
                                 o.needed = false;
@@ -659,6 +651,7 @@ class SynchronizerMPI_AMR
                                 v.push_back(o.index);
                                 break;
                              }
+                            }
                         }
                     }             
                     if (!needme) continue;
@@ -677,28 +670,33 @@ class SynchronizerMPI_AMR
                     for (int i=imin;i<=imax;i++)
                     {
                         if (i==f[0] && j==f[1] && k==f[2]) continue;
-                        std::vector<MyRange> & other = compass[i + j*3 + k*9];       
+                        auto & other = compass[i + j*3 + k*9];       
     
-                        for (auto & o:other) if (o.needed)
-                        {
-                           for (auto & m:me   )
-                           {  
-                            if (m.needed && m.contains(o) )
+                        for (size_t j1=0; j1<other.size(); j1++)
+                        { 
+                            auto & o = other[j1];
+                            if (o.needed)
                             {
-                               o.needed = false;
-                               m.removedIndices.push_back(o.index);
-                               m.Remove(o);
-                               v.push_back(o.index);
-                               break;
+                               for (size_t k1=0; k1<me.size(); k1++)
+                               {  
+                                    auto & m = me[k1];
+                                    if (m.needed && m.contains(o) )
+                                    {
+                                        o.needed = false;
+                                        m.removedIndices.push_back(o.index);
+                                        m.Remove(o);
+                                        v.push_back(o.index);
+                                        break;
+                                    }
+                               }
                             }
-                          }
                         }
                     }
                 } 
             }
         };
       
-
+        cube C;
 
         std::vector<bool> skip_needed;
         int size;
@@ -727,20 +725,31 @@ class SynchronizerMPI_AMR
         {
             std::vector<int> remEl;
 
-
-
             Synch_ptr->Clock.start(9);
-            cube C;
+
+            C.clear();
+
             for (size_t i=0; i<positions[r].size();i++)
             {              
                 C.compass[f[positions[r][i]].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[positions[r][i]]));
                 C.compass[f[positions[r][i]].icode[0]].back().index = positions[r][i];
                 C.compass[f[positions[r][i]].icode[0]].back().avg_down = (f[positions[r][i]].infos[0]->level > f[positions[r][i]].infos[1]->level);
-                             
-                int t =  abs(f[positions[r][i]].icode[0]%3-1) + abs( (f[positions[r][i]].icode[0]/3)%3-1) + abs ((f[positions[r][i]].icode[0]/9)%3-1);
 
-                C.compass[f[positions[r][i]].icode[0]].back().type      = t;
-                C.compass[f[positions[r][i]].icode[0]].back().SameLevel = (f[positions[r][i]].infos[0]->level == f[positions[r][i]].infos[1]->level);
+
+
+
+
+                const int code[3] = { f[positions[r][i]].icode[1]%3-1, (f[positions[r][i]].icode[1]/3)%3-1, (f[positions[r][i]].icode[1]/9)%3-1};
+
+
+
+                int sum = abs(code[0]) + abs(code[1]) + abs(code[2]);
+                C.compass[f[positions[r][i]].icode[0]].back().type = 4-sum;
+
+
+
+
+
 
                 if (!skip_needed[r]) skip_needed[r] = f[positions[r][i]].CoarseStencil;
             }
@@ -752,28 +761,11 @@ class SynchronizerMPI_AMR
             } 
             Synch_ptr->Clock.finish(9);
 
-
-            //cube_new Cnew;
-            //Cnew.Synch_ptr = Synch_ptr;
-            //int min_pos = 10000000;
-            //for (size_t i=0; i<positions[r].size();i++)
-            //{
-            //    min_pos = min(min_pos,positions[r][i]);
-            //}
-            //Cnew.F = & f[min_pos];
-            //Cnew.Fsize = positions[r].size();
-            //Cnew._needed(skip_needed[r]);
-            
+           
             Synch_ptr->Clock.start(10);
             for (auto & i:C.keepEl())
             {
-                int k = i->index; 
-                
-            
-            //for (int i = 0; i < Cnew.RemovedIndices.size(); i++)
-            //{
-            //    int k = Cnew.RemovedIndices[i][0] + min_pos;
-
+                int k = i->index;            
                 int L [3] ={0,0,0};
                 int Lc[3] ={0,0,0};
                  
@@ -804,17 +796,11 @@ class SynchronizerMPI_AMR
                     info.CoarseVersionLY = Lc[1];
                 }                   
                     
-                //Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info);
-                Synch_ptr->UnpacksManager.CollectUnpack(info,r);
-
+                Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info);
                 
                 for (int kk=0; kk< (int)(*i).removedIndices.size();kk++)
                 {
                     int remEl1 = i->removedIndices[kk];
-                //for (int kk=1; kk< Cnew.RemovedIndices[i].size();kk++)
-                //{
-                //    int remEl1 = Cnew.RemovedIndices[i][kk] + min_pos;
-
 
                     Synch_ptr->SM.DetermineStencilLength(f[remEl1].infos[0]->level,f[remEl1].infos[1]->level,f[remEl1].icode[1],&L[0]);
                         
@@ -830,15 +816,11 @@ class SynchronizerMPI_AMR
                     {
                         Synch_ptr->SM.__FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);
                     }
-                                                            
-                    UnPackInfo info2 =  {info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,
-                        info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY,
-                        Csrcx, Csrcy, Csrcz,
-                        f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1],f[remEl1].infos[1]->blockID};
 
-                    //Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info2);
-                    Synch_ptr->UnpacksManager.CollectUnpack(info2,r);
-
+                    Synch_ptr->UnpacksManager.manyUnpacks[r].push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,
+                    info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY,
+                    Csrcx, Csrcy, Csrcz,
+                    f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1],f[remEl1].infos[1]->blockID});
                 } 
             }
             Synch_ptr->Clock.finish(10);
@@ -1076,7 +1058,7 @@ class SynchronizerMPI_AMR
                 else if (infoNei.TreePos == CheckCoarser)
                 {
                     /*-------->*/Clock.start(3);
-                	Coarsened = true;
+                    Coarsened = true;
 
                     int nCoarse = infoNei.Z /8; //not sure if this works for Hilbert (probably yes)
                     //int nCoarse =infoNei.Zparent;
@@ -1255,8 +1237,8 @@ class SynchronizerMPI_AMR
             Clock.start(6);
             if (Coarsened) for (int j = 0 ; j <(int) ToBeChecked.size() ; j +=2 )
             {
-            	bool temp  = UseCoarseStencil(send_interfaces[ToBeChecked[j]][ToBeChecked[j+1]]);
-          		send_interfaces[ToBeChecked[j]][ToBeChecked[j+1]].CoarseStencil = temp;
+                bool temp  = UseCoarseStencil(send_interfaces[ToBeChecked[j]][ToBeChecked[j+1]]);
+                send_interfaces[ToBeChecked[j]][ToBeChecked[j+1]].CoarseStencil = temp;
             }           
             Clock.finish(6);
 
@@ -1264,7 +1246,7 @@ class SynchronizerMPI_AMR
             Clock.start(7);
             for (int r=0; r<size; r++)
             {
-                DM.RemoveDuplicates(r, send_interfaces[r], offsets[r], send_buffer_size[r] ,stencil.selcomponents.size() );
+                DM.RemoveDuplicates(r, send_interfaces[r].v, offsets[r], send_buffer_size[r] ,stencil.selcomponents.size() );
             }
             Clock.finish(7);
 
@@ -1363,7 +1345,9 @@ public:
 
 
     void _Setup(BlockInfo * a_myInfos, size_t a_myInfos_size, std::vector<std::vector<BlockInfo >> & a_BlockInfoAll, const int timestamp)
-    {   
+    {
+        std::cout << " Calling _Setup ... \n";
+
         Clock.reset();
 
         myInfos_size = a_myInfos_size;
@@ -1381,11 +1365,8 @@ public:
             send_buffer[r].resize(send_buffer_size[r]*NC, 666.0);
         /*-------->*/Clock.finish(0);     
 
-        
-
-        
+               
         recv_buffer_size.resize(size,0);
-      
 
         std::vector <int> ss1(size,0);
         std::vector <int> ss (size,0);
@@ -1514,16 +1495,16 @@ public:
       
         int id = info.halo_block_id;
         if (id < 0) return;
-	     
-        UnPackInfo ** unpacks =  UnpacksManager.unpacks[id];
+         
+        UnPackInfo ** unpacks =  UnpacksManager.unpacks[id].data();
         
         for (size_t jj=0; jj< UnpacksManager.sizes[id]; jj++)
         {
             UnPackInfo & unpack = *unpacks[jj];
  
-        	const int code[3] = { unpack.icode%3-1, (unpack.icode/3)%3-1, (unpack.icode/9)%3-1};
+            const int code[3] = { unpack.icode%3-1, (unpack.icode/3)%3-1, (unpack.icode/9)%3-1};
 
-        	BlockInfo & other = getBlockInfoAll(unpack.level,unpack.Z);
+            BlockInfo & other = getBlockInfoAll(unpack.level,unpack.Z);
 
             const int s[3] = { code[0]<1? (code[0]<0 ? stencil.sx:0 ):nX,
                                code[1]<1? (code[1]<0 ? stencil.sy:0 ):nY,
@@ -1532,8 +1513,8 @@ public:
                                code[1]<1? (code[1]<0 ? 0         :nY):nY+ stencil.ey-1,
                                code[2]<1? (code[2]<0 ? 0         :nZ):nZ+ stencil.ez-1};
 
-        	if (other.level == info.level)
-        	{             
+            if (other.level == info.level)
+            {             
                 Real * dst =  cacheBlock + ( (s[2]-stencil.sz)*ElemsPerSlice[0] + (s[1]-stencil.sy)*Length[0] + s[0]-stencil.sx  )*gptfloats;
 
                 unpack_subregion<Real>(&recv_buffer[other.myrank][unpack.offset],
@@ -1554,9 +1535,9 @@ public:
 
                     Real * dst1 = coarseBlock + ((s1[2]-sC[2])*ElemsPerSlice[1] + (s1[1]-sC[1])*CLength[0] + s1[0]-sC[0])*gptfloats;
 
-              	    int L[3];
-              	    int code__[3] = {-code[0],-code[1],-code[2]};
-          			SM.CoarseStencilLength(&code__[0],&L[0]);
+                    int L[3];
+                    int code__[3] = {-code[0],-code[1],-code[2]};
+                    SM.CoarseStencilLength(&code__[0],&L[0]);
 
                     unpack_subregion<Real>(&recv_buffer[other.myrank][unpack.offset+unpack.CoarseVersionOffset],
                     &dst1[0],gptfloats,&stencil.selcomponents[0],stencil.selcomponents.size(),                               
@@ -1564,9 +1545,9 @@ public:
                     unpack.CoarseVersionLX,unpack.CoarseVersionLY,
                     0,0,0,L[0],L[1],L[2],CLength[0],CLength[1],CLength[2]);
                 }
-        	}
-        	else if (other.level < info.level)
-        	{
+            }
+            else if (other.level < info.level)
+            {
                 const int sC[3] = {code[0]<1? (code[0]<0 ? ((stencil.sx-1)/2+ Cstencil.sx) :0 ) : nX/2,
                                    code[1]<1? (code[1]<0 ? ((stencil.sy-1)/2+ Cstencil.sy) :0 ) : nY/2,
                                    code[2]<1? (code[2]<0 ? ((stencil.sz-1)/2+ Cstencil.sz) :0 ) : nZ/2 };              
@@ -1575,67 +1556,67 @@ public:
 
                 Real * dst = coarseBlock + ((sC[2]-offset[2])*ElemsPerSlice[1] + sC[0]-offset[0] + (sC[1]-offset[1])* CLength[0])*gptfloats;
                    
-            	unpack_subregion<Real>(&recv_buffer[other.myrank][unpack.offset],
+                unpack_subregion<Real>(&recv_buffer[other.myrank][unpack.offset],
                 &dst[0],gptfloats,&stencil.selcomponents[0],stencil.selcomponents.size(),                    
                 unpack.srcxstart,unpack.srcystart,unpack.srczstart,unpack.LX,unpack.LY,
                 0,0,0,unpack.lx,unpack.ly,unpack.lz,CLength[0],CLength[1],CLength[2]);
-        	}
-        	else 
-        	{
-        		int B;
+            }
+            else 
+            {
+                int B;
                 if ((abs(code[0])+abs(code[1])+abs(code[2])==3 )) B = 0;//corner
                 else if ((abs(code[0])+abs(code[1])+abs(code[2])==2 )) //edge
                 {
-                	int t;
-                	if ( code[0] == 0 )
-                	{
-                		t = other.index[0] - (2*info.index[0] + max(code[0],0) +code[0]);
-                	}
-                	else if (code[1] == 0)
-                	{
-	               		t = other.index[1] - (2*info.index[1] + max(code[1],0) +code[1]);
-                	}
-                	else // if (code[2] ==0)
-                	{
-                		t = other.index[2] - (2*info.index[2] + max(code[2],0) +code[2]);
-                	}
+                    int t;
+                    if ( code[0] == 0 )
+                    {
+                        t = other.index[0] - (2*info.index[0] + max(code[0],0) +code[0]);
+                    }
+                    else if (code[1] == 0)
+                    {
+                        t = other.index[1] - (2*info.index[1] + max(code[1],0) +code[1]);
+                    }
+                    else // if (code[2] ==0)
+                    {
+                        t = other.index[2] - (2*info.index[2] + max(code[2],0) +code[2]);
+                    }
 
-                	assert (t == 0 || t == 1);
-                	if (t == 1) B = 3;
-                	else        B = 0;
+                    assert (t == 0 || t == 1);
+                    if (t == 1) B = 3;
+                    else        B = 0;
                 }
                 else
                 {
-                	int Bmod,Bdiv;
-                	if ( abs(code[0]) == 1 )
-                	{
-                		Bmod = other.index[1] - (2*info.index[1] + max(code[1],0) +code[1]);
-                		Bdiv = other.index[2] - (2*info.index[2] + max(code[2],0) +code[2]);
-                	}
-                	else if (abs(code[1]) == 1)
-       	         	{
-                		Bmod = other.index[0] - (2*info.index[0] + max(code[0],0) +code[0]);
-                		Bdiv = other.index[2] - (2*info.index[2] + max(code[2],0) +code[2]);
-                	}
-                	else
-       	         	{
-                		Bmod = other.index[0] - (2*info.index[0] + max(code[0],0) +code[0]);
-                		Bdiv = other.index[1] - (2*info.index[1] + max(code[1],0) +code[1]);
-                	}
+                    int Bmod,Bdiv;
+                    if ( abs(code[0]) == 1 )
+                    {
+                        Bmod = other.index[1] - (2*info.index[1] + max(code[1],0) +code[1]);
+                        Bdiv = other.index[2] - (2*info.index[2] + max(code[2],0) +code[2]);
+                    }
+                    else if (abs(code[1]) == 1)
+                    {
+                        Bmod = other.index[0] - (2*info.index[0] + max(code[0],0) +code[0]);
+                        Bdiv = other.index[2] - (2*info.index[2] + max(code[2],0) +code[2]);
+                    }
+                    else
+                    {
+                        Bmod = other.index[0] - (2*info.index[0] + max(code[0],0) +code[0]);
+                        Bdiv = other.index[1] - (2*info.index[1] + max(code[1],0) +code[1]);
+                    }
        
-                	B = 2*Bdiv + Bmod;
+                    B = 2*Bdiv + Bmod;
                 }              
                 const int aux1 = (abs(code[0])==1) ? (B%2) : (B/2) ;
                 
-              	int iz = s[2];
-               	int iy = s[1];
+                int iz = s[2];
+                int iy = s[1];
 
-               	const int my_ix =  abs(code[0])*(s[0]-stencil.sx) + (1-abs(code[0]) )*(  s[0]  -stencil.sx + (B%2)*(e[0]-s[0])/2);   
+                const int my_ix =  abs(code[0])*(s[0]-stencil.sx) + (1-abs(code[0]) )*(  s[0]  -stencil.sx + (B%2)*(e[0]-s[0])/2);   
                 const int m_vSize0         = Length[0];
                 const int m_nElemsPerSlice = ElemsPerSlice[0];
                 const int my_izx = ( abs(code[2])*(iz-stencil.sz) + (1-abs(code[2]) )*(iz/2-stencil.sz + (B/2)*(e[2]-s[2])/2)  )*m_nElemsPerSlice + my_ix;
        
-              	Real * dst = cacheBlock +  (my_izx + ( abs(code[1])*(iy-stencil.sy) + (1-abs(code[1]) )*(iy/2-stencil.sy + aux1*(e[1]-s[1])/2)  )*m_vSize0) * gptfloats;
+                Real * dst = cacheBlock +  (my_izx + ( abs(code[1])*(iy-stencil.sy) + (1-abs(code[1]) )*(iy/2-stencil.sy + aux1*(e[1]-s[1])/2)  )*m_vSize0) * gptfloats;
               
                 unpack_subregion<Real>(&recv_buffer[other.myrank][unpack.offset],
                 &dst[0],gptfloats,
@@ -1647,7 +1628,7 @@ public:
                 Length[0],
                 Length[1],
                 Length[2]);
-        	}  
+            }  
         }   
     }
 

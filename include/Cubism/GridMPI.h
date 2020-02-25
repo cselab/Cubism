@@ -18,8 +18,6 @@
 #include "AMR_SynchronizerMPI.h"
 
 
-#include <chrono>
-
 CUBISM_NAMESPACE_BEGIN
 
 template < typename TGrid >
@@ -27,8 +25,6 @@ class GridMPI : public TGrid
 {
 public:
     typedef typename TGrid::Real Real;
-
-    double TIMINGS [100];
 
 
 private:
@@ -88,10 +84,6 @@ public:
         mypeindex[0] = 0;
         mypeindex[1] = 0;
         mypeindex[2] = 0;
-
-        
-        for (int k=0;k<100;k++)
-            TIMINGS[k]=0;
 
         int total_blocks = nX*nY*nZ*pow(pow(2,a_levelStart),3);
         MPI_Comm_rank(worldcomm, &myrank);   
@@ -284,74 +276,7 @@ public:
         SynchronizerMPIs.clear();
         //MPI_Comm_free(&cartcomm);
 
-        TIMINGS[8] = TIMINGS[4]+TIMINGS[5];
-
-        double res [100];
-        MPI_Reduce(&TIMINGS[0], &res[0] , 100, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-        if (myrank == 0)
-        {
-        	std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
-            std::cout << "TIMINGS:\n";
-
-            printf( "UpdateBlockInfoAll_States :  %6.2f \n",res[0]);
-            printf( "SynchronizerMPI sync      :  %6.2f \n",res[1]);
-            printf( "Fillpos                   :  %6.2f \n",res[2]);
-            printf( "FillBlockCases            :  %6.2f \n",res[3]);
-            printf( "Kernels (inner)           :  %6.2f \n",res[4]);
-            printf( "Kernels (outer)           :  %6.2f \n",res[5]);
-            printf( "ValidStates               :  %6.2f \n",res[6]);
-            printf( "BalanceDiffusion          :  %6.2f \n",res[7]);
-            printf( "Kernels (total)           :  %6.2f \n",res[8]);
-
-
-            std::cout <<  "\n";
-            printf( "---> FluxCorrection::prepare     : %6.3f \n" , res[9 ]);
-            printf( "---> FluxCorrection::pack data   : %6.3f \n" , res[10]);
-            printf( "---> FluxCorrection::inner faces : %6.3f \n" , res[11]);
-            printf( "---> FluxCorrection::waiting     : %6.3f \n" , res[12]);
-            printf( "---> FluxCorrection::outer faces : %6.3f \n" , res[13]);
-            printf( "---> FluxCorrection::correct     : %6.3f \n" , res[14]);
-            printf( "---> FluxCorrection::            : %6.3f \n" , res[15]);
-            printf( "---> FluxCorrection::            : %6.3f \n" , res[16]);
-            printf( "---> FluxCorrection::            : %6.3f \n" , res[17]);
-            printf( "---> FluxCorrection::            : %6.3f \n" , res[18]);
-
-
-            std::cout <<  "\n";
-            std::cout <<  "\n";
-            printf( "---> MeshAdaptation::Block Tag      : %6.3f \n" , res[30]);
-            printf( "---> MeshAdaptation::Refine         : %6.3f \n" , res[31]);
-            printf( "---> MeshAdaptation::Compress       : %6.3f \n" , res[32]);
-            printf( "---> MeshAdaptation::Fillpos/Update : %6.3f \n" , res[33]);
-            printf( "---> MeshAdaptation::setup/sync     : %6.3f \n" , res[34]);
-
-
-            std::cout <<  "\n";           
-            printf( "------>  DefineInterfaces total time        :  %6.3f \n" , res[60]);
-
-            printf( "------>  Waitall for sizes                  :  %6.3f \n" , res[61]);
-
-
-            printf( "------>  DefineInterfaces same level        :  %6.3f \n" , res[62]);
-            printf( "------>  DefineInterfaces check coarser     :  %6.3f \n" , res[63]);
-            printf( "------>  DefineInterfaces check finer       :  %6.3f \n" , res[64]);
-            printf( "------>  DefineInterfaces isInner post      :  %6.3f \n" , res[65]);
-            printf( "------>  DefineInterfaces useCoarseStencil  :  %6.3f \n" , res[66]);
-            printf( "------>  DefineInterfaces remove duplicates :  %6.3f \n" , res[67]);
-            printf( "------>  DefineInterfaces halo block id     :  %6.3f \n" , res[68]);
-            printf( "------>  DefineInterfaces Fill cube         :  %6.3f \n" , res[69]);
-            printf( "------>  DefineInterfaces process duplicates:  %6.3f \n" , res[70]);
-
-
-
-
-
-
-
-
- 
-            std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
-        }
+        Clock.display();
 
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -604,9 +529,7 @@ public:
     };
 #endif
     void UpdateBlockInfoAll_States(bool GlobalUpdate = true) 
-    {
-        /*---------------->*/double started = MPI_Wtime();
-        
+    {        
         int rank,size;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
         MPI_Comm_size(MPI_COMM_WORLD,&size); 
@@ -703,8 +626,6 @@ public:
         delete [] All_data;    
         delete [] AllLengths;
         delete [] myData;
-        /*---------------->*/double done = MPI_Wtime();
-        /*---------------->*/TIMINGS [0] += done - started;
     }
 
 
@@ -712,9 +633,6 @@ public:
     template<typename Processing>
     SynchronizerMPIType * sync(Processing& p)
     {
-
-        auto started = MPI_Wtime();
-
         bool per [3] = {TGrid::xperiodic,TGrid::yperiodic,TGrid::zperiodic};
 
         //temporarily hardcoded Cstencil
@@ -742,10 +660,6 @@ public:
 
             queryresult->_Setup(& (TGrid::getBlocksInfo())[0],(TGrid::getBlocksInfo()).size() ,TGrid::getBlockInfoAll(),timestamp);           
             SynchronizerMPIs[stencil] = queryresult;
-            for (int i=0;i<20;i++)
-            {
-                TIMINGS[60+i] += queryresult->Clock.TIMINGS[i];
-            }
 
         }
         else
@@ -757,10 +671,7 @@ public:
         queryresult->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp) ;//, TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
         timestamp = (timestamp + 1) % 32768;
 
-        auto done = MPI_Wtime();
-
-        TIMINGS [1] += (done-started);
-
+      
 
 
         return queryresult;
@@ -790,10 +701,7 @@ public:
 
     virtual void FillPos(bool CopyInfos = true) override
     { 
-        /*-------------->*/auto started = MPI_Wtime();     	   
         TGrid::FillPos(CopyInfos);
-        /*-------------->*/auto done = MPI_Wtime();
-        /*-------------->*/TIMINGS [2] += done-started; 
     }
 
 

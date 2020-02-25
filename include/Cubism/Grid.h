@@ -272,7 +272,7 @@ public:
  
     int getZforward(const int level,const int i, const int j, const int k) const 
     {
-        int TwoPower = 1<<level;//pow(2,level);
+        int TwoPower = 1<<level;
         int ix = (i+TwoPower*NX) % (NX*TwoPower);
         int iy = (j+TwoPower*NY) % (NY*TwoPower);
         int iz = (k+TwoPower*NZ) % (NZ*TwoPower);

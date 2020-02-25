@@ -105,9 +105,11 @@ public:
     {
 
     	time = t;
-         
+        /*------------->*/Clock.start(10,"sync"); 
      	Synch->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
-   		timestamp = (timestamp + 1) % 32768;
+   		/*------------->*/Clock.finish(10);
+        
+        timestamp = (timestamp + 1) % 32768;
 
         vector<BlockInfo *> avail0, avail1;
 
@@ -116,16 +118,19 @@ public:
         labs = new TLab[nthreads];
         for (int i=0; i<nthreads; i++)
           labs[i].prepare(*m_refGrid, *Synch);
-        double started = MPI_Wtime();
 
+
+
+        /*------------->*/Clock.start(0,"MeshAdaptation: Barrier before block tagging");
         MPI_Barrier(MPI_COMM_WORLD); 
+        /*------------->*/Clock.finish(0);
   
         bool CallValidStates = false;
 
-    #if 1  
+    #if 1
+        /*------------->*/Clock.start(1,"MeshAdaptation: inner blocks tagging");  
         avail0 = Synch->avail_inner(); 
         const int Ninner = avail0.size();
-        //BlockInfo * ary0 = &avail0.front();
         
         #pragma omp parallel num_threads(nthreads)
         {
@@ -143,8 +148,14 @@ public:
                 if (info.state != Leave) CallValidStates = true;  
             }
         }
+        /*------------->*/Clock.finish(1);
 
+
+        /*------------->*/Clock.start(2,"MeshAdaptation: waiting for inner blocks");
         avail1 = Synch->avail_halo();
+        /*------------->*/Clock.finish(2);
+
+        /*------------->*/Clock.start(3,"MeshAdaptation: inner block tagging");
         const int Nhalo = avail1.size();
         //BlockInfo * ary1 = &avail1.front(); 
         #pragma omp parallel num_threads(nthreads)
@@ -163,6 +174,7 @@ public:
             	if (info.state != Leave) CallValidStates = true;
             }
         }
+        /*------------->*/Clock.finish(3);
     #else
         static int rounds = -1;
         static int one_less = 1;
@@ -246,26 +258,24 @@ public:
         }
     #endif
 
-
-        double done = MPI_Wtime();
-        m_refGrid->TIMINGS [30] += done-started; 
-
-        started = MPI_Wtime();
-
+        /*------------->*/Clock.start(4,"MeshAdaptation: ValidStates");
         int tmp = CallValidStates ? 1:0;
         MPI_Allreduce(MPI_IN_PLACE,&tmp,1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
         CallValidStates = (tmp == 1);
  
         if (CallValidStates) ValidStates();
-        done = MPI_Wtime();
-        m_refGrid->TIMINGS [6] += done-started; 
+        /*------------->*/Clock.finish(4);
 
 
+
+        /*------------->*/Clock.start(5,"MeshAdaptation: PrepareCompression");
         LoadBalancer <TGrid> Balancer (*m_refGrid);
         Balancer.PrepareCompression();
+        /*------------->*/Clock.finish(5);
 
         //Refinement/compression of blocks
         /*************************************************/
+        /*------------->*/Clock.start(6,"MeshAdaptation: refinement and compression");
         int r=0;
         int c=0;
       
@@ -289,8 +299,6 @@ public:
           }
         }
               
-
-        /*------------->*/started = MPI_Wtime();
         #pragma omp parallel for 
         for (size_t i=0; i<mn_ref.size()/2; i++)
         {
@@ -307,10 +315,7 @@ public:
           int n = mn_ref[2*i+1]; 
           refine_2(m,n);
         }   
-        /*------------->*/done = MPI_Wtime();
-        /*------------->*/m_refGrid->TIMINGS [31] += done-started; 
 
-        /*------------->*/started = MPI_Wtime();
         #pragma omp parallel for 
         for (size_t i=0; i<mn_com.size()/2; i++)
         {
@@ -321,11 +326,8 @@ public:
           #pragma omp atomic
            c++;
         }
-        /*------------->*/done = MPI_Wtime();
-        /*------------->*/m_refGrid->TIMINGS [32] += done-started; 
        /*************************************************/
 
-        started = MPI_Wtime();
         int temp[2] = {r,c};
         int result[2];
         MPI_Reduce(&temp, &result, 2, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -337,47 +339,40 @@ public:
             std::cout << " refined:" << result[0] << "   compressed:"<< result[1] << std::endl;
             std::cout <<"==============================================================\n";
         }
+        /*------------->*/Clock.finish(6);
         
-		m_refGrid->FillPos();
+		
+        /*------------->*/Clock.start(7,"MeshAdaptation : UpdateBlockInfoAll_States");
+        m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States(false);
-        done = MPI_Wtime();
-        m_refGrid->TIMINGS [33] += done-started;
+        /*------------->*/Clock.finish(7);
+        
 
-        started = MPI_Wtime();
+        /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
         Balancer.Balance_Diffusion();
+        /*------------->*/Clock.finish(8);
 
-        done = MPI_Wtime();
-        m_refGrid->TIMINGS [7] += done-started; 
+
+
 
         delete [] labs;
        
+        /*------------->*/Clock.start(9,"MeshAdaptation : Setup");
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
-
-            std::cout << "Setup called from MeshAdaptation : " << Balancer.movedBlocks << "\n";
             m_refGrid->UpdateBlockInfoAll_States(true);
 	        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
             
-            for (int i=0;i<20;i++)
-            {
-                m_refGrid->TIMINGS[60+i] += Synch->Clock.TIMINGS[i];
-            }
-
-
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
 		    while (it != m_refGrid->SynchronizerMPIs.end())
 			{ 
 		       	(*it->second)._Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
 		      
-                for (int i=0;i<20;i++)
-                {
-                    m_refGrid->TIMINGS[60+i] += (*it->second).Clock.TIMINGS[i];
-                }
                 it++;
 			}
 		}
-        done = MPI_Wtime();
-        m_refGrid->TIMINGS [34] += done-started; 
+        /*------------->*/Clock.finish(9);
+
     }
 
 

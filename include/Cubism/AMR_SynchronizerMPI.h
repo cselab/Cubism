@@ -413,11 +413,6 @@ class SynchronizerMPI_AMR
     std::vector< GrowingVector<Interface>> send_interfaces;
     std::vector< GrowingVector<PackInfo >> send_packinfos;
 
-
-    std::vector<MPI_Request> requests;
-    std::vector <int> ss;
-
-
     std::vector<int> send_buffer_size;
     std::vector<int> recv_buffer_size;
     std::vector <MPI_Request> data_requests;
@@ -452,7 +447,7 @@ class SynchronizerMPI_AMR
 
 
         std::vector <MPI_Request> pack_requests;       
-        std::vector < std::array<int,2> > MapOfInfos;
+        std::vector < std::array<long long int,2> > MapOfInfos;
 
         UnpacksManagerStruct()
         {
@@ -549,7 +544,7 @@ class SynchronizerMPI_AMR
                     {
                         UnPackInfo & info = manyUnpacks_recv[r][i];
             
-                        std::array <int,2> element = {info.IDreceiver,-1};
+                        std::array <long long int,2> element = {info.IDreceiver,-1};
                         auto low=std::lower_bound (MapOfInfos.begin(), MapOfInfos.end(), element);
                         int Target = (*low)[1];
                         assert(Target >=0);
@@ -708,41 +703,31 @@ class SynchronizerMPI_AMR
         {
             std::vector<int> remEl;
 
-            Synch_ptr->Clock.start(9);
-
             C.clear();
-
+            /*------------->*/Clock.start(22,"SynchronizerMPI_AMR : RemoveDuplicates fill cube");
             for (size_t i=0; i<positions[r].size();i++)
             {              
                 C.compass[f[positions[r][i]].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[positions[r][i]]));
                 C.compass[f[positions[r][i]].icode[0]].back().index = positions[r][i];
                 C.compass[f[positions[r][i]].icode[0]].back().avg_down = (f[positions[r][i]].infos[0]->level > f[positions[r][i]].infos[1]->level);
 
-
-
-
-
-                //const int code[3] = { f[positions[r][i]].icode[1]%3-1, (f[positions[r][i]].icode[1]/3)%3-1, (f[positions[r][i]].icode[1]/9)%3-1};
-                //int sum = abs(code[0]) + abs(code[1]) + abs(code[2]);
-                //C.compass[f[positions[r][i]].icode[0]].back().type = 4-sum;
-
-
-
-
-
-
                 if (!skip_needed[r]) skip_needed[r] = f[positions[r][i]].CoarseStencil;
             }
+            /*------------->*/Clock.finish(22);
+
+
+            /*------------->*/Clock.start(23,"SynchronizerMPI_AMR : RemoveDuplicates __needed");
             if (!skip_needed[r])
             {
                 C.__needed(remEl);
                 for (int k=0; k<(int)remEl.size();k++)
                     f[remEl[k]].ToBeKept = false;
-            } 
-            Synch_ptr->Clock.finish(9);
+            }
+            /*------------->*/Clock.finish(23); 
+  
 
-           
-            Synch_ptr->Clock.start(10);
+
+            /*------------->*/Clock.start(24,"SynchronizerMPI_AMR : Gather UnPackInfos");
             for (auto & i:C.keepEl())
             {
                 int k = i->index;            
@@ -803,7 +788,7 @@ class SynchronizerMPI_AMR
                     f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1],f[remEl1].infos[1]->blockID});
                 } 
             }
-            Synch_ptr->Clock.finish(10);
+            /*------------->*/Clock.finish(24);
         }
     };
 
@@ -955,6 +940,7 @@ class SynchronizerMPI_AMR
 
     void DefineInterfaces()
     {   
+        /*------------->*/Clock.start(14,"SynchronizerMPI_AMR : DefineInterfaces initial clearing");
         Neighbors.clear();
         inner_blocks.clear();
         halo_blocks.clear(); 
@@ -974,6 +960,7 @@ class SynchronizerMPI_AMR
         }
         UnpacksManager.clear();
         std::vector<size_t> lengths;
+        /*------------->*/Clock.finish(14);
  
 
 
@@ -1018,7 +1005,7 @@ class SynchronizerMPI_AMR
     
                 if (infoNei.TreePos == Exists && infoNei.myrank != rank)
                 {
-                    /*-------->*/Clock.start(2);                
+                    /*------------->*/Clock.start(15,"SynchronizerMPI_AMR : DefineInterfaces same level");
                     isInner = false;
                     int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
                                        
@@ -1031,12 +1018,13 @@ class SynchronizerMPI_AMR
 
                     DM.Add(infoNei.myrank, send_interfaces[infoNei.myrank].size()-1 );
                     l++;
-                    /*-------->*/Clock.finish(2);
+
+                    /*------------->*/Clock.finish(15);
                 }
 
                 else if (infoNei.TreePos == CheckCoarser)
                 {
-                    /*-------->*/Clock.start(3);
+                    /*------------->*/Clock.start(16,"SynchronizerMPI_AMR : DefineInterfaces check coarser");
                     Coarsened = true;
 
                     int nCoarse = infoNei.Z /8; //not sure if this works for Hilbert (probably yes)
@@ -1060,13 +1048,13 @@ class SynchronizerMPI_AMR
 
                         l++;
                         Neighbors.insert (infoNeiCoarser.myrank);
-                        /*-------->*/Clock.finish(3);
                     }
+                    /*------------->*/Clock.finish(16);
                 }
                 else if (infoNei.TreePos == CheckFiner)
                 {
-                    /*-------->*/Clock.start(4);
-                    int Bstep = 1; //face
+                    /*------------->*/Clock.start(17,"SynchronizerMPI_AMR : DefineInterfaces check finer");
+                    int Bstep = 1;
                     if      ((abs(code[0])+abs(code[1])+abs(code[2])==2 )) Bstep = 3; //edge
                     else if ((abs(code[0])+abs(code[1])+abs(code[2])==3 )) Bstep = 4; //corner
                    
@@ -1188,15 +1176,14 @@ class SynchronizerMPI_AMR
                             }
          
                         }
-                        /*-------->*/Clock.finish(4);
                     }
+                    /*------------->*/Clock.finish(17);
                 } 
             }//icode = 0,...,26  
 
-            
+           
 
-            Clock.start(5);
-
+            /*------------->*/Clock.start(18,"SynchronizerMPI_AMR : DefineInterfaces pushing back");
             if (isInner)
             {
                 info.halo_block_id = -1;
@@ -1209,35 +1196,31 @@ class SynchronizerMPI_AMR
                 lengths.push_back(l);
                 UnpacksManager.MapOfInfos.push_back( {info.blockID,info.halo_block_id} );
             }
+            /*------------->*/Clock.finish(18);
 
-            Clock.finish(5);
 
-
-            Clock.start(6);
+            /*------------->*/Clock.start(19,"SynchronizerMPI_AMR : DefineInterfaces UseCoarseStencil");
             if (Coarsened) for (int j = 0 ; j <(int) ToBeChecked.size() ; j +=2 )
             {
                 bool temp  = UseCoarseStencil(send_interfaces[ToBeChecked[j]][ToBeChecked[j+1]]);
                 send_interfaces[ToBeChecked[j]][ToBeChecked[j+1]].CoarseStencil = temp;
-            }           
-            Clock.finish(6);
+            }
+            /*------------->*/Clock.finish(19);           
 
 
-            Clock.start(7);
+            /*------------->*/Clock.start(20,"SynchronizerMPI_AMR : DefineInterfaces RemoveDuplicates");
             for (int r=0; r<size; r++)
             {
                 DM.RemoveDuplicates(r, send_interfaces[r].v, offsets[r], send_buffer_size[r] ,stencil.selcomponents.size() );
             }
-            Clock.finish(7);
-
-
+            /*------------->*/Clock.finish(20);
             
 
         }//i-loop
 
-
-        Clock.start(8);
-
+        /*------------->*/Clock.start(21,"SynchronizerMPI_AMR : DefineInterfaces UnpacksManager allocate");
         UnpacksManager._allocate(halo_blocks.size(),&lengths[0]);
+        /*------------->*/Clock.finish(21);
 
         for (int i=0; i<(int)myInfos_size; i++)
         {
@@ -1245,42 +1228,12 @@ class SynchronizerMPI_AMR
             getBlockInfoAll(info.level,info.Z).halo_block_id = info.halo_block_id;  
         }    
 
-        
-        Clock.finish(8);
     }
 
 
 public:
 
-    struct clock
-    {
-        double TIMINGS[20];
-        double s[20];
-        double e[20];
 
-        clock()
-        {
-            reset();
-        }
-
-        void reset()
-        {
-            for (int i = 0; i < 20; i ++)
-                TIMINGS[i] = 0;
-        }
-
-        void start(int i)
-        {
-            s[i] = MPI_Wtime();
-        }
-
-        void finish(int i)
-        {
-            e[i] = MPI_Wtime();
-            TIMINGS[i] += e[i] - s[i];
-        }
-    };
-    clock Clock;
 
 
     SynchronizerMPI_AMR(StencilInfo a_stencil,StencilInfo a_Cstencil,MPI_Comm a_comm, const bool a_periodic[3], const int a_levelMax, const int a_nx, const int a_ny, const int a_nz, const int a_bx, const int a_by, const int a_bz):
@@ -1327,8 +1280,7 @@ public:
     {
         if (rank==0)std::cout << " Calling _Setup ... \n";
 
-        Clock.reset();
-
+        /*------------->*/Clock.start(11,"SynchronizerMPI_AMR : initial copies");
         myInfos_size = a_myInfos_size;
         myInfos = a_myInfos;
         
@@ -1337,21 +1289,25 @@ public:
             BlockInfoAll[m] = &a_BlockInfoAll[m];
        
         const int NC = stencil.selcomponents.size();
+        /*------------->*/Clock.finish(11);
 
-        /*-------->*/Clock.start(0);
+
+        /*------------->*/Clock.start(12,"SynchronizerMPI_AMR : DefineInterfaces total time");
         DefineInterfaces();
+        /*------------->*/Clock.finish(12);
+
+
+
+        /*------------->*/Clock.start(13,"SynchronizerMPI_AMR : DefineInterfaces send/recv sizes");
         for (int r=0; r<size; r++)
             send_buffer[r].resize(send_buffer_size[r]*NC, 666.0);
-        /*-------->*/Clock.finish(0);     
-
                
         recv_buffer_size.resize(size,0);
 
         std::vector <int> ss1(size,0);
-       
-        ss.resize(size,0);
+        std::vector <int> ss (size,0);
 
-        requests.resize(2*Neighbors.size());
+        std::vector<MPI_Request> requests (2*Neighbors.size());
         
         int k=0;
         for (auto r : Neighbors)
@@ -1361,18 +1317,18 @@ public:
             MPI_Isend(&ss1[r],1,MPI_INT,r,timestamp,comm,&requests[k+1]);
             k+=2;
         }
-
-        /*-------->*/Clock.start(1);
+       
         MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
-        /*-------->*/Clock.finish(1);    
-        
+        /*------------->*/Clock.finish(13);
+
+      
         for (int r=0;r<size;r++)
         {
             recv_buffer_size[r] = ss[r]/NC;
             recv_buffer[r].resize(recv_buffer_size[r]*NC, 777.0);          
         }
-
-        UnpacksManager.SendPacks(ss1.data(),timestamp);
+       
+        UnpacksManager.SendPacks(recv_buffer_size.data(),timestamp);
     }
 
 
@@ -1387,12 +1343,15 @@ public:
         const int NC = selcomponents.size();
 
 
-        //Pack data                
+        //Pack data   
+
         std::vector<int> displacement(size,0);
         for (int r=0; r<size; r++)
         {
             send_packinfos[r].clear();
 
+            
+            /*------------->*/Clock.start(25,"SynchronizerMPI_AMR : sync gather pack infos");
             for (int i=0; i<(int) send_interfaces[r].size(); i++)
             {
                 Interface & f = send_interfaces[r][i];
@@ -1431,20 +1390,22 @@ public:
                     displacement[r]+= V*NC;  
                 }
             }
+            /*------------->*/Clock.finish(25);
 
 
             if (send_buffer_size[r] == 0) continue;
             const int N = send_packinfos[r].size();
 
+            /*------------->*/Clock.start(26,"SynchronizerMPI_AMR : sync pack data");
             #pragma omp parallel for 
             for (int i = 0; i < N ; i++)
             {
                 PackInfo info = send_packinfos[r][i];               
                 pack(info.block, info.pack, gptfloats, &selcomponents.front(),NC,info.sx,info.sy,info.sz,info.ex,info.ey,info.ez,blocksize[0],blocksize[1]);
             }
+            /*------------->*/Clock.finish(26);
+
         }
-
-
 
         data_requests.clear();
         for (int r = 0 ; r < size; r ++ )
@@ -1461,7 +1422,9 @@ public:
             }   
         }
 
+        /*------------->*/Clock.start(27,"SynchronizerMPI_AMR : sync MAPIDS");
         UnpacksManager.MapIDs();
+        /*------------->*/Clock.finish(27);
     }
 
 

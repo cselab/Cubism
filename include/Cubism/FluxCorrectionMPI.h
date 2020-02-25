@@ -25,8 +25,6 @@ class FluxCorrectionMPI: public TFluxCorrection
     typedef typename TFluxCorrection::ElementTypeBlock ElementTypeBlock;
     typedef BlockCase <BlockType, allocator> Case;
 
-    double TIMINGS [10];
-
   protected:
 
     struct face
@@ -67,10 +65,7 @@ class FluxCorrectionMPI: public TFluxCorrection
 
     virtual void prepare(TGrid & grid) override
     {
-      for (int i=0;i<10;i++)TIMINGS[i]=0;
-
-
-      double st = MPI_Wtime();
+      /*------------->*/Clock.start(28,"FluxCorrectionMPI prepare");
 
 
       MPI_Comm_size(MPI_COMM_WORLD,&size);
@@ -197,21 +192,18 @@ class FluxCorrectionMPI: public TFluxCorrection
       }
 
 
-
-      double done = MPI_Wtime();
-      TIMINGS[0] += done - st;
-
+      /*------------->*/Clock.finish(28);
     }
 
 
     virtual void FillBlockCases() override
     {
+      /*------------->*/Clock.start(29,"FluxCorrectionMPI FillBlockCases");
       //This assumes that the BlockCases have been filled by the user somehow... 
       std::vector<BlockInfo> & B = (*TFluxCorrection::m_refGrid).getBlocksInfo();   
     
    
 
-      double st = MPI_Wtime();
       //1.Pack send data
       for (int r=0; r<size; r++)
       {
@@ -259,10 +251,6 @@ class FluxCorrectionMPI: public TFluxCorrection
         }
       }
 
-      double done = MPI_Wtime();
-      TIMINGS[1] += done - st;
-
-
 
       std::vector <MPI_Request> send_requests;
       std::vector <MPI_Request> recv_requests;
@@ -285,7 +273,6 @@ class FluxCorrectionMPI: public TFluxCorrection
 
 
 
-      st = MPI_Wtime();
       for (auto & info: B)
       {
         int aux = pow(2,info.level);
@@ -317,22 +304,14 @@ class FluxCorrectionMPI: public TFluxCorrection
           }        
         }//icode = 0,...,26       
       }
-      done = MPI_Wtime();
-      TIMINGS[2] += done - st;
 
-
-
-      st = MPI_Wtime();
       if (recv_requests.size() > 0)
       MPI_Waitall(recv_requests.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
       
       if (send_requests.size() > 0)
       MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);
-      done = MPI_Wtime();
-      TIMINGS[3] += done - st;
 
 
-      st = MPI_Wtime();
       for (int r = 0 ; r < size; r ++ )
       {
         for (int index = 0; index < (int)recv_faces[r].size(); index++)
@@ -341,14 +320,13 @@ class FluxCorrectionMPI: public TFluxCorrection
           FillCase_2(f) ;
         }
       }
-      done = MPI_Wtime();
-      TIMINGS[4] += done - st;
 
 
-      st = MPI_Wtime();
       TFluxCorrection::Correct();
-      done = MPI_Wtime();
-      TIMINGS[5] += done - st;
+
+
+    /*------------->*/Clock.finish(29);
+
     }
 
 

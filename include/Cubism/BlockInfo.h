@@ -20,6 +20,76 @@ using namespace std;
 
 #define HACK
 
+#include <mpi.h>
+
+#include <string>
+
+struct MyClock
+{       
+  int N;
+  double t[100];
+  double s[100];
+  string name [100];
+
+  void padTo(std::string &str, const size_t num, const char paddingChar = ' ')
+  {
+      if(num > str.size())
+          str.insert(0, num - str.size(), paddingChar);
+  }
+
+  MyClock()
+  {
+    reset();
+  }
+  void reset()
+  {
+    N = 0;
+    for (int i = 0; i < 100; i ++)
+      t[i] = 0;
+  }
+  void start(int i, string _name)
+  {
+    name[i] = _name;
+    s[i]    = MPI_Wtime();
+    N = max(N,i);
+  }
+  void finish(int i)
+  {
+    t[i] += MPI_Wtime() - s[i];
+  }
+  void display()
+  {
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+    
+    double * mean    = new double [N];
+    double * maximum = new double [N];
+    MPI_Reduce(t,mean   ,N,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(t,maximum,N,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+    int size;
+    MPI_Comm_size(MPI_COMM_WORLD,&size);
+    if (rank != 0 )
+    {
+      delete [] mean;
+      delete [] maximum;
+      return;
+    } 
+    std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
+    for (int i=0; i<N; i++)
+    {
+      padTo(name[i],50);
+      mean[i] /= size;
+      printf("%s    :  %8.4f (max)     %8.4f (mean) \n", name[i].c_str(), maximum[i], mean[i]);
+    }
+    std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
+    
+    delete [] mean;
+    delete [] maximum;
+  }
+};
+extern MyClock Clock;
+
+
 
 
 namespace cubism //AMR_CUBISM

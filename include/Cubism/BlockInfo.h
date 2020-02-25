@@ -77,7 +77,7 @@ struct MyClock
     std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
     for (int i=0; i<N; i++)
     {
-      padTo(name[i],50);
+      padTo(name[i],70);
       mean[i] /= size;
       printf("%s    :  %8.4f (max)     %8.4f (mean) \n", name[i].c_str(), maximum[i], mean[i]);
     }

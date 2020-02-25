@@ -181,7 +181,8 @@ public:
 
         std::vector <BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
 
-        std::sort(SortedInfos.begin(),SortedInfos.end());
+        if (flux_right!=0  || flux_left !=0 ) 
+            std::sort(SortedInfos.begin(),SortedInfos.end());
 
         std::vector <MPI_Block> send_left; 
         std::vector <MPI_Block> recv_left; 

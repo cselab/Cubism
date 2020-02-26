@@ -122,7 +122,7 @@ public:
 
 
         /*------------->*/Clock.start(0,"MeshAdaptation: Barrier before block tagging");
-        MPI_Barrier(MPI_COMM_WORLD); 
+        //MPI_Barrier(MPI_COMM_WORLD); 
         /*------------->*/Clock.finish(0);
   
         bool CallValidStates = false;
@@ -349,6 +349,7 @@ public:
         
 
         /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
+        //if (rank == 0) std::cout << " Skipping Balance_Diffusion.\n";
         Balancer.Balance_Diffusion();
         /*------------->*/Clock.finish(8);
 

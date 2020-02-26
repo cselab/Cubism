@@ -219,6 +219,8 @@ public:
     #elif defined(HilbertCurve)
       const unsigned int c1[3] = {I1,J1,K1};
       return Z_ORIGIN[((J + K*BY)*BX + I)]*aux*aux*aux + AxestoTranspose(c1, l);
+      //int z_origin = ((J + K*BY)*BX + I)*aux*aux*aux;
+      //return z_origin + AxestoTranspose(c1, l);
     #endif
   }
 
@@ -228,19 +230,59 @@ public:
     return forward(l+1,2*i,2*j,2*k);
   }  
    
-  int Encode(int level, int Z)
+  int Encode(int level, int Z, int index[3])
   {
-    int retval;
-    if (level == 0) 
+    //int retval;
+    //if (level == 0) 
+    //{
+    //  retval = Z;
+    //}
+    //else 
+    //{
+    //  int V = BX*BY*BZ * pow(pow(2,level-1),3);
+    //  retval = V + Z; 
+    //}
+    //return retval;
+
+
+    int lmax = 4;
+
+    int retval = 0;
+
+    int ix = index[0];
+    int iy = index[1];
+    int iz = index[2];
+    for (int l = level; l>=0; l--)
     {
-      retval = Z;
+      int Zp = forward(l,ix,iy,iz);
+      retval += Zp;
+      ix /= 2;
+      iy /= 2;
+      iz /= 2;
     }
-    else 
+
+    ix = index[0];
+    iy = index[1];
+    iz = index[2];
+    for (int l = level+1; l < lmax; l++)
     {
-      int V = BX*BY*BZ * pow(pow(2,level-1),3);
-      retval = V + Z; 
+      ix *=2;
+      iy *=2;
+      iz *=2;
+      int Zc= forward(l,ix,iy,iz);
+      Zc -= Zc%8;
+      retval += Zc; 
     }
+
+      
+
+
+    
+
+
     return retval;
+
+
   }
 };
 

@@ -1020,6 +1020,11 @@ class SynchronizerMPI_AMR
 
                     /*------------->*/Clock.finish(15);
 
+                    assert (infoNei.Z > maxZ[info.level] || infoNei.Z < minZ[info.level]) ; 
+    
+
+
+
                 }
 
                 else if (infoNei.TreePos == CheckCoarser)

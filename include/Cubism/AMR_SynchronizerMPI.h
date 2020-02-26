@@ -961,8 +961,6 @@ class SynchronizerMPI_AMR
         UnpacksManager.clear();
         std::vector<size_t> lengths;
         /*------------->*/Clock.finish(14);
- 
-
 
         for (int i=0; i<(int)myInfos_size; i++)
         {
@@ -993,7 +991,8 @@ class SynchronizerMPI_AMR
                 const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
                 if (!xperiodic && code[0] == xskip && xskin) continue;
                 if (!yperiodic && code[1] == yskip && yskin) continue;
-                if (!zperiodic && code[2] == zskip && zskin) continue; 
+                if (!zperiodic && code[2] == zskip && zskin) continue;
+
                 
                 //if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
          
@@ -1001,7 +1000,7 @@ class SynchronizerMPI_AMR
                 
                 if (infoNei.TreePos == CheckCoarser) Coarsened = true;
              
-                if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
+                //if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
     
                 if (infoNei.TreePos == Exists && infoNei.myrank != rank)
                 {
@@ -1020,6 +1019,7 @@ class SynchronizerMPI_AMR
                     l++;
 
                     /*------------->*/Clock.finish(15);
+
                 }
 
                 else if (infoNei.TreePos == CheckCoarser)
@@ -1027,8 +1027,8 @@ class SynchronizerMPI_AMR
                     /*------------->*/Clock.start(16,"SynchronizerMPI_AMR : DefineInterfaces check coarser");
                     Coarsened = true;
 
-                    int nCoarse = infoNei.Z /8; //not sure if this works for Hilbert (probably yes)
-                    //int nCoarse =infoNei.Zparent;
+                    //int nCoarse = infoNei.Z /8; // this does not work for Hilbert 
+                    int nCoarse =infoNei.Zparent;
 
                     BlockInfo & infoNeiCoarser = getBlockInfoAll(infoNei.level-1,nCoarse);
                     if (infoNeiCoarser.myrank != rank)
@@ -1084,7 +1084,6 @@ class SynchronizerMPI_AMR
                             DM.Add(infoNeiFiner.myrank,send_interfaces[infoNeiFiner.myrank].size()-1 );
 
                             Neighbors.insert (infoNeiFiner.myrank);
-
                             l++;
                            
                             if (Bstep == 3) //if I'm filling an edge then I'm also filling a corner
@@ -1226,8 +1225,7 @@ class SynchronizerMPI_AMR
         {
             BlockInfo & info = myInfos[i];
             getBlockInfoAll(info.level,info.Z).halo_block_id = info.halo_block_id;  
-        }    
-
+        }  
     }
 
 
@@ -1351,6 +1349,9 @@ public:
             send_packinfos[r].clear();
 
             
+            std::vector <int> ToBeAveragedDown;
+
+
             /*------------->*/Clock.start(25,"SynchronizerMPI_AMR : sync gather pack infos");
             for (int i=0; i<(int) send_interfaces[r].size(); i++)
             {
@@ -1369,7 +1370,11 @@ public:
                     
                     if (f.CoarseStencil) 
                     {   
-                        AverageDownAndFill2(send_buffer[r].data() + displacement[r],f.infos[0],code0,&selcomponents[0],NC,gptfloats);
+                     //   AverageDownAndFill2(send_buffer[r].data() + displacement[r],f.infos[0],code0,&selcomponents[0],NC,gptfloats);
+                        
+                        ToBeAveragedDown.push_back(i);
+                        ToBeAveragedDown.push_back(displacement[r]);
+
                         displacement[r] += SM.CoarseStencilVolume(&code0[0])*NC;
                     }
                 }
@@ -1385,11 +1390,45 @@ public:
                              ( abs(code0[1])*(e[1]-s[1]) + (1-abs(code0[1]))*((e[1]-s[1])/2) ) * 
                              ( abs(code0[2])*(e[2]-s[2]) + (1-abs(code0[2]))*((e[2]-s[2])/2) ) ;
 
-                    AverageDownAndFill(send_buffer[r].data() + displacement[r],f.infos[0],s,e,code0,&selcomponents[0],NC, gptfloats); 
+
+                    ToBeAveragedDown.push_back(i);
+                    ToBeAveragedDown.push_back(displacement[r]);
+
+                   // AverageDownAndFill(send_buffer[r].data() + displacement[r],f.infos[0],s,e,code0,&selcomponents[0],NC, gptfloats); 
                                       
                     displacement[r]+= V*NC;  
                 }
             }
+
+            
+            #pragma omp parallel for 
+            for (size_t j=0; j<ToBeAveragedDown.size(); j+=2)
+            {
+                int i = ToBeAveragedDown[j  ];
+                int d = ToBeAveragedDown[j+1];
+                Interface & f = send_interfaces[r][i];
+
+                const int code[3] = { f.icode[0]%3-1, (f.icode[0]/3)%3-1, (f.icode[0]/9)%3-1};              
+                const int code0[3] = { -code[0], -code[1] , -code[2]}; 
+
+                if (f.CoarseStencil)
+                //if (f.infos[0]->level <= f.infos[1]->level)
+                {
+                    AverageDownAndFill2(send_buffer[r].data() + d,f.infos[0],code0,&selcomponents[0],NC,gptfloats);
+                }
+                else
+                {
+                    const int s [3] = { code0[0]<1? (code0[0]<0 ? stencil.sx:0 ):nX,
+                                        code0[1]<1? (code0[1]<0 ? stencil.sy:0 ):nY,
+                                        code0[2]<1? (code0[2]<0 ? stencil.sz:0 ):nZ};
+                    const int e [3] = { code0[0]<1? (code0[0]<0 ? 0         :nX):nX+stencil.ex-1,
+                                        code0[1]<1? (code0[1]<0 ? 0         :nY):nY+stencil.ey-1,
+                                        code0[2]<1? (code0[2]<0 ? 0         :nZ):nZ+stencil.ez-1};
+                    AverageDownAndFill(send_buffer[r].data() + d,f.infos[0],s,e,code0,&selcomponents[0],NC, gptfloats); 
+                }
+            }
+
+
             /*------------->*/Clock.finish(25);
 
 

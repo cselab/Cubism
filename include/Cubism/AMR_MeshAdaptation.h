@@ -155,7 +155,7 @@ public:
         avail1 = Synch->avail_halo();
         /*------------->*/Clock.finish(2);
 
-        /*------------->*/Clock.start(3,"MeshAdaptation: inner block tagging");
+        /*------------->*/Clock.start(3,"MeshAdaptation: outer block tagging");
         const int Nhalo = avail1.size();
         //BlockInfo * ary1 = &avail1.front(); 
         #pragma omp parallel num_threads(nthreads)
@@ -349,7 +349,6 @@ public:
         
 
         /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
-        //if (rank == 0) std::cout << " Skipping Balance_Diffusion.\n";
         Balancer.Balance_Diffusion();
         /*------------->*/Clock.finish(8);
 

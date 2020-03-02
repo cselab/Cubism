@@ -55,9 +55,6 @@ class GrowingVector
         return v[pos-1];
     }
 
-
-
-
     void EraseAll()
     {
         v.clear();
@@ -388,9 +385,6 @@ struct StencilManager
         sz =  range_dup.sz-range.sz;
     }
 };
-
-
-
 
 
 
@@ -1337,12 +1331,6 @@ public:
        
         UnpacksManager.SendPacks(recv_buffer_size.data(),timestamp);
         
-
-
-
-
-
-
         static const int nX = blocksize[0];
         static const int nY = blocksize[1];
         static const int nZ = blocksize[2];
@@ -1400,7 +1388,99 @@ public:
                 }
             }
         }
+    
+
+        //CreateDatatypes();
     }
+
+#if 0
+    std::vector <MPI_Datatype> TYPE;
+    void CreateDatatypes()
+    {
+
+        MPI_Datatype MPI_GRIDPOINT1,MPI_GRIDPOINT;
+
+        std::vector<int> & selcomponents = stencil.selcomponents;
+        std::sort(selcomponents.begin(), selcomponents.end());       
+        const int NC = selcomponents.size();       
+
+        std::vector<MPI_Datatype> grid_types(NC);
+        std::vector<MPI_Aint> d(NC);
+        std::vector<int> bl(NC);
+        for (int i=0;i<NC;i++)
+        {
+        	int n = selcomponents[i];
+        	d[i] = n*sizeof(double);
+        	bl[i] = 1;
+        	grid_types[i] = MPI_DOUBLE;
+        }
+
+        MPI_Type_create_struct(NC, bl.data(),   d.data(),   grid_types.data(), &MPI_GRIDPOINT1);
+        
+        MPI_Aint lb,extent;
+
+        lb = 0;
+        extent = 8*sizeof(double);
+        MPI_Type_create_resized(MPI_GRIDPOINT1, lb, extent, &MPI_GRIDPOINT);
+
+        int ndims = 3;
+        int order =  MPI_ORDER_C;
+        int array_of_sizes [3] = {blocksize[2],blocksize[1],blocksize[0]};
+        int array_of_subsizes [3];
+        int array_of_starts [3]; 
+
+
+        for (size_t i=0; i<TYPE.size(); i++)
+        	MPI_Type_free(&TYPE[i]);
+
+        TYPE.resize(size);
+
+
+        MPI_Aint base;
+        MPI_Get_address( myInfos[0].ptrBlock , &base);
+    	for (int r = 0; r < size; r++)
+    	{
+    		std::vector<MPI_Datatype> types(send_packinfos[r].size());
+
+
+            std::vector<MPI_Aint> array_of_displacements(types.size());
+    		std::vector <int> array_of_blocklengths (types.size());
+
+
+    		for (size_t i = 0; i < send_packinfos[r].size(); i++)
+    		{
+    			PackInfo & pack = send_packinfos[r][i];
+
+    			array_of_starts [0] = pack.sz;
+    			array_of_starts [1] = pack.sy;
+    			array_of_starts [2] = pack.sx;
+
+    			array_of_subsizes[0] = pack.ez - pack.sz;
+    			array_of_subsizes[1] = pack.ey - pack.sy;
+    			array_of_subsizes[2] = pack.ex - pack.sx;
+
+    			MPI_Type_create_subarray(ndims,array_of_sizes,array_of_subsizes,array_of_starts,order,MPI_GRIDPOINT,&types[i]);
+                MPI_Type_commit(&types[i]);
+
+                MPI_Aint temp;
+                MPI_Get_address( pack.block , &temp);
+                array_of_displacements[i] = temp - base;
+                array_of_blocklengths[i] = 1;
+    		}
+
+
+
+    		MPI_Type_create_struct((int) types.size(),array_of_blocklengths.data(),array_of_displacements.data(),types.data(), &TYPE[r]);
+    		MPI_Type_commit(&TYPE[r]);
+    	
+	        for (size_t i = 0; i < send_packinfos[r].size(); i++)
+	        	MPI_Type_free(&types[i]);
+      	}
+    	 
+    	MPI_Type_free(&MPI_GRIDPOINT);
+    	//MPI_Type_free(&MPI_GRIDPOINT1);
+    }
+#endif
 
 
     void sync(unsigned int gptfloats, MPI_Datatype MPIREAL, const int timestamp)
@@ -1479,7 +1559,8 @@ public:
             if (send_buffer_size[r] > 0)
             {
                 send_requests.resize(send_requests.size()+1);
-                MPI_Isend(&send_buffer[r][0], send_buffer_size[r]*NC, MPIREAL, r, timestamp , comm, &send_requests.back());
+                MPI_Isend(&send_buffer[r][0], send_buffer_size[r]*NC, MPIREAL, r, timestamp , comm, &send_requests.back());                
+                //MPI_Isend( myInfos[0].ptrBlock , 1, TYPE[r], r, timestamp , comm, &send_requests.back());
             }   
         }
 

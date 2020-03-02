@@ -127,7 +127,7 @@ public:
   
         bool CallValidStates = false;
 
-    #if 1
+     #if 1
         /*------------->*/Clock.start(1,"MeshAdaptation: inner blocks tagging");  
         avail0 = Synch->avail_inner(); 
         const int Ninner = avail0.size();
@@ -175,7 +175,7 @@ public:
             }
         }
         /*------------->*/Clock.finish(3);
-    #else
+     #else
         static int rounds = -1;
         static int one_less = 1;
         if (rounds == -1)
@@ -256,7 +256,7 @@ public:
                 }
             }
         }
-    #endif
+     #endif
 
         /*------------->*/Clock.start(4,"MeshAdaptation: ValidStates");
         int tmp = CallValidStates ? 1:0;
@@ -805,7 +805,7 @@ protected:
                 b(i+1,j+1,k+1) = Ref[7];
             #endif
          
-            #if 0
+            #if 1
                 for (int kk=0; kk<2; kk++)
                 for (int jj=0; jj<2; jj++)
                 for (int ii=0; ii<2; ii++)
@@ -826,6 +826,9 @@ protected:
                     assert  (abs(b(i+ii,j+jj,k+kk).alpha2    ) < 1e20 );
                     assert  (abs(b(i+ii,j+jj,k+kk).energy    ) < 1e20 );
                     assert  (abs(b(i+ii,j+jj,k+kk).dummy     ) < 1e20 );
+                    assert  (abs(b(i+ii,j+jj,k+kk).alpha2    ) <= 1.00001 );
+                
+
                 }
             #endif
             }         
@@ -854,8 +857,8 @@ protected:
     virtual 
     void Kernel_1D(ElementType E0,ElementType E1,ElementType E2, ElementType & left, ElementType & right)
     {
-    	left .dummy = E1.dummy - 0.125*(E2.dummy-E0.dummy);
-    	right.dummy = E1.dummy + 0.125*(E2.dummy-E0.dummy);
+    	left .dummy = E1.dummy;// - 0.125*(E2.dummy-E0.dummy);
+    	right.dummy = E1.dummy;// + 0.125*(E2.dummy-E0.dummy);
     	WENOWavelets3(E0.alpha1rho1,E1.alpha1rho1,E2.alpha1rho1,left.alpha1rho1,right.alpha1rho1);
     	WENOWavelets3(E0.alpha2rho2,E1.alpha2rho2,E2.alpha2rho2,left.alpha2rho2,right.alpha2rho2);
     	WENOWavelets3(E0.ru        ,E1.ru        ,E2.ru        ,left.ru        ,right.ru        );
@@ -863,7 +866,35 @@ protected:
     	WENOWavelets3(E0.rw        ,E1.rw        ,E2.rw        ,left.rw        ,right.rw        );
     	WENOWavelets3(E0.alpha2    ,E1.alpha2    ,E2.alpha2    ,left.alpha2    ,right.alpha2    );
     	WENOWavelets3(E0.energy    ,E1.energy    ,E2.energy    ,left.energy    ,right.energy    );
-    }
+  
+
+        //clipping
+        if  ( left.alpha2 < 0.0 || right.alpha2 < 0.0 || left.alpha2 > 1.0 || right.alpha2 > 1.0)
+        {
+        	left .alpha2 = E1.alpha2;
+        	right.alpha2 = E1.alpha2;
+        } 
+    
+        if  ( left.alpha1rho1 < 0.0 || right.alpha1rho1 < 0.0 || left.alpha1rho1 > 1.0 || right.alpha1rho1 > 1.0)
+        {
+        	left .alpha1rho1 = E1.alpha1rho1;
+        	right.alpha1rho1 = E1.alpha1rho1;
+        } 
+    
+        if  ( left.alpha2rho2 < 0.0 || right.alpha2rho2 < 0.0 || left.alpha2rho2 > 1.0 || right.alpha2rho2 > 1.0)
+        {
+        	left .alpha2rho2 = E1.alpha2rho2;
+        	right.alpha2rho2 = E1.alpha2rho2;
+        } 
+        
+        if  ( left.energy < 0.0 || right.energy < 0.0 )
+        {
+        	left .energy = E1.energy;
+        	right.energy = E1.energy;
+        } 
+        
+
+  }
           				 
     //Tag block loaded in Lab for refinement/compression; user can write own function
     virtual 

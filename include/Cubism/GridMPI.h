@@ -85,11 +85,14 @@ public:
         mypeindex[1] = 0;
         mypeindex[2] = 0;
 
-        int total_blocks = nX*nY*nZ*pow(pow(2,a_levelStart),3);
         MPI_Comm_rank(worldcomm, &myrank);   
 
+
+    #if 1
+        int total_blocks = nX*nY*nZ*pow(pow(2,a_levelStart),3);
+
         if (myrank==0)
-        	std::cout << "Total blocks = " << total_blocks <<"\n";
+        	std::cout << "Total blocks = " << total_blocks <<"\n";      
 
         int my_blocks = total_blocks / world_size;         
         if (myrank < total_blocks % world_size) my_blocks ++;    
@@ -138,72 +141,103 @@ public:
                 TGrid::BlockInfoAll[m][n].myrank = -1;   
             }          
         }
+    #else
+        int total_blocks = nX*nY*nZ;
 
+        int my_blocks = total_blocks / world_size;         
+        if (myrank < total_blocks % world_size) my_blocks ++;    
+        int n_start = myrank* (total_blocks / world_size);
+
+        if (total_blocks % world_size > 0)
+        {
+            if (myrank < total_blocks % world_size) n_start+= myrank;
+            else                                    n_start+= total_blocks % world_size;
+        }
+
+        std::cout << "rank " << myrank << " gets " << my_blocks << " \n"; 
+
+        if (a_levelStart == 0)
+        {
+            for (int n=n_start; n<n_start+my_blocks; n++)
+                TGrid::_alloc(a_levelStart,n);         
+        }
+ 
+        for (int m = 0 ; m < a_levelMax ; m++)
+        for (int n=0; n<nX*nY*nZ*pow(pow(2,m),3); n++)
+        {
+            if (m==0)//a_levelStart)
+            {
+                int r;
+                if (total_blocks % world_size > 0)
+                {
+                    if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size) )
+                    {
+                        int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
+                        
+                        r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
+                    }
+                    else
+                    {
+                        r = n /(total_blocks / world_size + 1);
+                    }
+             
+                }
+                else
+                {
+                    r = n / my_blocks;
+                }
+              
+                TGrid::BlockInfoAll[m][n].myrank = r; 
+            }
+            else
+            {
+                TGrid::BlockInfoAll[m][n].myrank = -1;   
+            }          
+        }
+
+        FillPos(true);
+
+        if (a_levelStart != 0)
+        {
+            int m = a_levelStart;
+            int aux = 1 << m;
+
+
+            std::vector<int> my_ids;
+
+            for (int n=0; n<nX*nY*nZ*pow(pow(2,m),3); n++)
+            {
+                int i0 = TGrid::BlockInfoAll[m][n].index[0] / aux;
+                int i1 = TGrid::BlockInfoAll[m][n].index[1] / aux;
+                int i2 = TGrid::BlockInfoAll[m][n].index[2] / aux;
+
+                int n0 = TGrid::getZforward(0,i0,i1,i2);
+                TGrid::BlockInfoAll[m][n].myrank = TGrid::BlockInfoAll[0][n0].myrank;
+
+                if (myrank == TGrid::BlockInfoAll[m][n].myrank) my_ids.push_back(n);
+            }
+            for (int n=0; n<nX*nY*nZ; n++)
+            {
+                TGrid::BlockInfoAll[0][n].myrank = -1;
+            }
+
+
+
+            for (size_t i=0; i<my_ids.size(); i++)
+                TGrid::_alloc(a_levelStart,my_ids[i]);   
+        }
+    #endif
         FillPos(true); 
 
-        #if 0
 
-                const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
-                // Doesn't make sense to export `h_gridpoint` and `h_block` as a member
-                // variable + getter, as they are not fixed values in case of
-                // non-uniform grids.
-                const double h_gridpoint = _maxextent / (double)std::max(
-                        getBlocksPerDimension(0) * blocksize[0],
-                        std::max(getBlocksPerDimension(1) * blocksize[1],
-                                 getBlocksPerDimension(2) * blocksize[2]));
-                const double h_block[3] = {
-                    blocksize[0] * h_gridpoint,
-                    blocksize[1] * h_gridpoint,
-                    blocksize[2] * h_gridpoint,
-                };
-                // setup uniform (global) meshmaps
-                // discard single process mappings
-                for (int i = 0; i < 3; ++i)
-                    delete this->m_mesh_maps[i];
-                std::vector<MeshMap<Block>*> clearme;
-                this->m_mesh_maps.swap(clearme);
-                // global number of blocks and extents
-                const int nBlocks[3] = {
-                    mybpd[0]*pesize[0],
-                    mybpd[1]*pesize[1],
-                    mybpd[2]*pesize[2]
-                };
-                const double extents[3] = {
-                    h_block[0]*nBlocks[0],
-                    h_block[1]*nBlocks[1],
-                    h_block[2]*nBlocks[2]
-                };
-                for (int i = 0; i < 3; ++i)
-                {
-                    MeshMap<Block>* m = new MeshMap<Block>(0.0, extents[i], nBlocks[i]);
-                    UniformDensity uniform;
-                    m->init(&uniform); // uniform only for this constructor
-                    this->m_mesh_maps.push_back(m);
-                }
-		#endif
-        std::cout << "mike: GridMPI::skipping cached_blockinfo initialization...\n";
-        #if 0
-                for(size_t i=0; i<vInfo.size(); ++i)
-                {
-                    BlockInfo info = vInfo[i];
-                    info.h_gridpoint = h_gridpoint;
-                    info.h = h_block[0];// only for blocksize[0]=blocksize[1]=blocksize[2]
-        
-                    for(int j=0; j<3; ++j)
-                    {
-                        info.index[j] += mypeindex[j]*mybpd[j];
-        
-                        info.origin[j] = this->m_mesh_maps[j]->block_origin(info.index[j]);
-        
-                        info.uniform_grid_spacing[j] = h_gridpoint;
-        
-                        info.block_extent[j] = this->m_mesh_maps[j]->block_width(info.index[j]);
-        
-                        info.ptr_grid_spacing[j] = this->m_mesh_maps[j]->get_grid_spacing(info.index[j]);
-                    }
-                    cached_blockinfo.push_back(info);
-                }
-        #endif
+
+
+
+
+
+
+
+
         MPI_Barrier(MPI_COMM_WORLD);
         std::cout<<"GridMPI constructor called (ok)\n";
     }

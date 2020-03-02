@@ -172,8 +172,8 @@ public:
    
 
         int nu = 2;
-        int flux_left  = (my_blocks -  left_blocks) / nu; //divide by two following stability criterion for diffusion equation
-        int flux_right = (my_blocks - right_blocks) / nu; //divide by two following stability criterion for diffusion equation
+        int flux_left  = (my_blocks -  left_blocks) / nu; 
+        int flux_right = (my_blocks - right_blocks) / nu; 
 
         if (rank == size-1) flux_right = 0;
         if (rank == 0     ) flux_left  = 0;

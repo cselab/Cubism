@@ -220,61 +220,7 @@ void DumpHDF5_MPI(const TGrid &grid,
 
 
 
-
-       
-        
-
-    //6.Write grid meta-data
-    if (bXMF)
-    {
-        FILE *xmf = 0;
-        xmf = fopen((fullpath.str()+"_rank_" + to_string(rank) + ".xmf").c_str(), "w");       
-
-        std::stringstream s_head;
-
-        s_head << "<?xml version=\"1.0\" ?>\n";
-        s_head << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
-        s_head << "<Xdmf Version=\"2.0\">\n";
-        s_head << " <Domain>\n";
-        s_head << "   <Grid Name=\"OctTree\" GridType=\"Collection\">\n";
-        s_head << "     <Time Value=\""<<std::setprecision(10)<<std::setw(10)<<absTime<<"\"/>\n\n";
-
-        fprintf(xmf, (s_head.str()).c_str());
-
-        
-        const int width = 15;
-        for (int m = 0; m < Ngrids; m++)
-        {
-            BlockInfo I = MyInfos[m];     
-        
-            std::stringstream s;
-            s << "   <Grid GridType=\"Uniform\">\n";
-            s << "     <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " <<nX + 1 << " " <<nY + 1 << " " <<nZ + 1 << "\"/>\n\n";
-            s << "       <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
-            s << "          <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
-            /*ViSit*/ 
-            //s << "                 "<<std::setprecision(10) <<std::setw(width) << I.origin[0] << " " <<std::setw(width) << I.origin[1] << " " <<std::setw(width) << I.origin[2] << "\n";
-            /*Paraview*/
-            s << "                 "<<std::setprecision(10)<<std::setw(width) << I.origin[2] << " " << std::setw(width)<<I.origin[1] << " " << std::setw(width)<<I.origin[0] << "\n";
-            s << "          </DataItem>\n";      
-            s << "          <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
-            s << "                 "<<std::setprecision(10) <<std::setw(width)<< I.h << " " << std::setw(width)<<I.h << " " << std::setw(width)<<I.h << "\n";
-            s << "          </DataItem>\n";      
-            s << "     </Geometry>\n\n";
-            s << "   </Grid>\n";
-        
-            std::string st = s.str();
-            
-            fprintf(xmf, st.c_str());         
-        }
-        std::stringstream s_tail;
-        s_tail <<  "   </Grid>\n";
-        s_tail <<  " </Domain>\n";
-        s_tail <<  "</Xdmf>\n";
-            
-        fprintf(xmf, (s_tail.str()).c_str());
-        fclose(xmf);
-    }
+ 
 }
 
 template<typename TStreamer, typename hdf5Real, typename TGrid>

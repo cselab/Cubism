@@ -57,14 +57,16 @@ void DumpHDF5_MPI(const TGrid &grid,
  
     std::cout<<" ---> Rank " << rank << " is dumping " << Ngrids << " Blocks.\n";
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
     //herr_t status;
-    hid_t file_id, dataset_id, fspace_id; //fapl_id 
+    hid_t file_id, dataset_id, fspace_id, plist_id; 
     hsize_t dims[4] = {nZ, nY, nX, NCHANNELS}; 
     
     H5open();
 
     //1.Set up file access property list with parallel I/O access
-    hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
+    plist_id = H5Pcreate(H5P_FILE_ACCESS);
     H5Pset_fapl_mpio(plist_id, comm, MPI_INFO_NULL);
 
     //2.Create a new file collectively and release property list identifier.
@@ -74,7 +76,7 @@ void DumpHDF5_MPI(const TGrid &grid,
     //3.All ranks need to create datasets dset* that correspond to each block
     int TotalGrids;
     MPI_Allreduce(&Ngrids, &TotalGrids, 1, MPI_INT, MPI_SUM,comm);
-    for (int m=0; m<TotalGrids; m++)
+    for (int m=0; m< TotalGrids; m++)
     {            
         std::stringstream name_ss;
         name_ss <<"dset" << std::setfill('0') << std::setw(10) << m ;
@@ -128,99 +130,81 @@ void DumpHDF5_MPI(const TGrid &grid,
     H5close();
 
     delete [] array_block;
-
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////    
 
 
     //6.Write grid meta-data
     if (bXMF)
     {
-        MPI_File xmf;
-        
-        //delete the xmf file is it exists; no worries if it doesn't
-        MPI_File_delete((fullpath.str()+".xmf").c_str(), MPI_INFO_NULL);
-       
+        std::stringstream s;
 
-        MPI_File_open(comm,(fullpath.str()+".xmf").c_str(),MPI_MODE_WRONLY|MPI_MODE_CREATE,MPI_INFO_NULL,&xmf);
-
-        std::stringstream s_head;
-
-        s_head << "<?xml version=\"1.0\" ?>\n";
-        s_head << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
-        s_head << "<Xdmf Version=\"2.0\">\n";
-        s_head << " <Domain>\n";
-        s_head << "   <Grid Name=\"OctTree\" GridType=\"Collection\">\n";
-        s_head << "     <Time Value=\""<<std::setprecision(10)<<std::setw(10)<<absTime<<"\"/>\n\n";
-
-        
-        MPI_Offset offset = 0;
         if (rank == 0)
-            MPI_File_write_at(xmf, offset, (s_head.str()).c_str()  , (s_head.str()).length(), MPI_CHAR, MPI_STATUS_IGNORE);
-
-        
-        const int width = 15;
+        {
+            s << "<?xml version=\"1.0\" ?>\n";
+            s << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
+            s << "<Xdmf Version=\"2.0\">\n";
+            s << "<Domain>\n";
+            s << " <Grid Name=\"OctTree\" GridType=\"Collection\">\n";
+            s << "  <Time Value=\""<<std::scientific<<absTime<<"\"/>\n\n";           
+        }
+      
         for (int m = 0; m < Ngrids; m++)
         {
             int mm = m + grid_base;
             BlockInfo I = MyInfos[m];     
         
-            std::stringstream s;
-            s << "   <Grid GridType=\"Uniform\">\n";
-            s << "     <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " <<nX + 1 << " " <<nY + 1 << " " <<nZ + 1 << "\"/>\n\n";
-            s << "       <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
-            s << "          <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
-            /*ViSit*/ 
-            //s << "                 "<<std::setprecision(10) <<std::setw(width) << I.origin[0] << " " <<std::setw(width) << I.origin[1] << " " <<std::setw(width) << I.origin[2] << "\n";
-            /*Paraview*/
-            s << "                 "<<std::setprecision(10)<<std::setw(width) << I.origin[2] << " " << std::setw(width)<<I.origin[1] << " " << std::setw(width)<<I.origin[0] << "\n";
-            s << "          </DataItem>\n";      
-            s << "          <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
-            s << "                 "<<std::setprecision(10) <<std::setw(width)<< I.h << " " << std::setw(width)<<I.h << " " << std::setw(width)<<I.h << "\n";
-            s << "          </DataItem>\n";      
-            s << "     </Geometry>\n\n";
-            s << "     <Attribute Name=\"data\" AttributeType=\" "<< TStreamer::getAttributeName() << "\" Center=\"Cell\">\n";
-            s << "       <DataItem Dimensions=\" " <<nX << " " << nY << " " << nZ << " " << std::setw(10)<<NCHANNELS <<"\" NumberType=\"Float\" Precision=\" " <<   (int)sizeof(hdf5Real)  << "\" Format=\"HDF\">\n";
+            s << "  <Grid GridType=\"Uniform\">\n";
+            s << "   <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " <<nX + 1 << " " <<nY + 1 << " " <<nZ + 1 << "\"/>\n";
+            s << "   <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
+            s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
             
-
+            /*ViSit*/ 
+            //s << "    "<<std::scientific << I.origin[0] << " " << I.origin[1] << " " << I.origin[2] << "\n";
+            
+            /*Paraview*/
+            s << "    "<<std::scientific << I.origin[2] << " " << I.origin[1] << " " << I.origin[0] << "\n";
+            s << "   </DataItem>\n";      
+            s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
+            s << "    "<<std::scientific<< I.h << " " << I.h << " " <<I.h << "\n";
+            s << "   </DataItem>\n";      
+            s << "   </Geometry>\n";
+            s << "   <Attribute Name=\"data\" AttributeType=\" "<< TStreamer::getAttributeName() << "\" Center=\"Cell\">\n";
+            s << "   <DataItem Dimensions=\" " <<nX << " " << nY << " " << nZ << " " <<NCHANNELS <<"\" NumberType=\"Float\" Precision=\" " <<   (int)sizeof(hdf5Real)  << "\" Format=\"HDF\">\n";
+            
             std::stringstream name_ss;
             name_ss <<"dset" << std::setfill('0') << std::setw(10) << mm ;
             std::string tmp = name_ss.str();
 
-            s << "        "<<(filename.str()+".h5").c_str()<<":/"<<tmp<<"\n";        
-            s << "       </DataItem>\n";
-            s << "     </Attribute>\n";
-            s << "   </Grid>\n";
+            s << "    "<<(filename.str()+".h5").c_str()<<":/"<<tmp<<"\n";        
+            s << "   </DataItem>\n";
+            s << "   </Attribute>\n";
+            s << "  </Grid>\n\n";
         
-            std::string st = s.str();
-            
-            if (m==0)
-            {
-                offset = grid_base * (s.str()).length() + (s_head.str()).length()  ; 
-                MPI_File_set_view(xmf,offset,MPI_CHAR,MPI_CHAR,"native", MPI_INFO_NULL);
-            }
-            
-            MPI_File_write(xmf, st.c_str()  , st.length(), MPI_CHAR, MPI_STATUS_IGNORE);            
-        }
-        std::stringstream s_tail;
-        s_tail <<  "   </Grid>\n";
-        s_tail <<  " </Domain>\n";
-        s_tail <<  "</Xdmf>\n";
-            
-        if (rank == size -1)
-            MPI_File_write(xmf, (s_tail.str()).c_str()  , (s_tail.str()).length() , MPI_CHAR, MPI_STATUS_IGNORE);
-       
+        }           
+        if (rank == size - 1)
+        {
+            s<<  " </Grid>\n";
+            s<<  "</Domain>\n";
+            s<<  "</Xdmf>\n";
+        }   
+
+        std::string st = s.str();
+        MPI_Offset offset = 0;
+        MPI_Offset len = st.size()*sizeof(char);
+
+        MPI_File xmf;
+         
+        //delete the xmf file is it exists; no worries if it doesn't
+        MPI_File_delete((fullpath.str()+".xmf").c_str(), MPI_INFO_NULL);     
+        MPI_File_open(comm,(fullpath.str()+".xmf").c_str(),MPI_MODE_WRONLY|MPI_MODE_CREATE,MPI_INFO_NULL,&xmf);
+
+        MPI_Exscan(&len,&offset,1,MPI_OFFSET,MPI_SUM,MPI_COMM_WORLD);
+
+        MPI_File_write_at_all(xmf,offset,st.data(),st.size(),MPI_CHAR,MPI_STATUS_IGNORE);
+      
         MPI_File_close(&xmf);
-    }
-
-
-
-
-
-
-
-
-
-
- 
+    } 
 }
 
 template<typename TStreamer, typename hdf5Real, typename TGrid>

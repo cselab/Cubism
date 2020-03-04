@@ -168,35 +168,11 @@ struct BlockInfo
     }
 
     #ifdef HACK
-        bool special;
         double h_gridpoint;
         double uniform_grid_spacing[3];
         double block_extent[3];
         double* ptr_grid_spacing[3];
         bool bUniform[3];
-          
-        template <typename T> // 3D
-        inline void spacing(T dx[3], int ix, int iy, int iz) const
-        {
-            dx[0] = h;
-            dx[1] = h;
-            dx[2] = h;
-        }
-    
-        BlockInfo(long long ID, const int idx[3], const double _pos[3], const double _spacing, double h_gridpoint_, void * ptr=NULL, const bool _special=false):
-        blockID(ID), ptrBlock(ptr), special(_special)
-        {
-            std::cout << "BlockInfo hacked constructor called!\n";
-            abort();
-        }
-         
-        template <typename TBlock>
-        BlockInfo(long long ID, const int idx[3], MeshMap<TBlock>* const mapX, MeshMap<TBlock>* const mapY, MeshMap<TBlock>* const mapZ, void * ptr=NULL, const bool _special=false):
-        blockID(ID), ptrBlock(ptr), special(_special)
-        {      
-            std::cout << "BlockInfo with MeshMap called in AMR setting. Are you sure?\n";abort();
-            abort();
-        }
     #endif 
 
     BlockInfo(){};
@@ -204,41 +180,42 @@ struct BlockInfo
     bool operator<(const BlockInfo & other) const 
     { 
       return (blockID < other.blockID);
+      /*
+      if (level == other.level)
+      {
+        assert ((blockID < other.blockID) == (Z < other.Z) );
 
-//      if (level == other.level)
-//      {
-//        assert ((blockID < other.blockID) == (Z < other.Z) );
-//
-//        return (Z < other.Z);
-//      }
-//      else if (level < other.level)
-//      {
-//        int aux = pow(2, other.level- level);
-//        int i[3] = {other.index[0] / aux, other.index[1] / aux, other.index[2] / aux};
-//        int zzz = forward(level,i[0],i[1],i[2]);
-//
-//
-//        assert ((blockID < other.blockID) == (Z < zzz) );
-//        return (Z < zzz);
-//      }
-//      else 
-//      {
-//        int aux = pow(2, level- other.level);
-//        int i[3] = {index[0] / aux, index[1] / aux, index[2] / aux};
-//        int zzz = forward(other.level,i[0],i[1],i[2]);
-//
-//
-//        std::cout << "zzz='" << zzz <<"\n";
-//        std::cout << index[0] << " " <<  index[1] << " " << index[2] <<"\n";
-//
-//        std::cout << other.index[0] << " " <<  other.index[1] << " " << other.index[2] <<"\n";
-//        
-//        std::cout << level << " " << Z << " " << blockID << "      compare  with         " << other.level << " " << other.Z << " " << other.blockID <<"\n";
-//        
-//        assert ((blockID < other.blockID) == (zzz < other.Z) );
-//        
-//        return (zzz < other.Z);
-//      }
+        return (Z < other.Z);
+      }
+      else if (level < other.level)
+      {
+        int aux = pow(2, other.level- level);
+        int i[3] = {other.index[0] / aux, other.index[1] / aux, other.index[2] / aux};
+        int zzz = forward(level,i[0],i[1],i[2]);
+
+
+        assert ((blockID < other.blockID) == (Z < zzz) );
+        return (Z < zzz);
+      }
+      else 
+      {
+        int aux = pow(2, level- other.level);
+        int i[3] = {index[0] / aux, index[1] / aux, index[2] / aux};
+        int zzz = forward(other.level,i[0],i[1],i[2]);
+
+
+        std::cout << "zzz='" << zzz <<"\n";
+        std::cout << index[0] << " " <<  index[1] << " " << index[2] <<"\n";
+
+        std::cout << other.index[0] << " " <<  other.index[1] << " " << other.index[2] <<"\n";
+        
+        std::cout << level << " " << Z << " " << blockID << "      compare  with         " << other.level << " " << other.Z << " " << other.blockID <<"\n";
+        
+        assert ((blockID < other.blockID) == (zzz < other.Z) );
+        
+        return (zzz < other.Z);
+      }
+      */
     }  
 
 
@@ -298,9 +275,6 @@ struct BlockInfo
         {
           Zchild[i][j][k] = forward(level+1, 2*index[0]+i,2*index[1]+j,2*index[2]+k);
         }
-
-
-
     }
 
     int Znei_(int i, int j, int k) const

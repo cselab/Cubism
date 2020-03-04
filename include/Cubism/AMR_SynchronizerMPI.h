@@ -965,6 +965,7 @@ class SynchronizerMPI_AMR
        
         for (int i=0; i<(int)myInfos_size; i++)
         {
+           // std::cout << i << "        " << myInfos_size <<" \n";
             BlockInfo & info = myInfos[i];
             info.halo_block_id = -1;  
           
@@ -1003,8 +1004,8 @@ class SynchronizerMPI_AMR
                 if (infoNei.TreePos == CheckCoarser) Coarsened = true;
              
 
-
-                if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
+                //Does not work (why?)
+                //if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
     
                 if (infoNei.TreePos == Exists && infoNei.myrank != rank)
                 {
@@ -1321,8 +1322,7 @@ public:
        
         MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
         /*------------->*/Clock.finish(13);
-
-      
+     
         for (int r=0;r<size;r++)
         {
             recv_buffer_size[r] = ss[r]/NC;
@@ -1344,7 +1344,6 @@ public:
             send_packinfos[r].clear();
             ToBeAveragedDown[r].clear();
 
-           
             MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
             
             for (int i=0; i<(int) send_interfaces[r].size(); i++)

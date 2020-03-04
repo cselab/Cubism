@@ -57,6 +57,7 @@ void DumpHDF5_MPI(const TGrid &grid,
  
     std::cout<<" ---> Rank " << rank << " is dumping " << Ngrids << " Blocks.\n";
 
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
     //herr_t status;
@@ -83,7 +84,9 @@ void DumpHDF5_MPI(const TGrid &grid,
         std::string name = name_ss.str();
 
         fspace_id = H5Screate_simple(4, dims, NULL);
-        dataset_id = H5Dcreate2(file_id, name.c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dataset_id = H5Dcreate(file_id, name.c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+       
+
         H5Dclose(dataset_id);
         H5Sclose(fspace_id);       
     }
@@ -118,7 +121,7 @@ void DumpHDF5_MPI(const TGrid &grid,
         std::string name = name_ss.str();
 
         //Access existing dataset and write to it
-        dataset_id = H5Dopen2(file_id, name.c_str(), H5P_DEFAULT);
+        dataset_id = H5Dopen(file_id, name.c_str(), H5P_DEFAULT);
         H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block);
         H5Dclose(dataset_id);
     }

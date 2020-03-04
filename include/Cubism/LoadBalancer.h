@@ -233,7 +233,6 @@ public:
             MPI_Waitall(request.size(), &request[0], MPI_STATUSES_IGNORE);
         }
 
-
         for (int i=0; i<flux_right; i++)
         {
             BlockInfo & info = SortedInfos[my_blocks-i-1];
@@ -262,6 +261,33 @@ public:
             std::memcpy( a1 ,recv_left[i].data,BlockBytes);            
             info.myrank  = rank;
             info.changed = true;
+
+
+
+            assert (m_refGrid->getBlockInfoAll(level,Z).myrank == rank );
+
+            
+            int p[3] = {info.index[0], info.index[1], info.index[2]};    
+            if (level<m_refGrid->getlevelMax() -1)
+                for (int k=0; k<2; k++ )
+                for (int j=0; j<2; j++ )
+                for (int ii=0; ii<2; ii++ )
+                {      
+                    int nc = m_refGrid->getZforward(level+1,2*p[0]+ii,2*p[1]+j,2*p[2]+k);
+                    
+                    BlockInfo & iC = m_refGrid->getBlockInfoAll(level+1,nc);
+                    iC.TreePos = CheckCoarser;
+                    iC.myrank  = -1;
+                }
+             if (level>0)
+             {
+                int nf = m_refGrid->getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
+                BlockInfo & iF = m_refGrid->getBlockInfoAll(level-1,nf);
+                iF.TreePos = CheckFiner;
+                iF.myrank  = -1;
+             }
+
+
         }
       
         for (int i=0; i<-flux_right; i++)
@@ -277,6 +303,31 @@ public:
             std::memcpy( a1 ,recv_right[i].data,BlockBytes);
             info.myrank  = rank;
             info.changed = true;
+
+
+            assert (m_refGrid->getBlockInfoAll(level,Z).myrank == rank );
+
+
+
+            int p[3] = {info.index[0], info.index[1], info.index[2]};    
+            if (level<m_refGrid->getlevelMax() -1)
+                for (int k=0; k<2; k++ )
+                for (int j=0; j<2; j++ )
+                for (int ii=0; ii<2; ii++ )
+                {      
+                    int nc = m_refGrid->getZforward(level+1,2*p[0]+ii,2*p[1]+j,2*p[2]+k);
+                    
+                    BlockInfo & iC = m_refGrid->getBlockInfoAll(level+1,nc);
+                    iC.TreePos = CheckCoarser;
+                    iC.myrank  = -1;
+                }
+             if (level>0)
+             {
+                int nf = m_refGrid->getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
+                BlockInfo & iF = m_refGrid->getBlockInfoAll(level-1,nf);
+                iF.TreePos = CheckFiner;
+                iF.myrank  = -1;
+             }
         }
    
 
@@ -301,6 +352,38 @@ public:
                 std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
             }
         }
+
+
+        for (auto & info: m_refGrid->getBlocksInfo())
+        {
+            info.TreePos = Exists;
+            info.myrank = rank;
+            assert(info.TreePos == Exists);
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
 };
 

@@ -298,7 +298,7 @@ public:
     inline int getlevelMax()       {return levelMax;}
     inline int getlevelMax() const {return levelMax;}
     
-    inline  BlockInfo & getBlockInfoAll(int m,int n)      {return BlockInfoAll[m][n];}
+    virtual BlockInfo & getBlockInfoAll(int m,int n)      {return BlockInfoAll[m][n];}
     virtual BlockInfo   getBlockInfoAll(int m,int n) const{return BlockInfoAll[m][n];}
 
     inline std::vector<std::vector<BlockInfo >> & getBlockInfoAll() {return BlockInfoAll;}

@@ -444,9 +444,7 @@ class FluxCorrection
                   block.tmp[i1][TBlock::sizeY-1][i2][4] += CoarseFace[i2+i1*N2].rw;
                   block.tmp[i1][TBlock::sizeY-1][i2][5] += CoarseFace[i2+i1*N2].energy;
                   block.tmp[i1][TBlock::sizeY-1][i2][6] += CoarseFace[i2+i1*N2].alpha2;
-                  block.tmp[i1][TBlock::sizeY-1][i2][7] += CoarseFace[i2+i1*N2].dummy;
-                
-
+                  block.tmp[i1][TBlock::sizeY-1][i2][7] += CoarseFace[i2+i1*N2].dummy;                
                 }
               }
             }

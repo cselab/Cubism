@@ -119,8 +119,6 @@ public:
         for (int i=0; i<nthreads; i++)
           labs[i].prepare(*m_refGrid, *Synch);
 
-
-
         /*------------->*/Clock.start(0,"MeshAdaptation: Barrier before block tagging");
         //MPI_Barrier(MPI_COMM_WORLD); 
         /*------------->*/Clock.finish(0);
@@ -263,7 +261,7 @@ public:
         MPI_Allreduce(MPI_IN_PLACE,&tmp,1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
         CallValidStates = (tmp == 1);
  
-       // if (CallValidStates)
+        if (CallValidStates)
          ValidStates();
         /*------------->*/Clock.finish(4);
 
@@ -344,24 +342,22 @@ public:
         /*------------->*/Clock.finish(6);
         
 		
-        /*------------->*/Clock.start(7,"MeshAdaptation : UpdateBlockInfoAll_States");
+        /*------------->*/Clock.start(7,"MeshAdaptation : FillPos");
         m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States(false);
         /*------------->*/Clock.finish(7);
-        
+
 
         /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
         Balancer.Balance_Diffusion();
         /*------------->*/Clock.finish(8);
-
+   
         delete [] labs;
        
         /*------------->*/Clock.start(9,"MeshAdaptation : Setup");
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
 
-            m_refGrid->UpdateBlockInfoAll_States(true);        	
-            
+            m_refGrid->UpdateBlockInfoAll_States(true);
             Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
             
  			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
@@ -513,221 +509,36 @@ protected:
         }
     }
 
-#if 0
-    void ValidStates() 
+
+    void ValidStates()
     {
         static std::array <int,3> blocksPerDim = m_refGrid->getMaxBlocks();
+        static const int levelMin = 0;
+        static const int levelMax = m_refGrid->getlevelMax();
         static const bool xperiodic = labs[0].is_xperiodic();
         static const bool yperiodic = labs[0].is_yperiodic();
         static const bool zperiodic = labs[0].is_zperiodic();
-        static const int  levelMin = 0;
-        static const int  levelMax = m_refGrid->getlevelMax();
+
 
         std::vector <BlockInfo> & I = m_refGrid->getBlocksInfo();
-
         for ( auto & b: I)
         {
             BlockInfo & info = m_refGrid->getBlockInfoAll(b.level,b.Z);
+            info.changed = true;
+            b.changed = true;
             if (info.state==Refine   && info.level ==levelMax-1)
             {
                 info.state=Leave;
-                b.state = Leave;
-             	info.changed=true;
-                b.changed=true;
-            }
-
+            } 
             if (info.state==Compress && info.level ==levelMin  )
             {
                 info.state=Leave;
-                b.state = Leave;
-                info.changed=true;
-                b.changed=true;
             }
-
-        }
-        
-        m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States(true);
-        
-        for (int m=levelMax-1; m>=levelMin; m--)
-        {
-            //1.Change states of blocks next to finer resolution blocks
-            //2.Change states of blocks next to same resolution blocks
-            //3.Compress a block only if all blocks with the same parent need compression
-                
-            //bool ready = false;
-           
-            //while(!ready)
-            //{ 
-            //ready = true;
-            //1.
-            for ( auto & b: I) if (b.level == m)
-            {          
-                BlockInfo & info =  m_refGrid->getBlockInfoAll(m,b.Z);
-            
-                assert(b.TreePos == Exists    );
-                assert (b.level  == m         );
-                assert (b.level  == info.level);
-
-                int TwoPower = 1<<info.level;//pow(2,info.level);
-                const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*TwoPower-1;
-                const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*TwoPower-1;
-                const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*TwoPower-1;
-                const int xskip  = info.index[0]==0 ? -1 : 1;
-                const int yskip  = info.index[1]==0 ? -1 : 1;
-                const int zskip  = info.index[2]==0 ? -1 : 1;
-    
-                for(int icode=0; icode<27; icode++)
-                {
-                    if (icode == 1*1 + 3*1 + 9*1) continue;
-                    const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
-                  
-                    if (!xperiodic && code[0] == xskip && xskin) continue;
-                    if (!yperiodic && code[1] == yskip && yskin) continue;
-                    if (!zperiodic && code[2] == zskip && zskin) continue;   
-                        BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]) );
-                      
-                    if (infoNei.TreePos == CheckFiner && info.state!=Refine)
-                    {
-                        //if (!info.changed) ready = false;
-
-                        info.state=Leave;
-                        b.state = Leave;
-                        info.changed=true;
-                        b.changed=true;
-                        
- 
-                        int Bstep = 1; //face
-                        if      ((abs(code[0])+abs(code[1])+abs(code[2])==2 )) Bstep = 3; //edge
-                        else if ((abs(code[0])+abs(code[1])+abs(code[2])==3 )) Bstep = 4; //corner
-                
-                        for (int B = 0 ; B <= 3 ; B += Bstep) //loop over blocks that make up face/edge/corner (respectively 4,2 or 1 blocks)
-                        {
-                            const int aux = (abs(code[0])==1) ? (B%2) : (B/2) ;
-                                      
-                            int iNei = 2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0]));
-                            int jNei = 2*info.index[1] + max(code[1],0) +code[1]  +  aux *max(0, 1 - abs(code[1]));
-                            int kNei = 2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2]));
-                            int zzz = m_refGrid->getZforward(m+1,iNei,jNei,kNei);
-                            BlockInfo & FinerNei = m_refGrid->getBlockInfoAll(m+1,zzz);
-                            State NeiState = FinerNei.state;
-                            if (NeiState == Refine)
-                            {
-                                info.state = Refine;
-                                b.state = Refine;
-                                info.changed=true;
-                				b.changed=true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            //MPI_Allreduce(MPI_IN_PLACE, &ready, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
-        m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States(true);
-            m_refGrid->UpdateBlockInfoAll_States(false);
-            //m_refGrid->UpdateBoundary();
-            //}//ready
-            
-            //2. and 3.
-            for ( auto & b: I) if (b.level == m)
-            {
-                BlockInfo & info =  m_refGrid->getBlockInfoAll(m,b.Z);
-
-                if (info.state != Compress) continue;
-
-                int aux = 1<<info.level;//pow(2,info.level);
-                const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
-                const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
-                const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
-                const int xskip  = info.index[0]==0 ? -1 : 1;
-                const int yskip  = info.index[1]==0 ? -1 : 1;
-                const int zskip  = info.index[2]==0 ? -1 : 1;
-                for(int icode=0; icode<27; icode++)
-                {
-                    if (icode == 1*1 + 3*1 + 9*1) continue;
-                    const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
-                    if (!xperiodic && code[0] == xskip && xskin) continue;
-                    if (!yperiodic && code[1] == yskip && yskin) continue;
-                    if (!zperiodic && code[2] == zskip && zskin) continue;   
-                    BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]) );
-                    
-                    if (infoNei.TreePos == Exists && infoNei.state==Refine)
-                    {
-                        info.state=Leave;
-                        b.state = Leave;
-                        info.changed=true;
-                        b.changed=true;
-                        break;
-                    }
-                }
-
-                if (info.state==Compress)
-                for (int i= 2*(info.index[0]/2); i <= 2*(info.index[0]/2)+1; i++)
-                for (int j= 2*(info.index[1]/2); j <= 2*(info.index[1]/2)+1; j++)
-                for (int k= 2*(info.index[2]/2); k <= 2*(info.index[2]/2)+1; k++)
-                {
-                    int n = m_refGrid->getZforward(m,i,j,k);
-                    BlockInfo & infoNei = m_refGrid->getBlockInfoAll(m,n);
-                    if (infoNei.TreePos != Exists || infoNei.state != Compress )
-                    {
-                      info.state = Leave;
-                      b.state = Leave;
-                      info.changed=true;
-                      b.changed=true;
-                      break;
-                    }                       
-                }
-            }
-         m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States(true);
-            m_refGrid->UpdateBlockInfoAll_States(false);
-            //4.
-            for ( auto & b: I) if (b.level == m)
-            {
-                BlockInfo & info =  m_refGrid->getBlockInfoAll(m,b.Z);
-                int nBlock = m_refGrid->getZforward(m, 2*(info.index[0]/2),2*(info.index[1]/2),2*(info.index[2]/2) ); 
-                if (b.Z != nBlock)
-                {
-                  if (info.state==Compress)  
-                  {
-                        info.state = Leave;
-                        b.state = Leave;
-                        info.changed=true;
-                        b.changed=true;
-                  }  
-                }
-            } 
-                    m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States(true);
-        }//m
-    
-        m_refGrid->UpdateBlockInfoAll_States(false);
-    }
-#else
-        void ValidStates()
-    {
-        std::vector <BlockInfo> & I = m_refGrid->getBlocksInfo();
-        std::array <int,3> blocksPerDim = m_refGrid->getMaxBlocks();
-
-        int levelMin = 0;
-        int levelMax = m_refGrid->getlevelMax();
-
-        for ( auto & b: I)
-        {
-            BlockInfo & info = m_refGrid->getBlockInfoAll(b.level,b.Z);
-            if (info.state==Refine   && info.level ==levelMax-1) info.state=Leave;
-            if (info.state==Compress && info.level ==levelMin  ) info.state=Leave;
         }
 
-        m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States();
+        m_refGrid->FillPos(false);
+        m_refGrid->UpdateBoundary();
 
-
-        const bool xperiodic = labs[0].is_xperiodic();
-        const bool yperiodic = labs[0].is_yperiodic();
-        const bool zperiodic = labs[0].is_zperiodic();
 
         for (int m=levelMax-1; m>=levelMin; m--)
         {
@@ -735,12 +546,7 @@ protected:
             //2.Change states of blocks next to same resolution blocks
             //3.Compress a block only if all blocks with the same parent need compression
 
-            //bool ready = false;
-
-            //while(!ready)
-            //{
-            //    ready = true;
-
+      
             //1.
             for ( auto & b: I) if (b.level == m)
             {
@@ -748,13 +554,13 @@ protected:
 
                 assert(b.TreePos == Exists);
 
-                int TwoPower = pow(2,info.level);
+                int TwoPower = 1<<info.level;
                 const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*TwoPower-1;
                 const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*TwoPower-1;
                 const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*TwoPower-1;
-                const int xskip  = info.index[0]==0 ? -1 : 1;
-                const int yskip  = info.index[1]==0 ? -1 : 1;
-                const int zskip  = info.index[2]==0 ? -1 : 1;
+                const int  xskip  = info.index[0]==0 ? -1 : 1;
+                const int  yskip  = info.index[1]==0 ? -1 : 1;
+                const int  zskip  = info.index[2]==0 ? -1 : 1;
 
                 for(int icode=0; icode<27; icode++)
                 {
@@ -764,11 +570,15 @@ protected:
                     if (!xperiodic && code[0] == xskip && xskin) continue;
                     if (!yperiodic && code[1] == yskip && yskin) continue;
                     if (!zperiodic && code[2] == zskip && zskin) continue;
-                        BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]) );
+                    
+                    BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]) );
 
                     if (infoNei.TreePos == CheckFiner && info.state!=Refine)
                     {
                         info.state=Leave;
+                        info.changed = true;
+                        b.changed = true;
+
                         int Bstep = 1; //face
                         if      ((abs(code[0])+abs(code[1])+abs(code[2])==2 )) Bstep = 3; //edge
                         else if ((abs(code[0])+abs(code[1])+abs(code[2])==3 )) Bstep = 4; //corner
@@ -786,32 +596,34 @@ protected:
                             if (NeiState == Refine)
                             {
                                 info.state=Refine;
+                                info.changed = true;
                                 b.state = Refine;
-             //                   ready = false;
+                                b.changed = true;
                                 break;
                             }
                         }
                     }
                 }
             }
+           
+            m_refGrid->FillPos(false);
+            m_refGrid->UpdateBoundary();
 
-            //MPI_Allreduce(MPI_IN_PLACE, &ready, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
-
-            m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States();
-
-            //}//ready
             //2.
             for ( auto & b: I) if (b.level == m)
             {
                 BlockInfo & info =  m_refGrid->getBlockInfoAll(m,b.Z);
-                int aux = pow(2,info.level);
+                
+                if (info.state!=Compress) continue;
+
+                int aux = 1<<info.level;
                 const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
                 const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
                 const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
                 const int xskip  = info.index[0]==0 ? -1 : 1;
                 const int yskip  = info.index[1]==0 ? -1 : 1;
                 const int zskip  = info.index[2]==0 ? -1 : 1;
+
                 for(int icode=0; icode<27; icode++)
                 {
                     if (icode == 1*1 + 3*1 + 9*1) continue;
@@ -819,15 +631,20 @@ protected:
                     if (!xperiodic && code[0] == xskip && xskin) continue;
                     if (!yperiodic && code[1] == yskip && yskin) continue;
                     if (!zperiodic && code[2] == zskip && zskin) continue;
+
                     BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]) );
 
-                    if (infoNei.TreePos == Exists && infoNei.state==Refine && info.state==Compress)
+                    if (infoNei.TreePos == Exists && infoNei.state==Refine)
+                    {
                         info.state=Leave;
+                        info.changed = true;
+                        b.changed = true;
+                    }
                 }
             }
 
-            m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States(true);
+            m_refGrid->FillPos(false);
+            m_refGrid->UpdateBoundary();
 
 
             //3.
@@ -844,6 +661,8 @@ protected:
                     if (infoNei.TreePos != Exists || infoNei.state != Compress )
                     {
                       info.state = Leave;
+                      info.changed = true;
+                      b.changed = true;
                       break;
                     }
                 }
@@ -852,25 +671,15 @@ protected:
             //4.
             for ( auto & b: I) if (b.level == m)
             {
-                BlockInfo & info =  m_refGrid->getBlockInfoAll(m,b.Z);
-                int nBlock = m_refGrid->getZforward(m, 2*(info.index[0]/2),2*(info.index[1]/2),2*(info.index[2]/2) );
-                if (b.Z != nBlock)
+                if (b.state == Compress && (b.index[0]%2==1 || b.index[1]%2==1 || b.index[2]%2==1)  )
                 {
-                  if (info.state==Compress)
-                  {
-                        info.state = Leave;
-                        b.state = Leave;
-                  }
+                    BlockInfo & info =  m_refGrid->getBlockInfoAll(m,b.Z);
+                    info.state = Leave;
+                    b.state = Leave;                    
                 }
             }
-
-            m_refGrid->FillPos();
-            m_refGrid->UpdateBlockInfoAll_States();
         }//m
     }
-#endif
-
-   
 
 
 

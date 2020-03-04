@@ -95,7 +95,7 @@ class FluxCorrectionMPI: public TFluxCorrection
       //1.Define faces
       for (auto & info: BLOCKS)
       {
-        int aux = pow(2,info.level);
+        int aux = 1<<info.level; 
 
         const bool xskin = info.index[0]==0 || info.index[0]==TFluxCorrection::blocksPerDim[0]*aux-1;
         const bool yskin = info.index[1]==0 || info.index[1]==TFluxCorrection::blocksPerDim[1]*aux-1;
@@ -275,7 +275,7 @@ class FluxCorrectionMPI: public TFluxCorrection
 
       for (auto & info: B)
       {
-        int aux = pow(2,info.level);
+        int aux = 1<<info.level;
 
         const bool xskin = info.index[0]==0 || info.index[0]==TFluxCorrection::blocksPerDim[0]*aux-1;
         const bool yskin = info.index[1]==0 || info.index[1]==TFluxCorrection::blocksPerDim[1]*aux-1;

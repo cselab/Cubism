@@ -228,16 +228,6 @@ public:
         }
     #endif
         FillPos(true); 
-
-
-
-
-
-
-
-
-
-
         MPI_Barrier(MPI_COMM_WORLD);
         std::cout<<"GridMPI constructor called (ok)\n";
     }
@@ -394,11 +384,11 @@ public:
         
         std::set<int> All_receivers;
 
-        for (auto & info: TGrid::m_vInfo)
+        for (auto & info: TGrid::m_vInfo) if (info.changed)
         {
             std::set<int> receivers;
 
-            int aux = pow(2,info.level);
+            int aux = 1<<info.level;
 
             const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
             const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
@@ -429,7 +419,7 @@ public:
                 }
                 else if (infoNei.TreePos == CheckCoarser)
                 {
-                    int nCoarse = TGrid::getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
+                    int nCoarse = infoNei.Zparent;//TGrid::getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
                     BlockInfo & infoNeiCoarser = TGrid::getBlockInfoAll(infoNei.level-1,nCoarse);
                     if (infoNeiCoarser.myrank != rank)
                     {
@@ -447,9 +437,15 @@ public:
                     for (int B = 0 ; B <= 3 ; B += Bstep) //loop over blocks that make up face/edge/corner (respectively 4,2 or 1 blocks)
                     {
                         const int temp = (abs(code[0])==1) ? (B%2) : (B/2) ;
-                        int nFine = TGrid::getZforward(infoNei.level+1,2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0])),
-                                                                       2*info.index[1] + max(code[1],0) +code[1]  + temp *max(0, 1 - abs(code[1])),
-                                                                       2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2])));
+                        //int nFine = TGrid::getZforward(infoNei.level+1,2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0])),
+                        //                                               2*info.index[1] + max(code[1],0) +code[1]  + temp *max(0, 1 - abs(code[1])),
+                        //                                               2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2])));
+                        int nFine1 = infoNei.Zchild[max(code[0],0)+ (B%2)*max(0, 1 - abs(code[0]))]
+                                                   [max(code[1],0)+ temp *max(0, 1 - abs(code[1]))]
+                                                   [max(code[2],0)+ (B/2)*max(0, 1 - abs(code[2]))];                                      
+                        int nFine = TGrid::getBlockInfoAll(infoNei.level+1,nFine1).Znei_(-code[0],-code[1],-code[2]);
+
+
                         BlockInfo & infoNeiFiner = TGrid::getBlockInfoAll(infoNei.level+1,nFine);
                         if (infoNeiFiner.myrank != rank)
                         {
@@ -514,16 +510,11 @@ public:
         MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);     
         MPI_Waitall(recv_requests.size(), recv_requests.data(), MPI_STATUSES_IGNORE);
        
-
-
         for (int r=0 ; r<size; r++)
         for (int index = 0; index < (int)recv_buffer[r].size(); index += 3)
         {
             int level = recv_buffer[r][index  ];
             int Z     = recv_buffer[r][index+1];
-           
-            TGrid::BlockInfoAll[level][Z].myrank  = r;
-            TGrid::BlockInfoAll[level][Z].TreePos = Exists;
 
             if (recv_buffer[r][index+2] == 0)
             TGrid::BlockInfoAll[level][Z].state   = Leave;
@@ -533,36 +524,14 @@ public:
 
             else if (recv_buffer[r][index+2] == 2)
             TGrid::BlockInfoAll[level][Z].state   = Refine;
-
-
-            int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
-                        TGrid::BlockInfoAll[level][Z].index[1],
-                        TGrid::BlockInfoAll[level][Z].index[2]};
-           
-            if (level<TGrid::levelMax -1)
-                for (int k=0; k<2; k++ )
-                for (int j=0; j<2; j++ )
-                for (int i=0; i<2; i++ )
-                {      
-                    int nc = TGrid::getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
-                    TGrid::BlockInfoAll[level+1][nc].TreePos = CheckCoarser;
-                    TGrid::BlockInfoAll[level+1][nc].myrank  = -1;
-                }
-            if (level>0)
-            {
-                int nf = TGrid::getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
-                TGrid::BlockInfoAll[level-1][nf].TreePos = CheckFiner;
-                TGrid::BlockInfoAll[level-1][nf].myrank  = -1;
-            }
         }
-
-           #if 1 //update all blocks in process boundary
-           #else //update only the blocks that changed
-           #endif
-
     };
 #endif
-    void UpdateBlockInfoAll_States(bool GlobalUpdate = true) 
+
+
+
+
+    void UpdateBlockInfoAll_States(bool GlobalUpdate = false) 
     {        
         int rank,size;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
@@ -573,35 +542,34 @@ public:
         {
         	int m = info.level;
         	int n = info.Z;
-            #if 0
+
+            assert(info.TreePos == Exists);
+
+            if (GlobalUpdate)
+            {
                 ChangedInfos.push_back(info);
-        	#else
-                if (GlobalUpdate)  ChangedInfos.push_back(info); else
-                if (TGrid::getBlockInfoAll(m,n).changed)
-        	    {
-        	    	TGrid::getBlockInfoAll(m,n).changed = false;
-        	    	info.changed = false;
-        	    	ChangedInfos.push_back(info);
-        	    }
-            #endif
+            }
+            else if (TGrid::getBlockInfoAll(m,n).changed)
+        	{
+        	   	TGrid::getBlockInfoAll(m,n).changed = false;
+        	   	info.changed = false;
+        	  	ChangedInfos.push_back(info);
+        	}
         }
 
-        size_t myLength = 3*ChangedInfos.size(); 
+        size_t myLength = 2*ChangedInfos.size(); 
         int * myData = new int[myLength];
 
-        for (size_t i=0; i<myLength; i+=3)
+        for (size_t i=0; i<myLength; i+=2)
         {
-            myData[i  ] = ChangedInfos[i/3].level; 
-            myData[i+1] = ChangedInfos[i/3].Z    ; 
-            if      (ChangedInfos[i/3].state == Leave   ) myData[i+2] = 0;
-            else if (ChangedInfos[i/3].state == Compress) myData[i+2] = 1;
-            else if (ChangedInfos[i/3].state == Refine  ) myData[i+2] = 2;
-            assert(ChangedInfos[i/3].myrank == rank);
+            myData[i  ] = ChangedInfos[i/2].level; 
+            myData[i+1] = ChangedInfos[i/2].Z    ; 
+            assert(ChangedInfos[i/2].myrank == rank);
         }
 
         //2.Gather lengths of all processes and use them to allocate memory on each process
         int * AllLengths = new int [size];
-        MPI_Allgather(&myLength, 1, MPI_INT, &AllLengths[0], 1, MPI_INT,MPI_COMM_WORLD);
+        MPI_Allgather(&myLength, 1, MPI_INT, AllLengths, 1, MPI_INT,MPI_COMM_WORLD);
         assert((size_t)AllLengths[rank] == myLength);
 
         int sumL = 0;
@@ -619,27 +587,24 @@ public:
             displacement[r] = sumL;
             sumL += AllLengths[r];
         }
-        MPI_Allgatherv(&myData[0], myLength, MPI_INT, All_data, &AllLengths[0], &displacement[0], MPI_INT, MPI_COMM_WORLD);
+
+        MPI_Allgatherv(myData, myLength, MPI_INT, All_data, AllLengths, displacement.data(), MPI_INT, MPI_COMM_WORLD);
         
         for (int r=0 ; r<size; r++) if (r!=rank)
         {
             int * ptr = All_ptr[r];
-            for (int index__ = 0; index__ < AllLengths[r]; index__ += 3)
+            for (int index__ = 0; index__ < AllLengths[r]; index__ += 2)
             {
                 int level = ptr[index__  ];
                 int Z     = ptr[index__+1];
     
-                TGrid::BlockInfoAll[level][Z].myrank  = r;
                 TGrid::BlockInfoAll[level][Z].TreePos = Exists;
-      
-                if      (ptr[index__+2] == 0) TGrid::BlockInfoAll[level][Z].state = Leave;
-                else if (ptr[index__+2] == 1) TGrid::BlockInfoAll[level][Z].state = Compress;
-                else if (ptr[index__+2] == 2) TGrid::BlockInfoAll[level][Z].state = Refine;
-    
+                TGrid::BlockInfoAll[level][Z].myrank  = r;           
+
                 int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
                             TGrid::BlockInfoAll[level][Z].index[1],
                             TGrid::BlockInfoAll[level][Z].index[2]};
-               
+
                 if (level<TGrid::levelMax -1)
                     for (int k=0; k<2; k++ )
                     for (int j=0; j<2; j++ )

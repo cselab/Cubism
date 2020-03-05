@@ -2,13 +2,8 @@
 
 #include "FluxCorrection.h"
 //#include <omp.h>
+#include "AMR_SynchronizerMPI.h"
 
-#ifdef __bgq__
-#include <builtins.h>
-#define memcpy2(a,b,c)  __bcopy((b),(a),(c))
-#else
-#define memcpy2(a,b,c)  memcpy((a),(b),(c))
-#endif
 
 
 namespace cubism //AMR_CUBISM
@@ -55,33 +50,40 @@ class FluxCorrectionMPI: public TFluxCorrection
     };
 
     int rank,size;
-    std::vector< std::vector<Real> > send_buffer;
-    std::vector< std::vector<Real> > recv_buffer;
-    std::vector<std::vector<face>> send_faces;
-    std::vector<std::vector<face>> recv_faces;
+    GrowingVector < std::vector<Real> > send_buffer;
+    GrowingVector < std::vector<Real> > recv_buffer;
+    GrowingVector <std::vector<face>> send_faces;
+    GrowingVector <std::vector<face>> recv_faces;
 
 
   public:
 
     virtual void prepare(TGrid & grid) override
     {
-      /*------------->*/Clock.start(28,"FluxCorrectionMPI prepare");
+      /*------------->*/Clock.start(28,"FluxCorrectionMPI prepare");  
+      if (!grid.UpdateFluxCorrection) return;
+      grid.UpdateFluxCorrection = false; 
 
-
+      TFluxCorrection::prepare(grid);
+     
       MPI_Comm_size(MPI_COMM_WORLD,&size);
-      MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-
+      MPI_Comm_rank(MPI_COMM_WORLD,&rank);  
+     
       send_buffer.resize(size);
       recv_buffer.resize(size);
       send_faces.resize(size);
       recv_faces.resize(size);
 
+      for (int r=0;r<size; r++)
+      {
+        send_buffer[r].clear();
+        recv_buffer[r].clear();
+        send_faces[r].clear();
+        recv_faces[r].clear();
+      }        
 
       std::vector<int> send_buffer_size(size,0);
       std::vector<int> recv_buffer_size(size,0);
-
-
-      TFluxCorrection::prepare(grid);
 
       std::vector<BlockInfo> & BLOCKS = (*TFluxCorrection::m_refGrid).getBlocksInfo();
       
@@ -132,7 +134,7 @@ class FluxCorrectionMPI: public TFluxCorrection
 
           if (infoNei.TreePos == CheckCoarser)
           {
-            int nCoarse = (*TFluxCorrection::m_refGrid).getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
+            int nCoarse = infoNei.Zparent; //(*TFluxCorrection::m_refGrid).getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
             BlockInfo & infoNeiCoarser = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level-1,nCoarse);
             if (infoNeiCoarser.myrank != rank)
             {
@@ -148,9 +150,17 @@ class FluxCorrectionMPI: public TFluxCorrection
             for (int B = 0 ; B <= 3 ; B += Bstep) //loop over blocks that make up face
             {
               const int temp = (abs(code[0])==1) ? (B%2) : (B/2) ;
+              #if 0
               int nFine = (*TFluxCorrection::m_refGrid).getZforward(infoNei.level+1,2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0])),
                                                       2*info.index[1] + max(code[1],0) +code[1]  + temp *max(0, 1 - abs(code[1])),
                                                       2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2])));
+              #else
+              int nFine1 = infoNei.Zchild[max(code[0],0)+ (B%2)*max(0, 1 - abs(code[0]))]
+                                         [max(code[1],0)+ temp *max(0, 1 - abs(code[1]))]
+                                         [max(code[2],0)+ (B/2)*max(0, 1 - abs(code[2]))];                                      
+              int nFine = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level+1,nFine1).Znei_(-code[0],-code[1],-code[2]);
+              #endif
+
               BlockInfo & infoNeiFiner = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level+1,nFine);
               if (infoNeiFiner.myrank != rank)
               {
@@ -253,6 +263,10 @@ class FluxCorrectionMPI: public TFluxCorrection
             send_buffer[r][displacement+6] = avg.alpha2;    
             send_buffer[r][displacement+7] = avg.dummy;     
             displacement += 8;
+            FineFace[i2  + i1   *N2].clear();
+            FineFace[i2+1+ i1   *N2].clear();
+            FineFace[i2  +(i1+1)*N2].clear();
+            FineFace[i2+1+(i1+1)*N2].clear();
           } 
         }
       }
@@ -472,6 +486,10 @@ class FluxCorrectionMPI: public TFluxCorrection
         {
           CoarseFace[base + (i2/2)+ (i1/2)   *N2] *= coef;  
           CoarseFace[base + (i2/2)+ (i1/2)   *N2] += (0.25*coef)*((FineFace[i2+i1*N2]+FineFace[i2+1+i1*N2])+(FineFace[i2+(i1+1)*N2]+FineFace[i2+1+(i1+1)*N2])); 
+          FineFace[i2  + i1   *N2].clear();
+          FineFace[i2+1+ i1   *N2].clear();
+          FineFace[i2  +(i1+1)*N2].clear();
+          FineFace[i2+1+(i1+1)*N2].clear();
         }
       }
     }

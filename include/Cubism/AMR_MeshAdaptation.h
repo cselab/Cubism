@@ -356,6 +356,7 @@ public:
         /*------------->*/Clock.start(9,"MeshAdaptation : Setup");
 		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
 		{
+            m_refGrid->UpdateFluxCorrection = true;
 
             m_refGrid->UpdateBlockInfoAll_States(true);
             Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
@@ -368,6 +369,10 @@ public:
                 it++;
 			}
 		}
+        else
+        {
+            m_refGrid->UpdateFluxCorrection = false;
+        }
         /*------------->*/Clock.finish(9);
     }
 

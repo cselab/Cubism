@@ -31,6 +31,8 @@ protected:
     std::vector <Block * > m_blocks; //pointers to blocks that belong to this rank
     std::vector <std::vector<BlockInfo> > BlockInfoAll; 
 
+
+
     const int NX;         //Total # of blocks for level 0 in X-direction  
     const int NY;         //Total # of blocks for level 0 in Y-direction
     const int NZ;         //Total # of blocks for level 0 in Z-direction
@@ -39,7 +41,11 @@ protected:
     const int levelStart; //Initial refinement level      
 
 public:
-   
+    
+    std::vector <std::vector<BlockInfo *> > BlockInfoAll_ptr;
+
+
+
     int N;                //Current number of blocks
     typedef Block BlockType;
     typedef typename Block::RealType Real;  //Block MUST provide `RealType`.
@@ -219,6 +225,7 @@ public:
 
         //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
         BlockInfoAll.resize(levelMax);
+        BlockInfoAll_ptr.resize(levelMax);
 
         for (int m=0; m<levelMax; m++)
         {
@@ -226,6 +233,7 @@ public:
             const unsigned int Ntot = NX*NY*NZ*pow(TwoPower,3);
             
             BlockInfoAll[m].resize(Ntot);
+            BlockInfoAll_ptr[m].resize(Ntot);
             
             double h = h0 / TwoPower;
 
@@ -251,6 +259,9 @@ public:
                 int rank = (m==levelStart) ? 0 : -1;
                 
                 BlockInfoAll[m][n].setup(m,h,origin,IJK,rank,TreePos); //Ranks are initialized in GridMPI constructor    
+            
+
+                if ( abs(m- _levelStart) <=1 ) BlockInfoAll_ptr[m][n] = BlockInfoAll[m][n];
             }
         }
 

@@ -230,7 +230,6 @@ struct BlockInfo
   		setup(a_level,a_h,a_origin,a_index,a_myrank,a_TreePos);
   	};
 
-
     void setup(const int a_level,const double a_h, const double a_origin[3],int a_index[3], int a_myrank, TreePosition a_TreePos) 
     {
         myrank    = a_myrank;
@@ -239,13 +238,19 @@ struct BlockInfo
         index [1] = a_index[1];
         index [2] = a_index[2];
         state  = Leave;
-        if (ptrBlock != NULL) h_gridpoint = h;
+        //if (ptrBlock != NULL) 
+        h_gridpoint = a_h;
 
         level     = a_level;
         h         = a_h;
         origin[0] = a_origin[0];
         origin[1] = a_origin[1];
         origin[2] = a_origin[2];
+
+        changed = true;
+        bUniform[0] = true;//to silence fsanitizer
+        bUniform[1] = true;//to silence fsanitizer
+        bUniform[2] = true;//to silence fsanitizer
 
         block_extent[0] = h* _BLOCKSIZE_;
         block_extent[1] = h* _BLOCKSIZE_;

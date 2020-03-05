@@ -645,7 +645,7 @@ public:
         const StencilInfo stencil = p.stencil;
         assert(stencil.isvalid());
 
-        SynchronizerMPIType * queryresult = NULL;
+        SynchronizerMPIType * queryresult = nullptr;
              
 
         typename std::map<StencilInfo, SynchronizerMPIType*>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);

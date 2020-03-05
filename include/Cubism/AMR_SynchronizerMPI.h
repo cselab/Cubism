@@ -487,8 +487,7 @@ class SynchronizerMPI_AMR
             for (size_t i=0; i<blocks; i++)
             {
                 sizes[i] = 0;
-                unpacks[i].resize(L[i]);
-
+              	unpacks[i].resize(L[i]);
             }
         }
 
@@ -718,7 +717,7 @@ class SynchronizerMPI_AMR
             if (!skip_needed[r])
             {
                 C.__needed(remEl);
-                for (int k=0; k<(int)remEl.size();k++)
+                for (size_t k=0; k< remEl.size();k++)
                     f[remEl[k]].ToBeKept = false;
             }
             /*------------->*/Clock.finish(23); 
@@ -761,7 +760,7 @@ class SynchronizerMPI_AMR
                     
                 Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info);
                 
-                for (int kk=0; kk< (int)(*i).removedIndices.size();kk++)
+                for (size_t kk=0; kk< (*i).removedIndices.size();kk++)
                 {
                     int remEl1 = i->removedIndices[kk];
 
@@ -1016,11 +1015,11 @@ class SynchronizerMPI_AMR
                     send_interfaces[infoNei.myrank].push_back( Interface (info,infoNei,icode,icode2) );
                     
                     ToBeChecked.push_back(infoNei.myrank);
-                    ToBeChecked.push_back(send_interfaces[infoNei.myrank].size()-1);
+                    ToBeChecked.push_back((int)send_interfaces[infoNei.myrank].size()-1);
 
                     Neighbors.insert (infoNei.myrank);
 
-                    DM.Add(infoNei.myrank, send_interfaces[infoNei.myrank].size()-1 );
+                    DM.Add(infoNei.myrank, (int)send_interfaces[infoNei.myrank].size()-1 );
                     l++;
 
                     /*------------->*/Clock.finish(15);
@@ -1047,7 +1046,7 @@ class SynchronizerMPI_AMR
                         if (info.index[0]/2 == test.index[0] && info.index[1]/2 == test.index[1] && info.index[2]/2 == test.index[2])
                         {
                             send_interfaces[infoNeiCoarser.myrank].push_back( Interface(info,infoNeiCoarser,icode,icode2) );
-                            DM.Add(infoNeiCoarser.myrank, send_interfaces[infoNeiCoarser.myrank].size()-1 );
+                            DM.Add(infoNeiCoarser.myrank, (int)send_interfaces[infoNeiCoarser.myrank].size()-1 );
                         }
 
                         l++;
@@ -1085,7 +1084,7 @@ class SynchronizerMPI_AMR
                   
                             int icode2 = (-code[0]+1) + (-code[1]+1)*3 + (-code[2]+1)*9;
                             send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode2) );
-                            DM.Add(infoNeiFiner.myrank,send_interfaces[infoNeiFiner.myrank].size()-1 );
+                            DM.Add(infoNeiFiner.myrank,(int)send_interfaces[infoNeiFiner.myrank].size()-1 );
 
                             Neighbors.insert (infoNeiFiner.myrank);
                             l++;
@@ -1100,7 +1099,7 @@ class SynchronizerMPI_AMR
 
                                 int icode3 = (code3[0]+1) + (code3[1]+1)*3 + (code3[2]+1)*9;
                                 send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3) );
-                                DM.Add(infoNeiFiner.myrank, send_interfaces[infoNeiFiner.myrank].size()-1 );
+                                DM.Add(infoNeiFiner.myrank, (int)send_interfaces[infoNeiFiner.myrank].size()-1 );
                             }
                             else if (Bstep == 1) //if I'm filling a face then I'm also filling two edges and a corner
                             {
@@ -1171,20 +1170,18 @@ class SynchronizerMPI_AMR
                                 int icode5 = (code5[0]+1) + (code5[1]+1)*3 + (code5[2]+1)*9;
                          
                                 send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode3) );
-                                DM.Add(infoNeiFiner.myrank, send_interfaces[infoNeiFiner.myrank].size()-1 );
+                                DM.Add(infoNeiFiner.myrank,(int) send_interfaces[infoNeiFiner.myrank].size()-1 );
                                 send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode4) );
-                                DM.Add(infoNeiFiner.myrank, send_interfaces[infoNeiFiner.myrank].size()-1 );
+                                DM.Add(infoNeiFiner.myrank,(int) send_interfaces[infoNeiFiner.myrank].size()-1 );
                                 send_interfaces[infoNeiFiner.myrank].push_back( Interface(info,infoNeiFiner,icode,icode5) );
-                                DM.Add(infoNeiFiner.myrank, send_interfaces[infoNeiFiner.myrank].size()-1 );
+                                DM.Add(infoNeiFiner.myrank,(int) send_interfaces[infoNeiFiner.myrank].size()-1 );
                             }
          
                         }
                     }
                     /*------------->*/Clock.finish(17);
                 } 
-            }//icode = 0,...,26  
-
-           
+            }//icode = 0,...,26
 
             /*------------->*/Clock.start(18,"SynchronizerMPI_AMR : DefineInterfaces pushing back");
             if (isInner)
@@ -1203,7 +1200,7 @@ class SynchronizerMPI_AMR
 
 
             /*------------->*/Clock.start(19,"SynchronizerMPI_AMR : DefineInterfaces UseCoarseStencil");
-            if (Coarsened) for (int j = 0 ; j <(int) ToBeChecked.size() ; j +=2 )
+            if (Coarsened) for (size_t j = 0 ; j < ToBeChecked.size() ; j +=2 )
             {
                 bool temp  = UseCoarseStencil(send_interfaces[ToBeChecked[j]][ToBeChecked[j+1]]);
                 send_interfaces[ToBeChecked[j]][ToBeChecked[j+1]].CoarseStencil = temp;
@@ -1222,7 +1219,7 @@ class SynchronizerMPI_AMR
         }//i-loop
 
         /*------------->*/Clock.start(21,"SynchronizerMPI_AMR : DefineInterfaces UnpacksManager allocate");
-        UnpacksManager._allocate(halo_blocks.size(),&lengths[0]);
+        UnpacksManager._allocate(halo_blocks.size(),lengths.data());
         /*------------->*/Clock.finish(21);
 
         for (int i=0; i<(int)myInfos_size; i++)
@@ -1297,8 +1294,6 @@ public:
         /*------------->*/Clock.start(12,"SynchronizerMPI_AMR : DefineInterfaces total time");
         DefineInterfaces();
         /*------------->*/Clock.finish(12);
-
-
 
         /*------------->*/Clock.start(13,"SynchronizerMPI_AMR : DefineInterfaces send/recv sizes");
         for (int r=0; r<size; r++)

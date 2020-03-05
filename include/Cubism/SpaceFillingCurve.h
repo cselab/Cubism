@@ -66,9 +66,21 @@ protected:
 
 
   int AxestoTranspose( const unsigned int* X_in, int b) const // position, #bits, dimension
-  { 
+  {
+
+    if (b==0)
+    {
+      assert (X_in[0] == 0);
+      assert (X_in[1] == 0);
+      assert (X_in[2] == 0);
+      return 0;
+    }  
+
     const int n = 3;
     unsigned int X [3] = {X_in[0],X_in[1],X_in[2]};
+    
+    assert(b-1>=0);
+
     int M = 1 << (b-1), P, Q, t;
     int i;
     
@@ -103,6 +115,7 @@ protected:
                 + ( (1<<(a+2))   *( X[0] >> level & 1 ) );
       a += 3;
     }
+  
     return retval;
   }
 

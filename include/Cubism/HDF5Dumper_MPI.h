@@ -47,6 +47,12 @@ void DumpHDF5_MPI(const TGrid &grid,
     MPI_Comm_rank(comm,&rank);
     MPI_Comm_size(comm,&size);
 
+
+
+    if (rank == 0) std::cout << "Skipping DumpHDF5_MPI.\n";
+    return;
+
+
     std::vector<B *      > MyBlocks = grid.GetBlocks();
     std::vector<BlockInfo> MyInfos  = grid.getBlocksInfo();
     const int Ngrids = MyBlocks.size();

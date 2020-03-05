@@ -332,10 +332,6 @@ class FluxCorrectionMPI: public TFluxCorrection
       if (recv_requests.size() > 0)
       MPI_Waitall(recv_requests.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
       
-      if (send_requests.size() > 0)
-      MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);
-
-
       for (int r = 0 ; r < size; r ++ )
       {
         for (int index = 0; index < (int)recv_faces[r].size(); index++)
@@ -348,7 +344,9 @@ class FluxCorrectionMPI: public TFluxCorrection
 
       TFluxCorrection::Correct();
 
-
+      if (send_requests.size() > 0)
+      MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);
+    
     /*------------->*/Clock.finish(29);
 
     }

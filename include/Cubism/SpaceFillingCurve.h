@@ -242,6 +242,14 @@ public:
   {
     return forward(l+1,2*i,2*j,2*k);
   }  
+
+
+  static int lvlMax(int l = 0)
+  {
+    static int retval = l;
+    return retval;
+  }
+      
    
   int Encode(int level, int Z, int index[3])
   {
@@ -258,7 +266,7 @@ public:
     //return retval;
 
 
-    int lmax = 4;
+    int lmax = lvlMax();
 
     int retval = 0;
 
@@ -287,7 +295,7 @@ public:
       retval += Zc; 
     }
 
-      
+
 
 
     

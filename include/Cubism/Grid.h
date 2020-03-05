@@ -216,15 +216,16 @@ public:
         int nx = dummy.blocks_per_dim(0,NX,NY,NZ);
         int ny = dummy.blocks_per_dim(1,NX,NY,NZ);
         int nz = dummy.blocks_per_dim(2,NX,NY,NZ);
+        int lvlMax =  Zcurve.lvlMax(levelMax); //same as lvlMax = levelMax but this silences warnings
   
         N = 0 ;
         int blocksize[3] = {Block::sizeX,Block::sizeY,Block::sizeZ};
         double h0 = (maxextent / std::max(nx*Block::sizeX, std::max(ny*Block::sizeY, nz*Block::sizeZ)));
 
         //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
-        BlockInfoAll.resize(levelMax);
+        BlockInfoAll.resize(lvlMax);
 
-        for (int m=0; m<levelMax; m++)
+        for (int m=0; m<lvlMax; m++)
         {
             int TwoPower  = 1<<m;//pow(2,m);
             const unsigned int Ntot = NX*NY*NZ*pow(TwoPower,3);

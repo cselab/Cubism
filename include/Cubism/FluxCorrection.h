@@ -324,9 +324,10 @@ class FluxCorrection
                                  1*1 + 3*1 + 9*2,
                                  1*1 + 3*1 + 9*0};
    
-    
-      for (auto & info: B)
+      #pragma omp parallel for
+      for (size_t k=0; k<B.size(); k++)
       {
+        BlockInfo & info = B[k];
         int aux = 1<<info.level;
 
         const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
@@ -424,6 +425,13 @@ class FluxCorrection
           }    
         }//icode = 0,...,26       
       }
+  
+
+
+
+     
+
+
     }
 };
 

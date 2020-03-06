@@ -1,7 +1,7 @@
 #pragma once
 
 #include "FluxCorrection.h"
-//#include <omp.h>
+#include <omp.h>
 #include "AMR_SynchronizerMPI.h"
 
 
@@ -346,7 +346,7 @@ class FluxCorrectionMPI: public TFluxCorrection
 
       if (send_requests.size() > 0)
       MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);
-    
+
     /*------------->*/Clock.finish(29);
 
     }

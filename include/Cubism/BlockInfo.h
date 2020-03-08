@@ -16,8 +16,6 @@ using namespace std;
 
 
 
-//#define MortonCurve
-#define HilbertCurve 
 
 #define HACK
 

@@ -426,6 +426,7 @@ protected:
         #pragma omp critical
         {
             m_refGrid->_dealloc(level,Z);
+            m_refGrid->getBlockInfoAll(level,Z).state = Leave;
         }
 
         BlockInfo & parent =  m_refGrid->getBlockInfoAll(level,Z);

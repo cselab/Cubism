@@ -92,11 +92,17 @@ public:
   
             assert (b.TreePos == Exists);
 
+            if (base.TreePos != Exists) continue;
+
             if (b.Z != nBlock && base.state==Compress)
             {
                 if (base.myrank != rank && b.myrank == rank)
                 {
-                    if (base.myrank < 0) std::cout << "Base.myrank = " << base.myrank << "\n";
+                    if (base.myrank < 0)
+                    {
+                        std::cout << "Base.myrank = " << base.myrank << "\n";
+                        std::cout << "Base.TreePos = " << (int) base.TreePos << "\n";
+                    }
                     assert(base.TreePos == Exists);
                     assert(base.myrank >=0);
                     #if 0

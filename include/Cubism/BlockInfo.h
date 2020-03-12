@@ -183,11 +183,11 @@ struct BlockInfo
 
     bool operator<(const BlockInfo & other) const 
     { 
-      return (blockID < other.blockID);
-      /*
+      //return (blockID < other.blockID);
+      ///*
       if (level == other.level)
       {
-        assert ((blockID < other.blockID) == (Z < other.Z) );
+        //assert ((blockID < other.blockID) == (Z < other.Z) );
 
         return (Z < other.Z);
       }
@@ -198,7 +198,7 @@ struct BlockInfo
         int zzz = forward(level,i[0],i[1],i[2]);
 
 
-        assert ((blockID < other.blockID) == (Z < zzz) );
+        //assert ((blockID < other.blockID) == (Z < zzz) );
         return (Z < zzz);
       }
       else 
@@ -208,18 +208,18 @@ struct BlockInfo
         int zzz = forward(other.level,i[0],i[1],i[2]);
 
 
-        std::cout << "zzz='" << zzz <<"\n";
-        std::cout << index[0] << " " <<  index[1] << " " << index[2] <<"\n";
+        //std::cout << "zzz='" << zzz <<"\n";
+        //std::cout << index[0] << " " <<  index[1] << " " << index[2] <<"\n";
 
-        std::cout << other.index[0] << " " <<  other.index[1] << " " << other.index[2] <<"\n";
+        //std::cout << other.index[0] << " " <<  other.index[1] << " " << other.index[2] <<"\n";
         
-        std::cout << level << " " << Z << " " << blockID << "      compare  with         " << other.level << " " << other.Z << " " << other.blockID <<"\n";
+        //std::cout << level << " " << Z << " " << blockID << "      compare  with         " << other.level << " " << other.Z << " " << other.blockID <<"\n";
         
-        assert ((blockID < other.blockID) == (zzz < other.Z) );
+        //assert ((blockID < other.blockID) == (zzz < other.Z) );
         
         return (zzz < other.Z);
       }
-      */
+      //*/
     }  
 
 

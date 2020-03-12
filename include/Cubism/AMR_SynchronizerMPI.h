@@ -1004,7 +1004,7 @@ class SynchronizerMPI_AMR
              
 
                 //Does not work (why?)
-                if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
+                //if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
     
                 if (infoNei.TreePos == Exists && infoNei.myrank != rank)
                 {

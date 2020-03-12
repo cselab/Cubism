@@ -12,15 +12,6 @@
 #include <string>
 #include <algorithm>
 
-
-#ifdef __bgq__
-#include <builtins.h>
-#define memcpy2(a,b,c)  __bcopy((b),(a),(c))
-#else
-#define memcpy2(a,b,c)  memcpy((a),(b),(c))
-#endif
-
-
 namespace cubism
 {
 template<typename TGrid,  typename TLab>
@@ -86,28 +77,34 @@ public:
         auto blockperDim = m_refGrid->getMaxBlocks();          
         bool per [3] = {m_refGrid->xperiodic,m_refGrid->yperiodic,m_refGrid->zperiodic}; 
         StencilInfo Cstencil = stencil; 
-        Synch = new SynchronizerMPIType(stencil, Cstencil, MPI_COMM_WORLD, per, m_refGrid->getlevelMax(),
-                                        TGrid::Block::sizeX,TGrid::Block::sizeY,TGrid::Block::sizeZ,
-                                             blockperDim[0],     blockperDim[1],     blockperDim[2]);      
+        Synch = new SynchronizerMPIType(stencil, Cstencil, MPI_COMM_WORLD, per, 
+                                        m_refGrid->getlevelMax(),
+                                        TGrid::Block::sizeX,
+                                        TGrid::Block::sizeY,
+                                        TGrid::Block::sizeZ,
+                                        blockperDim[0],
+                                        blockperDim[1],
+                                        blockperDim[2]);      
 
-        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
-
-        
+        Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],
+                       (m_refGrid->getBlocksInfo()).size(),
+                        m_refGrid->getBlockInfoAll(),timestamp);
     }
 
     virtual
     ~MeshAdaptation()
     {
-    	delete Synch;
+        delete Synch;
     }
 
     void AdaptTheMesh(double t = 0)
     {
+        int rrrr; MPI_Comm_rank(MPI_COMM_WORLD,&rrrr);
 
-    	time = t;
+        time = t;
         /*------------->*/Clock.start(10,"sync"); 
-     	Synch->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
-   		/*------------->*/Clock.finish(10);
+        Synch->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
+        /*------------->*/Clock.finish(10);
         
         timestamp = (timestamp + 1) % 32768;
 
@@ -169,7 +166,7 @@ public:
                 BlockInfo & info = m_refGrid->getBlockInfoAll(ary1.level,ary1.Z);
                 ary1.state = TagLoadedBlock(labs[tid]);
                 info.state = ary1.state;                          
-            	if (info.state != Leave) CallValidStates = true;
+                if (info.state != Leave) CallValidStates = true;
             }
         }
         /*------------->*/Clock.finish(3);
@@ -265,12 +262,20 @@ public:
          ValidStates();
         /*------------->*/Clock.finish(4);
 
-
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (rrrr == 0) std::cout << "ValidStates ok.\n";
 
         /*------------->*/Clock.start(5,"MeshAdaptation: PrepareCompression");
         LoadBalancer <TGrid> Balancer (*m_refGrid);
+
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (rrrr == 0) std::cout << "LoadBalancer constructor ok.\n";
+        m_refGrid->UpdateBlockInfoAll_States(true);
         Balancer.PrepareCompression();
         /*------------->*/Clock.finish(5);
+
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (rrrr == 0) std::cout << "PrepareCompression ok.\n";
 
         //Refinement/compression of blocks
         /*************************************************/
@@ -306,7 +311,7 @@ public:
           refine_1(m,n);
           #pragma omp atomic
             r++;
-       	}        
+        }        
         #pragma omp parallel for 
         for (size_t i=0; i<mn_ref.size()/2; i++)
         {
@@ -330,7 +335,7 @@ public:
 
         int temp[2] = {r,c};
         int result[2];
-        MPI_Reduce(&temp, &result, 2, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
         int rank;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
         if (rank ==0)
@@ -341,37 +346,43 @@ public:
         }
         /*------------->*/Clock.finish(6);
         
-		
+        
         /*------------->*/Clock.start(7,"MeshAdaptation : FillPos");
         m_refGrid->FillPos();
         /*------------->*/Clock.finish(7);
 
 
         /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
+        m_refGrid->UpdateBlockInfoAll_States(true);
         Balancer.Balance_Diffusion();
+        m_refGrid->FillPos();
         /*------------->*/Clock.finish(8);
    
         delete [] labs;
        
         /*------------->*/Clock.start(9,"MeshAdaptation : Setup");
-		if (temp[0] !=0 || temp[1] != 0 || Balancer.movedBlocks)
-		{
+        if (result[0] !=0 || result[1] != 0 || Balancer.movedBlocks)
+        {
             m_refGrid->UpdateFluxCorrection = true;
-
             m_refGrid->UpdateBlockInfoAll_States(true);
-            Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
+            Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],
+                           (m_refGrid->getBlocksInfo()).size(),
+                            m_refGrid->getBlockInfoAll(),timestamp);
             
- 			typename std::map<StencilInfo, SynchronizerMPIType*>::iterator it =  m_refGrid->SynchronizerMPIs.begin();
-		    while (it != m_refGrid->SynchronizerMPIs.end())
-			{ 
-		       	(*it->second)._Setup(&(m_refGrid->getBlocksInfo())[0],(m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(),timestamp);
-		      
+            //typename std::map<StencilInfo,SynchronizerMPIType*>::iterator 
+            auto it = m_refGrid->SynchronizerMPIs.begin();
+            while (it != m_refGrid->SynchronizerMPIs.end())
+            { 
+                (*it->second)._Setup(&(m_refGrid->getBlocksInfo())[0],
+                                      (m_refGrid->getBlocksInfo()).size(),
+                                      m_refGrid->getBlockInfoAll(),timestamp);
                 it++;
-			}
-		}
+            }
+        }
         else
         {
-            m_refGrid->UpdateFluxCorrection = false;
+            //m_refGrid->UpdateFluxCorrection = false;
+            m_refGrid->UpdateFluxCorrection = true;
         }
         /*------------->*/Clock.finish(9);
     }
@@ -391,7 +402,6 @@ protected:
         assert(parent.ptrBlock != NULL);
         assert(level <= m_refGrid->getlevelMax()-1);
         
-       
         //int nChild = m_refGrid->getZchild(level,parent.index[0],parent.index[1],parent.index[2]);
         BlockType * Blocks [8];
           
@@ -511,6 +521,7 @@ protected:
             m_refGrid->getBlockInfoAll(level,n).TreePos = CheckCoarser;
             m_refGrid->getBlockInfoAll(level,n).myrank = -1;     
             m_refGrid->getBlockInfoAll(level,n).ptrBlock = NULL;
+            m_refGrid->getBlockInfoAll(level,n).state = Leave;
         }
     }
 
@@ -820,63 +831,63 @@ protected:
     virtual 
     void WENOWavelets3(double cm, double c , double cp, double & left, double & right)
     {
-    	double b1 = (c-cm)*(c-cm);
-    	double b2 = (c-cp)*(c-cp);
-    	double w1 = (1e-6 + b2)*(1e-6 + b2); //yes, 2 goes to 1 and 1 goes to 2
-    	double w2 = (1e-6 + b1)*(1e-6 + b1);
-    	double aux = 1.0 / (w1+w2);
-    	w1 *= aux; w2 *= aux;
-    	double g1,g2;
-    	g1 = 0.75*c + 0.25*cm;
-    	g2 = 1.25*c - 0.25*cp;
-    	left = g1*w1+g2*w2;
+        double b1 = (c-cm)*(c-cm);
+        double b2 = (c-cp)*(c-cp);
+        double w1 = (1e-6 + b2)*(1e-6 + b2); //yes, 2 goes to 1 and 1 goes to 2
+        double w2 = (1e-6 + b1)*(1e-6 + b1);
+        double aux = 1.0 / (w1+w2);
+        w1 *= aux; w2 *= aux;
+        double g1,g2;
+        g1 = 0.75*c + 0.25*cm;
+        g2 = 1.25*c - 0.25*cp;
+        left = g1*w1+g2*w2;
         g1 = 1.25*c - 0.25*cm;
-      	g2 = 0.75*c + 0.25*cp;
+        g2 = 0.75*c + 0.25*cp;
         right = g1*w1+g2*w2;
     }
 
     virtual 
     void Kernel_1D(ElementType E0,ElementType E1,ElementType E2, ElementType & left, ElementType & right)
     {
-    	left .dummy = E1.dummy;// - 0.125*(E2.dummy-E0.dummy);
-    	right.dummy = E1.dummy;// + 0.125*(E2.dummy-E0.dummy);
-    	WENOWavelets3(E0.alpha1rho1,E1.alpha1rho1,E2.alpha1rho1,left.alpha1rho1,right.alpha1rho1);
-    	WENOWavelets3(E0.alpha2rho2,E1.alpha2rho2,E2.alpha2rho2,left.alpha2rho2,right.alpha2rho2);
-    	WENOWavelets3(E0.ru        ,E1.ru        ,E2.ru        ,left.ru        ,right.ru        );
-    	WENOWavelets3(E0.rv        ,E1.rv        ,E2.rv        ,left.rv        ,right.rv        );
-    	WENOWavelets3(E0.rw        ,E1.rw        ,E2.rw        ,left.rw        ,right.rw        );
-    	WENOWavelets3(E0.alpha2    ,E1.alpha2    ,E2.alpha2    ,left.alpha2    ,right.alpha2    );
-    	WENOWavelets3(E0.energy    ,E1.energy    ,E2.energy    ,left.energy    ,right.energy    );
+        left .dummy = E1.dummy;// - 0.125*(E2.dummy-E0.dummy);
+        right.dummy = E1.dummy;// + 0.125*(E2.dummy-E0.dummy);
+        WENOWavelets3(E0.alpha1rho1,E1.alpha1rho1,E2.alpha1rho1,left.alpha1rho1,right.alpha1rho1);
+        WENOWavelets3(E0.alpha2rho2,E1.alpha2rho2,E2.alpha2rho2,left.alpha2rho2,right.alpha2rho2);
+        WENOWavelets3(E0.ru        ,E1.ru        ,E2.ru        ,left.ru        ,right.ru        );
+        WENOWavelets3(E0.rv        ,E1.rv        ,E2.rv        ,left.rv        ,right.rv        );
+        WENOWavelets3(E0.rw        ,E1.rw        ,E2.rw        ,left.rw        ,right.rw        );
+        WENOWavelets3(E0.alpha2    ,E1.alpha2    ,E2.alpha2    ,left.alpha2    ,right.alpha2    );
+        WENOWavelets3(E0.energy    ,E1.energy    ,E2.energy    ,left.energy    ,right.energy    );
   
 
         //clipping
         if  ( left.alpha2 < 0.0 || right.alpha2 < 0.0 || left.alpha2 > 1.0 || right.alpha2 > 1.0)
         {
-        	left .alpha2 = E1.alpha2;
-        	right.alpha2 = E1.alpha2;
+            left .alpha2 = E1.alpha2;
+            right.alpha2 = E1.alpha2;
         } 
     
         if  ( left.alpha1rho1 < 0.0 || right.alpha1rho1 < 0.0 || left.alpha1rho1 > 1.0 || right.alpha1rho1 > 1.0)
         {
-        	left .alpha1rho1 = E1.alpha1rho1;
-        	right.alpha1rho1 = E1.alpha1rho1;
+            left .alpha1rho1 = E1.alpha1rho1;
+            right.alpha1rho1 = E1.alpha1rho1;
         } 
     
         if  ( left.alpha2rho2 < 0.0 || right.alpha2rho2 < 0.0 || left.alpha2rho2 > 1.0 || right.alpha2rho2 > 1.0)
         {
-        	left .alpha2rho2 = E1.alpha2rho2;
-        	right.alpha2rho2 = E1.alpha2rho2;
+            left .alpha2rho2 = E1.alpha2rho2;
+            right.alpha2rho2 = E1.alpha2rho2;
         } 
         
         if  ( left.energy < 0.0 || right.energy < 0.0 )
         {
-        	left .energy = E1.energy;
-        	right.energy = E1.energy;
+            left .energy = E1.energy;
+            right.energy = E1.energy;
         } 
         
 
   }
-          				 
+                         
     //Tag block loaded in Lab for refinement/compression; user can write own function
     virtual 
     State TagLoadedBlock(TLab & Lab_)

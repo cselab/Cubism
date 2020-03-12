@@ -253,20 +253,22 @@ public:
    
   int Encode(int level, int Z, int index[3])
   {
-    //int retval;
-    //if (level == 0) 
-    //{
-    //  retval = Z;
-    //}
-    //else 
-    //{
-    //  int V = BX*BY*BZ * pow(pow(2,level-1),3);
-    //  retval = V + Z; 
-    //}
-    //return retval;
-
+    #if 1
+    int retval;
+    if (level == 0) 
+    {
+      retval = Z;
+    }
+    else 
+    {
+      int V = BX*BY*BZ * pow(pow(2,level-1),3);
+      retval = V + Z; 
+    }
+    return retval;
+    #else
 
     int lmax = lvlMax();
+    assert(lmax == 4);
 
     int retval = 0;
 
@@ -294,7 +296,7 @@ public:
       Zc -= Zc%8;
       retval += Zc; 
     }
-
+   
 
 
 
@@ -302,7 +304,7 @@ public:
 
 
     return retval;
-
+    #endif
 
   }
 };

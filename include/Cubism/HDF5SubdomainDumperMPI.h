@@ -44,9 +44,12 @@ namespace SubdomainTypesMPI
             SubdomainTypes::Subdomain<TGrid>(grid, id, start, end, h, bb_start, bb_end),
             m_suboffset{0}
             {
-                std::cout <<"Skipping HDF5SubdomainDumperMPI\n";
-                return;
-
+                {
+                    int _rank;
+                    MPI_Comm_rank(MPI_COMM_WORLD,&_rank);
+                    if (_rank == 0) std::cout <<"Skipping HDF5SubdomainDumperMPI\n";
+                    return;
+                }
                 int myrank;
                 int color = static_cast<int>( this->m_valid );
                 MPI_Comm comm = this->m_grid->getCartComm();

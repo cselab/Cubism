@@ -253,7 +253,7 @@ public:
    
   int Encode(int level, int Z, int index[3])
   {
-    #if 1
+    #if 0
     int retval;
     if (level == 0) 
     {
@@ -268,8 +268,6 @@ public:
     #else
 
     int lmax = lvlMax();
-    assert(lmax == 4);
-
     int retval = 0;
 
     int ix = index[0];
@@ -296,13 +294,6 @@ public:
       Zc -= Zc%8;
       retval += Zc; 
     }
-   
-
-
-
-    
-
-
     return retval;
     #endif
 

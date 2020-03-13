@@ -48,8 +48,7 @@ void DumpHDF5_MPI(const TGrid &grid,
     MPI_Comm_size(comm,&size);
 
 
-
-    if (rank == 0) std::cout << "Skipping DumpHDF5_MPI.\n";
+    if (rank == 0) std::cout << "Dumper skipped.\n";
     return;
 
 
@@ -66,9 +65,23 @@ void DumpHDF5_MPI(const TGrid &grid,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-    //herr_t status;
+
     hid_t file_id, dataset_id, fspace_id, plist_id; 
     hsize_t dims[4] = {nZ, nY, nX, NCHANNELS}; 
+
+    if (0 == rank)
+    {
+        H5open();
+       
+        plist_id = H5Pcreate(H5P_FILE_ACCESS);
+        file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
+        H5Pclose(plist_id);
+        H5Fclose(file_id);
+       
+        H5close();
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+
     
     H5open();
 
@@ -77,12 +90,14 @@ void DumpHDF5_MPI(const TGrid &grid,
     H5Pset_fapl_mpio(plist_id, comm, MPI_INFO_NULL);
 
     //2.Create a new file collectively and release property list identifier.
-    file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
+    //file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
+    file_id = H5Fopen((fullpath.str()+".h5").c_str(), H5F_ACC_RDWR, plist_id);
     H5Pclose(plist_id);
     
     //3.All ranks need to create datasets dset* that correspond to each block
     int TotalGrids;
     MPI_Allreduce(&Ngrids, &TotalGrids, 1, MPI_INT, MPI_SUM,comm);
+    
     for (int m=0; m< TotalGrids; m++)
     {            
         std::stringstream name_ss;
@@ -91,13 +106,15 @@ void DumpHDF5_MPI(const TGrid &grid,
 
         fspace_id = H5Screate_simple(4, dims, NULL);
         dataset_id = H5Dcreate(file_id, name.c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-       
-
+    
         H5Dclose(dataset_id);
         H5Sclose(fspace_id);       
     }
-    
 
+    hid_t plist_id1 = H5Pcreate(H5P_DATASET_XFER);
+    H5Pset_dxpl_mpio(plist_id1, H5FD_MPIO_INDEPENDENT);
+
+    
     //4.Each rank now dumps its own blocks to the corresponding dset 
     int grid_base = 0;
     MPI_Exscan(&Ngrids, &grid_base, 1, MPI_INT,MPI_SUM,comm);
@@ -125,17 +142,18 @@ void DumpHDF5_MPI(const TGrid &grid,
         std::stringstream name_ss;
         name_ss <<"dset" << std::setfill('0') << std::setw(10) << mm ;
         std::string name = name_ss.str();
-
+        
         //Access existing dataset and write to it
         dataset_id = H5Dopen(file_id, name.c_str(), H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block);
+        H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, plist_id1, array_block);
+        //H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block);
         H5Dclose(dataset_id);
-    }
 
+    }
+     H5Pclose(plist_id1);
+   
     //5.Close hdf5 file
     H5Fclose(file_id);
-
-
     H5close();
 
     delete [] array_block;

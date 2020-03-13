@@ -49,7 +49,7 @@ namespace SliceTypesMPI
                 static_cast<int>(this->m_grid->getResidentBlocksPerDimension(1)*TBlock::sizeY),
                 static_cast<int>(this->m_grid->getResidentBlocksPerDimension(2)*TBlock::sizeZ)
             };
-            std::cout << "skipping HDF5SliceDumper\n";
+            if (grid->rank() == 0) std::cout << "skipping HDF5SliceDumper\n";
             return;
             // get MPI related dimensions and offsets
             int peIdx[3];

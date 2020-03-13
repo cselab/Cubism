@@ -333,6 +333,7 @@ public:
         TGrid::_alloc(m,n);
         TGrid::BlockInfoAll[m][n].myrank = myrank;
         TGrid::m_vInfo.back().myrank = myrank;
+        TGrid::m_vInfo.back().TreePos = Exists;
     }
 
 
@@ -548,6 +549,8 @@ public:
             if (GlobalUpdate)
             {
                 ChangedInfos.push_back(info);
+                info.changed = false;
+                TGrid::getBlockInfoAll(m,n).changed = false;
             }
             else if (TGrid::getBlockInfoAll(m,n).changed)
         	{
@@ -604,7 +607,6 @@ public:
                 int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
                             TGrid::BlockInfoAll[level][Z].index[1],
                             TGrid::BlockInfoAll[level][Z].index[2]};
-
                 if (level<TGrid::levelMax -1)
                     for (int k=0; k<2; k++ )
                     for (int j=0; j<2; j++ )

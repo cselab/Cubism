@@ -99,7 +99,7 @@ public:
         N --;        
         allocator <Block> alloc;
         alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);
-        BlockInfoAll[m][n].changed = true;       
+        BlockInfoAll[m][n].myrank  = -1;       
         for (size_t j = 0 ; j < m_vInfo.size() ; j++)
         {
             if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
@@ -143,9 +143,13 @@ public:
         else            
             for (size_t j = 0; j < m_vInfo.size(); j++)
             {
+                //int rr;
+                //MPI_Comm_rank(MPI_COMM_WORLD,&rr);
+                //m_vInfo[j].TreePos = Exists;
+                //m_vInfo[j].myrank = rr; //rank();
+                
                 int m = m_vInfo[j].level;
                 int n = m_vInfo[j].Z;
-
                 m_vInfo [j].state   = BlockInfoAll[m][n].state;
                 assert(BlockInfoAll[m][n].TreePos == Exists);
                 m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;

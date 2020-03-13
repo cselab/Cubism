@@ -14,6 +14,7 @@
 
 namespace cubism
 {
+
 template<typename TGrid,  typename TLab>
 class MeshAdaptation
 {
@@ -39,6 +40,7 @@ protected:
 
     SynchronizerMPI_AMR<Real> * Synch;
     int timestamp;
+    bool flag;
 public:
 
     MeshAdaptation(TGrid & grid, double Rtol,double Ctol) 
@@ -73,6 +75,7 @@ public:
         tolerance_for_compression = Ctol; 
 
         timestamp = 0;
+        flag = true;
         
         auto blockperDim = m_refGrid->getMaxBlocks();          
         bool per [3] = {m_refGrid->xperiodic,m_refGrid->yperiodic,m_refGrid->zperiodic}; 
@@ -99,8 +102,6 @@ public:
 
     void AdaptTheMesh(double t = 0)
     {
-        int rrrr; MPI_Comm_rank(MPI_COMM_WORLD,&rrrr);
-
         time = t;
         /*------------->*/Clock.start(10,"sync"); 
         Synch->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
@@ -117,12 +118,12 @@ public:
           labs[i].prepare(*m_refGrid, *Synch);
 
         /*------------->*/Clock.start(0,"MeshAdaptation: Barrier before block tagging");
-        //MPI_Barrier(MPI_COMM_WORLD); 
         /*------------->*/Clock.finish(0);
   
         bool CallValidStates = false;
 
-     #if 1
+
+
         /*------------->*/Clock.start(1,"MeshAdaptation: inner blocks tagging");  
         avail0 = Synch->avail_inner(); 
         const int Ninner = avail0.size();
@@ -146,13 +147,17 @@ public:
         /*------------->*/Clock.finish(1);
 
 
+
+
         /*------------->*/Clock.start(2,"MeshAdaptation: waiting for inner blocks");
         avail1 = Synch->avail_halo();
         /*------------->*/Clock.finish(2);
 
+
+
+
         /*------------->*/Clock.start(3,"MeshAdaptation: outer block tagging");
         const int Nhalo = avail1.size();
-        //BlockInfo * ary1 = &avail1.front(); 
         #pragma omp parallel num_threads(nthreads)
         {
             int tid = omp_get_thread_num();
@@ -170,88 +175,9 @@ public:
             }
         }
         /*------------->*/Clock.finish(3);
-     #else
-        static int rounds = -1;
-        static int one_less = 1;
-        if (rounds == -1)
-        {
-          char *s1 = getenv("MYROUNDS");
-          if (s1 != NULL)
-              rounds = atoi(s1);
-          else
-              rounds = 0;
-           char *s2 = getenv("USEMAXTHREADS");
-          if (s2 != NULL)
-              one_less = !atoi(s2);
-        }
-  
-        avail0 = Synch->avail_inner(); 
-        
-        const int Ninner = avail0.size();
-        BlockInfo * ary0 = &avail0.front();
-  
-
-        int nthreads_first;
-        if (one_less)
-            nthreads_first = nthreads-1;
-        else
-            nthreads_first = nthreads;
-    
-        if (nthreads_first == 0) nthreads_first = 1;
-    
-        int Ninner_first = (nthreads_first)*rounds;
-        if (Ninner_first > Ninner) Ninner_first = Ninner;
-        int Ninner_rest = Ninner - Ninner_first;
 
 
 
-        #pragma omp parallel num_threads(nthreads_first)
-        {
-            int tid = omp_get_thread_num();
-            TLab& mylab = labs[tid];
-
-            #pragma omp for schedule(dynamic,1)
-                for(int i=0; i<Ninner_first; i++)
-                {
-                    mylab.load(ary0[i], t);
-                    BlockInfo & info = m_refGrid->getBlockInfoAll(ary0[i].level,ary0[i].Z);
-                    ary0[i].state = TagLoadedBlock(labs[tid]);
-                    info.state = ary0[i].state;                          
-                }
-        }
-
-        avail1 = Synch->avail_halo();
-       
-        const int Nhalo = avail1.size();
-        BlockInfo * ary1 = &avail1.front(); 
-
-        #pragma omp parallel num_threads(nthreads)
-        {
-            int tid = omp_get_thread_num();
-            TLab& mylab = labs[tid];
-        
-            #pragma omp for schedule(dynamic,1)
-            for(int i=-Ninner_rest; i<Nhalo; i++)
-            {
-                if (i < 0)
-                {
-                    int ii = i + Ninner;
-                        
-                    mylab.load(ary0[ii], t);
-                    BlockInfo & info = m_refGrid->getBlockInfoAll(ary0[ii].level,ary0[ii].Z);
-                    ary0[ii].state = TagLoadedBlock(labs[tid]);
-                    info.state = ary0[ii].state;                          
-                }
-                else
-                {
-                    mylab.load(ary1[i], t);
-                    BlockInfo & info = m_refGrid->getBlockInfoAll(ary1[i].level,ary1[i].Z);
-                    ary1[i].state = TagLoadedBlock(labs[tid]);
-                    info.state = ary1[i].state;                          
-                }
-            }
-        }
-     #endif
 
         /*------------->*/Clock.start(4,"MeshAdaptation: ValidStates");
         int tmp = CallValidStates ? 1:0;
@@ -259,23 +185,14 @@ public:
         CallValidStates = (tmp == 1);
  
         if (CallValidStates)
-         ValidStates();
+            ValidStates();
         /*------------->*/Clock.finish(4);
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (rrrr == 0) std::cout << "ValidStates ok.\n";
 
         /*------------->*/Clock.start(5,"MeshAdaptation: PrepareCompression");
         LoadBalancer <TGrid> Balancer (*m_refGrid);
 
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (rrrr == 0) std::cout << "LoadBalancer constructor ok.\n";
-        m_refGrid->UpdateBlockInfoAll_States(true);
         Balancer.PrepareCompression();
         /*------------->*/Clock.finish(5);
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (rrrr == 0) std::cout << "PrepareCompression ok.\n";
 
         //Refinement/compression of blocks
         /*************************************************/
@@ -345,26 +262,26 @@ public:
             std::cout <<"==============================================================\n";
         }
         /*------------->*/Clock.finish(6);
-        
+
         
         /*------------->*/Clock.start(7,"MeshAdaptation : FillPos");
-        m_refGrid->FillPos();
         /*------------->*/Clock.finish(7);
 
 
         /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
-        m_refGrid->UpdateBlockInfoAll_States(true);
+        m_refGrid->UpdateBlockInfoAll_States(false);
         Balancer.Balance_Diffusion();
-        m_refGrid->FillPos();
         /*------------->*/Clock.finish(8);
    
         delete [] labs;
-       
+
         /*------------->*/Clock.start(9,"MeshAdaptation : Setup");
         if (result[0] !=0 || result[1] != 0 || Balancer.movedBlocks)
         {
             m_refGrid->UpdateFluxCorrection = true;
-            m_refGrid->UpdateBlockInfoAll_States(true);
+            
+            m_refGrid->UpdateBlockInfoAll_States(false);
+
             Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],
                            (m_refGrid->getBlocksInfo()).size(),
                             m_refGrid->getBlockInfoAll(),timestamp);
@@ -375,14 +292,14 @@ public:
             { 
                 (*it->second)._Setup(&(m_refGrid->getBlocksInfo())[0],
                                       (m_refGrid->getBlocksInfo()).size(),
-                                      m_refGrid->getBlockInfoAll(),timestamp);
+                                       m_refGrid->getBlockInfoAll(),timestamp);
                 it++;
             }
         }
         else
         {
-            //m_refGrid->UpdateFluxCorrection = false;
-            m_refGrid->UpdateFluxCorrection = true;
+            m_refGrid->UpdateFluxCorrection = flag;
+            flag = false;
         }
         /*------------->*/Clock.finish(9);
     }
@@ -402,7 +319,6 @@ protected:
         assert(parent.ptrBlock != NULL);
         assert(level <= m_refGrid->getlevelMax()-1);
         
-        //int nChild = m_refGrid->getZchild(level,parent.index[0],parent.index[1],parent.index[2]);
         BlockType * Blocks [8];
           
         for (int k=0; k<2; k++ )
@@ -410,8 +326,7 @@ protected:
         for (int i=0; i<2; i++ )
         {      
             int nc = m_refGrid->getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);      
-            BlockInfo & Child = m_refGrid->getBlockInfoAll(level+1,nc); 
-          
+            BlockInfo & Child = m_refGrid->getBlockInfoAll(level+1,nc);
             #pragma omp critical
             {
               m_refGrid->_alloc(level+1,nc);
@@ -430,9 +345,9 @@ protected:
         }
 
         BlockInfo & parent =  m_refGrid->getBlockInfoAll(level,Z);
-        int p[3] = {parent.index[0],parent.index[1],parent.index[2]};      
         parent.TreePos = CheckFiner;
-            
+
+        int p[3] = {parent.index[0],parent.index[1],parent.index[2]};
         for (int k=0; k<2; k++ )
         for (int j=0; j<2; j++ )
         for (int i=0; i<2; i++ )
@@ -440,12 +355,7 @@ protected:
             int nc = m_refGrid->getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
             BlockInfo & Child = m_refGrid->getBlockInfoAll(level+1,nc); 
             Child.TreePos = Exists;
-            Child.myrank = m_refGrid->rank();
         }
-        parent.myrank = -1;
-  
-        //m_refGrid->_dealloc(level,Z);
-        //parent.ptrBlock = nullptr;
     }
 
     void compress(int level, int Z)
@@ -489,14 +399,18 @@ protected:
         
         int np = m_refGrid->getZforward(level-1,info.index[0]/2,info.index[1]/2,info.index[2]/2);           
         BlockInfo & parent = m_refGrid->getBlockInfoAll(level-1,np);
-        parent.myrank =m_refGrid->rank();
+        parent.myrank      = m_refGrid->rank();
+        parent.ptrBlock    = info.ptrBlock;
+        parent.TreePos     = Exists; 
+        parent.h_gridpoint = parent.h;
+        parent.changed     = true;
+
         #pragma omp critical
         {
           for (int K=0; K<2; K++ )
           for (int J=0; J<2; J++ )
           for (int I=0; I<2; I++ )
           {
-      
             int n = m_refGrid->getZforward(level,info.index[0]+I,info.index[1]+J,info.index[2]+K); 
       
             if (I + J + K == 0 )
@@ -507,22 +421,9 @@ protected:
             {
                 m_refGrid->_dealloc(level,n);
             }
-
-          }
-        }
-        parent.ptrBlock = info.ptrBlock;
-        parent.TreePos = Exists; 
-        parent.h_gridpoint = parent.h; 
-      
-        for (int K=0; K<2; K++ )
-        for (int J=0; J<2; J++ )
-        for (int I=0; I<2; I++ )
-        {
-            int n = m_refGrid->getZforward(level,info.index[0]+I,info.index[1]+J,info.index[2]+K); 
             m_refGrid->getBlockInfoAll(level,n).TreePos = CheckCoarser;
-            m_refGrid->getBlockInfoAll(level,n).myrank = -1;     
-            m_refGrid->getBlockInfoAll(level,n).ptrBlock = NULL;
             m_refGrid->getBlockInfoAll(level,n).state = Leave;
+          }
         }
     }
 
@@ -625,7 +526,6 @@ protected:
            
             m_refGrid->FillPos(false);
             m_refGrid->UpdateBoundary();
-
             //2.
             for ( auto & b: I) if (b.level == m)
             {
@@ -662,7 +562,6 @@ protected:
 
             m_refGrid->FillPos(false);
             m_refGrid->UpdateBoundary();
-
 
             //3.
             for ( auto & b: I) if (b.level == m)
@@ -828,7 +727,6 @@ protected:
         }
     }
 
-
     virtual 
     void WENOWavelets3(double cm, double c , double cp, double & left, double & right)
     {
@@ -885,9 +783,7 @@ protected:
             left .energy = E1.energy;
             right.energy = E1.energy;
         } 
-        
-
-  }
+    }
                          
     //Tag block loaded in Lab for refinement/compression; user can write own function
     virtual 

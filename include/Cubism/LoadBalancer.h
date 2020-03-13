@@ -62,16 +62,9 @@ public:
 
     void PrepareCompression()
     {
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (rank == 0) std::cout << "PrepareCompression checkpoint 1\n";
-
         std::vector <BlockInfo> & I = m_refGrid->getBlocksInfo();
         std::vector < std::vector < MPI_Block > > send_blocks(size);
         std::vector < std::vector < MPI_Block > > recv_blocks(size); 
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (rank == 0) std::cout << "PrepareCompression checkpoint 1.5\n";
-
 
         for ( auto & b: I) 
         {  
@@ -98,22 +91,11 @@ public:
             {
                 if (base.myrank != rank && b.myrank == rank)
                 {
-                    if (base.myrank < 0)
-                    {
-                        std::cout << "Base.myrank = " << base.myrank << "\n";
-                        std::cout << "Base.TreePos = " << (int) base.TreePos << "\n";
-                    }
                     assert(base.TreePos == Exists);
                     assert(base.myrank >=0);
-                    #if 0
-                    base.state = Leave;
-                    bCopy.state= Leave;
-                    b.state    = Leave;
-                    #else
                     send_blocks[base.myrank].push_back({bCopy});            
                     b.myrank     = base.myrank;
                     bCopy.myrank = base.myrank;
-                    #endif
                 }
             }
             else if (b.Z == nBlock && base.state==Compress)
@@ -132,40 +114,12 @@ public:
                         assert(base.TreePos == Exists);
                         assert(base.myrank >=0);
                         assert(temp.myrank >=0);
-                        #if 0
-                        base.state = Leave;
-                        bCopy.state= Leave;
-                        b.state    = Leave;
-                        #else
                         recv_blocks[temp.myrank].push_back({temp,false});
                         temp.myrank = base.myrank;
-                        #endif
                     }
                 }          
             }
         }
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (rank == 0) std::cout << "PrepareCompression checkpoint 2\n";
-
-
-        #if 1
-        MPI_Barrier(MPI_COMM_WORLD);
-        for (int r = 0 ; r < size; r ++ ) if (r!=rank)
-        {
-            for (auto & b : recv_blocks[r])
-                std::cout << "Rank " << rank << " receives (" 
-                          << b.mn[0] << "," << b.mn[1] <<") from " << r << "\n";
-
-            for (auto & b : send_blocks[r])
-                std::cout << "Rank " << rank << " sends (" 
-                          << b.mn[0] << "," << b.mn[1] <<") to " << r << "\n";
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
-      
-        #endif
-
-
 
         int BlockBytes = sizeof(BlockType);
 
@@ -190,9 +144,6 @@ public:
       
         if (requests.size()!=0)
         {
-            int err = 123;
-            //MPI_Abort(MPI_COMM_WORLD,err);
-            std::cout << "Rank " << rank <<" is preparing compression...\n";
             movedBlocks = true;
             MPI_Waitall(requests.size(), &requests[0], MPI_STATUSES_IGNORE);        
         }
@@ -237,7 +188,6 @@ public:
         MPI_Isend(&my_blocks   , 1, MPI_INT, right, 123, MPI_COMM_WORLD, &reqs[3]);
         MPI_Waitall(4, &reqs[0], MPI_STATUSES_IGNORE);
    
-
         int nu = 2;
         int flux_left  = ((my_blocks -  left_blocks) / nu); 
         int flux_right = ((my_blocks - right_blocks) / nu); 
@@ -276,7 +226,6 @@ public:
             request.push_back(req);
             MPI_Irecv(&recv_left[0], recv_left.size(), MPI_BLOCK, left, 4560 , MPI_COMM_WORLD, &request.back());
         }   
-
 
         if (flux_right > 0) //then I will send blocks to my right rank
         {
@@ -326,35 +275,8 @@ public:
             BlockType * b1 =  (BlockType *)info.ptrBlock;
             Real * a1 = & b1->data[0][0][0].alpha1rho1;
             std::memcpy( a1 ,recv_left[i].data,BlockBytes);            
-            info.myrank  = rank;
-            info.changed = true;
-
 
             assert (m_refGrid->getBlockInfoAll(level,Z).myrank == rank );
-
-            #if 0
-            int p[3] = {info.index[0], info.index[1], info.index[2]};    
-            if (level<m_refGrid->getlevelMax() -1)
-                for (int k=0; k<2; k++ )
-                for (int j=0; j<2; j++ )
-                for (int ii=0; ii<2; ii++ )
-                {      
-                    int nc = m_refGrid->getZforward(level+1,2*p[0]+ii,2*p[1]+j,2*p[2]+k);
-                    
-                    BlockInfo & iC = m_refGrid->getBlockInfoAll(level+1,nc);
-                    iC.TreePos = CheckCoarser;
-                    iC.myrank  = -1;
-                }
-             if (level>0)
-             {
-                int nf = m_refGrid->getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
-                BlockInfo & iF = m_refGrid->getBlockInfoAll(level-1,nf);
-                iF.TreePos = CheckFiner;
-                iF.myrank  = -1;
-             }
-             #endif
-
-
         }
       
         for (int i=0; i<-flux_right; i++)
@@ -368,41 +290,13 @@ public:
             assert(b1!=NULL);
             Real * a1 = & b1->data[0][0][0].alpha1rho1;
             std::memcpy( a1 ,recv_right[i].data,BlockBytes);
-            info.myrank  = rank;
-            info.changed = true;
-
 
             assert (m_refGrid->getBlockInfoAll(level,Z).myrank == rank );
-            #if 0
-            int p[3] = {info.index[0], info.index[1], info.index[2]};    
-            if (level<m_refGrid->getlevelMax() -1)
-                for (int k=0; k<2; k++ )
-                for (int j=0; j<2; j++ )
-                for (int ii=0; ii<2; ii++ )
-                {      
-                    int nc = m_refGrid->getZforward(level+1,2*p[0]+ii,2*p[1]+j,2*p[2]+k);
-                    
-                    BlockInfo & iC = m_refGrid->getBlockInfoAll(level+1,nc);
-                    iC.TreePos = CheckCoarser;
-                    iC.myrank  = -1;
-                }
-             if (level>0)
-             {
-                int nf = m_refGrid->getZforward(level-1,p[0]/2,p[1]/2,p[2]/2);
-                BlockInfo & iF = m_refGrid->getBlockInfoAll(level-1,nf);
-                iF.TreePos = CheckFiner;
-                iF.myrank  = -1;
-             }
-             #endif
         }
    
-
-        //MPI_Allreduce(MPI_IN_PLACE,&movedBlocks,1,MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD);
-        int temp = movedBlocks ? 1:0;
-        
+        int temp = movedBlocks ? 1:0;        
         MPI_Allreduce(MPI_IN_PLACE,&temp,1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
         movedBlocks = (temp == 1);
-
         {
             int b = m_refGrid->getBlocksInfo().size();
             std::vector<int> all_b(size);
@@ -417,8 +311,39 @@ public:
                 std::cout << "\n";
                 std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
             }
-        }
 
+        MPI_Bcast(all_b.data(), size, MPI_INT, 0, MPI_COMM_WORLD);
+        int levelMax = m_refGrid->getlevelMax();
+        int r = 0;
+        int count = 0;
+        for (int n = 0 ; n < (m_refGrid->getBlockInfoAll())[0].size() ; n++ )
+        {
+            int nBlocks = 1;
+            int nstart  = n;
+            for (int m = 0 ; m < levelMax ; m++)
+            {
+                for (int nn = nstart ; nn < nstart + nBlocks; nn++)
+                {
+                    if (m_refGrid->getBlockInfoAll(m,nn).TreePos == Exists)
+                    {
+                        //m_refGrid->getBlockInfoAll(m,nn).myrank = r;
+                        count ++;
+                        if (count == all_b[r])
+                        {
+                            count = 0;
+                            r ++;
+                        }
+                    }
+                }
+                nBlocks *= 8;
+                nstart  *= 8;
+            }
+        }
+        
+
+
+
+        }
 
         for (auto & info: m_refGrid->getBlocksInfo())
         {
@@ -427,24 +352,6 @@ public:
             info.myrank = rank;
             assert(info.TreePos == Exists);
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

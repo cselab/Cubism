@@ -17,6 +17,8 @@
 #include <sstream>
 #include <mpi.h>
 
+#include <fstream>
+
 #include "HDF5Dumper.h"
 
 
@@ -46,12 +48,6 @@ void DumpHDF5_MPI(const TGrid &grid,
     int rank,size;
     MPI_Comm_rank(comm,&rank);
     MPI_Comm_size(comm,&size);
-
-
-//    if (rank == 0) std::cout << "Dumper skipped.\n";
-//    return;
-
-
     std::vector<B *      > MyBlocks = grid.GetBlocks();
     std::vector<BlockInfo> MyInfos  = grid.getBlocksInfo();
     const int Ngrids = MyBlocks.size();
@@ -59,6 +55,61 @@ void DumpHDF5_MPI(const TGrid &grid,
     const int nY  = B::sizeY;
     const int nZ  = B::sizeZ;
     const int NCHANNELS = TStreamer::NCHANNELS;
+
+    {
+        std::string name = fullpath.str()+ "__rank" + to_string(rank) + ".xmf";
+        ofstream myfile;
+        myfile.open (name);
+     
+        myfile << "<?xml version=\"1.0\" ?>\n";
+        myfile << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
+        myfile << "<Xdmf Version=\"2.0\">\n";
+        myfile << "<Domain>\n";
+        myfile << " <Grid Name=\"OctTree\" GridType=\"Collection\">\n";
+        myfile << "  <Time Value=\""<<std::scientific<<absTime<<"\"/>\n\n";           
+        for (int m = 0; m < MyBlocks.size(); m++)
+        {
+            BlockInfo I = MyInfos[m];     
+            myfile << "  <Grid GridType=\"Uniform\">\n";
+            myfile << "   <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " <<B::sizeX + 1 << " " <<B::sizeY + 1 << " " <<B::sizeZ + 1 << "\"/>\n";
+            myfile << "   <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
+            myfile << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";    
+            myfile << "    "<<std::scientific << I.origin[2] << " " << I.origin[1] << " " << I.origin[0] << "\n";
+            myfile << "   </DataItem>\n";      
+            myfile << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
+            myfile << "    "<<std::scientific<< I.h << " " << I.h << " " <<I.h << "\n";
+            myfile << "   </DataItem>\n";      
+            myfile << "   </Geometry>\n";
+            myfile << "  </Grid>\n\n";
+        }           
+        myfile<<  " </Grid>\n";
+        myfile<<  "</Domain>\n";
+        myfile<<  "</Xdmf>\n";
+     
+        myfile.close();
+    } 
+
+    if (rank == 0) std::cout << "Dumper skipped.\n";
+    return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
  
     std::cout<<" ---> Rank " << rank << " is dumping " << Ngrids << " Blocks.\n";
 

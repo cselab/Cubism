@@ -268,13 +268,17 @@ public:
   
     virtual ~Grid() {_deallocAll();}
 
-    virtual bool avail1(int ix, int iy, int iz, int m) const { return true; }
 
-    virtual bool avail(int m, int n) const 
+    virtual Block * avail(int m, int n) const
     {
-        return true;
+        return  (Block * )BlockInfoAll[m][n].ptrBlock;
     }
 
+    virtual Block * avail1(int ix, int iy, int iz, int m) const 
+    {
+        int n = getZforward(m,ix,iy,iz);
+        return avail(m,n); 
+    }
 
   
     virtual int rank() const { return 0; }

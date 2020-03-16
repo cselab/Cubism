@@ -357,24 +357,28 @@ public:
         return TGrid::getBlocksInfo();
     }
 
-    virtual bool avail1(int ix, int iy, int iz, int m) const override
+
+    virtual Block * avail(int m, int n) const override
+    {
+        if (TGrid::BlockInfoAll[m][n].myrank == myrank)
+            return  (Block * )TGrid::BlockInfoAll[m][n].ptrBlock;
+        else
+            return nullptr;
+    }
+
+    virtual Block * avail1(int ix, int iy, int iz, int m) const override
     {
         int n = TGrid::getZforward(m,ix,iy,iz);
-        if (TGrid::BlockInfoAll[m][n].myrank == myrank) return true;
-        else                                            return false;
+        return avail(m,n);
     }
-
-    virtual bool avail(int m, int n) const override
-    {
-        return (TGrid::BlockInfoAll[m][n].myrank == myrank);
-    }
-
 
 
 
 #if 1
-    void UpdateBoundary() 
+    std::vector<BlockInfo> boundary;
+    void UpdateBoundary(bool find = true) 
     {
+        //find = true;
         int rank,size;
         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
         MPI_Comm_size(MPI_COMM_WORLD,&size); 
@@ -385,7 +389,20 @@ public:
         
         std::set<int> All_receivers;
 
-        for (auto & info: TGrid::m_vInfo) if (info.changed)
+        std::vector<BlockInfo> * bbb;
+
+        if (find)
+        {
+           boundary.clear();
+           bbb = & (TGrid::m_vInfo);
+        }
+        else
+        {
+            bbb = & boundary;
+        }
+
+        //for (auto & info: TGrid::m_vInfo) if (info.changed)
+        for (auto & info: *bbb) if (info.changed)
         {
             std::set<int> receivers;
 
@@ -400,6 +417,7 @@ public:
 
             bool isInner = true;  
 
+            bool flag = true;
             for(int icode=0; icode<27; icode++)
             {
                 if (icode == 1*1 + 3*1 + 9*1) continue;
@@ -417,6 +435,11 @@ public:
                   isInner = false;           
                   receivers.insert(infoNei.myrank);
                   All_receivers.insert(infoNei.myrank);
+                  if (find && flag)
+                  {
+                      boundary.push_back(info);
+                      flag = false;
+                  }
                 }
                 else if (infoNei.TreePos == CheckCoarser)
                 {
@@ -427,6 +450,11 @@ public:
                         isInner = false;                 
                         receivers.insert(infoNeiCoarser.myrank);
                         All_receivers.insert(infoNeiCoarser.myrank);
+                  if (find && flag)
+                  {
+                      boundary.push_back(info);
+                      flag = false;
+                  }
                     }
                 }
                 else if (infoNei.TreePos == CheckFiner)
@@ -450,6 +478,11 @@ public:
                         BlockInfo & infoNeiFiner = TGrid::getBlockInfoAll(infoNei.level+1,nFine);
                         if (infoNeiFiner.myrank != rank)
                         {
+                  if (find && flag)
+                  {
+                      boundary.push_back(info);
+                      flag = false;
+                  }
                             isInner = false; 
                             receivers.insert(infoNeiFiner.myrank);
                             All_receivers.insert(infoNeiFiner.myrank);
@@ -463,10 +496,11 @@ public:
                 std::set<int>::iterator it = receivers.begin();
                 while (it != receivers.end())
                 {
+                    BlockInfo & info1 = TGrid::getBlockInfoAll(info.level,info.Z);
                     int temp;
-                    if (info.state == Leave)
+                    if (info1.state == Leave)
                         temp = 0;
-                    else if (info.state == Compress)
+                    else if (info1.state == Compress)
                         temp = 1;
                     else 
                         temp = 2;
@@ -560,14 +594,16 @@ public:
         	}
         }
 
-        size_t myLength = 2*ChangedInfos.size(); 
+        size_t myLength = 3*ChangedInfos.size(); 
         int * myData = new int[myLength];
 
-        for (size_t i=0; i<myLength; i+=2)
+        for (size_t i=0; i<myLength; i+=3)
         {
-            myData[i  ] = ChangedInfos[i/2].level; 
-            myData[i+1] = ChangedInfos[i/2].Z    ; 
-            assert(ChangedInfos[i/2].myrank == rank);
+            myData[i  ] = ChangedInfos[i/3].level; 
+            myData[i+1] = ChangedInfos[i/3].Z    ;
+
+            myData[i+2] = (ChangedInfos[i/3].state == Leave) ?  0 : ( (ChangedInfos[i/3].state == Compress) ?  -1:+1 ) ; 
+            assert(ChangedInfos[i/3].myrank == rank);
         }
 
         //2.Gather lengths of all processes and use them to allocate memory on each process
@@ -596,13 +632,15 @@ public:
         for (int r=0 ; r<size; r++) if (r!=rank)
         {
             int * ptr = All_ptr[r];
-            for (int index__ = 0; index__ < AllLengths[r]; index__ += 2)
+            for (int index__ = 0; index__ < AllLengths[r]; index__ += 3)
             {
                 int level = ptr[index__  ];
                 int Z     = ptr[index__+1];
     
                 TGrid::BlockInfoAll[level][Z].TreePos = Exists;
                 TGrid::BlockInfoAll[level][Z].myrank  = r;           
+
+                TGrid::BlockInfoAll[level][Z].state   = (ptr[index__+2] == 0) ?  Leave : ( (ptr[index__+2] == -1) ?  Compress: Refine ) ; 
 
                 int p[3] = {TGrid::BlockInfoAll[level][Z].index[0],
                             TGrid::BlockInfoAll[level][Z].index[1],

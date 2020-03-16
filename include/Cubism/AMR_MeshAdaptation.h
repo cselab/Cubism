@@ -249,9 +249,7 @@ public:
         {
           int m = mn_com[2*i];
           int n = mn_com[2*i+1];  
-
           compress(m,n);
-
           #pragma omp atomic
            c++;
         }

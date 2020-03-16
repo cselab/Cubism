@@ -172,6 +172,8 @@ protected:
 public:
 
   int * Z_ORIGIN;
+  int * SUBSTRACT;
+  int base_level;
 
 	SpaceFillingCurve(){};
 
@@ -187,10 +189,11 @@ public:
   SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ):BX(a_BX),BY(a_BY),BZ(a_BZ)
   {
     Z_ORIGIN = new int [BX*BY*BZ];
+    SUBSTRACT = new int [BX*BY*BZ];
     
     int n_max = max(max(BX,BY),BZ);
-    int lvl   =  ( log(n_max) / log(2) );
-    if (lvl < (double) (log(n_max) / log(2)) ) lvl ++;
+    base_level   =  ( log(n_max) / log(2) );
+    if (base_level < (double) (log(n_max) / log(2)) ) base_level ++;
     
     for (unsigned int k=0;k<BZ;k++)
     for (unsigned int j=0;j<BY;j++)
@@ -198,18 +201,19 @@ public:
     {
       const unsigned int c[3] = {i,j,k};
       
-      int index = AxestoTranspose( c, lvl);
+      int index = AxestoTranspose( c, base_level);
 
       int substract = 0;
       for (int h=0; h<index; h++)
       {
         unsigned int X[3] = {0,0,0};
-        TransposetoAxes(h, X, lvl);
+        TransposetoAxes(h, X, base_level);
         if (X[0] >= BX ||  
             X[1] >= BY ||  
             X[2] >= BZ) substract++;   
       }   
       index -= substract;
+      SUBSTRACT[(j + k*BY)*BX + i] = substract;
       Z_ORIGIN[(j + k*BY)*BX + i] =index;    
     }  
   }
@@ -218,22 +222,27 @@ public:
   int forward(const int l, const int i, const int j, const int k)  const
   {
     unsigned int aux =  1 << l; 
-    unsigned int I1 = i % aux;
-    unsigned int J1 = j % aux;
-    unsigned int K1 = k % aux;
     unsigned int I = i / aux;
     unsigned int J = j / aux;
     unsigned int K = k / aux;
 
     #if defined(MortonCurve)
+      unsigned int I1 = i % aux;
+      unsigned int J1 = j % aux;
+      unsigned int K1 = k % aux;
       int z = mortonEncode_for(I1,J1,K1);
       int z_origin = ((J + K*BY)*BX + I)*aux*aux*aux;
       return z+z_origin;
     #elif defined(HilbertCurve)
-      const unsigned int c1[3] = {I1,J1,K1};
-      return Z_ORIGIN[((J + K*BY)*BX + I)]*aux*aux*aux + AxestoTranspose(c1, l);
-      //int z_origin = ((J + K*BY)*BX + I)*aux*aux*aux;
-      //return z_origin + AxestoTranspose(c1, l);
+      
+      const unsigned int c2_a [3] = {i ,j ,k };
+      int s = SUBSTRACT[((J + K*BY)*BX + I)] * aux*aux*aux;
+      return AxestoTranspose(c2_a, l+base_level) - s;
+
+      //  const unsigned int c1[3] = {I1,J1,K1};
+      //  return Z_ORIGIN[((J + K*BY)*BX + I)]*aux*aux*aux + AxestoTranspose(c1, l);
+      //  int z_origin = ((J + K*BY)*BX + I)*aux*aux*aux;
+      //  return z_origin + AxestoTranspose(c1, l);
     #endif
   }
 

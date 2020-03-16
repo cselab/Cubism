@@ -48,8 +48,8 @@ void DumpHDF5_MPI(const TGrid &grid,
     MPI_Comm_size(comm,&size);
 
 
-    if (rank == 0) std::cout << "Dumper skipped.\n";
-    return;
+//    if (rank == 0) std::cout << "Dumper skipped.\n";
+//    return;
 
 
     std::vector<B *      > MyBlocks = grid.GetBlocks();
@@ -188,9 +188,9 @@ void DumpHDF5_MPI(const TGrid &grid,
             
             /*ViSit*/ 
             //s << "    "<<std::scientific << I.origin[0] << " " << I.origin[1] << " " << I.origin[2] << "\n";
-            
             /*Paraview*/
             s << "    "<<std::scientific << I.origin[2] << " " << I.origin[1] << " " << I.origin[0] << "\n";
+
             s << "   </DataItem>\n";      
             s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
             s << "    "<<std::scientific<< I.h << " " << I.h << " " <<I.h << "\n";

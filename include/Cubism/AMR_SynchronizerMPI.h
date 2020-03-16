@@ -1568,7 +1568,11 @@ public:
     {
         return stencil;
     }
-
+    
+    StencilInfo getCstencil() const
+    {
+        return Cstencil;
+    }
 
 
     void fetch (const BlockInfo& info, const int gptfloats, const size_t Length[3], const size_t CLength[3], const size_t ElemsPerSlice [2], Real * cacheBlock, Real *coarseBlock)

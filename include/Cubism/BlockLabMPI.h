@@ -23,9 +23,16 @@ public:
     void prepare(GridMPI<TGrid>& grid, SynchronizerMPIType& synchronizer)
     {
         refSynchronizerMPI = &synchronizer;
-        StencilInfo stencil = refSynchronizerMPI->getstencil();
+        StencilInfo stencil  = refSynchronizerMPI->getstencil();
+        StencilInfo Cstencil = refSynchronizerMPI->getCstencil();
         assert(stencil.isvalid());
-        MyBlockLab::prepare(grid, stencil.sx, stencil.ex, stencil.sy, stencil.ey, stencil.sz, stencil.ez, stencil.tensorial);
+        MyBlockLab::prepare(grid, stencil.sx, stencil.ex, 
+                                  stencil.sy, stencil.ey, 
+                                  stencil.sz, stencil.ez, 
+                                  stencil.tensorial, 
+                                  Cstencil.sx, Cstencil.ex, 
+                                  Cstencil.sy, Cstencil.ey, 
+                                  Cstencil.sz, Cstencil.ez);
     }
 
     void load(const BlockInfo& info, const Real t=0, const bool applybc=true)

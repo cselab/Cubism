@@ -15,6 +15,11 @@
 namespace cubism
 {
 
+
+#define WENOWAVELET 5
+
+
+
 template<typename TGrid,  typename TLab>
 class MeshAdaptation
 {
@@ -46,9 +51,11 @@ public:
     MeshAdaptation(TGrid & grid, double Rtol,double Ctol) 
     {
         bool tensorial = true;
-        const int Gx = 1;
-        const int Gy = 1;
-        const int Gz = 1;
+        
+        const int Gx = (WENOWAVELET == 3) ? 1:2;
+        const int Gy = (WENOWAVELET == 3) ? 1:2;
+        const int Gz = (WENOWAVELET == 3) ? 1:2;
+        
         components.push_back(0); 
         components.push_back(1); 
         components.push_back(2); 
@@ -59,14 +66,14 @@ public:
         components.push_back(7); 
     
         StencilInfo stencil(-Gx,-Gy,-Gz,Gx+1,Gy+1,Gz+1,tensorial,components);
-     
+
         m_refGrid = &grid;
         
         s[0] = stencil.sx; e[0] = stencil.ex;
         s[1] = stencil.sy; e[1] = stencil.ey;
         s[2] = stencil.sz; e[2] = stencil.ez;
         istensorial = stencil.tensorial;
-    
+        
         Is[0] = stencil.sx; Ie[0] = stencil.ez;
         Is[1] = stencil.sy; Ie[1] = stencil.ey;
         Is[2] = stencil.sz; Ie[2] = stencil.ez;
@@ -185,7 +192,7 @@ public:
         CallValidStates = (tmp == 1);
  
         if (CallValidStates)
-            ValidStates();
+         ValidStates();
         /*------------->*/Clock.finish(4);
 
         /*------------->*/Clock.start(5,"MeshAdaptation: PrepareCompression");
@@ -269,8 +276,10 @@ public:
 
 
         /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
+        m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States(false);
         Balancer.Balance_Diffusion();
+        m_refGrid->FillPos();
         /*------------->*/Clock.finish(8);
    
         delete [] labs;
@@ -281,7 +290,7 @@ public:
             m_refGrid->UpdateFluxCorrection = true;
             
             m_refGrid->UpdateBlockInfoAll_States(false);
-
+        
             Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],
                            (m_refGrid->getBlocksInfo()).size(),
                             m_refGrid->getBlockInfoAll(),timestamp);
@@ -455,7 +464,7 @@ protected:
         }
 
         m_refGrid->FillPos(false);
-        m_refGrid->UpdateBoundary();
+        m_refGrid->UpdateBoundary(true);
 
 
         for (int m=levelMax-1; m>=levelMin; m--)
@@ -525,7 +534,7 @@ protected:
             }
            
             m_refGrid->FillPos(false);
-            m_refGrid->UpdateBoundary();
+            m_refGrid->UpdateBoundary(false);
             //2.
             for ( auto & b: I) if (b.level == m)
             {
@@ -561,7 +570,7 @@ protected:
             }
 
             m_refGrid->FillPos(false);
-            m_refGrid->UpdateBoundary();
+            m_refGrid->UpdateBoundary(false);
 
             //3.
             for ( auto & b: I) if (b.level == m)
@@ -644,49 +653,84 @@ protected:
                 b(i  ,j+1,k+1) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
                 b(i+1,j+1,k+1) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
           
-            #else //WENO3
+            #else //WENO
 
-                const int Nweno = 3;
+                
+                const int Nweno = WENOWAVELET;
                 ElementType El[Nweno][Nweno][Nweno];
                 for (int i0= -Nweno/2 ; i0<= Nweno/2; i0++)
                 for (int i1= -Nweno/2 ; i1<= Nweno/2; i1++)
                 for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
                     El[i0+Nweno/2][i1+Nweno/2][i2+Nweno/2] = Lab(i/2+offsetX[I] + i0,j/2+offsetY[J]+ i1 ,k/2+offsetZ[K]+ i2);      
-         
-
+                
                 ElementType Lines [Nweno][Nweno][2];
                 ElementType Planes[Nweno][4];
                 ElementType Ref          [8]; 
 
-                for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
-                for (int i1= -Nweno/2 ; i1<= Nweno/2; i1++)
-                    Kernel_1D(El[0][i1+Nweno/2][i2+Nweno/2],
-                              El[1][i1+Nweno/2][i2+Nweno/2],
-                              El[2][i1+Nweno/2][i2+Nweno/2],Lines[i1+Nweno/2][i2+Nweno/2][0],Lines[i1+Nweno/2][i2+Nweno/2][1]);
-                
-      
-                for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
-                {
-                    Kernel_1D(Lines[0][i2+Nweno/2][0],
-                              Lines[1][i2+Nweno/2][0],
-                              Lines[2][i2+Nweno/2][0],
-                              Planes[i2+Nweno/2][0],
-                              Planes[i2+Nweno/2][1]);
-          
-                    Kernel_1D(Lines[0][i2+Nweno/2][1],
-                              Lines[1][i2+Nweno/2][1],
-                              Lines[2][i2+Nweno/2][1],
-                              Planes[i2+Nweno/2][2],
-                              Planes[i2+Nweno/2][3]);
-                }
-    
-        
 
-                Kernel_1D(Planes[0][0],Planes[1][0],Planes[2][0],Ref[0],Ref[1]);
-                Kernel_1D(Planes[0][1],Planes[1][1],Planes[2][1],Ref[2],Ref[3]);
-                Kernel_1D(Planes[0][2],Planes[1][2],Planes[2][2],Ref[4],Ref[5]);
-                Kernel_1D(Planes[0][3],Planes[1][3],Planes[2][3],Ref[6],Ref[7]);
-      
+                #if WENOWAVELET == 3  
+                    for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
+                    for (int i1= -Nweno/2 ; i1<= Nweno/2; i1++)
+                        Kernel_1D(El[0][i1+Nweno/2][i2+Nweno/2],
+                                  El[1][i1+Nweno/2][i2+Nweno/2],
+                                  El[2][i1+Nweno/2][i2+Nweno/2],Lines[i1+Nweno/2][i2+Nweno/2][0],Lines[i1+Nweno/2][i2+Nweno/2][1]);
+                    for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
+                    {
+                        Kernel_1D(Lines[0][i2+Nweno/2][0],
+                                  Lines[1][i2+Nweno/2][0],
+                                  Lines[2][i2+Nweno/2][0],
+                                  Planes[i2+Nweno/2][0],
+                                  Planes[i2+Nweno/2][1]);
+              
+                        Kernel_1D(Lines[0][i2+Nweno/2][1],
+                                  Lines[1][i2+Nweno/2][1],
+                                  Lines[2][i2+Nweno/2][1],
+                                  Planes[i2+Nweno/2][2],
+                                  Planes[i2+Nweno/2][3]);
+                    }
+                    Kernel_1D(Planes[0][0],Planes[1][0],Planes[2][0],Ref[0],Ref[1]);
+                    Kernel_1D(Planes[0][1],Planes[1][1],Planes[2][1],Ref[2],Ref[3]);
+                    Kernel_1D(Planes[0][2],Planes[1][2],Planes[2][2],Ref[4],Ref[5]);
+                    Kernel_1D(Planes[0][3],Planes[1][3],Planes[2][3],Ref[6],Ref[7]);
+                
+                #else
+                    
+                    for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
+                    for (int i1= -Nweno/2 ; i1<= Nweno/2; i1++)
+                        Kernel_1D(El[0][i1+Nweno/2][i2+Nweno/2],
+                                  El[1][i1+Nweno/2][i2+Nweno/2],
+                                  El[2][i1+Nweno/2][i2+Nweno/2],
+                                  El[3][i1+Nweno/2][i2+Nweno/2],
+                                  El[4][i1+Nweno/2][i2+Nweno/2],
+                                  Lines[i1+Nweno/2][i2+Nweno/2][0],
+                                  Lines[i1+Nweno/2][i2+Nweno/2][1]);
+                   
+    
+                    for (int i2= -Nweno/2 ; i2<= Nweno/2; i2++)
+                    {
+                        Kernel_1D(Lines[0][i2+Nweno/2][0],
+                                  Lines[1][i2+Nweno/2][0],
+                                  Lines[2][i2+Nweno/2][0],
+                                  Lines[3][i2+Nweno/2][0],
+                                  Lines[4][i2+Nweno/2][0],
+                                  Planes[i2+Nweno/2][0],
+                                  Planes[i2+Nweno/2][1]);
+              
+                        Kernel_1D(Lines[0][i2+Nweno/2][1],
+                                  Lines[1][i2+Nweno/2][1],
+                                  Lines[2][i2+Nweno/2][1],
+                                  Lines[3][i2+Nweno/2][1],
+                                  Lines[4][i2+Nweno/2][1],
+                                  Planes[i2+Nweno/2][2],
+                                  Planes[i2+Nweno/2][3]);
+                    }
+                    Kernel_1D(Planes[0][0],Planes[1][0],Planes[2][0],Planes[3][0],Planes[4][0],Ref[0],Ref[1]);
+                    Kernel_1D(Planes[0][1],Planes[1][1],Planes[2][1],Planes[3][1],Planes[4][1],Ref[2],Ref[3]);
+                    Kernel_1D(Planes[0][2],Planes[1][2],Planes[2][2],Planes[3][2],Planes[4][2],Ref[4],Ref[5]);
+                    Kernel_1D(Planes[0][3],Planes[1][3],Planes[2][3],Planes[3][3],Planes[4][3],Ref[6],Ref[7]);
+                
+                #endif
+    
                 b(i  ,j  ,k  ) = Ref[0];
                 b(i  ,j  ,k+1) = Ref[1];
                 b(i  ,j+1,k  ) = Ref[2];
@@ -695,34 +739,7 @@ protected:
                 b(i+1,j  ,k+1) = Ref[5];
                 b(i+1,j+1,k  ) = Ref[6];
                 b(i+1,j+1,k+1) = Ref[7];
-            #endif
-         
-            #if 1
-                for (int kk=0; kk<2; kk++)
-                for (int jj=0; jj<2; jj++)
-                for (int ii=0; ii<2; ii++)
-                {
-                    assert  (!isnan(b(i+ii,j+jj,k+kk).alpha1rho1));
-                    assert  (!isnan(b(i+ii,j+jj,k+kk).alpha2rho2));
-                    assert  (!isnan(b(i+ii,j+jj,k+kk).ru        ));
-                    assert  (!isnan(b(i+ii,j+jj,k+kk).rv        ));
-                    assert  (!isnan(b(i+ii,j+jj,k+kk).rw        ));
-                    assert  (!isnan(b(i+ii,j+jj,k+kk).alpha2    ));
-                    assert  (!isnan(b(i+ii,j+jj,k+kk).energy    ));
-                    assert  (!isnan(b(i+ii,j+jj,k+kk).dummy     ));
-                    assert  (abs(b(i+ii,j+jj,k+kk).alpha1rho1) < 1e20 );
-                    assert  (abs(b(i+ii,j+jj,k+kk).alpha2rho2) < 1e20 );
-                    assert  (abs(b(i+ii,j+jj,k+kk).ru        ) < 1e20 );
-                    assert  (abs(b(i+ii,j+jj,k+kk).rv        ) < 1e20 );
-                    assert  (abs(b(i+ii,j+jj,k+kk).rw        ) < 1e20 );
-                    assert  (abs(b(i+ii,j+jj,k+kk).alpha2    ) < 1e20 );
-                    assert  (abs(b(i+ii,j+jj,k+kk).energy    ) < 1e20 );
-                    assert  (abs(b(i+ii,j+jj,k+kk).dummy     ) < 1e20 );
-                    assert  (abs(b(i+ii,j+jj,k+kk).alpha2    ) <= 1.00001 );
-                
-
-                }
-            #endif
+            #endif         
             }         
         }
     }
@@ -745,6 +762,44 @@ protected:
         right = g1*w1+g2*w2;
     }
 
+
+    virtual 
+    void WENOWavelets5(double cm2, double cm , double c, double cp, double cp2, double & left, double & right)
+    {
+        static const double k  = 13.0/12.0;
+        static const double d1 = 0.625;
+        static const double d2 = 0.1875;
+        static const double d3 = 0.1875;
+
+        double b1 = k * pow(cm - 2.0 * c   + cp ,2) + 0.25*pow(cm-cp,2);
+        double b2 = k * pow(c  - 2.0 * cp  + cp2,2) + 0.25*pow(3.0*c-4.0*cp+cp2,2);
+        double b3 = k * pow(c  - 2.0 * cm  + cm2,2) + 0.25*pow(3.0*c-4.0*cm+cm2,2);
+
+        double w1 = d1 / pow(1e-6 + b1,2);
+        double w2 = d2 / pow(1e-6 + b2,2);
+        double w3 = d3 / pow(1e-6 + b3,2);
+        double aux = 1.0 / (w1+w2+w3);
+
+        double g1,g2,g3;
+
+        g1 = 0.125*cm +       c  - 0.125*cp ;
+        g2 = 1.375*c  - 0.5 * cp + 0.125*cp2;
+        g3 = 0.625*c  + 0.5 * cm - 0.125*cm2;
+        left = aux*(g1*w1+g2*w2+g3*w3);
+    
+        g1 = -0.125*cm +       c  + 0.125*cp ;
+        g2 = 0.625*c  + 0.5 * cp - 0.125*cp2;
+        g3 = 1.375*c  - 0.5 * cm + 0.125*cm2;
+        right = aux*(g1*w1+g2*w2+g3*w3);   
+    }
+
+
+
+
+
+
+
+    #if WENOWAVELET == 3
     virtual 
     void Kernel_1D(ElementType E0,ElementType E1,ElementType E2, ElementType & left, ElementType & right)
     {
@@ -784,7 +839,48 @@ protected:
             right.energy = E1.energy;
         } 
     }
-                         
+    #else
+    virtual 
+    void Kernel_1D(ElementType E0,ElementType E1,ElementType E2,ElementType E3,ElementType E4,ElementType & left, ElementType & right)
+    {
+        left .dummy = E2.dummy;// - 0.125*(E2.dummy-E0.dummy);
+        right.dummy = E2.dummy;// + 0.125*(E2.dummy-E0.dummy);
+        
+
+        WENOWavelets5(E0.alpha1rho1,E1.alpha1rho1,E2.alpha1rho1,E3.alpha1rho1,E4.alpha1rho1,left.alpha1rho1,right.alpha1rho1);
+        WENOWavelets5(E0.alpha2rho2,E1.alpha2rho2,E2.alpha2rho2,E3.alpha2rho2,E4.alpha2rho2,left.alpha2rho2,right.alpha2rho2);
+        WENOWavelets5(E0.ru        ,E1.ru        ,E2.ru        ,E3.ru        ,E4.ru        ,left.ru        ,right.ru        );
+        WENOWavelets5(E0.rv        ,E1.rv        ,E2.rv        ,E3.rv        ,E4.rv        ,left.rv        ,right.rv        );
+        WENOWavelets5(E0.rw        ,E1.rw        ,E2.rw        ,E3.rw        ,E4.rw        ,left.rw        ,right.rw        );
+        WENOWavelets5(E0.alpha2    ,E1.alpha2    ,E2.alpha2    ,E3.alpha2    ,E4.alpha2    ,left.alpha2    ,right.alpha2    );
+        WENOWavelets5(E0.energy    ,E1.energy    ,E2.energy    ,E3.energy    ,E4.energy    ,left.energy    ,right.energy    );
+  
+        //clipping
+        if  ( left.alpha2 < 0.0 || right.alpha2 < 0.0 || left.alpha2 > 1.0 || right.alpha2 > 1.0)
+        {
+            left .alpha2 = E2.alpha2;
+            right.alpha2 = E2.alpha2;
+        } 
+    
+        if  ( left.alpha1rho1 < 0.0 || right.alpha1rho1 < 0.0 || left.alpha1rho1 > 1.0 || right.alpha1rho1 > 1.0)
+        {
+            left .alpha1rho1 = E2.alpha1rho1;
+            right.alpha1rho1 = E2.alpha1rho1;
+        } 
+    
+        if  ( left.alpha2rho2 < 0.0 || right.alpha2rho2 < 0.0 || left.alpha2rho2 > 1.0 || right.alpha2rho2 > 1.0)
+        {
+            left .alpha2rho2 = E2.alpha2rho2;
+            right.alpha2rho2 = E2.alpha2rho2;
+        } 
+        
+        if  ( left.energy < 0.0 || right.energy < 0.0 )
+        {
+            left .energy = E2.energy;
+            right.energy = E2.energy;
+        } 
+    }
+    #endif                         
     //Tag block loaded in Lab for refinement/compression; user can write own function
     virtual 
     State TagLoadedBlock(TLab & Lab_)

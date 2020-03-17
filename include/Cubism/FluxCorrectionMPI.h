@@ -300,8 +300,12 @@ class FluxCorrectionMPI: public TFluxCorrection
                                  1*1 + 3*0 + 9*1,
                                  1*1 + 3*1 + 9*2,
                                  1*1 + 3*1 + 9*0};
-      for (auto & info: B)
+
+      #pragma omp parallel for schedule (runtime)
+      //for (auto & info: B)
+      for (size_t jj = 0 ; jj < B.size(); jj++)
       {
+        BlockInfo & info = B[jj];
         int aux = 1<<info.level;
 
         const bool xskin = info.index[0]==0 || info.index[0]==TFluxCorrection::blocksPerDim[0]*aux-1;

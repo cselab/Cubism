@@ -123,13 +123,8 @@ public:
         labs = new TLab[nthreads];
         for (int i=0; i<nthreads; i++)
           labs[i].prepare(*m_refGrid, *Synch);
-
-        /*------------->*/Clock.start(0,"MeshAdaptation: Barrier before block tagging");
-        /*------------->*/Clock.finish(0);
   
         bool CallValidStates = false;
-
-
 
         /*------------->*/Clock.start(1,"MeshAdaptation: inner blocks tagging");  
         avail0 = Synch->avail_inner(); 
@@ -227,32 +222,35 @@ public:
           }
         }
               
-        #pragma omp parallel for 
-        for (size_t i=0; i<mn_ref.size()/2; i++)
+        #pragma omp parallel
         {
-          int m = mn_ref[2*i];
-          int n = mn_ref[2*i+1];           
-          refine_1(m,n);
-          #pragma omp atomic
-            r++;
-        }        
-        #pragma omp parallel for 
-        for (size_t i=0; i<mn_ref.size()/2; i++)
-        {
-          int m = mn_ref[2*i];
-          int n = mn_ref[2*i+1]; 
-          refine_2(m,n);
-        }   
-
-        #pragma omp parallel for 
-        for (size_t i=0; i<mn_com.size()/2; i++)
-        {
-          int m = mn_com[2*i];
-          int n = mn_com[2*i+1];  
-          compress(m,n);
-          #pragma omp atomic
-           c++;
-        }
+            #pragma omp for schedule(runtime)
+            for (size_t i=0; i<mn_ref.size()/2; i++)
+            {
+              int m = mn_ref[2*i];
+              int n = mn_ref[2*i+1];           
+              refine_1(m,n);
+              #pragma omp atomic
+                r++;
+            }        
+            #pragma omp for schedule(runtime)
+            for (size_t i=0; i<mn_ref.size()/2; i++)
+            {
+              int m = mn_ref[2*i];
+              int n = mn_ref[2*i+1]; 
+              refine_2(m,n);
+            }   
+    
+            #pragma omp for schedule(runtime)
+            for (size_t i=0; i<mn_com.size()/2; i++)
+            {
+              int m = mn_com[2*i];
+              int n = mn_com[2*i+1];  
+              compress(m,n);
+              #pragma omp atomic
+               c++;
+            }
+        }      
        /*************************************************/
 
         int temp[2] = {r,c};
@@ -269,17 +267,23 @@ public:
         /*------------->*/Clock.finish(6);
 
         
-        /*------------->*/Clock.start(7,"MeshAdaptation : FillPos");
-        /*------------->*/Clock.finish(7);
 
 
-        /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
+        /*------------->*/Clock.start(7,"MeshAdaptation : UpdateBlockInfoAll_States");
         m_refGrid->FillPos();
         m_refGrid->UpdateBlockInfoAll_States(false);
+        /*------------->*/Clock.finish(7);
+   
+
+        /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
         Balancer.Balance_Diffusion();
-        m_refGrid->FillPos();
         /*------------->*/Clock.finish(8);
    
+
+        /*------------->*/Clock.start(7,"MeshAdaptation : UpdateBlockInfoAll_States");
+        m_refGrid->FillPos();
+        /*------------->*/Clock.finish(7);
+        
         delete [] labs;
 
         /*------------->*/Clock.start(9,"MeshAdaptation : Setup");
@@ -287,8 +291,12 @@ public:
         {
             m_refGrid->UpdateFluxCorrection = true;
             
+
+            /*------------->*/Clock.start(7,"MeshAdaptation : UpdateBlockInfoAll_States");
             m_refGrid->UpdateBlockInfoAll_States(false);
-        
+            /*------------->*/Clock.finish(7);
+            
+
             Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],
                            (m_refGrid->getBlocksInfo()).size(),
                             m_refGrid->getBlockInfoAll(),timestamp);
@@ -461,8 +469,11 @@ protected:
             }
         }
 
+        
+        /*------------->*/Clock.start(0,"MeshAdaptation: UpdateBoundary");
         m_refGrid->FillPos(false);
         m_refGrid->UpdateBoundary(true);
+        /*------------->*/Clock.finish(0);
 
 
         for (int m=levelMax-1; m>=levelMin; m--)
@@ -530,9 +541,12 @@ protected:
                     }
                 }
             }
-           
+            
+            /*------------->*/Clock.start(0,"MeshAdaptation: UpdateBoundary");
             m_refGrid->FillPos(false);
             m_refGrid->UpdateBoundary(false);
+            /*------------->*/Clock.finish(0);            
+
             //2.
             for ( auto & b: I) if (b.level == m)
             {
@@ -567,9 +581,11 @@ protected:
                 }
             }
 
+            /*------------->*/Clock.start(0,"MeshAdaptation: UpdateBoundary");
             m_refGrid->FillPos(false);
             m_refGrid->UpdateBoundary(false);
-
+            /*------------->*/Clock.finish(0);
+         
             //3.
             for ( auto & b: I) if (b.level == m)
             {

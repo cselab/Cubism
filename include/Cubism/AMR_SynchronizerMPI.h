@@ -500,16 +500,19 @@ class SynchronizerMPI_AMR
             }
         }
         
-        void SendPacks(int * recv_sizes, int timestamp)
+        //void SendPacks(int * recv_sizes, int timestamp)
+        void SendPacks(std::set<int> Neighbors, int timestamp)
         {
             assert (pack_requests.size() == 0);
-            for (int r = 0; r< size; r++) if (manyUnpacks[r].size() > 0) 
+            //for (int r = 0; r< size; r++) if (manyUnpacks[r].size() > 0) 
+            for (auto & r: Neighbors)
             {
                 pack_requests.resize(pack_requests.size()+1);
                 MPI_Isend(manyUnpacks[r].data(), sizeof(UnPackInfo)*manyUnpacks[r].size() , MPI_CHAR, r, timestamp , MPI_COMM_WORLD, &pack_requests.back());
             }
            
-            for (int r = 0; r< size; r++) if (recv_sizes[r] > 0)
+            //for (int r = 0; r< size; r++) if (recv_sizes[r] > 0)
+            for (auto & r: Neighbors)
             {
                 int number_amount;
                 MPI_Status status;
@@ -532,23 +535,21 @@ class SynchronizerMPI_AMR
                 std::sort(MapOfInfos.begin(),MapOfInfos.end());
                
 
-                #pragma omp parallel
+                for (int r=0; r<size; r++)
                 {
-                    for (int r=0; r<size; r++)
-                    
-                    #pragma omp for 
                     for (size_t i=0; i < manyUnpacks_recv[r].size(); i++)
                     {
                         UnPackInfo & info = manyUnpacks_recv[r][i];
-            
                         std::array <long long int,2> element = {info.IDreceiver,-1};
                         auto low=std::lower_bound (MapOfInfos.begin(), MapOfInfos.end(), element);
                         int Target = (*low)[1];
                         assert(Target >=0);
                         add(info,Target);
-                    }
+                    }                    
+                }
+                    
+ 
 
-                }          
             }
       
         }
@@ -700,8 +701,9 @@ class SynchronizerMPI_AMR
         {
             std::vector<int> remEl;
 
-            C.clear();
+            
             /*------------->*/Clock.start(22,"SynchronizerMPI_AMR : RemoveDuplicates fill cube");
+            C.clear();
             for (size_t i=0; i<positions[r].size();i++)
             {              
                 C.compass[f[positions[r][i]].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[positions[r][i]]));
@@ -981,8 +983,7 @@ class SynchronizerMPI_AMR
             std::vector < int > ToBeChecked;
             bool Coarsened = false;
 
-           // /*---------> change this to single DM outside of loop!! */ DuplicatesManager DM(size, *(this));
-              for (int r=0;r<size;r++)
+            for (int r=0;r<size;r++)
               	DM.positions[r].clear();
 
             int l = 0;
@@ -994,7 +995,6 @@ class SynchronizerMPI_AMR
                 if (!xperiodic && code[0] == xskip && xskin) continue;
                 if (!yperiodic && code[1] == yskip && yskin) continue;
                 if (!zperiodic && code[2] == zskip && zskin) continue;
-
                 
                 if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
          
@@ -1002,7 +1002,6 @@ class SynchronizerMPI_AMR
                 
                 if (infoNei.TreePos == CheckCoarser) Coarsened = true;
              
-
                 //Does not work (why?)
                 //if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
     
@@ -1275,6 +1274,9 @@ public:
     }
 
 
+    std::vector<MPI_Request> size_requests;
+    std::vector <int> ss1;
+    std::vector <int> ss ;
     void _Setup(BlockInfo * a_myInfos, size_t a_myInfos_size, std::vector<std::vector<BlockInfo >> & a_BlockInfoAll, const int timestamp)
     {
         if (rank==0)std::cout << " Calling _Setup ... \n";
@@ -1301,30 +1303,35 @@ public:
                
         recv_buffer_size.resize(size,0);
 
-        std::vector <int> ss1(size,0);
-        std::vector <int> ss (size,0);
 
-        std::vector<MPI_Request> requests (2*Neighbors.size());
-        
+        ss1.clear();
+        ss.clear();
+        ss1.resize(size,0);
+        ss .resize(size,0);        
+        size_requests.clear();
+        size_requests.resize(2*Neighbors.size());
+
         int k=0;
         for (auto r : Neighbors)
         {
             ss1[r] = send_buffer[r].size();
-            MPI_Irecv(&ss [r],1,MPI_INT,r,timestamp,comm,&requests[k  ]);
-            MPI_Isend(&ss1[r],1,MPI_INT,r,timestamp,comm,&requests[k+1]);
+            MPI_Irecv(&ss [r],1,MPI_INT,r,timestamp,comm,&size_requests[k  ]);
+            MPI_Isend(&ss1[r],1,MPI_INT,r,timestamp,comm,&size_requests[k+1]);
             k+=2;
         }
        
-        MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+//        MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);
         /*------------->*/Clock.finish(13);
-     
-        for (int r=0;r<size;r++)
-        {
-            recv_buffer_size[r] = ss[r]/NC;
-            recv_buffer[r].resize(recv_buffer_size[r]*NC, 777.0);          
-        }
+//     
+//        for (int r=0;r<size;r++)
+//        {
+//            recv_buffer_size[r] = ss[r]/NC;
+//            recv_buffer[r].resize(recv_buffer_size[r]*NC, 777.0);          
+//        }
        
-        UnpacksManager.SendPacks(recv_buffer_size.data(),timestamp);
+//        UnpacksManager.SendPacks(recv_buffer_size.data(),timestamp);
+        UnpacksManager.SendPacks(Neighbors,timestamp);
+
         
         static const int nX = blocksize[0];
         static const int nY = blocksize[1];
@@ -1487,56 +1494,83 @@ public:
         std::sort(selcomponents.begin(), selcomponents.end());       
         const int NC = selcomponents.size();
 
-
         //Pack data   
-        std::vector<int> displacement(size,0);
+        /*------------->*/Clock.start(25,"SynchronizerMPI_AMR : sync (data packing)");
         for (int r=0; r<size; r++)
         {
-            /*------------->*/Clock.start(25,"SynchronizerMPI_AMR : sync gather pack infos");
-
-            #pragma omp parallel for 
-            for (size_t j=0; j<ToBeAveragedDown[r].size(); j+=2)
+            #pragma omp parallel
             {
-                int i = ToBeAveragedDown[r][j  ];
-                int d = ToBeAveragedDown[r][j+1];
-                Interface & f = send_interfaces[r][i];
-
-                const int code[3] = { f.icode[0]%3-1, (f.icode[0]/3)%3-1, (f.icode[0]/9)%3-1};              
-                const int code0[3] = { -code[0], -code[1] , -code[2]}; 
-
-                if (f.CoarseStencil)
+                #pragma omp for schedule(runtime)
+                for (size_t j=0; j<ToBeAveragedDown[r].size(); j+=2)
                 {
-                    AverageDownAndFill2(send_buffer[r].data() + d,f.infos[0],code0,&selcomponents[0],NC,gptfloats);
+                    int i = ToBeAveragedDown[r][j  ];
+                    int d = ToBeAveragedDown[r][j+1];
+                    Interface & f = send_interfaces[r][i];
+                    const int code[3] = { f.icode[0]%3-1, (f.icode[0]/3)%3-1, (f.icode[0]/9)%3-1};              
+                    const int code0[3] = { -code[0], -code[1] , -code[2]}; 
+                    if (f.CoarseStencil)
+                    {
+                        AverageDownAndFill2(send_buffer[r].data() + d,f.infos[0],code0,&selcomponents[0],NC,gptfloats);
+                    }
+                    else
+                    {
+                        const int s [3] = { code0[0]<1? (code0[0]<0 ? stencil.sx:0 ):nX,
+                                            code0[1]<1? (code0[1]<0 ? stencil.sy:0 ):nY,
+                                            code0[2]<1? (code0[2]<0 ? stencil.sz:0 ):nZ};
+                        const int e [3] = { code0[0]<1? (code0[0]<0 ? 0         :nX):nX+stencil.ex-1,
+                                            code0[1]<1? (code0[1]<0 ? 0         :nY):nY+stencil.ey-1,
+                                            code0[2]<1? (code0[2]<0 ? 0         :nZ):nZ+stencil.ez-1};
+                        AverageDownAndFill(send_buffer[r].data() + d,f.infos[0],s,e,code0,&selcomponents[0],NC, gptfloats); 
+                    }
                 }
-                else
+              
+                if (send_buffer_size[r] != 0)
                 {
-                    const int s [3] = { code0[0]<1? (code0[0]<0 ? stencil.sx:0 ):nX,
-                                        code0[1]<1? (code0[1]<0 ? stencil.sy:0 ):nY,
-                                        code0[2]<1? (code0[2]<0 ? stencil.sz:0 ):nZ};
-                    const int e [3] = { code0[0]<1? (code0[0]<0 ? 0         :nX):nX+stencil.ex-1,
-                                        code0[1]<1? (code0[1]<0 ? 0         :nY):nY+stencil.ey-1,
-                                        code0[2]<1? (code0[2]<0 ? 0         :nZ):nZ+stencil.ez-1};
-                    AverageDownAndFill(send_buffer[r].data() + d,f.infos[0],s,e,code0,&selcomponents[0],NC, gptfloats); 
+                    const int N = send_packinfos[r].size();
+                    #pragma omp for schedule(runtime)
+                    for (int i = 0; i < N ; i++)
+                    {
+                        PackInfo & info = send_packinfos[r][i];               
+                        pack(info.block, info.pack, 
+                             gptfloats, &selcomponents.front(), NC, 
+                             info.sx,info.sy,info.sz,
+                             info.ex,info.ey,info.ez, 
+                             blocksize[0],blocksize[1]);
+                    }
                 }
             }
-
-
-            /*------------->*/Clock.finish(25);
-
-
-            if (send_buffer_size[r] == 0) continue;
-            const int N = send_packinfos[r].size();
-
-            /*------------->*/Clock.start(26,"SynchronizerMPI_AMR : sync pack data");
-            #pragma omp parallel for 
-            for (int i = 0; i < N ; i++)
-            {
-                PackInfo & info = send_packinfos[r][i];               
-                pack(info.block, info.pack, gptfloats, &selcomponents.front(),NC,info.sx,info.sy,info.sz,info.ex,info.ey,info.ez,blocksize[0],blocksize[1]);
-            }
-            /*------------->*/Clock.finish(26);
-
         }
+        /*------------->*/Clock.finish(25);
+
+
+
+
+
+        /*------------->*/Clock.start(13,"SynchronizerMPI_AMR : DefineInterfaces send/recv sizes");
+        MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);    
+        for (int r=0;r<size;r++)
+        {
+            //int NC = stencil.selcomponents.size();
+            recv_buffer_size[r] = ss[r]/NC;
+            recv_buffer[r].resize(recv_buffer_size[r]*NC, 777.0);          
+        }
+       /*------------->*/Clock.finish(13);
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         send_requests.clear();
         recv_requests.clear();

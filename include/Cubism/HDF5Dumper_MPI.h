@@ -67,7 +67,7 @@ void DumpHDF5_MPI(const TGrid &grid,
         myfile << "<Domain>\n";
         myfile << " <Grid Name=\"OctTree\" GridType=\"Collection\">\n";
         myfile << "  <Time Value=\""<<std::scientific<<absTime<<"\"/>\n\n";           
-        for (int m = 0; m < MyBlocks.size(); m++)
+        for (size_t m = 0; m < MyBlocks.size(); m++)
         {
             BlockInfo I = MyInfos[m];     
             myfile << "  <Grid GridType=\"Uniform\">\n";

@@ -324,7 +324,7 @@ class FluxCorrection
                                  1*1 + 3*1 + 9*2,
                                  1*1 + 3*1 + 9*0};
    
-      #pragma omp parallel for
+      #pragma omp parallel for schedule (runtime)
       for (size_t k=0; k<B.size(); k++)
       {
         BlockInfo & info = B[k];

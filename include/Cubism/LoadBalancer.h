@@ -37,6 +37,18 @@ protected:
                 std::memcpy(&data[0],aux,sizeof(BlockType));
             }
         }
+        
+        void prepare(BlockInfo & info,bool Fillptr = true)
+        {
+            mn [0] = info.level;
+            mn [1] = info.Z;
+            if (Fillptr)
+            {
+                Real * aux = &((BlockType *)info.ptrBlock)->data[0][0][0].alpha1rho1;
+                std::memcpy(&data[0],aux,sizeof(BlockType));
+            }            
+        }
+
         MPI_Block(){}
     };
 
@@ -252,8 +264,13 @@ public:
 
         if (flux_left > 0) //then I will send blocks to my left rank
         {
+            send_left.resize(flux_left);
+
+            #pragma omp parallel for schedule (runtime)
             for (int i=0; i< flux_left; i++)
-                send_left.push_back({SortedInfos[i]});
+                send_left[i].prepare(SortedInfos[i]);
+                //send_left.push_back({SortedInfos[i]});
+            
             MPI_Request req;
             request.push_back(req);
             MPI_Isend(&send_left[0], send_left.size(), MPI_BLOCK, left, 7890 , MPI_COMM_WORLD, &request.back());
@@ -269,8 +286,15 @@ public:
 
         if (flux_right > 0) //then I will send blocks to my right rank
         {
+            //for (int i=0; i< flux_right; i++)
+            //    send_right.push_back({SortedInfos[my_blocks-i-1]});
+            
+            send_right.resize(flux_right);
+            #pragma omp parallel for schedule (runtime)
             for (int i=0; i< flux_right; i++)
-                send_right.push_back({SortedInfos[my_blocks-i-1]});
+                send_right[i].prepare(SortedInfos[my_blocks-i-1]);
+
+
             MPI_Request req;
             request.push_back(req);
             MPI_Isend(&send_right[0],send_right.size(), MPI_BLOCK, right, 4560 , MPI_COMM_WORLD, &request.back());

@@ -219,7 +219,7 @@ public:
   }
 
   //space-filling curve (i,j,k) --> 1D index (given level l)
-  int forward(const int l, const int i, const int j, const int k)  const
+  int forward(const unsigned int l, const unsigned int i, const unsigned int j, const unsigned int k)  const
   {
     unsigned int aux =  1 << l; 
     unsigned int I = i / aux;

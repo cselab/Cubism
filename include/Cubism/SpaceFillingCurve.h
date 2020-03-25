@@ -240,6 +240,9 @@ public:
       
       const unsigned int c2_a [3] = {i ,j ,k };
       int s = SUBSTRACT[((J + K*BY)*BX + I)] * aux*aux*aux;
+
+      assert(s==0); 
+
       return AxestoTranspose(c2_a, l+base_level) - s;
 
       //  const unsigned int c1[3] = {I1,J1,K1};
@@ -248,6 +251,19 @@ public:
       //  return z_origin + AxestoTranspose(c1, l);
     #endif
   }
+
+  void inverse(int Z, unsigned int l, unsigned int & i, unsigned int & j, unsigned int & k) 
+  {
+      unsigned int X[3]= {0,0,0};
+
+      TransposetoAxes(Z, X, l + base_level);
+
+      i = X[0];
+      j = X[1];
+      k = X[2];
+  }
+
+
 
   //return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)
   int child(int l, int i, int j, int k)
@@ -294,18 +310,25 @@ public:
       iz /= 2;
     }
 
-    ix = index[0];
-    iy = index[1];
-    iz = index[2];
+    ix = 2*index[0]; 
+    iy = 2*index[1]; 
+    iz = 2*index[2]; 
     for (int l = level+1; l < lmax; l++)
     {
-      ix *=2;
-      iy *=2;
-      iz *=2;
       int Zc= forward(l,ix,iy,iz);
+
       Zc -= Zc%8;
       retval += Zc; 
+
+      unsigned int ix1,iy1,iz1;
+      inverse(Zc, l, ix1,iy1,iz1);
+      ix = 2*ix1;
+      iy = 2*iy1;
+      iz = 2*iz1;
     }
+
+    retval += level ;
+
     return retval;
     #endif
 

@@ -30,6 +30,9 @@ struct MyClock
   double s[100];
   string name [100];
 
+  double total_s;
+  double total_f;
+
   void padTo(std::string &str, const size_t num, const char paddingChar = ' ')
   {
       if(num > str.size())
@@ -56,11 +59,31 @@ struct MyClock
   {
     t[i] += MPI_Wtime() - s[i];
   }
+
+  void start_total()
+  {
+    total_s = MPI_Wtime();
+  }
+  void finish_total()
+  {
+    total_f = MPI_Wtime() - total_s;
+  }
+
+
+
   void display()
   {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     
+
+    double m1,m2;
+    MPI_Reduce(&total_f,&m1,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(&total_f,&m2,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
+
+
+
+
     double * mean    = new double [N];
     double * maximum = new double [N];
     MPI_Reduce(t,mean   ,N,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
@@ -73,14 +96,17 @@ struct MyClock
       delete [] maximum;
       return;
     } 
+    
+
     std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
     for (int i=0; i<N; i++)
     {
-      padTo(name[i],70);
+      padTo(name[i],40);
       mean[i] /= size;
       printf("%s    :  %8.4f (max)     %8.4f (mean) \n", name[i].c_str(), maximum[i], mean[i]);
     }
     std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
+    std::cout << "TOTAL TIME = " << m1 << " " << m2 << "\n";
     
     delete [] mean;
     delete [] maximum;

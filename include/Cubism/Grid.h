@@ -31,7 +31,7 @@ protected:
     std::vector <Block * > m_blocks; //pointers to blocks that belong to this rank
     std::vector <std::vector<BlockInfo> > BlockInfoAll; 
 
-
+    std::vector < std::vector < std::vector < std::vector<int> > > > Zsave;
 
     const int NX;         //Total # of blocks for level 0 in X-direction  
     const int NY;         //Total # of blocks for level 0 in Y-direction
@@ -229,12 +229,24 @@ public:
         //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
         BlockInfoAll.resize(lvlMax);
 
+        Zsave.resize(lvlMax);
+
         for (int m=0; m<lvlMax; m++)
         {
             int TwoPower  = 1<<m;//pow(2,m);
             const unsigned int Ntot = NX*NY*NZ*pow(TwoPower,3);
             
             BlockInfoAll[m].resize(Ntot);
+
+            Zsave[m].resize(NX*TwoPower);
+            for (int ix = 0; ix < NX*TwoPower; ix++)
+            {
+                Zsave[m][ix].resize(NY*TwoPower);
+                for (int iy = 0; iy < NY*TwoPower; iy++)
+                {
+                    Zsave[m][ix][iy].resize(NZ*TwoPower);
+                }   
+            }
             
             double h = h0 / TwoPower;
 
@@ -246,6 +258,7 @@ public:
             {
                 int n = Zcurve.forward(m,i,j,k);
 
+                Zsave[m][i][j][k] = n;
                 
                 int IJK[3] = {i,j,k};
                 origin[0]  = i*blocksize[0]*h;
@@ -289,7 +302,9 @@ public:
         int ix = (i+TwoPower*NX) % (NX*TwoPower);
         int iy = (j+TwoPower*NY) % (NY*TwoPower);
         int iz = (k+TwoPower*NZ) % (NZ*TwoPower);
-        return   Zcurve.forward(level,ix,iy,iz);  
+        
+        return Zsave[level][ix][iy][iz];
+        //return   Zcurve.forward(level,ix,iy,iz);  
     }
 
     int getZchild(int level,int i, int j, int k)

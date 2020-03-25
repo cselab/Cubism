@@ -35,105 +35,37 @@ void DumpHDF5_MPI(const TGrid &grid,
                   const std::string &fname,
                   const std::string &dpath = ".",
                   const bool bXMF = true)
-{
-    typedef typename TGrid::BlockType B;
-
-    // fname is the base filepath tail without file type extension and additional identifiers
-    std::ostringstream filename;
-    std::ostringstream fullpath;
-    filename << fname;
-    fullpath << dpath << "/" << filename.str();
+{ 
+#ifdef CUBISM_USE_HDF
 
     MPI_Comm comm = MPI_COMM_WORLD;
     int rank,size;
     MPI_Comm_rank(comm,&rank);
     MPI_Comm_size(comm,&size);
+
+    typedef typename TGrid::BlockType B;
+    static const unsigned int nX  = B::sizeX;
+    static const unsigned int nY  = B::sizeY;
+    static const unsigned int nZ  = B::sizeZ;
+
+    // fname is the base filepath without file type extension
+    std::ostringstream filename;
+    std::ostringstream fullpath;
+    filename << fname;
+    fullpath << dpath << "/" << filename.str();
+
     std::vector<B *      > MyBlocks = grid.GetBlocks();
     std::vector<BlockInfo> MyInfos  = grid.getBlocksInfo();
-    const int Ngrids = MyBlocks.size();
-    const int nX  = B::sizeX;
-    const int nY  = B::sizeY;
-    const int nZ  = B::sizeZ;
-    const int NCHANNELS = TStreamer::NCHANNELS;
-
-    {
-        std::string name = fullpath.str()+ "__rank" + to_string(rank) + ".xmf";
-        ofstream myfile;
-        myfile.open (name);
-     
-        myfile << "<?xml version=\"1.0\" ?>\n";
-        myfile << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
-        myfile << "<Xdmf Version=\"2.0\">\n";
-        myfile << "<Domain>\n";
-        myfile << " <Grid Name=\"OctTree\" GridType=\"Collection\">\n";
-        myfile << "  <Time Value=\""<<std::scientific<<absTime<<"\"/>\n\n";           
-        for (size_t m = 0; m < MyBlocks.size(); m++)
-        {
-            BlockInfo I = MyInfos[m];     
-            myfile << "  <Grid GridType=\"Uniform\">\n";
-            myfile << "   <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " <<B::sizeX + 1 << " " <<B::sizeY + 1 << " " <<B::sizeZ + 1 << "\"/>\n";
-            myfile << "   <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
-            myfile << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";    
-            myfile << "    "<<std::scientific << I.origin[2] << " " << I.origin[1] << " " << I.origin[0] << "\n";
-            myfile << "   </DataItem>\n";      
-            myfile << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
-            myfile << "    "<<std::scientific<< I.h << " " << I.h << " " <<I.h << "\n";
-            myfile << "   </DataItem>\n";      
-            myfile << "   </Geometry>\n";
-            myfile << "  </Grid>\n\n";
-        }           
-        myfile<<  " </Grid>\n";
-        myfile<<  "</Domain>\n";
-        myfile<<  "</Xdmf>\n";
-     
-        myfile.close();
-    } 
-
-    if (rank == 0) std::cout << "Dumper skipped.\n";
-    return;
+    
+    const unsigned int Ngrids = MyBlocks.size();
+    const unsigned int NCHANNELS = TStreamer::NCHANNELS;
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
     std::cout<<" ---> Rank " << rank << " is dumping " << Ngrids << " Blocks.\n";
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
     hid_t file_id, dataset_id, fspace_id, plist_id; 
-    hsize_t dims[4] = {nZ, nY, nX, NCHANNELS}; 
 
-    if (0 == rank)
-    {
-        H5open();
-       
-        plist_id = H5Pcreate(H5P_FILE_ACCESS);
-        file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
-        H5Pclose(plist_id);
-        H5Fclose(file_id);
-       
-        H5close();
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    
     H5open();
 
     //1.Set up file access property list with parallel I/O access
@@ -141,76 +73,51 @@ void DumpHDF5_MPI(const TGrid &grid,
     H5Pset_fapl_mpio(plist_id, comm, MPI_INFO_NULL);
 
     //2.Create a new file collectively and release property list identifier.
-    //file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
-    file_id = H5Fopen((fullpath.str()+".h5").c_str(), H5F_ACC_RDWR, plist_id);
+    file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);        
     H5Pclose(plist_id);
     
-    //3.All ranks need to create datasets dset* that correspond to each block
-    int TotalGrids;
-    MPI_Allreduce(&Ngrids, &TotalGrids, 1, MPI_INT, MPI_SUM,comm);
-    
-    for (int m=0; m< TotalGrids; m++)
-    {            
-        std::stringstream name_ss;
-        name_ss <<"dset" << std::setfill('0') << std::setw(10) << m ;
-        std::string name = name_ss.str();
-
-        fspace_id = H5Screate_simple(4, dims, NULL);
-        dataset_id = H5Dcreate(file_id, name.c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    
+    //3.All ranks need to create datasets dset*
+    std::vector <unsigned int> Block_per_rank(size);
+    MPI_Allgather(&Ngrids,1,MPI_UNSIGNED, &Block_per_rank[0] , 1 , MPI_UNSIGNED,MPI_COMM_WORLD);
+    for (int r = 0 ; r < size ; r ++ )
+    {
+        hsize_t dims1[4] = {nZ, nY, nX, NCHANNELS * Block_per_rank[r]};
+        fspace_id = H5Screate_simple(4, dims1, NULL);   
+        std::stringstream name;
+        name << "dset" << std::setfill('0') << std::setw(10) << r ;       
+        dataset_id = H5Dcreate(file_id, (name.str()).c_str(), H5T_NATIVE_DOUBLE, fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         H5Dclose(dataset_id);
-        H5Sclose(fspace_id);       
+        H5Sclose(fspace_id);
     }
-
-    hid_t plist_id1 = H5Pcreate(H5P_DATASET_XFER);
-    H5Pset_dxpl_mpio(plist_id1, H5FD_MPIO_INDEPENDENT);
-
-    
-    //4.Each rank now dumps its own blocks to the corresponding dset 
-    int grid_base = 0;
-    MPI_Exscan(&Ngrids, &grid_base, 1, MPI_INT,MPI_SUM,comm);
-
-    hdf5Real * array_block = new hdf5Real[nX * nY * nZ * NCHANNELS];
-    for (int m=0; m<Ngrids; m++)
-    {       
-        B & block = *MyBlocks[m];
-        for(int iz=0; iz<nZ; iz++)
-        for(int iy=0; iy<nY; iy++)
-        for(int ix=0; ix<nX; ix++)
-        {
+     
+    //4.Each rank now dumps its own blocks to the corresponding dset  
+    std::vector <hdf5Real> array_block(Block_per_rank[rank] * nX * nY * nZ * NCHANNELS,0.0);
+    size_t count = 0;
+    for(unsigned int iz=0; iz<nZ; iz++)
+    for(unsigned int iy=0; iy<nY; iy++)
+    for(unsigned int ix=0; ix<nX; ix++)
+    {
+        for (unsigned int m=0; m< Ngrids; m++) //loop order inefficient AF but works
+        {       
+            B & block = *MyBlocks[m];
             hdf5Real output[NCHANNELS];
-            for(int j=0; j<NCHANNELS; ++j)
-                output[j] = 0;
-        
             TStreamer::operate(block, ix, iy, iz, (hdf5Real*)output);
-                
-            int base = NCHANNELS*(ix + nX * (iy + nY * iz));
-            for(int j=0; j<NCHANNELS; ++j)
-                array_block[ base + j ] = output[j];
+            for(unsigned int j=0; j<NCHANNELS; ++j)
+            {
+                array_block[ count ] = output[j];
+                count ++ ;
+            }
         }
-
-        int mm = m + grid_base;
-        std::stringstream name_ss;
-        name_ss <<"dset" << std::setfill('0') << std::setw(10) << mm ;
-        std::string name = name_ss.str();
-        
-        //Access existing dataset and write to it
-        dataset_id = H5Dopen(file_id, name.c_str(), H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, plist_id1, array_block);
-        //H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block);
-        H5Dclose(dataset_id);
-
     }
-     H5Pclose(plist_id1);
-   
+    std::stringstream name;
+    name <<"dset" << std::setfill('0') << std::setw(10) << rank ;
+    dataset_id = H5Dopen(file_id, (name.str()).c_str(), H5P_DEFAULT);
+    H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block.data());
+    H5Dclose(dataset_id);
+
     //5.Close hdf5 file
     H5Fclose(file_id);
-    H5close();
-
-    delete [] array_block;
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////    
-
+    H5close();   
 
     //6.Write grid meta-data
     if (bXMF)
@@ -227,13 +134,12 @@ void DumpHDF5_MPI(const TGrid &grid,
             s << "  <Time Value=\""<<std::scientific<<absTime<<"\"/>\n\n";           
         }
       
-        for (int m = 0; m < Ngrids; m++)
+        for (unsigned int m = 0; m < Ngrids; m++)
         {
-            int mm = m + grid_base;
             BlockInfo I = MyInfos[m];     
         
             s << "  <Grid GridType=\"Uniform\">\n";
-            s << "   <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " <<nX + 1 << " " <<nY + 1 << " " <<nZ + 1 << "\"/>\n";
+            s << "   <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " <<nZ + 1 << " " <<nY + 1 << " " <<nX + 1 << "\"/>\n";
             s << "   <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
             s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" Format=\"XML\">\n";
             
@@ -247,16 +153,27 @@ void DumpHDF5_MPI(const TGrid &grid,
             s << "    "<<std::scientific<< I.h << " " << I.h << " " <<I.h << "\n";
             s << "   </DataItem>\n";      
             s << "   </Geometry>\n";
+     
+          ////////////////////////////////////
             s << "   <Attribute Name=\"data\" AttributeType=\" "<< TStreamer::getAttributeName() << "\" Center=\"Cell\">\n";
-            s << "   <DataItem Dimensions=\" " <<nX << " " << nY << " " << nZ << " " <<NCHANNELS <<"\" NumberType=\"Float\" Precision=\" " <<   (int)sizeof(hdf5Real)  << "\" Format=\"HDF\">\n";
-            
-            std::stringstream name_ss;
-            name_ss <<"dset" << std::setfill('0') << std::setw(10) << mm ;
-            std::string tmp = name_ss.str();
+             
+            s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << nZ << " " <<  nY << " " <<  nX << " " << NCHANNELS <<   "\" Type=\"HyperSlab\"> \n"; 
 
-            s << "    "<<(filename.str()+".h5").c_str()<<":/"<<tmp<<"\n";        
+            s << "<DataItem Dimensions=\"3 4\" Format=\"XML\">\n";  
+            s << 0  << " " << 0  << " " << 0  << " " << m*NCHANNELS <<"\n";
+            s << 1  << " " << 1  << " " << 1  << " " << 1           <<"\n";
+            s << nZ << " " << nY << " " << nX << " " << NCHANNELS   <<"\n";
+
+            s << "</DataItem>\n";
+
+            s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" "<<nZ << " " << nY << " " <<  nX << " " << Ngrids * NCHANNELS << " " <<"\" NumberType=\"Float\" Precision=\" " <<   (int)sizeof(hdf5Real)  << "\" Format=\"HDF\">\n";
+
+            s << "    "<<(filename.str()+".h5").c_str()<<":/"<< name.str() <<"\n";        
+            s << "   </DataItem>\n";
             s << "   </DataItem>\n";
             s << "   </Attribute>\n";
+          //////////////////////////////////
+
             s << "  </Grid>\n\n";
         
         }           
@@ -275,15 +192,25 @@ void DumpHDF5_MPI(const TGrid &grid,
          
         //delete the xmf file is it exists; no worries if it doesn't
         MPI_File_delete((fullpath.str()+".xmf").c_str(), MPI_INFO_NULL);     
+
         MPI_File_open(comm,(fullpath.str()+".xmf").c_str(),MPI_MODE_WRONLY|MPI_MODE_CREATE,MPI_INFO_NULL,&xmf);
 
         MPI_Exscan(&len,&offset,1,MPI_OFFSET,MPI_SUM,MPI_COMM_WORLD);
 
-        MPI_File_write_at_all(xmf,offset,st.data(),st.size(),MPI_CHAR,MPI_STATUS_IGNORE);
-      
+        MPI_File_write_at_all(xmf,offset, st.data(),st.size(),MPI_CHAR,MPI_STATUS_IGNORE);
+
         MPI_File_close(&xmf);
     } 
+#else
+    _warn_no_hdf5();
+#endif
 }
+
+
+
+
+
+
 
 template<typename TStreamer, typename hdf5Real, typename TGrid>
 void ReadHDF5_MPI(TGrid &grid, const std::string& fname, const std::string& dpath=".")

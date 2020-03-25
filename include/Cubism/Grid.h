@@ -15,7 +15,6 @@
 #include "BlockInfo.h"
 #include "MeshMap.h"
 
-#include<mpi.h>
 #define HACK
 
 
@@ -142,12 +141,7 @@ public:
             }
         else            
             for (size_t j = 0; j < m_vInfo.size(); j++)
-            {
-                //int rr;
-                //MPI_Comm_rank(MPI_COMM_WORLD,&rr);
-                //m_vInfo[j].TreePos = Exists;
-                //m_vInfo[j].myrank = rr; //rank();
-                
+            {   
                 int m = m_vInfo[j].level;
                 int n = m_vInfo[j].Z;
                 m_vInfo [j].state   = BlockInfoAll[m][n].state;

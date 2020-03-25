@@ -104,6 +104,36 @@ class BlockLab
     // rasthofer May 2016: required for non-relecting time-dependent boundary conditions
     //virtual void apply_bc_update(const BlockInfo& info, const Real dt=0, const Real a=0, const Real b=0) { }
 
+    bool UseCoarseStencil (const BlockInfo & a, const BlockInfo & b)
+    {       
+        if(a.level != b.level) return false;
+
+        int imin [3];
+        int imax [3];
+        for (int d=0; d<3; d++)
+        {
+            imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
+            imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
+        }    
+
+        bool retval = false;
+
+        for (int i2 = imin[2]; i2 <= imax[2]; i2++)
+        for (int i1 = imin[1]; i1 <= imax[1]; i1++)
+        for (int i0 = imin[0]; i0 <= imax[0]; i0++)
+        {
+            int n = a.Znei_(i0,i1,i2);  
+            if ( (m_refGrid->getBlockInfoAll(a.level,n)).TreePos == CheckCoarser )
+            {
+                retval = true;
+                break;
+            }
+        } 
+        return retval;
+    }
+
+
+
     void prepare(Grid<BlockType,allocator>& grid, int  startX, int  endX, int  startY, int  endY, int  startZ, int  endZ, const bool _istensorial,int IstartX = -1, int IendX = 2, int IstartY = -1, int IendY = 2,int IstartZ = -1, int IendZ = 2)
     {
       const int ss[3] = {startX, startY, startZ};
@@ -398,11 +428,12 @@ class BlockLab
           if (infoNei.TreePos == Exists)
           {
             icodes.push_back(icode);
+            if (!coarsened)
+              coarsened = UseCoarseStencil(info,infoNei);
           }   
           else if (infoNei.TreePos == CheckCoarser)
           {
             CoarseFineExchange(info,code);
-            coarsened = true;
           }
             
           if (!istensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;

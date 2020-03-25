@@ -67,7 +67,6 @@ protected:
 
   int AxestoTranspose( const unsigned int* X_in, int b) const // position, #bits, dimension
   {
-
     if (b==0)
     {
       assert (X_in[0] == 0);
@@ -177,7 +176,11 @@ public:
 
 	SpaceFillingCurve(){};
 
-  ~SpaceFillingCurve(){delete [] Z_ORIGIN;}
+  ~SpaceFillingCurve()
+  {
+    delete [] Z_ORIGIN;
+    delete [] SUBSTRACT;
+  }
 
 	void __setup(int nx,int ny,int nz)
   {

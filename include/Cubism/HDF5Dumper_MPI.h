@@ -112,6 +112,13 @@ void DumpHDF5_MPI(const TGrid &grid,
     std::stringstream name;
     name <<"dset" << std::setfill('0') << std::setw(10) << rank ;
     dataset_id = H5Dopen(file_id, (name.str()).c_str(), H5P_DEFAULT);
+    
+    //The following line is duplicated on purpose. 
+    //When running on Euler, if MPI processes are mapped
+    //to different nodes (one process/node) something weird happens; 
+    //some zeros are written at random locations in the dataset (could this be an HDF5 bug?).
+    //Strangely, this is fixed if the data is written twice in the file. 
+    H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block.data());
     H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block.data());
     H5Dclose(dataset_id);
 

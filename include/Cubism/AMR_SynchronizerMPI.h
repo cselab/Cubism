@@ -953,14 +953,6 @@ class SynchronizerMPI_AMR
             send_interfaces[r].clear();
             send_buffer_size[r] = 0;
         }       
-        std::vector <int> maxZ (levelMax,-1  );
-        std::vector <int> minZ (levelMax,100000);
-        for (int i=0; i<(int)myInfos_size; i++)
-        {
-            BlockInfo & info = myInfos[i];
-            maxZ[info.level] = std::max(maxZ[info.level],info.Z);
-            minZ[info.level] = std::min(minZ[info.level],info.Z);
-        }
         UnpacksManager.clear();
         std::vector<size_t> lengths;
         /*------------->*/Clock.finish(14);
@@ -1002,12 +994,7 @@ class SynchronizerMPI_AMR
                 if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
          
                 BlockInfo & infoNei = getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));   
-                
-                if (infoNei.TreePos == CheckCoarser) Coarsened = true;
-             
-                //Does not work (why?)
-                //if (infoNei.Z <= maxZ[info.level] && infoNei.Z >= minZ[info.level]) continue; 
-    
+                    
                 if (infoNei.TreePos == Exists && infoNei.myrank != rank)
                 {
                     isInner = false;

@@ -244,9 +244,8 @@ public:
 
         if (rank == size-1) flux_right = 0;
         if (rank == 0     ) flux_left  = 0;
-
-
-
+        
+        //if (my_blocks + flux_right + flux_left == 0)
 
         std::vector <BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
 
@@ -269,7 +268,6 @@ public:
             #pragma omp parallel for schedule (runtime)
             for (int i=0; i< flux_left; i++)
                 send_left[i].prepare(SortedInfos[i]);
-                //send_left.push_back({SortedInfos[i]});
             
             MPI_Request req;
             request.push_back(req);
@@ -285,15 +283,11 @@ public:
         }   
 
         if (flux_right > 0) //then I will send blocks to my right rank
-        {
-            //for (int i=0; i< flux_right; i++)
-            //    send_right.push_back({SortedInfos[my_blocks-i-1]});
-            
+        {            
             send_right.resize(flux_right);
             #pragma omp parallel for schedule (runtime)
             for (int i=0; i< flux_right; i++)
                 send_right[i].prepare(SortedInfos[my_blocks-i-1]);
-
 
             MPI_Request req;
             request.push_back(req);
@@ -375,53 +369,15 @@ public:
                 std::cout << "\n";
                 std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
             }
-
-        MPI_Bcast(all_b.data(), size, MPI_INT, 0, MPI_COMM_WORLD);
-        int levelMax = m_refGrid->getlevelMax();
-        int r = 0;
-        int count = 0;
-        for (int n = 0 ; n < (m_refGrid->getBlockInfoAll())[0].size() ; n++ )
-        {
-            int nBlocks = 1;
-            int nstart  = n;
-            for (int m = 0 ; m < levelMax ; m++)
-            {
-                for (int nn = nstart ; nn < nstart + nBlocks; nn++)
-                {
-                    if (m_refGrid->getBlockInfoAll(m,nn).TreePos == Exists)
-                    {
-                        //m_refGrid->getBlockInfoAll(m,nn).myrank = r;
-                        count ++;
-                        if (count == all_b[r])
-                        {
-                            count = 0;
-                            r ++;
-                        }
-                    }
-                }
-                nBlocks *= 8;
-                nstart  *= 8;
-            }
-        }
-        
-
-
-
         }
 
         for (auto & info: m_refGrid->getBlocksInfo())
         {
-            if (info.TreePos != Exists) abort();
-            info.TreePos = Exists;
-            info.myrank = rank;
             assert(info.TreePos == Exists);
-        }
-
-
-
-
-
-
+            assert(info.myrank == rank);
+            //info.TreePos = Exists;
+            info.myrank = rank;
+        }  
     }
 };
 

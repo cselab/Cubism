@@ -629,7 +629,7 @@ public:
 
         MPI_Allgatherv(myData, myLength, MPI_INT, All_data, AllLengths, displacement.data(), MPI_INT, MPI_COMM_WORLD);
         
-        for (int r=0 ; r<size; r++) if (r!=rank)
+        for (int r=0 ; r<size; r++) //if (r!=rank)
         {
             int * ptr = All_ptr[r];
             for (int index__ = 0; index__ < AllLengths[r]; index__ += 3)

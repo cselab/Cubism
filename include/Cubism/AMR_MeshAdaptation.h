@@ -148,15 +148,9 @@ public:
         }
         /*------------->*/Clock.finish(1);
 
-
-
-
         /*------------->*/Clock.start(2,"MeshAdaptation: waiting for inner blocks");
         avail1 = Synch->avail_halo();
         /*------------->*/Clock.finish(2);
-
-
-
 
         /*------------->*/Clock.start(3,"MeshAdaptation: outer block tagging");
         const int Nhalo = avail1.size();
@@ -177,9 +171,6 @@ public:
             }
         }
         /*------------->*/Clock.finish(3);
-
-
-
 
         /*------------->*/Clock.start(4,"MeshAdaptation: ValidStates");
         int tmp = CallValidStates ? 1:0;
@@ -265,25 +256,13 @@ public:
             std::cout <<"==============================================================\n";
         }
         /*------------->*/Clock.finish(6);
-
-        
-
-
-        /*------------->*/Clock.start(7,"MeshAdaptation : UpdateBlockInfoAll_States");
-        m_refGrid->FillPos();
-        m_refGrid->UpdateBlockInfoAll_States(false);
-        /*------------->*/Clock.finish(7);
    
 
         /*------------->*/Clock.start(8,"MeshAdaptation : Balance_Diffusion");
+        m_refGrid->FillPos();
         Balancer.Balance_Diffusion();
         /*------------->*/Clock.finish(8);
-   
-
-        /*------------->*/Clock.start(7,"MeshAdaptation : UpdateBlockInfoAll_States");
-        m_refGrid->FillPos();
-        /*------------->*/Clock.finish(7);
-        
+           
         delete [] labs;
 
         /*------------->*/Clock.start(9,"MeshAdaptation : Setup");
@@ -291,12 +270,10 @@ public:
         {
             m_refGrid->UpdateFluxCorrection = true;
             
-
             /*------------->*/Clock.start(7,"MeshAdaptation : UpdateBlockInfoAll_States");
             m_refGrid->UpdateBlockInfoAll_States(false);
             /*------------->*/Clock.finish(7);
             
-
             Synch->_Setup(&(m_refGrid->getBlocksInfo())[0],
                            (m_refGrid->getBlocksInfo()).size(),
                             m_refGrid->getBlockInfoAll(),timestamp);
@@ -369,7 +346,7 @@ protected:
         {      
             int nc = m_refGrid->getZforward(level+1,2*p[0]+i,2*p[1]+j,2*p[2]+k);
             BlockInfo & Child = m_refGrid->getBlockInfoAll(level+1,nc); 
-            Child.TreePos = Exists;
+            Child.TreePos = Exists; 
         }
     }
 
@@ -468,13 +445,11 @@ protected:
                 info.state=Leave;
             }
         }
-
         
         /*------------->*/Clock.start(0,"MeshAdaptation: UpdateBoundary");
         m_refGrid->FillPos(false);
         m_refGrid->UpdateBoundary(true);
         /*------------->*/Clock.finish(0);
-
 
         for (int m=levelMax-1; m>=levelMin; m--)
         {
@@ -807,11 +782,6 @@ protected:
         g3 = 1.375*c  - 0.5 * cm + 0.125*cm2;
         right = aux*(g1*w1+g2*w2+g3*w3);   
     }
-
-
-
-
-
 
 
     #if WENOWAVELET == 3

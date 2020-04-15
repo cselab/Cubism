@@ -170,7 +170,7 @@ protected:
 
 public:
 
-  int * Z_ORIGIN;
+  //int * Z_ORIGIN;
   int * SUBSTRACT;
   int base_level;
 
@@ -178,7 +178,7 @@ public:
 
   ~SpaceFillingCurve()
   {
-    delete [] Z_ORIGIN;
+    //delete [] Z_ORIGIN;
     delete [] SUBSTRACT;
   }
 
@@ -191,13 +191,17 @@ public:
 
   SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ):BX(a_BX),BY(a_BY),BZ(a_BZ)
   {
-    Z_ORIGIN = new int [BX*BY*BZ];
+    //Z_ORIGIN = new int [BX*BY*BZ];
     SUBSTRACT = new int [BX*BY*BZ];
     
     int n_max = max(max(BX,BY),BZ);
     base_level   =  ( log(n_max) / log(2) );
     if (base_level < (double) (log(n_max) / log(2)) ) base_level ++;
     
+    std::vector < std::array<unsigned int,3> > Indices(BX*BY*BZ);  
+    for (int h = 0 ; h < BX*BY*BZ ; h ++)
+      TransposetoAxes(h,&Indices[h][0],base_level);
+
     for (unsigned int k=0;k<BZ;k++)
     for (unsigned int j=0;j<BY;j++)
     for (unsigned int i=0;i<BX;i++)
@@ -209,15 +213,18 @@ public:
       int substract = 0;
       for (int h=0; h<index; h++)
       {
-        unsigned int X[3] = {0,0,0};
-        TransposetoAxes(h, X, base_level);
-        if (X[0] >= BX ||  
-            X[1] >= BY ||  
-            X[2] >= BZ) substract++;   
+        if (Indices[h][0] >= BX ||  
+            Indices[h][1] >= BY ||  
+            Indices[h][2] >= BZ) substract++;   
+        //unsigned int X[3] = {0,0,0};
+        //TransposetoAxes(h, X, base_level);
+        //if (X[0] >= BX ||  
+        //    X[1] >= BY ||  
+        //    X[2] >= BZ) substract++;   
       }   
       index -= substract;
       SUBSTRACT[(j + k*BY)*BX + i] = substract;
-      Z_ORIGIN[(j + k*BY)*BX + i] =index;    
+      //Z_ORIGIN[(j + k*BY)*BX + i] =index;    
     }  
   }
 

@@ -1322,11 +1322,9 @@ public:
         /*------------->*/Clock.start(11,"Synchronizer: initial copies");
         myInfos_size = a_myInfos_size;
         myInfos = a_myInfos;
-        
         BlockInfoAll.resize(levelMax);
         for (int m=0;m<levelMax;m++)
-            BlockInfoAll[m] = &a_BlockInfoAll[m];
-       
+            BlockInfoAll[m] = &a_BlockInfoAll[m];    
         const int NC = stencil.selcomponents.size();
         /*------------->*/Clock.finish(11);
 

@@ -18,6 +18,11 @@ public:
     typedef typename TGrid::Block BlockType;   
     typedef typename TGrid::Block::ElementType ElementType;
     bool movedBlocks;
+
+
+    double beta;
+    int flux_left_old;
+    int flux_right_old;
   
 protected:
     TGrid * m_refGrid;
@@ -65,6 +70,9 @@ public:
         MPI_Datatype array_of_types[2] = {MPI_INT,MPI_DOUBLE};
         MPI_Type_create_struct(2,array_of_blocklengths,array_of_displacements,array_of_types,&MPI_BLOCK);        
         MPI_Type_commit(&MPI_BLOCK);
+
+        flux_left_old = 0;
+        flux_right_old = 0;
     }
 
     ~LoadBalancer()
@@ -180,8 +188,6 @@ public:
                 assert(b1!=NULL);
                 Real * a1 = & b1->data[0][0][0].alpha1rho1;
                 std::memcpy( a1 ,recv_blocks[r][i].data,BlockBytes);
-
-                info.changed = true;
             }
         }
     }
@@ -191,61 +197,27 @@ public:
         int right  = (rank == size-1) ?  MPI_PROC_NULL : rank + 1;
         int left   = (rank == 0     ) ?  MPI_PROC_NULL : rank - 1;  
         
-        int left2,right2;
-        if      (rank == 0) left2 = MPI_PROC_NULL;
-        else if (rank == 1) left2 = MPI_PROC_NULL;
-        else                left2 = rank-2;
-        if      (rank == size-1) right2 = MPI_PROC_NULL;
-        else if (rank == size-2) right2 = MPI_PROC_NULL;
-        else                     right2 = rank+2;
-
         int my_blocks = m_refGrid->getBlocksInfo().size();
         int right_blocks ,left_blocks ;
-        int right_blocks2,left_blocks2;
 
-        std::vector<MPI_Request> reqs(8);
+        std::vector<MPI_Request> reqs(4);
         MPI_Irecv(& left_blocks, 1, MPI_INT,  left, 123, MPI_COMM_WORLD, &reqs[0]);
         MPI_Irecv(&right_blocks, 1, MPI_INT, right, 456, MPI_COMM_WORLD, &reqs[1]);
         MPI_Isend(&my_blocks   , 1, MPI_INT,  left, 456, MPI_COMM_WORLD, &reqs[2]);
         MPI_Isend(&my_blocks   , 1, MPI_INT, right, 123, MPI_COMM_WORLD, &reqs[3]);
 
-        MPI_Irecv(& left_blocks2, 1, MPI_INT,  left2, 1230, MPI_COMM_WORLD, &reqs[4]);
-        MPI_Irecv(&right_blocks2, 1, MPI_INT, right2, 4560, MPI_COMM_WORLD, &reqs[5]);
-        MPI_Isend(&my_blocks    , 1, MPI_INT,  left2, 4560, MPI_COMM_WORLD, &reqs[6]);
-        MPI_Isend(&my_blocks    , 1, MPI_INT, right2, 1230, MPI_COMM_WORLD, &reqs[7]);
+        MPI_Waitall(4, &reqs[0], MPI_STATUSES_IGNORE);
 
-        MPI_Waitall(8, &reqs[0], MPI_STATUSES_IGNORE);
-
-        if      (rank == 0)
-        {
-            left_blocks  = my_blocks;
-            left_blocks2 = my_blocks;
-        } 
-        else if (rank == 1)
-        {
-            left_blocks2 = left_blocks;
-        }
-        
-        if      (rank == size-1)
-        {
-            right_blocks  = my_blocks;
-            right_blocks2 = my_blocks;
-        }
-        else if (rank == size-2)
-        {
-            right_blocks2 = right_blocks;
-        }
-
-        int nu = 8;
+        int nu = 4;
         //int flux_left  = ((my_blocks -  left_blocks) / nu); 
         //int flux_right = ((my_blocks - right_blocks) / nu); 
-        int flux_left  = -( 9.0/8.0 * (left_blocks  - my_blocks) - 1.0/24.0 * (left_blocks2  - right_blocks) )/nu;
-        int flux_right = -( 9.0/8.0 * (right_blocks - my_blocks) - 1.0/24.0 * (right_blocks2 - left_blocks ) )/nu;       
+        beta = 1.95;
+        int flux_left  = beta*((my_blocks -  left_blocks) / nu) + (1.0-beta)*flux_left_old ; 
+        int flux_right = beta*((my_blocks - right_blocks) / nu) + (1.0-beta)*flux_right_old; 
 
         if (rank == size-1) flux_right = 0;
         if (rank == 0     ) flux_left  = 0;
         
-        //if (my_blocks + flux_right + flux_left == 0)
 
         std::vector <BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
 
@@ -332,8 +304,7 @@ public:
             info.TreePos = Exists;
             BlockType * b1 =  (BlockType *)info.ptrBlock;
             Real * a1 = & b1->data[0][0][0].alpha1rho1;
-            std::memcpy( a1 ,recv_left[i].data,BlockBytes);            
-
+            std::memcpy( a1 ,recv_left[i].data,BlockBytes);
             assert (m_refGrid->getBlockInfoAll(level,Z).myrank == rank );
         }
       
@@ -347,8 +318,7 @@ public:
             BlockType * b1 =  (BlockType *)info.ptrBlock;
             assert(b1!=NULL);
             Real * a1 = & b1->data[0][0][0].alpha1rho1;
-            std::memcpy( a1 ,recv_right[i].data,BlockBytes);
-
+            std::memcpy( a1 ,recv_right[i].data,BlockBytes);        
             assert (m_refGrid->getBlockInfoAll(level,Z).myrank == rank );
         }
    
@@ -378,7 +348,12 @@ public:
             //info.TreePos = Exists;
             info.myrank = rank;
         }  
+
+        flux_left_old = flux_left;
+        flux_right_old = flux_right;
+
     }
+
 };
 
 }//namespace AMR_CUBISM

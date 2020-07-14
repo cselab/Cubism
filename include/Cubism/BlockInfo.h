@@ -168,18 +168,12 @@ struct BlockInfo
     void * auxiliary;     //Pointer to blockcase
     double origin[3];     //(x,y,z) of block's origin   
 
-    bool changed;// {true};
-
+    bool changed;
+    bool changed2;
+ 
     int halo_block_id;
     int Zparent;
-
     int Zchild[2][2][2];
-
-
-
-    std::vector < int > neiRanks;
-
-
 
     template <typename T>
     inline void pos(T p[3], int ix, int iy, int iz) const

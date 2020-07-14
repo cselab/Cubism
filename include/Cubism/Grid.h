@@ -117,6 +117,8 @@ public:
         {
             if (m ==m_vInfo[j].level && n == m_vInfo[j].Z)
             {
+                BlockInfoAll[m_new][n_new].state=Leave;
+                BlockInfoAll[m_new][n_new].changed = true;
                 m_vInfo[j] = BlockInfoAll[m_new][n_new];
                 m_blocks[j] = (Block*)BlockInfoAll[m_new][n_new].ptrBlock;
                 return;

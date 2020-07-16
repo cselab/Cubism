@@ -406,9 +406,9 @@ public:
 
 
 
-    void UpdateBoundary(bool find, bool skip) 
+    std::vector < BlockInfo * > boundary;
+    void UpdateBoundary() 
     {
-        static std::vector < BlockInfo * > boundary;
         static auto blocksPerDim = TGrid::getMaxBlocks(); 
         
         int rank,size;
@@ -417,27 +417,12 @@ public:
             
         std::vector < std::vector <int> > send_buffer(size);
           
-        std::vector<BlockInfo *> bbb;
-        if (find)
-        {
-           boundary.clear();
-           for (auto & info: TGrid::m_vInfo)
-            bbb.push_back(&info);
-        }
-        else
-        {
-            bbb = boundary;
-        }
-
+        std::vector<BlockInfo *> bbb = boundary;
         for (size_t jjj = 0 ; jjj < bbb.size() ; jjj++) 
         {
             BlockInfo & info = *bbb[jjj];
-
-            //if ( (find == false) && (info.changed2 == false || info.state == Leave) ) continue;
             
             std::set<int> receivers;
-            bool isInner = true;  
-            bool flag = true;
 
             const int aux    = 1<<info.level;
             const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
@@ -461,13 +446,7 @@ public:
                 if (infoNei.TreePos == Exists && infoNei.myrank != rank)
                 {
                     infoNei.state = Leave;
-                    isInner = false;
                     receivers.insert(infoNei.myrank);
-                    if (find && flag)
-                    {
-                        boundary.push_back(&info);
-                        flag = false;
-                    }
                 }
                 else if (infoNei.TreePos == CheckCoarser)
                 {
@@ -476,14 +455,7 @@ public:
                     if (infoNeiCoarser.myrank != rank)
                     {
                         infoNeiCoarser.state = Leave;
-                        TGrid::getBlockInfoAll(infoNei.level-1,nCoarse).state = Leave;
-                        isInner = false;                 
                         receivers.insert(infoNeiCoarser.myrank);
-                        if (find && flag)
-                        {
-                            boundary.push_back(&info);
-                            flag = false;
-                        }
                     }
                 }
                 else if (infoNei.TreePos == CheckFiner)
@@ -504,19 +476,13 @@ public:
                         if (infoNeiFiner.myrank != rank)
                         {
                             infoNeiFiner.state = Leave;
-                            if (find && flag)
-                            {
-                                boundary.push_back(&info);
-                                flag = false;
-                            }
-                            isInner = false; 
                             receivers.insert(infoNeiFiner.myrank);
                         }
                     }
                 }
             }//icode = 0,...,26  
 
-            if (!isInner && info.changed2 && info.state != Leave) 
+            if (info.changed2 && info.state != Leave) 
             {
                 //info.changed2 = false;
                 std::set<int>::iterator it = receivers.begin();
@@ -527,12 +493,12 @@ public:
                     else if(info.state == Refine  ) temp = 2;
 
 
-                    if ( (skip && temp == 1) || (!skip) )
-                    {
+                    //if ( (skip && temp == 1) || (!skip) )
+                    //{
                     send_buffer[*it].push_back(info.level);
                     send_buffer[*it].push_back(info.Z    );
                     send_buffer[*it].push_back(temp      );                      
-                    }                  
+                    //}                  
                     it++;
                 }
             }
@@ -579,22 +545,6 @@ public:
             TGrid::BlockInfoAll[level][Z].state = (recv_buffer[r][index+2] == 1) ? Compress:Refine;           
         }
     };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -722,24 +672,17 @@ public:
             queryresult = new SynchronizerMPIType(p.stencil, Cstencil, worldcomm, per, TGrid::getlevelMax(),
                                                 Block::sizeX,Block::sizeY,Block::sizeZ,
                                                 blockperDim[0],blockperDim[1],blockperDim[2]);
-
-
-            queryresult->_Setup(& (TGrid::getBlocksInfo())[0],(TGrid::getBlocksInfo()).size() ,TGrid::getBlockInfoAll(),timestamp);           
+            
+            if (myrank == 0) std::cout << "GRIDMPI IS CALLING SETUP!!!!\n";
+            queryresult->_Setup(& (TGrid::getBlocksInfo())[0],(TGrid::getBlocksInfo()).size() ,TGrid::getBlockInfoAll(),timestamp,true);           
             SynchronizerMPIs[stencil] = queryresult;
-
         }
         else
         {
            queryresult = itSynchronizerMPI->second;
         }  
-
-    
         queryresult->sync(sizeof(typename Block::element_type)/sizeof(Real), sizeof(Real)>4 ? MPI_DOUBLE : MPI_FLOAT, timestamp) ;//, TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
         timestamp = (timestamp + 1) % 32768;
-
-      
-
-
         return queryresult;
     }
 

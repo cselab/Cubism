@@ -92,7 +92,7 @@ public:
          TGrid::Block::sizeY, TGrid::Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2]);
  
      Synch->_Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),
-                   m_refGrid->getBlockInfoAll(), timestamp);
+                   m_refGrid->getBlockInfoAll(), timestamp,true);
   }
 
   virtual ~MeshAdaptation() { delete Synch; }
@@ -168,6 +168,9 @@ public:
     int tmp = CallValidStates ? 1 : 0;
     MPI_Allreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
     CallValidStates = (tmp == 1);
+    
+
+    m_refGrid->boundary = avail1;
     if (CallValidStates) ValidStates();
     /*------------->*/ Clock.finish(4);
 
@@ -254,7 +257,7 @@ public:
       m_refGrid->UpdateBlockInfoAll_States(false);
       /*------------->*/ Clock.finish(7);
 
-      Synch->_Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(), timestamp);
+      Synch->_Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(), timestamp,true);
 
       // typename std::map<StencilInfo,SynchronizerMPIType*>::iterator
       auto it = m_refGrid->SynchronizerMPIs.begin();
@@ -422,7 +425,6 @@ protected:
       }
     }
 
-    bool find_boundary = true;
     // 1.Change states of blocks next to finer resolution blocks
     // 2.Change states of blocks next to same resolution blocks
     // 3.Compress a block only if all blocks with the same parent need compression
@@ -491,8 +493,7 @@ protected:
       if (m == levelMin) break;
 
       /*------------->*/ Clock.start(0, "MeshAdaptation: UpdateBoundary");
-      m_refGrid->UpdateBoundary(find_boundary,false);
-      find_boundary=false;
+      m_refGrid->UpdateBoundary();
       /*------------->*/ Clock.finish(0);
 
       // 2.
@@ -530,8 +531,7 @@ protected:
     }//m
 
     /*------------->*/ Clock.start(0, "MeshAdaptation: UpdateBoundary");
-    m_refGrid->UpdateBoundary(find_boundary,false);
-    find_boundary=false;
+    m_refGrid->UpdateBoundary();
     /*------------->*/ Clock.finish(0);
 
 
@@ -620,8 +620,7 @@ protected:
       }
     }
     /*------------->*/ Clock.start(0, "MeshAdaptation: UpdateBoundary");
-    m_refGrid->UpdateBoundary(find_boundary,true);
-    find_boundary=false;
+    m_refGrid->UpdateBoundary();
     /*------------->*/ Clock.finish(0);
 #endif
   }

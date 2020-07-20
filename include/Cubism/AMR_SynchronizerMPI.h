@@ -21,8 +21,6 @@ struct Interface
     BlockInfo * infos [2];
     int icode [2];
     bool CoarseStencil;
-    bool ToBeKept;
-    int dis;
 
     Interface (BlockInfo & i0, BlockInfo & i1, int a_icode0, int a_icode1)
     {
@@ -30,8 +28,17 @@ struct Interface
         infos[1] = &i1;
         icode[0] = a_icode0;
         icode[1] = a_icode1;
-        CoarseStencil = false;
-        ToBeKept = true;
+    }
+};
+
+struct InterfaceInfo
+{
+    bool ToBeKept;
+    int dis;
+    InterfaceInfo()
+    {
+        ToBeKept=true;
+        dis=0;
     }
 };
 
@@ -336,7 +343,12 @@ class SynchronizerMPI_AMR
 
     std::vector< GrowingVector<Real     >> send_buffer;
     std::vector< GrowingVector<Real     >> recv_buffer; 
-    static std::vector< GrowingVector<Interface>> send_interfaces;
+    
+    static 
+    std::vector< GrowingVector<Interface>> send_interfaces;
+    std::vector< std::vector<InterfaceInfo>> send_interfaces_infos;
+
+
     std::vector< GrowingVector<PackInfo >> send_packinfos;
 
     std::vector<int> send_buffer_size;
@@ -607,7 +619,7 @@ class SynchronizerMPI_AMR
             positions[r].push_back(index);
         }
 
-        void RemoveDuplicates(int r, std::vector<Interface> & f, int & offset, int & total_size, int NC)
+        void RemoveDuplicates(int r, std::vector<Interface> & f, int & offset, int & total_size, int NC, std::vector<InterfaceInfo> & fInfo)
         {
             std::vector<int> remEl;
             
@@ -630,7 +642,7 @@ class SynchronizerMPI_AMR
                 C.__needed(remEl);
                 for (size_t k=0; k< remEl.size();k++)
                 {
-                    f[remEl[k]].ToBeKept = false;
+                    fInfo[remEl[k]].ToBeKept = false;
                 }
             }
             /*------------->*/Clock.finish(23); 
@@ -660,7 +672,7 @@ class SynchronizerMPI_AMR
 
                 UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,f[k].infos[0]->Z,f[k].icode[1],f[k].infos[1]->blockID};
                 
-                f[k].dis = offset;
+                fInfo[k].dis = offset;
                 offset += V*NC;
 
                 if (f[k].CoarseStencil)
@@ -697,7 +709,7 @@ class SynchronizerMPI_AMR
                     Csrcx, Csrcy, Csrcz,
                     f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1],f[remEl1].infos[1]->blockID});
                     
-                    f[remEl1].dis = info.offset;
+                    fInfo[remEl1].dis = info.offset;
                 } 
             }
             /*------------->*/Clock.finish(24);
@@ -851,14 +863,16 @@ class SynchronizerMPI_AMR
         if (define_neighbors)
         {
            Neighbors.clear();
+           inner_blocks.clear();
+           halo_blocks.clear(); 
            interface_ranks_and_positions.clear();
-            for (int r=0; r<size; r++)
-                send_interfaces[r].clear();
-            lengths.clear();
-            inner_blocks.clear();
-            halo_blocks.clear(); 
+           lengths.clear();
+           for (int r=0; r<size; r++)
+             send_interfaces[r].clear();       
         }
 
+        for (int r=0; r<size; r++)
+            send_interfaces_infos[r].clear();
         std::vector<int> offsets(size,0);       
         for (int r=0; r<size; r++)
         {
@@ -1063,6 +1077,9 @@ class SynchronizerMPI_AMR
 
 
         /*------------->*/Clock.start(18,"DefineInterfaces: Duplicates handling");
+        for (int r=0; r<size; r++)
+            send_interfaces_infos[r].resize(send_interfaces[r].size());
+
         DuplicatesManager DM(size, *(this));
         for (size_t i = 0; i < interface_ranks_and_positions.size() ; i ++)
         {
@@ -1079,7 +1096,7 @@ class SynchronizerMPI_AMR
                 DM.Add(_rp.first,_rp.second);
             }
             for (int r=0; r<size; r++)
-                DM.RemoveDuplicates(r, send_interfaces[r].v, offsets[r], send_buffer_size[r] ,stencil.selcomponents.size());
+                DM.RemoveDuplicates(r, send_interfaces[r].v, offsets[r], send_buffer_size[r] ,stencil.selcomponents.size(), send_interfaces_infos[r]);
         }
         UnpacksManager._allocate(halo_blocks.size(),lengths.data());
         for (int i=0; i<(int)myInfos_size; i++)
@@ -1118,6 +1135,7 @@ public:
         blocksPerDim[1] = a_by;
         blocksPerDim[2] = a_bz;
         send_interfaces.resize(size);
+        send_interfaces_infos.resize(size);
         send_packinfos.resize(size);
         send_buffer_size.resize(size);
         recv_buffer_size.resize(size);  
@@ -1144,6 +1162,7 @@ public:
     void _Setup(BlockInfo * a_myInfos, size_t a_myInfos_size, std::vector<std::vector<BlockInfo >> & a_BlockInfoAll, const int timestamp, const bool a_define_neighbors=false)
     {
         define_neighbors = a_define_neighbors;
+
         myInfos_size = a_myInfos_size;
         myInfos = a_myInfos;
         BlockInfoAll.resize(levelMax);
@@ -1152,7 +1171,9 @@ public:
         const int NC = stencil.selcomponents.size();
 
         if (rank==0)
+        {
             std::cout << " Calling _Setup with define_neighbors=" << define_neighbors << "\n";
+        }
 
 
         /*------------->*/Clock.start(12,"DefineInterfaces total time");
@@ -1193,24 +1214,25 @@ public:
             for (int i=0; i<(int) send_interfaces[r].size(); i++)
             {
                 Interface & f = send_interfaces[r][i];
-                if (!f.ToBeKept) continue;
+                InterfaceInfo & fInfo = send_interfaces_infos[r][i];
+                if (!fInfo.ToBeKept) continue;
 
                 if (f.infos[0]->level <= f.infos[1]->level)
                 {
                     MyRange range = SM.DetermineStencil(f);
                     int V = (range.ex-range.sx)* (range.ey-range.sy)* (range.ez-range.sz);          
-                    send_packinfos[r].push_back({(Real *)f.infos[0]->ptrBlock, &send_buffer[r][ f.dis ], range.sx,range.sy,range.sz,range.ex,range.ey,range.ez});
+                    send_packinfos[r].push_back({(Real *)f.infos[0]->ptrBlock, &send_buffer[r][ fInfo.dis ], range.sx,range.sy,range.sz,range.ex,range.ey,range.ez});
                     
                     if (f.CoarseStencil) 
                     {                          
                         ToBeAveragedDown[r].push_back(i);
-                        ToBeAveragedDown[r].push_back(f.dis + V*NC);
+                        ToBeAveragedDown[r].push_back(fInfo.dis + V*NC);
                     }
                 }
                 else //receiver is coarser, so sender averages down data first 
                 {
                     ToBeAveragedDown[r].push_back(i);
-                    ToBeAveragedDown[r].push_back(f.dis);
+                    ToBeAveragedDown[r].push_back(fInfo.dis);
                 }
             }
         }
@@ -1471,6 +1493,12 @@ template <typename Real>
 std::set<int> SynchronizerMPI_AMR <Real>::Neighbors;
 
 template <typename Real>
+std::vector<BlockInfo *> SynchronizerMPI_AMR <Real>::halo_blocks;
+
+template <typename Real>
+std::vector<BlockInfo *> SynchronizerMPI_AMR <Real>::inner_blocks;
+
+template <typename Real>
 std::vector < std::vector< std::pair <int,int> > > SynchronizerMPI_AMR <Real>::interface_ranks_and_positions;
 
 template <typename Real>
@@ -1478,11 +1506,5 @@ std::vector< GrowingVector<Interface>> SynchronizerMPI_AMR <Real>::send_interfac
 
 template <typename Real>
 std::vector<size_t> SynchronizerMPI_AMR <Real>::lengths;
-
-template <typename Real>
-std::vector<BlockInfo *> SynchronizerMPI_AMR <Real>::halo_blocks;
-
-template <typename Real>
-std::vector<BlockInfo *> SynchronizerMPI_AMR <Real>::inner_blocks;
 
 CUBISM_NAMESPACE_END

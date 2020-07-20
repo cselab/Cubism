@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <vector>
 #include <cassert>
+#include <fstream>
 
 #include "MeshMap.h"
 #include "SpaceFillingCurve.h"
@@ -107,6 +108,11 @@ struct MyClock
     }
     std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
     std::cout << "TOTAL TIME = " << m1 << " " << m2 << "\n";
+
+
+    std::ofstream outfile;
+    outfile.open("TIMES.txt", std::ios_base::app); // append instead of overwrite
+    outfile << size << " " << m1 << " " << m2 << "\n"; 
     
     delete [] mean;
     delete [] maximum;

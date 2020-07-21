@@ -762,7 +762,14 @@ class SynchronizerMPI_AMR
     }
 
 
-    void AverageDownAndFill(Real *  dst, const BlockInfo * const info, const int s[3], const int e[3], const int code[3], const int * const  selcomponents, const int NC, const int gptfloats)
+    void AverageDownAndFill(  Real *  dst, 
+                             const BlockInfo * const info, 
+                             const int s[3],
+                             const int e[3],
+                             const int code[3],
+                             const int * const  selcomponents,
+                             const int NC,
+                             const int gptfloats)
     {
         static const int nX = blocksize[0];
         static const int nY = blocksize[1];

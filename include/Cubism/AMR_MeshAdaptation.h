@@ -434,7 +434,7 @@ protected:
       for (size_t j=0; j<I.size(); j++)
       {
         BlockInfo & info = I[j];
-        if (info.level == m && info.state != Refine)
+        if (info.level == m && info.state != Refine && info.level != levelMax -1)
         {
           assert(info.TreePos == Exists);
           int TwoPower     = 1 << info.level;
@@ -461,7 +461,7 @@ protected:
                 info.state = Leave;
                 (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
               }
-              if (info.level == levelMax - 1) break;
+              //if (info.level == levelMax - 1) break;
 
               int Bstep = 1; // face
               if      ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge

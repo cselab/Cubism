@@ -78,6 +78,7 @@ class FluxCorrection
     typedef typename BlockType::ElementType ElementTypeBlock;
 
     typedef BlockCase <BlockType> Case;
+    typedef TLab LabType;
  
   protected:
     std::map<std::array<int,2>, Case * > MapOfCases;
@@ -94,6 +95,7 @@ class FluxCorrection
   public:
     virtual void prepare(TGrid & grid)
     {
+/*
       Cases.clear();
       MapOfCases.clear();
 
@@ -125,7 +127,7 @@ class FluxCorrection
 
       for (auto & info: B)
       {
-        int aux = 1<<info.level;
+        const int aux = 1<<info.level;
 
         const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
         const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
@@ -167,6 +169,7 @@ class FluxCorrection
         MapOfCases.insert(  std::pair<std::array <int,2>,Case *>  (   {Cases[i].level,Cases[i].Z}  , &Cases[i] ) );
         (*m_refGrid).getBlockInfoAll(Cases[i].level,Cases[i].Z).auxiliary = &Cases[i];
       }
+*/
     }
 
     Case * GetCase(int level, int Z)

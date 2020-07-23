@@ -1,15 +1,15 @@
 #pragma once
 
-#include <vector>
-#include <iostream>
-#include <fstream>
-#include <cassert>
-#include <array>
 #include <algorithm>
+#include <array>
+#include <cassert>
+#include <fstream>
+#include <iostream>
+#include <vector>
 
 #ifdef CUBISM_USE_NUMA
-#include <numa.h>
-#include <omp.h>
+   #include <numa.h>
+   #include <omp.h>
 #endif
 
 #include "BlockInfo.h"
@@ -17,319 +17,305 @@
 
 #define HACK
 
-
-namespace cubism //AMR_CUBISM
+namespace cubism // AMR_CUBISM
 {
 
-template <typename Block, template<typename X> class allocator=std::allocator>
+template <typename Block, template <typename X> class allocator = std::allocator>
 class Grid
-{  
+{
 
-protected:
-    std::vector <BlockInfo> m_vInfo; //meta-data for blocks that belong to this rank
-    std::vector <Block * > m_blocks; //pointers to blocks that belong to this rank
-    std::vector <std::vector<BlockInfo> > BlockInfoAll; 
+ protected:
+   std::vector<BlockInfo> m_vInfo; // meta-data for blocks that belong to this rank
+   std::vector<Block *> m_blocks;  // pointers to blocks that belong to this rank
+   std::vector<std::vector<BlockInfo>> BlockInfoAll;
 
-    std::vector < std::vector < std::vector < std::vector<int> > > > Zsave;
+   std::vector<std::vector<std::vector<std::vector<int>>>> Zsave;
 
-    const int NX;         //Total # of blocks for level 0 in X-direction  
-    const int NY;         //Total # of blocks for level 0 in Y-direction
-    const int NZ;         //Total # of blocks for level 0 in Z-direction
-    const double maxextent;        //Maximum domain extent
-    const int levelMax;   //Maximum refinement level allowed
-    const int levelStart; //Initial refinement level      
+   const int NX;           // Total # of blocks for level 0 in X-direction
+   const int NY;           // Total # of blocks for level 0 in Y-direction
+   const int NZ;           // Total # of blocks for level 0 in Z-direction
+   const double maxextent; // Maximum domain extent
+   const int levelMax;     // Maximum refinement level allowed
+   const int levelStart;   // Initial refinement level
 
-public:
-    
-    int N;                //Current number of blocks
-    typedef Block BlockType;
-    typedef typename Block::RealType Real;  //Block MUST provide `RealType`.
+ public:
+   int N; // Current number of blocks
+   typedef Block BlockType;
+   typedef typename Block::RealType Real; // Block MUST provide `RealType`.
 
-    const bool xperiodic;
-    const bool yperiodic;
-    const bool zperiodic;
-    
-    SpaceFillingCurve Zcurve;
+   const bool xperiodic;
+   const bool yperiodic;
+   const bool zperiodic;
 
-    bool UpdateFluxCorrection{true};
+   SpaceFillingCurve Zcurve;
 
-    void _alloc() //called in class constructor
-    {
-        int m=levelStart;
-        int TwoPower = 1<<m;  //pow(2,m);
-        for (int n=0; n<NX*NY*NZ*pow(TwoPower,3); n++) 
-        {
-            _alloc(m,n);
-        }
-        FillPos();
-    }
+   bool UpdateFluxCorrection{true};
 
-    virtual void _alloc(int m, int n) //called whenever the grid is refined
-    {
-        allocator <Block> alloc;
-        BlockInfoAll[m][n].ptrBlock = alloc.allocate(1);
-        BlockInfoAll[m][n].changed = true;
-        
-        //BlockInfoAll[m][n].ptrBlock = (Block*)calloc(1,sizeof(Block)); 
-       
-        #ifdef HACK
-            BlockInfoAll[m][n].h_gridpoint = BlockInfoAll[m][n].h;
-        #endif
+   void _alloc() // called in class constructor
+   {
+      int m        = levelStart;
+      int TwoPower = 1 << m; // pow(2,m);
+      for (int n = 0; n < NX * NY * NZ * pow(TwoPower, 3); n++)
+      {
+         _alloc(m, n);
+      }
+      FillPos();
+   }
 
-        m_blocks.push_back((Block * )BlockInfoAll[m][n].ptrBlock);
-        m_vInfo. push_back(BlockInfoAll[m][n]);
+   virtual void _alloc(int m, int n) // called whenever the grid is refined
+   {
+      allocator<Block> alloc;
+      BlockInfoAll[m][n].ptrBlock = alloc.allocate(1);
+      BlockInfoAll[m][n].changed  = true;
 
-        N++;        
-    }
+      // BlockInfoAll[m][n].ptrBlock = (Block*)calloc(1,sizeof(Block));
 
-    virtual void _deallocAll() //called in class destructor
-    {
-        m_vInfo.clear();
-        allocator <Block> alloc;
-        
-        for (size_t j = 0 ; j < m_vInfo.size() ; j++)
-            alloc.deallocate(m_blocks[j],1);         
-        
-        BlockInfoAll.clear();
-    }
+#ifdef HACK
+      BlockInfoAll[m][n].h_gridpoint = BlockInfoAll[m][n].h;
+#endif
 
-    void _dealloc(int m, int n) //called whenever the grid is compressed
-    {
-        N --;        
-        allocator <Block> alloc;
-        alloc.deallocate((Block*)BlockInfoAll[m][n].ptrBlock,1);
-        BlockInfoAll[m][n].myrank  = -1;       
-        for (size_t j = 0 ; j < m_vInfo.size() ; j++)
-        {
-            if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
+      m_blocks.push_back((Block *)BlockInfoAll[m][n].ptrBlock);
+      m_vInfo.push_back(BlockInfoAll[m][n]);
+
+      N++;
+   }
+
+   virtual void _deallocAll() // called in class destructor
+   {
+      m_vInfo.clear();
+      allocator<Block> alloc;
+
+      for (size_t j = 0; j < m_vInfo.size(); j++) alloc.deallocate(m_blocks[j], 1);
+
+      BlockInfoAll.clear();
+   }
+
+   void _dealloc(int m, int n) // called whenever the grid is compressed
+   {
+      N--;
+      allocator<Block> alloc;
+      alloc.deallocate((Block *)BlockInfoAll[m][n].ptrBlock, 1);
+      BlockInfoAll[m][n].myrank = -1;
+      for (size_t j = 0; j < m_vInfo.size(); j++)
+      {
+         if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
+         {
+            m_vInfo.erase(m_vInfo.begin() + j);
+            m_blocks.erase(m_blocks.begin() + j);
+            break;
+         }
+      }
+   }
+
+   void FindBlockInfo(int m, int n, int m_new, int n_new)
+   {
+      for (size_t j = 0; j < m_vInfo.size(); j++)
+      {
+         if (m == m_vInfo[j].level && n == m_vInfo[j].Z)
+         {
+            BlockInfoAll[m_new][n_new].state   = Leave;
+            BlockInfoAll[m_new][n_new].changed = true;
+            m_vInfo[j]                         = BlockInfoAll[m_new][n_new];
+            m_blocks[j]                        = (Block *)BlockInfoAll[m_new][n_new].ptrBlock;
+            return;
+         }
+      }
+   }
+
+   virtual void FillPos(bool CopyInfos = true)
+   {
+      if (CopyInfos)
+         for (size_t j = 0; j < m_vInfo.size(); j++)
+         {
+            int m      = m_vInfo[j].level;
+            int n      = m_vInfo[j].Z;
+            m_vInfo[j] = BlockInfoAll[m][n];
+
+            assert(BlockInfoAll[m][n].state == m_vInfo[j].state);
+            assert(BlockInfoAll[m][n].TreePos == Exists);
+            m_blocks[j] = (Block *)BlockInfoAll[m][n].ptrBlock;
+         }
+      else
+         for (size_t j = 0; j < m_vInfo.size(); j++)
+         {
+            int m            = m_vInfo[j].level;
+            int n            = m_vInfo[j].Z;
+            m_vInfo[j].state = BlockInfoAll[m][n].state;
+            assert(BlockInfoAll[m][n].TreePos == Exists);
+            m_blocks[j] = (Block *)BlockInfoAll[m][n].ptrBlock;
+         }
+   }
+
+#ifdef HACK // empty functions just to make the code compile with stretched meshes
+   std::vector<MeshMap<Block> *> m_mesh_maps;
+
+   Grid(const MeshMap<Block> *const mapX, const MeshMap<Block> *const mapY,
+        const MeshMap<Block> *const mapZ, const int _NX, const int _NY = 1, const int _NZ = 1)
+       : m_blocks(NULL), maxextent(-1.0), N(_NX * _NY * _NZ), NX(_NX), NY(_NY), NZ(_NZ)
+   {
+      std::cout << "Grid was constructed using MeshMap in an AMR setting. Are you sure?\n";
+      assert(false);
+      abort();
+   }
+
+   double getH() const
+   {
+      // std::vector<BlockInfo> vInfo = this->getBlocksInfo();
+      // BlockInfo info = vInfo[0];
+      return -1.0; // info.h_gridpoint;
+   }
+
+   inline MeshMap<Block> &getMeshMap(const int i)
+   {
+      assert(false);
+      abort();
+      assert(i >= 0 && i < 3);
+      return *m_mesh_maps[i];
+   }
+   inline const MeshMap<Block> &getMeshMap(const int i) const
+   {
+      assert(false);
+      abort();
+      assert(i >= 0 && i < 3);
+      return *m_mesh_maps[i];
+   }
+
+   void setup(const unsigned int nX, const unsigned int nY, const unsigned int nZ)
+   {
+      assert(false && "You called Grid::setup() in an AMR solver. Do you really need that?\n");
+      abort();
+   }
+
+   virtual int getBlocksPerDimension(int idim) const
+   {
+      assert(
+          false &&
+          "You called Grid::getBlocksPerDimension() in an AMR solver. Do you really need that?\n");
+      abort();
+   }
+#endif
+
+   Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1,
+        const double _maxextent = 1, const unsigned int _levelStart = 0,
+        const unsigned int _levelMax = 1, const bool AllocateBlocks = true,
+        const bool a_xperiodic = true, const bool a_yperiodic = true, const bool a_zperiodic = true)
+       : NX(_NX), NY(_NY), NZ(_NZ), maxextent(_maxextent), levelMax(_levelMax),
+         levelStart(_levelStart), xperiodic(a_xperiodic), yperiodic(a_yperiodic),
+         zperiodic(a_zperiodic), Zcurve(NX, NY, NZ)
+   {
+
+      BlockInfo dummy;
+      int nx     = dummy.blocks_per_dim(0, NX, NY, NZ);
+      int ny     = dummy.blocks_per_dim(1, NX, NY, NZ);
+      int nz     = dummy.blocks_per_dim(2, NX, NY, NZ);
+      int lvlMax = Zcurve.lvlMax(levelMax); // same as lvlMax = levelMax but this silences warnings
+
+      N                = 0;
+      int blocksize[3] = {Block::sizeX, Block::sizeY, Block::sizeZ};
+      double h0 =
+          (maxextent / std::max(nx * Block::sizeX, std::max(ny * Block::sizeY, nz * Block::sizeZ)));
+
+      // We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All
+      // blockInfos are initialized here.
+      BlockInfoAll.resize(lvlMax);
+
+      Zsave.resize(lvlMax);
+
+      for (int m = 0; m < lvlMax; m++)
+      {
+         int TwoPower            = 1 << m; // pow(2,m);
+         const unsigned int Ntot = NX * NY * NZ * pow(TwoPower, 3);
+
+         BlockInfoAll[m].resize(Ntot);
+
+         Zsave[m].resize(NX * TwoPower);
+         for (int ix = 0; ix < NX * TwoPower; ix++)
+         {
+            Zsave[m][ix].resize(NY * TwoPower);
+            for (int iy = 0; iy < NY * TwoPower; iy++)
             {
-                m_vInfo.erase (m_vInfo.begin() +j);
-                m_blocks.erase(m_blocks.begin()+j);
-                break;
+               Zsave[m][ix][iy].resize(NZ * TwoPower);
             }
-        }
-    }
+         }
 
+         double h = h0 / TwoPower;
 
-    void FindBlockInfo(int m, int n, int m_new, int n_new)
-    {
-        for (size_t j = 0; j < m_vInfo.size(); j++)
-        {
-            if (m ==m_vInfo[j].level && n == m_vInfo[j].Z)
-            {
-                BlockInfoAll[m_new][n_new].state=Leave;
-                BlockInfoAll[m_new][n_new].changed = true;
-                m_vInfo[j] = BlockInfoAll[m_new][n_new];
-                m_blocks[j] = (Block*)BlockInfoAll[m_new][n_new].ptrBlock;
-                return;
-            }
-        }
+         double origin[3];
 
+         for (int i = 0; i < NX * TwoPower; i++)
+            for (int j = 0; j < NY * TwoPower; j++)
+               for (int k = 0; k < NZ * TwoPower; k++)
+               {
+                  int n = Zcurve.forward(m, i, j, k);
 
-    }
+                  Zsave[m][i][j][k] = n;
 
-    virtual void FillPos(bool CopyInfos = true)
-    {
-        if (CopyInfos)
-            for (size_t j = 0; j < m_vInfo.size(); j++)
-            {
-                int m = m_vInfo[j].level;
-                int n = m_vInfo[j].Z;
-                m_vInfo [j] = BlockInfoAll[m][n];
+                  int IJK[3] = {i, j, k};
+                  origin[0]  = i * blocksize[0] * h;
+                  origin[1]  = j * blocksize[1] * h;
+                  origin[2]  = k * blocksize[2] * h;
 
-                assert(BlockInfoAll[m][n].state == m_vInfo [j].state);
-                assert(BlockInfoAll[m][n].TreePos == Exists);
-                m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;
-            }
-        else            
-            for (size_t j = 0; j < m_vInfo.size(); j++)
-            {   
-                int m = m_vInfo[j].level;
-                int n = m_vInfo[j].Z;
-                m_vInfo [j].state   = BlockInfoAll[m][n].state;
-                assert(BlockInfoAll[m][n].TreePos == Exists);
-                m_blocks[j] = (Block*)BlockInfoAll[m][n].ptrBlock;
-            }
-    }
+                  TreePosition TreePos;
+                  if (m == levelStart) TreePos = Exists;
+                  else if (m < levelStart)
+                     TreePos = CheckFiner;
+                  else
+                     TreePos = CheckCoarser;
 
-   
-    #ifdef HACK //empty functions just to make the code compile with stretched meshes 
-        std::vector<MeshMap<Block>*> m_mesh_maps;
+                  int rank = (m == levelStart) ? 0 : -1;
 
-        Grid(const MeshMap<Block>* const mapX, const MeshMap<Block>* const mapY, const MeshMap<Block>* const mapZ, const int _NX, const int _NY=1, const int _NZ=1) :m_blocks(NULL),maxextent(-1.0),N(_NX*_NY*_NZ),NX(_NX), NY(_NY), NZ(_NZ)
-        {
-            std::cout <<"Grid was constructed using MeshMap in an AMR setting. Are you sure?\n";
-            assert(false);
-            abort();
-        }
-    
-        double getH() const
-        {
-            //std::vector<BlockInfo> vInfo = this->getBlocksInfo();
-            //BlockInfo info = vInfo[0];
-            return -1.0;//info.h_gridpoint;
-        }
-    
-        inline MeshMap<Block>& getMeshMap(const int i)
-        {
-            assert(false);
-            abort();
-            assert(i>=0 && i<3);
-            return *m_mesh_maps[i];
-        }
-        inline const MeshMap<Block>& getMeshMap(const int i) const
-        {
-            assert(false);
-            abort();
-            assert(i>=0 && i<3);
-            return *m_mesh_maps[i];
-        }
+                  BlockInfoAll[m][n].setup(m, h, origin, IJK, rank,
+                                           TreePos); // Ranks are initialized in GridMPI constructor
+               }
+      }
 
-        void setup(const unsigned int nX, const unsigned int nY, const unsigned int nZ)
-        {
-            assert(false && "You called Grid::setup() in an AMR solver. Do you really need that?\n");
-            abort();
-        }
-    
-        virtual int getBlocksPerDimension(int idim) const
-        {
-            assert(false && "You called Grid::getBlocksPerDimension() in an AMR solver. Do you really need that?\n");
-            abort();
-        }
-    #endif
+      if (AllocateBlocks) _alloc();
+   }
 
+   virtual ~Grid() { _deallocAll(); }
 
-    Grid(const unsigned int _NX, 
-         const unsigned int _NY = 1, 
-         const unsigned int _NZ = 1, 
-         const double _maxextent = 1,
-         const unsigned int _levelStart = 0,
-         const unsigned int _levelMax = 1,     
-         const bool AllocateBlocks = true,
-         const bool a_xperiodic = true,
-         const bool a_yperiodic = true,
-         const bool a_zperiodic = true ):
-          NX(_NX), NY(_NY), NZ(_NZ), maxextent(_maxextent),levelMax(_levelMax), levelStart(_levelStart), xperiodic(a_xperiodic),yperiodic(a_yperiodic),zperiodic(a_zperiodic),Zcurve(NX,NY,NZ)    
-    {
+   virtual Block *avail(int m, int n) const { return (Block *)BlockInfoAll[m][n].ptrBlock; }
 
-        BlockInfo dummy;
-        int nx = dummy.blocks_per_dim(0,NX,NY,NZ);
-        int ny = dummy.blocks_per_dim(1,NX,NY,NZ);
-        int nz = dummy.blocks_per_dim(2,NX,NY,NZ);
-        int lvlMax =  Zcurve.lvlMax(levelMax); //same as lvlMax = levelMax but this silences warnings
-  
-        N = 0 ;
-        int blocksize[3] = {Block::sizeX,Block::sizeY,Block::sizeZ};
-        double h0 = (maxextent / std::max(nx*Block::sizeX, std::max(ny*Block::sizeY, nz*Block::sizeZ)));
+   virtual Block *avail1(int ix, int iy, int iz, int m) const
+   {
+      int n = getZforward(m, ix, iy, iz);
+      return avail(m, n);
+   }
 
-        //We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All blockInfos are initialized here.       
-        BlockInfoAll.resize(lvlMax);
+   virtual int rank() const { return 0; }
 
-        Zsave.resize(lvlMax);
+   int getZforward(const int level, const int i, const int j, const int k) const
+   {
+      int TwoPower = 1 << level;
+      int ix       = (i + TwoPower * NX) % (NX * TwoPower);
+      int iy       = (j + TwoPower * NY) % (NY * TwoPower);
+      int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
 
-        for (int m=0; m<lvlMax; m++)
-        {
-            int TwoPower  = 1<<m;//pow(2,m);
-            const unsigned int Ntot = NX*NY*NZ*pow(TwoPower,3);
-            
-            BlockInfoAll[m].resize(Ntot);
+      return Zsave[level][ix][iy][iz];
+      // return   Zcurve.forward(level,ix,iy,iz);
+   }
 
-            Zsave[m].resize(NX*TwoPower);
-            for (int ix = 0; ix < NX*TwoPower; ix++)
-            {
-                Zsave[m][ix].resize(NY*TwoPower);
-                for (int iy = 0; iy < NY*TwoPower; iy++)
-                {
-                    Zsave[m][ix][iy].resize(NZ*TwoPower);
-                }   
-            }
-            
-            double h = h0 / TwoPower;
+   int getZchild(int level, int i, int j, int k) { return Zcurve.child(level, i, j, k); }
 
-            double origin[3];
+   virtual Block &operator()(int ix, int iy, int iz, int m) const
+   {
+      int n = getZforward(m, ix, iy, iz);
+      return *(Block *)BlockInfoAll[m][n].ptrBlock;
+   }
 
-            for (int i=0; i<NX * TwoPower; i++)
-            for (int j=0; j<NY * TwoPower; j++)
-            for (int k=0; k<NZ * TwoPower; k++)
-            {
-                int n = Zcurve.forward(m,i,j,k);
+   virtual std::array<int, 3> getMaxBlocks() const { return {NX, NY, NZ}; }
 
-                Zsave[m][i][j][k] = n;
-                
-                int IJK[3] = {i,j,k};
-                origin[0]  = i*blocksize[0]*h;
-                origin[1]  = j*blocksize[1]*h;
-                origin[2]  = k*blocksize[2]*h;
+   inline int getlevelMax() { return levelMax; }
+   inline int getlevelMax() const { return levelMax; }
 
-                TreePosition TreePos;
-                if      (m==levelStart) TreePos = Exists;
-                else if (m <levelStart) TreePos = CheckFiner;
-                else                    TreePos = CheckCoarser;
-                
-                int rank = (m==levelStart) ? 0 : -1;
-                
-                BlockInfoAll[m][n].setup(m,h,origin,IJK,rank,TreePos); //Ranks are initialized in GridMPI constructor    
-            }
-        }
+   virtual BlockInfo &getBlockInfoAll(int m, int n) { return BlockInfoAll[m][n]; }
+   virtual BlockInfo getBlockInfoAll(int m, int n) const { return BlockInfoAll[m][n]; }
 
-        if (AllocateBlocks) _alloc();
-    }
-  
-    virtual ~Grid() {_deallocAll();}
-
-
-    virtual Block * avail(int m, int n) const
-    {
-        return  (Block * )BlockInfoAll[m][n].ptrBlock;
-    }
-
-    virtual Block * avail1(int ix, int iy, int iz, int m) const 
-    {
-        int n = getZforward(m,ix,iy,iz);
-        return avail(m,n); 
-    }
-
-  
-    virtual int rank() const { return 0; }
- 
-    int getZforward(const int level,const int i, const int j, const int k) const 
-    {
-        int TwoPower = 1<<level;
-        int ix = (i+TwoPower*NX) % (NX*TwoPower);
-        int iy = (j+TwoPower*NY) % (NY*TwoPower);
-        int iz = (k+TwoPower*NZ) % (NZ*TwoPower);
-        
-        return Zsave[level][ix][iy][iz];
-        //return   Zcurve.forward(level,ix,iy,iz);  
-    }
-
-    int getZchild(int level,int i, int j, int k)
-    {
-        return Zcurve.child(level,i,j,k);
-    }
-   
-    virtual Block& operator()(int ix, int iy, int iz, int m) const
-    { 
-        int n = getZforward(m,ix,iy,iz);
-        return  * (Block * ) BlockInfoAll[m][n].ptrBlock;
-    }
-
-    virtual std::array<int,3> getMaxBlocks() const
-    {
-        return {NX,NY,NZ};
-    }
-
-    inline int getlevelMax()       {return levelMax;}
-    inline int getlevelMax() const {return levelMax;}
-    
-    virtual BlockInfo & getBlockInfoAll(int m,int n)      {return BlockInfoAll[m][n];}
-    virtual BlockInfo   getBlockInfoAll(int m,int n) const{return BlockInfoAll[m][n];}
-
-    inline std::vector<std::vector<BlockInfo >> & getBlockInfoAll() {return BlockInfoAll;}
-    inline       std::vector < Block * > & GetBlocks()       {return  m_blocks;}
-    inline const std::vector < Block * > & GetBlocks() const {return  m_blocks;}   
-    virtual       std::vector<BlockInfo>& getBlocksInfo()       {return m_vInfo;}
-    virtual const std::vector<BlockInfo>& getBlocksInfo() const {return m_vInfo;}
+   inline std::vector<std::vector<BlockInfo>> &getBlockInfoAll() { return BlockInfoAll; }
+   inline std::vector<Block *> &GetBlocks() { return m_blocks; }
+   inline const std::vector<Block *> &GetBlocks() const { return m_blocks; }
+   virtual std::vector<BlockInfo> &getBlocksInfo() { return m_vInfo; }
+   virtual const std::vector<BlockInfo> &getBlocksInfo() const { return m_vInfo; }
 };
 
-}//namespace AMR_CUBISM
+} // namespace cubism

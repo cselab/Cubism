@@ -443,22 +443,25 @@ class MeshAdaptation
       }
 
       // 1.Change states of blocks next to finer resolution blocks
-      // 2.Compress a block only if all blocks with the same parent need compression
+      // 2.Change states of blocks next to same resolution blocks
+      // 3.Compress a block only if all blocks with the same parent need compression
       for (int m = levelMax - 1; m >= levelMin; m--)
       {
          // 1.
          /*------------->*/ Clock.start(20, "MeshAdaptation: step 1");
-         if (m != levelMax - 1)
          for (size_t j = 0; j < I.size(); j++)
          {
             BlockInfo &info = I[j];
-            if (info.level == m && info.state != Refine)
+            if (info.level == m && info.state != Refine && info.level != levelMax - 1)
             {
                assert(info.TreePos == Exists);
                int TwoPower = 1 << info.level;
-               const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * TwoPower - 1;
-               const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * TwoPower - 1;
-               const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * TwoPower - 1;
+               const bool xskin =
+                   info.index[0] == 0 || info.index[0] == blocksPerDim[0] * TwoPower - 1;
+               const bool yskin =
+                   info.index[1] == 0 || info.index[1] == blocksPerDim[1] * TwoPower - 1;
+               const bool zskin =
+                   info.index[2] == 0 || info.index[2] == blocksPerDim[2] * TwoPower - 1;
                const int xskip = info.index[0] == 0 ? -1 : 1;
                const int yskip = info.index[1] == 0 ? -1 : 1;
                const int zskip = info.index[2] == 0 ? -1 : 1;
@@ -471,27 +474,33 @@ class MeshAdaptation
                   if (!yperiodic && code[1] == yskip && yskin) continue;
                   if (!zperiodic && code[2] == zskip && zskin) continue;
 
-                  BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-
+                  BlockInfo &infoNei =
+                      m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
                   if (infoNei.TreePos == CheckFiner)
                   {
-                     if (info.state == Compress)//this check is in fact necessary
+                     if (info.state == Compress)
                      {
                         info.state                                             = Leave;
                         (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
                      }
+                     // if (info.level == levelMax - 1) break;
 
-                     int Bstep = 1;                                                         // face
-                     if      ( abs(code[0]) + abs(code[1]) + abs(code[2]) == 2 ) Bstep = 3; // edge
-                     else if ( abs(code[0]) + abs(code[1]) + abs(code[2]) == 3 ) Bstep = 4; // corner
+                     int Bstep = 1;                                                    // face
+                     if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge
+                     else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3))
+                        Bstep = 4; // corner
 
-                     // loop over blocks that make up face/edge/corner (respectively 4,2 or 1 blocks)
-                     for (int B = 0; B <= 3; B += Bstep) 
+                     for (int B = 0; B <= 3;
+                          B += Bstep) // loop over blocks that make up face/edge/corner
+                                      // (respectively 4,2 or 1 blocks)
                      {
                         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                        int iNei = 2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0]));
-                        int jNei = 2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1]));
-                        int kNei = 2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2]));
+                        int iNei      = 2 * info.index[0] + max(code[0], 0) + code[0] +
+                                   (B % 2) * max(0, 1 - abs(code[0]));
+                        int jNei = 2 * info.index[1] + max(code[1], 0) + code[1] +
+                                   aux * max(0, 1 - abs(code[1]));
+                        int kNei = 2 * info.index[2] + max(code[2], 0) + code[2] +
+                                   (B / 2) * max(0, 1 - abs(code[2]));
                         int zzz             = m_refGrid->getZforward(m + 1, iNei, jNei, kNei);
                         BlockInfo &FinerNei = m_refGrid->getBlockInfoAll(m + 1, zzz);
                         State NeiState      = FinerNei.state;
@@ -510,13 +519,52 @@ class MeshAdaptation
          }
          /*------------->*/ Clock.finish(20);
 
+         if (m == levelMin) break;
+
          /*------------->*/ Clock.start(0, "MeshAdaptation: UpdateBoundary");
          m_refGrid->UpdateBoundary();
          /*------------->*/ Clock.finish(0);
 
+         // 2.
+         /*------------->*/ Clock.start(21, "MeshAdaptation: step 2");
+         for (size_t j = 0; j < I.size(); j++)
+         {
+            BlockInfo &info = I[j];
+            if (info.level == m && info.state == Compress)
+            {
+               int aux          = 1 << info.level;
+               const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
+               const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
+               const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
+               const int xskip  = info.index[0] == 0 ? -1 : 1;
+               const int yskip  = info.index[1] == 0 ? -1 : 1;
+               const int zskip  = info.index[2] == 0 ? -1 : 1;
+
+               for (int icode = 0; icode < 27; icode++)
+               {
+                  if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;
+                  const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
+                  if (!xperiodic && code[0] == xskip && xskin) continue;
+                  if (!yperiodic && code[1] == yskip && yskin) continue;
+                  if (!zperiodic && code[2] == zskip && zskin) continue;
+
+                  BlockInfo &infoNei =
+                      m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+                  if (infoNei.TreePos == Exists && infoNei.state == Refine)
+                  {
+                     info.state                                             = Leave;
+                     (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+                     break;
+                  }
+               }
+            }
+         }
+         /*------------->*/ Clock.finish(21);
       } // m
 
-
+      /*------------->*/ Clock.start(0, "MeshAdaptation: UpdateBoundary");
+      m_refGrid->UpdateBoundary();
+      /*------------->*/ Clock.finish(0);
 
       // 2.
       for (size_t jjj = 0; jjj < I.size(); jjj++)
@@ -533,8 +581,11 @@ class MeshAdaptation
                   if (infoNei.TreePos != Exists || infoNei.state != Compress)
                   {
                      found = true;
-                     info.state                                             = Leave;
-                     (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+                     if (info.state == Compress)
+                     {
+                        info.state                                             = Leave;
+                        (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+                     }
                      break;
                   }
                }

@@ -465,17 +465,10 @@ class GridMPI : public TGrid
             std::set<int>::iterator it = receivers.begin();
             while (it != receivers.end())
             {
-               int temp;
-               if (info.state == Compress) temp = 1;
-               else if (info.state == Refine)
-                  temp = 2;
-
-               // if ( (skip && temp == 1) || (!skip) )
-               //{
+               int temp = (info.state == Compress) ? 1:2;
                send_buffer[*it].push_back(info.level);
                send_buffer[*it].push_back(info.Z);
                send_buffer[*it].push_back(temp);
-               //}
                it++;
             }
          }

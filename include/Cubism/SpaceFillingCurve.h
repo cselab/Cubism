@@ -227,6 +227,7 @@ class SpaceFillingCurve
       unsigned int I   = i / aux;
       unsigned int J   = j / aux;
       unsigned int K   = k / aux;
+      if (I >= BX || J >= BY || K >= BZ) return 0;
 
 #if defined(MortonCurve)
       unsigned int I1 = i % aux;

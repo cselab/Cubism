@@ -847,7 +847,7 @@ class SynchronizerMPI_AMR
             }
 #endif
          }
-         /*------------->*/ Clock.finish(24);
+         ///*------------->*/ Clock.finish(24);
       }
 
    };

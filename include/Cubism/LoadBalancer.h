@@ -322,6 +322,7 @@ class LoadBalancer
       int temp = movedBlocks ? 1 : 0;
       MPI_Allreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
       movedBlocks = (temp == 1);
+#if 0      
       {
          int b = m_refGrid->getBlocksInfo().size();
          std::vector<int> all_b(size);
@@ -336,12 +337,11 @@ class LoadBalancer
             std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
          }
       }
-
+#endif
       for (auto &info : m_refGrid->getBlocksInfo())
       {
          assert(info.TreePos == Exists);
          assert(info.myrank == rank);
-         // info.TreePos = Exists;
          info.myrank = rank;
       }
 

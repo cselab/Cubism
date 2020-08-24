@@ -86,7 +86,6 @@ class GridMPI : public TGrid
 
       MPI_Comm_rank(worldcomm, &myrank);
 
-#if 1
       int total_blocks = nX * nY * nZ * pow(pow(2, a_levelStart), 3);
 
       if (myrank == 0) std::cout << "Total blocks = " << total_blocks << "\n";
@@ -137,118 +136,7 @@ class GridMPI : public TGrid
                TGrid::BlockInfoAll[m][n].myrank = -1;
             }
          }
-#else
-      int total_blocks = nX * nY * nZ;
 
-      int my_blocks = total_blocks / world_size;
-      if (myrank < total_blocks % world_size) my_blocks++;
-      int n_start = myrank * (total_blocks / world_size);
-
-      if (total_blocks % world_size > 0)
-      {
-         if (myrank < total_blocks % world_size) n_start += myrank;
-         else
-            n_start += total_blocks % world_size;
-      }
-
-      std::cout << "rank " << myrank << " gets " << my_blocks << " \n";
-
-      if (a_levelStart == 0)
-      {
-         for (int n = n_start; n < n_start + my_blocks; n++) TGrid::_alloc(a_levelStart, n);
-      }
-
-      for (int m = 0; m < a_levelMax; m++)
-         for (int n = 0; n < nX * nY * nZ * pow(pow(2, m), 3); n++)
-         {
-            if (m == 0) // a_levelStart)
-            {
-               int r;
-               if (total_blocks % world_size > 0)
-               {
-                  if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
-                  {
-                     int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
-
-                     r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
-                  }
-                  else
-                  {
-                     r = n / (total_blocks / world_size + 1);
-                  }
-               }
-               else
-               {
-                  r = n / my_blocks;
-               }
-
-               TGrid::BlockInfoAll[m][n].myrank = r;
-            }
-            else
-            {
-               TGrid::BlockInfoAll[m][n].myrank = -1;
-            }
-         }
-
-      FillPos(true);
-
-      if (a_levelStart != 0)
-      {
-         int m   = a_levelStart;
-         int aux = 1 << m;
-
-         std::vector<int> my_ids;
-
-         for (int n = 0; n < nX * nY * nZ * pow(pow(2, m), 3); n++)
-         {
-            int i0 = TGrid::BlockInfoAll[m][n].index[0] / aux;
-            int i1 = TGrid::BlockInfoAll[m][n].index[1] / aux;
-            int i2 = TGrid::BlockInfoAll[m][n].index[2] / aux;
-
-            int n0                           = TGrid::getZforward(0, i0, i1, i2);
-            TGrid::BlockInfoAll[m][n].myrank = TGrid::BlockInfoAll[0][n0].myrank;
-
-            if (myrank == TGrid::BlockInfoAll[m][n].myrank) my_ids.push_back(n);
-         }
-         for (int n = 0; n < nX * nY * nZ; n++)
-         {
-            TGrid::BlockInfoAll[0][n].myrank = -1;
-         }
-
-         for (size_t i = 0; i < my_ids.size(); i++) TGrid::_alloc(a_levelStart, my_ids[i]);
-      }
-#endif
-      //        FillPos(true);
-      //
-      //
-      //        auto blocksPerDim = TGrid::getMaxBlocks();
-      //
-      //        for (int m = 0 ; m < a_levelMax ; m++)
-      //        for (int n=0; n<nX*nY*nZ*pow(pow(2,m),3); n++)
-      //        {
-      //            BlockInfo & info = TGrid::BlockInfoAll[m][n];
-      //
-      //            const int aux    = 1<<info.level;
-      //            const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
-      //            const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
-      //            const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
-      //            const int  xskip = info.index[0]==0 ? -1 : 1;
-      //            const int  yskip = info.index[1]==0 ? -1 : 1;
-      //            const int  zskip = info.index[2]==0 ? -1 : 1;
-      //
-      //            for(int icode=0; icode<27; icode++)
-      //            {
-      //                if (icode == 1*1 + 3*1 + 9*1) continue;
-      //
-      //                const int code[3] = { icode%3-1, (icode/3)%3-1, (icode/9)%3-1};
-      //
-      //                if (!TGrid::xperiodic && code[0] == xskip && xskin) continue;
-      //                if (!TGrid::yperiodic && code[1] == yskip && yskin) continue;
-      //                if (!TGrid::zperiodic && code[2] == zskip && zskin) continue;
-      //
-      //                info.my_neighbors.push_back(&TGrid::getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2])));
-      //            }
-      //        }
       FillPos(true);
 
       MPI_Barrier(MPI_COMM_WORLD);
@@ -390,6 +278,7 @@ class GridMPI : public TGrid
       std::vector<std::vector<int>> send_buffer(size);
 
       std::vector<BlockInfo *> bbb = boundary;
+      std::set<int> Neighbors;
       for (size_t jjj = 0; jjj < bbb.size(); jjj++)
       {
          BlockInfo &info = *bbb[jjj];
@@ -420,6 +309,7 @@ class GridMPI : public TGrid
             {
                if (infoNei.state != Refine) infoNei.state = Leave;
                receivers.insert(infoNei.myrank);
+               Neighbors.insert(infoNei.myrank);
             }
             else if (infoNei.TreePos == CheckCoarser)
             {
@@ -429,6 +319,7 @@ class GridMPI : public TGrid
                {
                   if (infoNeiCoarser.state != Refine) infoNeiCoarser.state = Leave;
                   receivers.insert(infoNeiCoarser.myrank);
+                  Neighbors.insert(infoNeiCoarser.myrank);
                }
             }
             else if (infoNei.TreePos == CheckFiner)
@@ -453,6 +344,7 @@ class GridMPI : public TGrid
                   {
                      if (infoNeiFiner.state != Refine) infoNeiFiner.state = Leave;
                      receivers.insert(infoNeiFiner.myrank);
+                     Neighbors.insert(infoNeiFiner.myrank);
                   }
                }
             }
@@ -478,7 +370,8 @@ class GridMPI : public TGrid
       std::vector<MPI_Request> recv_requests;
 
       int dummy = 0;
-      for (int r = 0; r < size; r++)
+      //for (int r = 0; r < size; r++)
+      for (int r : Neighbors)
          if (r != rank)
          {
             send_requests.resize(send_requests.size() + 1);
@@ -493,7 +386,8 @@ class GridMPI : public TGrid
          }
 
       std::vector<std::vector<int>> recv_buffer(size);
-      for (int r = 0; r < size; r++)
+      //for (int r = 0; r < size; r++)
+      for (int r : Neighbors)  
          if (r != rank)
          {
             int recv_size;

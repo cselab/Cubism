@@ -102,17 +102,17 @@ class FluxCorrectionMPI : public TFluxCorrection
       TFluxCorrection::zperiodic    = temp_Lab.is_zperiodic();
       TFluxCorrection::blocksPerDim = (*TFluxCorrection::m_refGrid).getMaxBlocks();
 
+#if 0
       for (int m = 0; m < TFluxCorrection::m_refGrid->getlevelMax(); m++)
       {
          int aux = pow(pow(2, m), 3);
-         for (int n = 0;
-              n < aux * TFluxCorrection::blocksPerDim[0] * TFluxCorrection::blocksPerDim[1] *
-                      TFluxCorrection::blocksPerDim[2];
-              n++)
+         int nmax = aux * TFluxCorrection::blocksPerDim[0] * TFluxCorrection::blocksPerDim[1] * TFluxCorrection::blocksPerDim[2];
+         for (int n = 0; n < nmax; n++)
          {
             (*TFluxCorrection::m_refGrid).getBlockInfoAll(m, n).auxiliary = nullptr;
          }
       }
+#endif
 
       std::array<int, 6> icode = {1 * 2 + 3 * 1 + 9 * 1, 1 * 0 + 3 * 1 + 9 * 1,
                                   1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1,
@@ -120,14 +120,13 @@ class FluxCorrectionMPI : public TFluxCorrection
 
       for (auto &info : BB)
       {
+         (*TFluxCorrection::m_refGrid).getBlockInfoAll(info.level, info.Z).auxiliary = nullptr;
+
          const int aux = 1 << info.level;
 
-         const bool xskin =
-             info.index[0] == 0 || info.index[0] == TFluxCorrection::blocksPerDim[0] * aux - 1;
-         const bool yskin =
-             info.index[1] == 0 || info.index[1] == TFluxCorrection::blocksPerDim[1] * aux - 1;
-         const bool zskin =
-             info.index[2] == 0 || info.index[2] == TFluxCorrection::blocksPerDim[2] * aux - 1;
+         const bool xskin = info.index[0] == 0 || info.index[0] == TFluxCorrection::blocksPerDim[0] * aux - 1;
+         const bool yskin = info.index[1] == 0 || info.index[1] == TFluxCorrection::blocksPerDim[1] * aux - 1;
+         const bool zskin = info.index[2] == 0 || info.index[2] == TFluxCorrection::blocksPerDim[2] * aux - 1;
 
          const int xskip = info.index[0] == 0 ? -1 : 1;
          const int yskip = info.index[1] == 0 ? -1 : 1;
@@ -163,17 +162,13 @@ class FluxCorrectionMPI : public TFluxCorrection
 
             if (infoNei.TreePos == CheckCoarser)
             {
-               int nCoarse =
-                   infoNei
-                       .Zparent; //(*TFluxCorrection::m_refGrid).getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
-               BlockInfo &infoNeiCoarser =
-                   (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level - 1, nCoarse);
+               int nCoarse = infoNei.Zparent; //(*TFluxCorrection::m_refGrid).getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
+               BlockInfo &infoNeiCoarser = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level - 1, nCoarse);
                if (infoNeiCoarser.myrank != rank)
                {
                   int code2[3] = {-code[0], -code[1], -code[2]};
                   int icode2   = (code2[0] + 1) + (code2[1] + 1) * 3 + (code2[2] + 1) * 9;
-                  send_faces[infoNeiCoarser.myrank].push_back(
-                      face(info, infoNeiCoarser, icode[f], icode2));
+                  send_faces[infoNeiCoarser.myrank].push_back(face(info, infoNeiCoarser, icode[f], icode2));
                   send_buffer_size[infoNeiCoarser.myrank] += V;
                }
             }
@@ -186,17 +181,13 @@ class FluxCorrectionMPI : public TFluxCorrection
                   int nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
                                              [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
                                              [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
-                  int nFine = (*TFluxCorrection::m_refGrid)
-                                  .getBlockInfoAll(infoNei.level + 1, nFine1)
-                                  .Znei_(-code[0], -code[1], -code[2]);
 
-                  BlockInfo &infoNeiFiner =
-                      (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine);
+                  int nFine = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
+                  BlockInfo &infoNeiFiner = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine);
                   if (infoNeiFiner.myrank != rank)
                   {
                      int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
-                     recv_faces[infoNeiFiner.myrank].push_back(
-                         face(infoNeiFiner, info, icode2, icode[f]));
+                     recv_faces[infoNeiFiner.myrank].push_back(face(infoNeiFiner, info, icode2, icode[f]));
                      recv_buffer_size[infoNeiFiner.myrank] += V;
                   }
                }
@@ -205,8 +196,7 @@ class FluxCorrectionMPI : public TFluxCorrection
 
          if (stored)
          {
-            TFluxCorrection::Cases.push_back(
-                Case(storeFace, BlockType::sizeX, BlockType::sizeY, BlockType::sizeZ));
+            TFluxCorrection::Cases.push_back(Case(storeFace, BlockType::sizeX, BlockType::sizeY, BlockType::sizeZ));
             TFluxCorrection::Cases.back().SetupMetaData(info.level, info.Z);
          }
       }
@@ -216,9 +206,8 @@ class FluxCorrectionMPI : public TFluxCorrection
          TFluxCorrection::MapOfCases.insert(std::pair<std::array<int, 2>, Case *>(
              {TFluxCorrection::Cases[i].level, TFluxCorrection::Cases[i].Z},
              &TFluxCorrection::Cases[i]));
-         (*TFluxCorrection::m_refGrid)
-             .getBlockInfoAll(TFluxCorrection::Cases[i].level, TFluxCorrection::Cases[i].Z)
-             .auxiliary = &TFluxCorrection::Cases[i];
+         (*TFluxCorrection::m_refGrid).getBlockInfoAll(TFluxCorrection::Cases[i].level, TFluxCorrection::Cases[i].Z).auxiliary 
+         = &TFluxCorrection::Cases[i];
       }
 
       // 2.Sort faces
@@ -339,7 +328,7 @@ class FluxCorrectionMPI : public TFluxCorrection
                                   1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1,
                                   1 * 1 + 3 * 1 + 9 * 2, 1 * 1 + 3 * 1 + 9 * 0};
 
-#pragma omp parallel for schedule(runtime)
+      #pragma omp parallel for schedule(runtime)
       // for (auto & info: B)
       for (size_t jj = 0; jj < B.size(); jj++)
       {

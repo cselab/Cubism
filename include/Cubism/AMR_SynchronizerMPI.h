@@ -217,38 +217,24 @@ struct StencilManager
    {
       if (level_sender == level_receiver)
       {
-         L[0] = sLength[3 * icode +
-                        0]; // code[0]<1? (code[0]<0 ? -stencil.sx:blocksize[0]):stencil.ex-1;
-         L[1] = sLength[3 * icode +
-                        1]; // code[1]<1? (code[1]<0 ? -stencil.sy:blocksize[1]):stencil.ey-1;
-         L[2] = sLength[3 * icode +
-                        2]; // code[2]<1? (code[2]<0 ? -stencil.sz:blocksize[2]):stencil.ez-1;
+         L[0] = sLength[3 * icode +0]; // code[0]<1? (code[0]<0 ? -stencil.sx:blocksize[0]):stencil.ex-1;
+         L[1] = sLength[3 * icode +1]; // code[1]<1? (code[1]<0 ? -stencil.sy:blocksize[1]):stencil.ey-1;
+         L[2] = sLength[3 * icode +2]; // code[2]<1? (code[2]<0 ? -stencil.sz:blocksize[2]):stencil.ez-1;
       }
       else if (level_sender > level_receiver)
       {
-         L[0] = sLength[3 * (icode + 27) +
-                        0]; // code[0]<1? (code[0]<0 ? -stencil.sx:blocksize[0]/2):stencil.ex-1;
-         L[1] = sLength[3 * (icode + 27) +
-                        1]; // code[1]<1? (code[1]<0 ? -stencil.sy:blocksize[1]/2):stencil.ey-1;
-         L[2] = sLength[3 * (icode + 27) +
-                        2]; // code[2]<1? (code[2]<0 ? -stencil.sz:blocksize[2]/2):stencil.ez-1;
+         L[0] = sLength[3 * (icode + 27) +0]; // code[0]<1? (code[0]<0 ? -stencil.sx:blocksize[0]/2):stencil.ex-1;
+         L[1] = sLength[3 * (icode + 27) +1]; // code[1]<1? (code[1]<0 ? -stencil.sy:blocksize[1]/2):stencil.ey-1;
+         L[2] = sLength[3 * (icode + 27) +2]; // code[2]<1? (code[2]<0 ? -stencil.sz:blocksize[2]/2):stencil.ez-1;
       }
       else
       {
-         L[0] = sLength[3 * (icode + 2 * 27) +
-                        0]; // code[0]<1? (code[0]<0 ? -((stencil.sx-1)/2+
-                            // Cstencil.sx):blocksize[0]/2):(stencil.ex)/2+ Cstencil.ex -1;
-         L[1] = sLength[3 * (icode + 2 * 27) +
-                        1]; // code[1]<1? (code[1]<0 ? -((stencil.sy-1)/2+
-                            // Cstencil.sy):blocksize[1]/2):(stencil.ey)/2+ Cstencil.ey -1;
-         L[2] = sLength[3 * (icode + 2 * 27) +
-                        2]; // code[2]<1? (code[2]<0 ? -((stencil.sz-1)/2+
-                            // Cstencil.sz):blocksize[2]/2):(stencil.ez)/2+ Cstencil.ez -1;
+         L[0] = sLength[3 * (icode + 2 * 27) +0]; // code[0]<1? (code[0]<0 ? -((stencil.sx-1)/2+Cstencil.sx):blocksize[0]/2):(stencil.ex)/2+ Cstencil.ex -1;
+         L[1] = sLength[3 * (icode + 2 * 27) +1]; // code[1]<1? (code[1]<0 ? -((stencil.sy-1)/2+Cstencil.sy):blocksize[1]/2):(stencil.ey)/2+ Cstencil.ey -1;
+         L[2] = sLength[3 * (icode + 2 * 27) +2]; // code[2]<1? (code[2]<0 ? -((stencil.sz-1)/2+Cstencil.sz):blocksize[2]/2):(stencil.ez)/2+ Cstencil.ez -1;
       }
    }
 
-   // void DetermineStencil(const Interface & f, MyRange & retval /*range*/, bool CoarseVersion =
-   // false)
    MyRange &DetermineStencil(const Interface &f, bool CoarseVersion = false)
    {
       if (CoarseVersion)
@@ -375,7 +361,7 @@ struct StencilManager
          sz = range_dup.sz - range.sz;
       }
    }
-
+   #if 0
    void __FixDuplicates2(const Interface &f, const Interface &f_dup, int &sx, int &sy, int &sz)
    {
       if (f.infos[0]->level != f.infos[1]->level || f_dup.infos[0]->level != f_dup.infos[1]->level)
@@ -387,6 +373,7 @@ struct StencilManager
       sy                = range_dup.sy - range.sy;
       sz                = range_dup.sz - range.sz;
    }
+   #endif
 };
 
 template <typename Real>
@@ -489,7 +476,7 @@ class SynchronizerMPI_AMR
 
       void add(UnPackInfo &info, size_t block_id)
       {
-#pragma omp critical
+         #pragma omp critical
          {
             unpacks[block_id][sizes[block_id]] = &info;
             sizes[block_id]++;
@@ -547,6 +534,7 @@ class SynchronizerMPI_AMR
 
    struct DuplicatesManager
    {
+    #if 0
       struct cube // could be more efficient, fix later
       {
          GrowingVector<MyRange> compass[27];
@@ -654,9 +642,9 @@ class SynchronizerMPI_AMR
                }
          }
       };
-
       cube C;
       std::vector<bool> skip_needed;
+    #endif
       int size;
       SynchronizerMPI_AMR *Synch_ptr;
       std::vector<GrowingVector<int>> positions;
@@ -664,7 +652,7 @@ class SynchronizerMPI_AMR
       DuplicatesManager(int a_size, SynchronizerMPI_AMR &Synch)
       {
          size = a_size;
-         skip_needed.resize(size, false);
+         //skip_needed.resize(size, false);
          positions.resize(size);
 
          Synch_ptr = &Synch;
@@ -675,17 +663,16 @@ class SynchronizerMPI_AMR
       void RemoveDuplicates(int r, std::vector<Interface> &f, int &offset, int &total_size, int NC,
                             std::vector<InterfaceInfo> &fInfo)
       {
+        #if 0
          std::vector<int> remEl;
 
          /*------------->*/ Clock.start(22, "SynchronizerMPI_AMR : RemoveDuplicates fill cube");
          C.clear();
          for (size_t i = 0; i < positions[r].size(); i++)
          {
-            C.compass[f[positions[r][i]].icode[0]].push_back(
-                Synch_ptr->SM.DetermineStencil(f[positions[r][i]]));
+            C.compass[f[positions[r][i]].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[positions[r][i]]));
             C.compass[f[positions[r][i]].icode[0]].back().index = positions[r][i];
-            C.compass[f[positions[r][i]].icode[0]].back().avg_down =
-                (f[positions[r][i]].infos[0]->level > f[positions[r][i]].infos[1]->level);
+            C.compass[f[positions[r][i]].icode[0]].back().avg_down = (f[positions[r][i]].infos[0]->level > f[positions[r][i]].infos[1]->level);
 
             if (!skip_needed[r]) skip_needed[r] = f[positions[r][i]].CoarseStencil;
          }
@@ -704,17 +691,63 @@ class SynchronizerMPI_AMR
 
          /*------------->*/ Clock.start(24, "SynchronizerMPI_AMR : Gather UnPackInfos");
          for (auto &i : C.keepEl())
+        #else
+
+         std::vector<bool> KEEP (positions[r].size(),true);
+         std::vector< std::vector<int> > removed(positions[r].size());
+
+         for (size_t i = 0; i < positions[r].size(); i++)
          {
-            int k     = i->index;
+            int k     = positions[r][i];
+            bool checkDuplicates = KEEP[i] && ( f[k].infos[0]->level == f[k].infos[1]->level ) && (f[k].CoarseStencil == false);
+            if (!checkDuplicates) continue;
+
+            const int code[3] = {f[k].icode[1] % 3      - 1, 
+                                (f[k].icode[1] / 3) % 3 - 1,
+                                (f[k].icode[1] / 9) % 3 - 1};
+
+            if (abs(code[0]) + abs(code[1]) + abs(code[2]) == 1)
+            {
+                for (size_t i1 = 0; i1 < positions[r].size(); i1++)
+                {
+                    int k1     = positions[r][i1];
+                    bool checkDuplicates1 = KEEP[i1] && ( f[k1].infos[0]->level == f[k1].infos[1]->level ) && (f[k1].CoarseStencil == false);
+                    if (!checkDuplicates1) continue;
+                    if (i1 == i)           continue;
+                    const int code1[3] = {f[k1].icode[1] % 3      - 1, 
+                                         (f[k1].icode[1] / 3) % 3 - 1,
+                                         (f[k1].icode[1] / 9) % 3 - 1};
+                    if (abs(code1[0]) + abs(code1[1]) + abs(code1[2]) > 1 )
+                    {
+                        if (code1[0] == code[0] || code1[1] == code[1] || code1[2] == code[2])
+                        {
+                            KEEP[i1] = false;
+                            removed[i].push_back(k1);
+                            fInfo[k1].ToBeKept = false;
+                        }
+                    }
+                }
+            }
+         }
+
+         for (size_t i = 0; i < positions[r].size(); i++)
+         #endif
+         {
+            int k     = positions[r][i];
+           
+            if (!KEEP[i]) continue;
+
             int L[3]  = {0, 0, 0};
             int Lc[3] = {0, 0, 0};
 
-            int code[3] = {f[k].icode[1] % 3 - 1, (f[k].icode[1] / 3) % 3 - 1,
-                           (f[k].icode[1] / 9) % 3 - 1};
+            const int code[3] = {f[k].icode[1] % 3      - 1, 
+                                (f[k].icode[1] / 3) % 3 - 1,
+                                (f[k].icode[1] / 9) % 3 - 1};
 
-            Synch_ptr->SM.DetermineStencilLength(f[k].infos[0]->level, f[k].infos[1]->level,
-                                                 f[k].icode[1], &L[0]);
-
+            Synch_ptr->SM.DetermineStencilLength(f[k].infos[0]->level,
+                                                 f[k].infos[1]->level,
+                                                 f[k].icode[1], 
+                                                 &L[0]);
             int V  = L[0] * L[1] * L[2];
             int Vc = 0;
 
@@ -759,6 +792,30 @@ class SynchronizerMPI_AMR
 
             Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info);
 
+            for (size_t kk = 0; kk < removed[i].size(); kk++)
+            {
+               int remEl1 = removed[i][kk];
+
+               Synch_ptr->SM.DetermineStencilLength(f[remEl1].infos[0]->level, f[remEl1].infos[1]->level, f[remEl1].icode[1], &L[0]);
+
+               int srcx, srcy, srcz;
+
+               Synch_ptr->SM.__FixDuplicates(f[k], f[remEl1], info.lx, info.ly, info.lz, L[0], L[1],
+                                             L[2], srcx, srcy, srcz);
+
+               int Csrcx = 0;
+               int Csrcy = 0;
+               int Csrcz = 0;
+
+               Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(
+                   {info.offset, L[0], L[1], L[2], srcx, srcy, srcz, info.LX, info.LY,
+                    info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY, Csrcx,
+                    Csrcy, Csrcz, f[remEl1].infos[0]->level, f[remEl1].infos[0]->Z,
+                    f[remEl1].icode[1], f[remEl1].infos[1]->blockID});
+
+               fInfo[remEl1].dis = info.offset;
+            }
+#if 0
             for (size_t kk = 0; kk < (*i).removedIndices.size(); kk++)
             {
                int remEl1 = i->removedIndices[kk];
@@ -788,9 +845,11 @@ class SynchronizerMPI_AMR
 
                fInfo[remEl1].dis = info.offset;
             }
+#endif
          }
          /*------------->*/ Clock.finish(24);
       }
+
    };
 
    int getZforward(const int level, const int i, const int j, const int k) const
@@ -1053,18 +1112,18 @@ class SynchronizerMPI_AMR
                   {
                      const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-#if 0
+                    #if 0
                         int nFine = getZforward(infoNei.level+1,2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0])),
                                                                 2*info.index[1] + max(code[1],0) +code[1]  + temp *max(0, 1 - abs(code[1])),
                                                                 2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2])));
-#else
+                    #else
                      int nFine1 =
                          infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
                                        [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
                                        [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
                      int nFine = getBlockInfoAll(infoNei.level + 1, nFine1)
                                      .Znei_(-code[0], -code[1], -code[2]);
-#endif
+                    #endif
 
                      BlockInfo &infoNeiFiner = getBlockInfoAll(infoNei.level + 1, nFine);
                      if (infoNeiFiner.myrank != rank)
@@ -1201,9 +1260,11 @@ class SynchronizerMPI_AMR
                      send_interfaces[ToBeChecked[j]][ToBeChecked[j + 1]].CoarseStencil =
                          UseCoarseStencil(send_interfaces[ToBeChecked[j]][ToBeChecked[j + 1]]);
             }
+
+            getBlockInfoAll(info.level, info.Z).halo_block_id = info.halo_block_id;
          } // i-loop
 
-      /*------------->*/ Clock.start(18, "DefineInterfaces: Duplicates handling");
+      ///*------------->*/ Clock.start(18, "DefineInterfaces: Duplicates handling");
       for (int r = 0; r < size; r++) send_interfaces_infos[r].resize(send_interfaces[r].size());
 
       DuplicatesManager DM(size, *(this));
@@ -1220,17 +1281,15 @@ class SynchronizerMPI_AMR
          {
             DM.Add(_rp.first, _rp.second);
          }
+         /*------------->*/ Clock.start(18, "DefineInterfaces: Duplicates handling");
          for (int r = 0; r < size; r++)
             DM.RemoveDuplicates(r, send_interfaces[r].v, offsets[r], send_buffer_size[r],
                                 stencil.selcomponents.size(), send_interfaces_infos[r]);
+         /*------------->*/ Clock.finish(18);
       }
+      
       UnpacksManager._allocate(halo_blocks.size(), lengths.data());
-      for (int i = 0; i < (int)myInfos_size; i++)
-      {
-         BlockInfo &info                                   = myInfos[i];
-         getBlockInfoAll(info.level, info.Z).halo_block_id = info.halo_block_id;
-      }
-      /*------------->*/ Clock.finish(18);
+      ///*------------->*/ Clock.finish(18);
    }
 
  public:
@@ -1371,9 +1430,9 @@ class SynchronizerMPI_AMR
       {
          if (ToBeAveragedDown[r].size() == 0 && send_buffer_size[r] == 0) continue;
 
-#pragma omp parallel
+         #pragma omp parallel
          {
-#pragma omp for schedule(runtime)
+            #pragma omp for schedule(runtime)
             for (size_t j = 0; j < ToBeAveragedDown[r].size(); j += 2)
             {
                int i              = ToBeAveragedDown[r][j];
@@ -1403,7 +1462,7 @@ class SynchronizerMPI_AMR
             if (send_buffer_size[r] != 0)
             {
                const int N = send_packinfos[r].size();
-#pragma omp for schedule(runtime)
+               #pragma omp for schedule(runtime)
                for (int i = 0; i < N; i++)
                {
                   PackInfo &info = send_packinfos[r][i];

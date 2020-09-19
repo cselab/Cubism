@@ -1140,15 +1140,49 @@ class BlockLab
       }
    }
 
+
+   Real Slope(Real al, Real ac, Real ar)
+   {
+    //return 0.0;
+    if ( (al-ac)*(ac-ar) <= 0 )
+    {
+        return 0.0;
+    } 
+    else
+    {
+        int sign = (ar>al) ? 1:-1;
+        return sign * std::min(  std::min(abs(al-ac),abs(ac-ar)), 0.5*abs(al-ar));
+    }
+
+   }
+
+   ElementType SlopeElement(ElementType Al, ElementType Ac, ElementType Ar)
+   {
+     ElementType retval;
+     retval.alpha1rho1 = Slope(Al.alpha1rho1, Ac.alpha1rho1, Ar.alpha1rho1);
+     retval.alpha2rho2 = Slope(Al.alpha2rho2, Ac.alpha2rho2, Ar.alpha2rho2);
+     retval.ru         = Slope(Al.ru        , Ac.ru        , Ar.ru        );
+     retval.rv         = Slope(Al.rv        , Ac.rv        , Ar.rv        );
+     retval.rw         = Slope(Al.rw        , Ac.rw        , Ar.rw        );
+     retval.energy     = Slope(Al.energy    , Ac.energy    , Ar.energy    );
+     retval.alpha2     = Slope(Al.alpha2    , Ac.alpha2    , Ar.alpha2    );
+     retval.dummy      = Slope(Al.dummy     , Ac.dummy     , Ar.dummy     );
+     return retval;
+   }
+
+
    // Improve the following 4 functions (1/2)
    void TestInterp(ElementType *C[3][3][3], ElementType &R, int x, int y, int z)
    {
       // linear crap for now
-      ElementType dudx = 0.5 * (*C[2][1][1] - *C[0][1][1]);
-      ElementType dudy = 0.5 * (*C[1][2][1] - *C[1][0][1]);
-      ElementType dudz = 0.5 * (*C[1][1][2] - *C[1][1][0]);
-      R                = *C[1][1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy +
-          (2 * z - 1) * 0.25 * dudz;
+      //ElementType dudx = 0.5 * (*C[2][1][1] - *C[0][1][1]);
+      //ElementType dudy = 0.5 * (*C[1][2][1] - *C[1][0][1]);
+      //ElementType dudz = 0.5 * (*C[1][1][2] - *C[1][1][0]);
+
+      ElementType dudx = SlopeElement( *C[0][1][1] , *C[1][1][1] , *C[2][1][1]);
+      ElementType dudy = SlopeElement( *C[1][0][1] , *C[1][1][1] , *C[1][2][1]);
+      ElementType dudz = SlopeElement( *C[1][1][0] , *C[1][1][1] , *C[1][1][2]);
+      R                = *C[1][1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy + (2 * z - 1) * 0.25 * dudz;
    }
 
    /**

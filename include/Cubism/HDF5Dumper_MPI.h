@@ -161,7 +161,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const typename TGrid::R
          s << "   </Geometry>\n";
 
          ////////////////////////////////////
-         s << "   <Attribute Name=\"data\" AttributeType=\" " << TStreamer::getAttributeName()
+         s << "   <Attribute Name=\"data\" AttributeType=\"" << TStreamer::getAttributeName()
            << "\" Center=\"Cell\">\n";
 
          s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << nZ << " " << nY << " " << nX

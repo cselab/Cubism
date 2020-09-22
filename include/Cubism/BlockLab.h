@@ -116,8 +116,8 @@ class BlockLab
       int imax[3];
       for (int d = 0; d < 3; d++)
       {
-         imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
-         imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
+        imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
+        imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
       }
 
       bool retval = false;
@@ -269,6 +269,7 @@ class BlockLab
       *m_CoarsenedBlock = NAN;
 #endif
 
+      
       // 1.load the block into the cache
       {
          BlockType &block            = *(BlockType *)info.ptrBlock;
@@ -460,7 +461,7 @@ class BlockLab
       } // 2.
    }
 
-   void post_load(const BlockInfo &info, const Real t = 0, bool applybc = true)
+   void post_load(const BlockInfo &info, const std::vector<int> & selcomponents, const Real t = 0, bool applybc = true)
    {
       static const int nX = BlockType::sizeX;
       static const int nY = BlockType::sizeY;
@@ -495,7 +496,7 @@ class BlockLab
                }
 
          if (applybc) _apply_bc(info, t, true); // apply BC to coarse block
-         CoarseFineInterpolation(info);
+         CoarseFineInterpolation(info,selcomponents);
       }
       if (applybc) _apply_bc(info, t);
    }
@@ -618,7 +619,9 @@ class BlockLab
                            const ElementType &e3, const ElementType &e4, const ElementType &e5,
                            const ElementType &e6, const ElementType &e7)
    {
-      ElementType retval = 0.125 * ((e0 + e1) + (e2 + e3) + (e4 + e5) + (e6 + e7));
+      //ElementType retval = 0.125 * ((e0 + e1) + (e2 + e3) + (e4 + e5) + (e6 + e7));
+      ElementType retval = 0.125 * (e0 + e1 + e2 + e3 + e4 + e5 + e6 + e7);
+
       return retval;
    }
 
@@ -1040,7 +1043,7 @@ class BlockLab
    }
 
    // Improve the following 2 functions (1/2)
-   void CoarseFineInterpolation(const BlockInfo &info)
+   void CoarseFineInterpolation(const BlockInfo &info,const std::vector<int> & selcomponents)
    {
       const Grid<BlockType, allocator> &grid = *m_refGrid;
 
@@ -1128,60 +1131,68 @@ class BlockLab
                                                                      YY - 1 + j - offset[1],
                                                                      ZZ - 1 + k - offset[2]);
 
-                  TestInterp(Test,
-                             m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],
-                                                  iz - m_stencilStart[2]),
+
+                  
+                  TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],iz - m_stencilStart[2]),
                              abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
                              abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,
-                             abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2);
+                             abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2, selcomponents);
                }
             }
          }
+
+
+
       }
    }
 
 
    Real Slope(Real al, Real ac, Real ar)
    {
-    //return 0.0;
-    if ( (al-ac)*(ac-ar) <= 0 )
-    {
-        return 0.0;
-    } 
-    else
-    {
-        int sign = (ar>al) ? 1:-1;
-        return sign * std::min(  std::min(abs(al-ac),abs(ac-ar)), 0.5*abs(al-ar));
-    }
-
+        assert(!std::isnan(al));
+        assert(!std::isnan(ac));
+        assert(!std::isnan(ar));
+        if ( (al-ac)*(ac-ar) <= 0 )
+        {
+            return 0.0;
+        } 
+        else
+        {
+            int sign = (ar>al) ? 1:-1;
+            return sign * std::min(  std::min(abs(al-ac),abs(ac-ar)), 0.5*abs(al-ar));
+        }
    }
 
-   ElementType SlopeElement(ElementType Al, ElementType Ac, ElementType Ar)
+   ElementType SlopeElement(ElementType Al, ElementType Ac, ElementType Ar, const std::vector<int> & selcomponents)
    {
      ElementType retval;
-     retval.alpha1rho1 = Slope(Al.alpha1rho1, Ac.alpha1rho1, Ar.alpha1rho1);
-     retval.alpha2rho2 = Slope(Al.alpha2rho2, Ac.alpha2rho2, Ar.alpha2rho2);
-     retval.ru         = Slope(Al.ru        , Ac.ru        , Ar.ru        );
-     retval.rv         = Slope(Al.rv        , Ac.rv        , Ar.rv        );
-     retval.rw         = Slope(Al.rw        , Ac.rw        , Ar.rw        );
-     retval.energy     = Slope(Al.energy    , Ac.energy    , Ar.energy    );
-     retval.alpha2     = Slope(Al.alpha2    , Ac.alpha2    , Ar.alpha2    );
-     retval.dummy      = Slope(Al.dummy     , Ac.dummy     , Ar.dummy     );
+     //retval.alpha1rho1 = Slope(Al.alpha1rho1, Ac.alpha1rho1, Ar.alpha1rho1); 
+     //retval.alpha2rho2 = Slope(Al.alpha2rho2, Ac.alpha2rho2, Ar.alpha2rho2); 
+     //retval.ru         = Slope(Al.ru        , Ac.ru        , Ar.ru        ); 
+     //retval.rv         = Slope(Al.rv        , Ac.rv        , Ar.rv        ); 
+     //retval.rw         = Slope(Al.rw        , Ac.rw        , Ar.rw        ); 
+     //retval.energy     = Slope(Al.energy    , Ac.energy    , Ar.energy    ); 
+     //retval.alpha2     = Slope(Al.alpha2    , Ac.alpha2    , Ar.alpha2    ); 
+     //retval.dummy      = Slope(Al.dummy     , Ac.dummy     , Ar.dummy     );
+     //
+     Real * L = &Al.alpha1rho1;
+     Real * R = &Ar.alpha1rho1;
+     Real * C = &Ac.alpha1rho1;
+     Real * sl = &retval.alpha1rho1;
+     for (size_t i = 0 ; i < selcomponents.size() ; i ++)
+     {
+        int comp = selcomponents[i];
+        *(sl + comp) = Slope(*(L+comp),*(C+comp),*(R+comp));
+     }
+
      return retval;
    }
 
-
-   // Improve the following 4 functions (1/2)
-   void TestInterp(ElementType *C[3][3][3], ElementType &R, int x, int y, int z)
+   void TestInterp(ElementType *C[3][3][3], ElementType &R, int x, int y, int z, const std::vector<int> & selcomponents)
    {
-      // linear crap for now
-      //ElementType dudx = 0.5 * (*C[2][1][1] - *C[0][1][1]);
-      //ElementType dudy = 0.5 * (*C[1][2][1] - *C[1][0][1]);
-      //ElementType dudz = 0.5 * (*C[1][1][2] - *C[1][1][0]);
-
-      ElementType dudx = SlopeElement( *C[0][1][1] , *C[1][1][1] , *C[2][1][1]);
-      ElementType dudy = SlopeElement( *C[1][0][1] , *C[1][1][1] , *C[1][2][1]);
-      ElementType dudz = SlopeElement( *C[1][1][0] , *C[1][1][1] , *C[1][1][2]);
+      ElementType dudx = SlopeElement( *C[0][1][1] , *C[1][1][1] , *C[2][1][1], selcomponents); 
+      ElementType dudy = SlopeElement( *C[1][0][1] , *C[1][1][1] , *C[1][2][1], selcomponents); 
+      ElementType dudz = SlopeElement( *C[1][1][0] , *C[1][1][1] , *C[1][1][2], selcomponents); 
       R                = *C[1][1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy + (2 * z - 1) * 0.25 * dudz;
    }
 
@@ -1227,7 +1238,6 @@ class BlockLab
       assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < nY);
       assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < nZ);
 #endif
-
       return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],
                                   iz - m_stencilStart[2]);
    }

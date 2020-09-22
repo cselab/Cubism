@@ -48,7 +48,8 @@ class BlockLabMPI : public MyBlockLab
       Real *dst1 = &MyBlockLab ::m_CoarsenedBlock->LinAccess(0).alpha1rho1;
       refSynchronizerMPI->fetch(info, gptfloats, Length, CLength, m_nElemsPerSlice, dst, dst1);
 
-      MyBlockLab::post_load(info, t, applybc);
+      const std::vector<int> & selcomponents = refSynchronizerMPI->getstencil().selcomponents;
+      MyBlockLab::post_load(info, selcomponents, t, applybc);
    }
 
    void release() { MyBlockLab::release(); }

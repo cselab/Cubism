@@ -122,13 +122,9 @@ class MeshAdaptation
       /*------------->*/ Clock.start(1, "MeshAdaptation: inner blocks tagging");
       avail0           = Synch->avail_inner();
       const int Ninner = avail0.size();
-
-
-
       bool Reduction = false;
       MPI_Request Reduction_req;
       int tmp;
-
       #pragma omp parallel num_threads(nthreads)
       {
          int tid     = omp_get_thread_num();
@@ -158,16 +154,6 @@ class MeshAdaptation
          }
       }
       /*------------->*/ Clock.finish(1);
-
-
-      //if (CallValidStates) 
-      //{
-      //  tmp = 1;
-      //  Reduction = true;
-      //  MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD,&Reduction_req);
-      //}
-
-
 
       /*------------->*/ Clock.start(2, "MeshAdaptation: waiting for inner blocks");
       avail1 = Synch->avail_halo();
@@ -207,10 +193,6 @@ class MeshAdaptation
       /*------------->*/ Clock.finish(3);
 
       /*------------->*/ Clock.start(24, "MeshAdaptation: MPI_LOR");
-      //int tmp = CallValidStates ? 1 : 0;
-      ////MPI_Allreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
-      ////CallValidStates     = (tmp == 1);
-      //MPI_Allreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
       if (!Reduction) 
       {
         tmp = CallValidStates ? 1 : 0;
@@ -218,27 +200,16 @@ class MeshAdaptation
         MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD,&Reduction_req);
       }
 
-
       LoadBalancer<TGrid> Balancer(*m_refGrid);
-
-
 
       MPI_Wait(&Reduction_req,MPI_STATUS_IGNORE);
       CallValidStates     = (tmp > 0);
       m_refGrid->boundary = avail1;
       /*------------->*/ Clock.finish(24);
+
       /*------------->*/ Clock.start(4, "MeshAdaptation: ValidStates");
       if (CallValidStates) ValidStates();
       /*------------->*/ Clock.finish(4);
-
-
-
-
-
-
-      /*------------->*/ Clock.start(5, "MeshAdaptation: PrepareCompression");
-      Balancer.PrepareCompression();
-      /*------------->*/ Clock.finish(5);
 
       // Refinement/compression of blocks
       /*************************************************/
@@ -284,7 +255,14 @@ class MeshAdaptation
             int n = mn_ref[2 * i + 1];
             refine_2(m, n);
          }
+     }
 
+      /*------------->*/ Clock.start(5, "MeshAdaptation: PrepareCompression");
+      Balancer.PrepareCompression();
+      /*------------->*/ Clock.finish(5);
+
+      #pragma omp parallel
+      {
          #pragma omp for schedule(runtime)
          for (size_t i = 0; i < mn_com.size() / 2; i++)
          {
@@ -295,9 +273,7 @@ class MeshAdaptation
             c++;
          }
       }
-      /*************************************************/
-
-/*
+      #if 1
       int temp[2] = {r, c};
       int result[2];
       MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -309,24 +285,25 @@ class MeshAdaptation
          std::cout << " refined:" << result[0] << "   compressed:" << result[1] << std::endl;
          std::cout << "==============================================================\n";
       }
-*/
+      #endif
+      /*************************************************/
       /*------------->*/ Clock.finish(6);
 
       /*------------->*/ Clock.start(8, "MeshAdaptation : Balance_Diffusion");
-      m_refGrid->FillPos();
+      m_refGrid->FillPos();     
       Balancer.Balance_Diffusion();
       /*------------->*/ Clock.finish(8);
 
       delete[] labs;
 
       /*------------->*/ Clock.start(9, "MeshAdaptation : Setup");
-//      if (result[0] != 0 || result[1] != 0 || Balancer.movedBlocks)
       if (CallValidStates || Balancer.movedBlocks)
       {
          m_refGrid->UpdateFluxCorrection = true;
 
          /*------------->*/ Clock.start(7, "MeshAdaptation : UpdateBlockInfoAll_States");
          m_refGrid->UpdateBlockInfoAll_States(false);
+         m_refGrid->UpdateBlockInfoAll_States(true);
          /*------------->*/ Clock.finish(7);
 
          Synch->_Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(), timestamp, true);
@@ -335,8 +312,7 @@ class MeshAdaptation
          auto it = m_refGrid->SynchronizerMPIs.begin();
          while (it != m_refGrid->SynchronizerMPIs.end())
          {
-            (*it->second)
-                ._Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(), timestamp);
+            (*it->second)._Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(), timestamp);
             it++;
          }
       }
@@ -405,76 +381,77 @@ class MeshAdaptation
 
    void compress(int level, int Z)
    {
-      int rank;
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-      assert(level > 0);
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        assert(level > 0);
 
-      BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
+        BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
 
-      BlockType *Blocks[8];
-      for (int K = 0; K < 2; K++)
-         for (int J = 0; J < 2; J++)
-            for (int I = 0; I < 2; I++)
+        assert(info.TreePos == Exists);
+        assert(info.state == Compress);
+        assert(info.myrank == rank);
+
+
+        BlockType *Blocks[8];
+        for (int K = 0; K < 2; K++)
+        for (int J = 0; J < 2; J++)
+        for (int I = 0; I < 2; I++)
+        {
+            int blk = K * 4 + J * 2 + I;
+            int n   = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J,info.index[2] + K);
+            Blocks[blk] = (BlockType *)(m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
+        }
+
+        const int nx   = BlockType::sizeX;
+        const int ny   = BlockType::sizeY;
+        const int nz   = BlockType::sizeZ;
+        int offsetX[2] = {0, nx / 2};
+        int offsetY[2] = {0, ny / 2};
+        int offsetZ[2] = {0, nz / 2};
+        for (int K = 0; K < 2; K++)
+        for (int J = 0; J < 2; J++)
+        for (int I = 0; I < 2; I++)
+        {
+            BlockType &b = *Blocks[K * 4 + J * 2 + I];
+            for (int k = 0; k < nz; k += 2)
+            for (int j = 0; j < ny; j += 2)
+            for (int i = 0; i < nx; i += 2)
             {
-               int blk     = K * 4 + J * 2 + I;
-               int n       = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J,
-                                              info.index[2] + K);
-               Blocks[blk] = (BlockType *)(m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
+                ElementType average =  0.125 * (b(i, j    , k    ) + b(i + 1, j    , k    ) + 
+                                                b(i, j + 1, k    ) + b(i + 1, j + 1, k    ) + 
+                                                b(i, j    , k + 1) + b(i + 1, j    , k + 1) +
+                                                b(i, j + 1, k + 1) + b(i + 1, j + 1, k + 1));
+                (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) = average;
             }
+        }
 
-      const int nx   = BlockType::sizeX;
-      const int ny   = BlockType::sizeY;
-      const int nz   = BlockType::sizeZ;
-      int offsetX[2] = {0, nx / 2};
-      int offsetY[2] = {0, ny / 2};
-      int offsetZ[2] = {0, nz / 2};
-      for (int K = 0; K < 2; K++)
-         for (int J = 0; J < 2; J++)
-            for (int I = 0; I < 2; I++)
-            {
-               BlockType &b = *Blocks[K * 4 + J * 2 + I];
-               for (int k = 0; k < nz; k += 2)
-                  for (int j = 0; j < ny; j += 2)
-                     for (int i = 0; i < nx; i += 2)
-                     {
-                        ElementType average =
-                            0.125 * (b(i, j, k) + b(i + 1, j, k) + b(i, j + 1, k) +
-                                     b(i + 1, j + 1, k) + b(i, j, k + 1) + b(i + 1, j, k + 1) +
-                                     b(i, j + 1, k + 1) + b(i + 1, j + 1, k + 1));
-                        (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) =
-                            average;
-                     }
-            }
+        int np             = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
+        BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
+        parent.myrank      = m_refGrid->rank();
+        parent.ptrBlock    = info.ptrBlock;
+        parent.TreePos     = Exists;
+        parent.h_gridpoint = parent.h;
+        parent.state       = Leave;
 
-      int np             = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2,
-                                      info.index[2] / 2);
-      BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
-      parent.myrank      = m_refGrid->rank();
-      parent.ptrBlock    = info.ptrBlock;
-      parent.TreePos     = Exists;
-      parent.h_gridpoint = parent.h;
-      parent.state       = Leave;
-
-      #pragma omp critical
-      {
-         for (int K = 0; K < 2; K++)
+        #pragma omp critical
+        {
+            for (int K = 0; K < 2; K++)
             for (int J = 0; J < 2; J++)
-               for (int I = 0; I < 2; I++)
-               {
-                  int n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J,
-                                                 info.index[2] + K);
-                  if (I + J + K == 0)
-                  {
-                     m_refGrid->FindBlockInfo(level, n, level - 1, np);
-                  }
-                  else
-                  {
-                     m_refGrid->_dealloc(level, n);
-                  }
-                  m_refGrid->getBlockInfoAll(level, n).TreePos = CheckCoarser;
-                  m_refGrid->getBlockInfoAll(level, n).state   = Leave;
-               }
-      }
+            for (int I = 0; I < 2; I++)
+            {
+                int n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J,info.index[2] + K);
+                if (I + J + K == 0)
+                {
+                   m_refGrid->FindBlockInfo(level, n, level - 1, np);
+                }
+                else
+                {
+                   m_refGrid->_dealloc(level, n);
+                }
+                m_refGrid->getBlockInfoAll(level, n).TreePos = CheckCoarser;
+                m_refGrid->getBlockInfoAll(level, n).state   = Leave;
+            }
+        }
    }
 
    void ValidStates()
@@ -581,7 +558,6 @@ class MeshAdaptation
          }
          /*------------->*/ Clock.finish(20);
 
-         
 
          /*------------->*/ Clock.start(0, "MeshAdaptation: UpdateBoundary");
          m_refGrid->UpdateBoundary();
@@ -625,8 +601,6 @@ class MeshAdaptation
          /*------------->*/ Clock.finish(21);
       } // m
 
-
-
       /*------------->*/ Clock.start(22, "MeshAdaptation: step 3");
       // 3.
       for (size_t jjj = 0; jjj < I.size(); jjj++)
@@ -664,9 +638,9 @@ class MeshAdaptation
                   }
                }
       }
-/*------------->*/ Clock.finish(22);
+       /*------------->*/ Clock.finish(22);
 
-/*------------->*/ Clock.start(23, "MeshAdaptation: step 4");
+       /*------------->*/ Clock.start(23, "MeshAdaptation: step 4");
       // 4.
       for (size_t jjj = 0; jjj < I.size(); jjj++)
       {
@@ -694,8 +668,7 @@ class MeshAdaptation
             }
          }
       }
-/*------------->*/ Clock.finish(23);
-
+      /*------------->*/ Clock.finish(23);
    }
 
    ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -727,7 +700,7 @@ class MeshAdaptation
                      for (int i = 0; i < nx; i += 2)
                      {
 
-#if 0 // simple linear 
+                #if 0 // simple linear 
       
                   ElementType dudx = 0.5*( Lab(i/2+offsetX[I]+1,j/2+offsetY[J]  ,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ,k/2+offsetZ[K]  ));
                   ElementType dudy = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1,k/2+offsetZ[K]  ));
@@ -741,8 +714,7 @@ class MeshAdaptation
                   b(i+1,j  ,k+1) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
                   b(i  ,j+1,k+1) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
                   b(i+1,j+1,k+1) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz;
-
-#else // WENO
+                #else // WENO
 
                         const int Nweno = WENOWAVELET;
                         ElementType El[Nweno][Nweno][Nweno];
@@ -757,7 +729,8 @@ class MeshAdaptation
                         ElementType Planes[Nweno][4];
                         ElementType Ref[8];
 
-   #if WENOWAVELET == 3
+                #if WENOWAVELET == 3
+
                         for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
                            for (int i1 = -Nweno / 2; i1 <= Nweno / 2; i1++)
                               Kernel_1D(El[0][i1 + Nweno / 2][i2 + Nweno / 2],
@@ -780,7 +753,7 @@ class MeshAdaptation
                         Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], Ref[4], Ref[5]);
                         Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], Ref[6], Ref[7]);
 
-   #else
+                #else
 
                         for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
                            for (int i1 = -Nweno / 2; i1 <= Nweno / 2; i1++)
@@ -812,8 +785,7 @@ class MeshAdaptation
                                   Planes[4][2], Ref[4], Ref[5]);
                         Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], Planes[3][3],
                                   Planes[4][3], Ref[6], Ref[7]);
-
-   #endif
+                #endif
 
                         b(i, j, k)             = Ref[0];
                         b(i, j, k + 1)         = Ref[1];
@@ -823,7 +795,7 @@ class MeshAdaptation
                         b(i + 1, j, k + 1)     = Ref[5];
                         b(i + 1, j + 1, k)     = Ref[6];
                         b(i + 1, j + 1, k + 1) = Ref[7];
-#endif
+                #endif
                      }
             }
    }
@@ -891,30 +863,24 @@ class MeshAdaptation
       WENOWavelets3(E0.energy, E1.energy, E2.energy, left.energy, right.energy);
 
       // clipping
-      if (left.alpha2 < 0.0 || right.alpha2 < 0.0 || left.alpha2 > 1.0 || right.alpha2 > 1.0)
-      {
-         left.alpha2  = E1.alpha2;
-         right.alpha2 = E1.alpha2;
+      if (left.alpha2 < 0.0 || right.alpha2 < 0.0 || left.alpha2 > 1.0 || right.alpha2 > 1.0) {
+        left.alpha2  = E1.alpha2;
+        right.alpha2 = E1.alpha2;
       }
-
-      if (left.alpha1rho1 < 0.0 || right.alpha1rho1 < 0.0 || left.alpha1rho1 > 1.0 ||
-          right.alpha1rho1 > 1.0)
-      {
-         left.alpha1rho1  = E1.alpha1rho1;
-         right.alpha1rho1 = E1.alpha1rho1;
+  
+      if (left.alpha1rho1 < 0.0 || right.alpha1rho1 < 0.0) {
+        left.alpha1rho1  = E1.alpha1rho1;
+        right.alpha1rho1 = E1.alpha1rho1;
       }
-
-      if (left.alpha2rho2 < 0.0 || right.alpha2rho2 < 0.0 || left.alpha2rho2 > 1.0 ||
-          right.alpha2rho2 > 1.0)
-      {
-         left.alpha2rho2  = E1.alpha2rho2;
-         right.alpha2rho2 = E1.alpha2rho2;
+  
+      if (left.alpha2rho2 < 0.0 || right.alpha2rho2 < 0.0) {
+        left.alpha2rho2  = E1.alpha2rho2;
+        right.alpha2rho2 = E1.alpha2rho2;
       }
-
-      if (left.energy < 0.0 || right.energy < 0.0)
-      {
-         left.energy  = E1.energy;
-         right.energy = E1.energy;
+  
+      if (left.energy < 0.0 || right.energy < 0.0) {
+        left.energy  = E1.energy;
+        right.energy = E1.energy;
       }
    }
 #else
@@ -937,30 +903,24 @@ class MeshAdaptation
                     right.energy);
 
       // clipping
-      if (left.alpha2 < 0.0 || right.alpha2 < 0.0 || left.alpha2 > 1.0 || right.alpha2 > 1.0)
-      {
-         left.alpha2 = E2.alpha2;
-         right.alpha2 = E2.alpha2;
+      if (left.alpha2 < 0.0 || right.alpha2 < 0.0 || left.alpha2 > 1.0 || right.alpha2 > 1.0) {
+        left.alpha2  = E1.alpha2;
+        right.alpha2 = E1.alpha2;
       }
-
-      if (left.alpha1rho1 < 0.0 || right.alpha1rho1 < 0.0 || left.alpha1rho1 > 1.0 ||
-          right.alpha1rho1 > 1.0)
-      {
-         left.alpha1rho1 = E2.alpha1rho1;
-         right.alpha1rho1 = E2.alpha1rho1;
+  
+      if (left.alpha1rho1 < 0.0 || right.alpha1rho1 < 0.0) {
+        left.alpha1rho1  = E1.alpha1rho1;
+        right.alpha1rho1 = E1.alpha1rho1;
       }
-
-      if (left.alpha2rho2 < 0.0 || right.alpha2rho2 < 0.0 || left.alpha2rho2 > 1.0 ||
-          right.alpha2rho2 > 1.0)
-      {
-         left.alpha2rho2 = E2.alpha2rho2;
-         right.alpha2rho2 = E2.alpha2rho2;
+  
+      if (left.alpha2rho2 < 0.0 || right.alpha2rho2 < 0.0) {
+        left.alpha2rho2  = E1.alpha2rho2;
+        right.alpha2rho2 = E1.alpha2rho2;
       }
-
-      if (left.energy < 0.0 || right.energy < 0.0)
-      {
-         left.energy = E2.energy;
-         right.energy = E2.energy;
+  
+      if (left.energy < 0.0 || right.energy < 0.0) {
+        left.energy  = E1.energy;
+        right.energy = E1.energy;
       }
    }
 #endif
@@ -1013,86 +973,96 @@ class MeshAdaptation
 
    virtual State TagLoadedBlock(TLab &Lab_)
    {
-      static const int nx = BlockType::sizeX;
-      static const int ny = BlockType::sizeY;
-      static const int nz = BlockType::sizeZ;
-
-      // double L1     = 0.0;
-      double Linf   = 0.0;
-      double Linf_2 = 0.0;
-
-      for (int k = 0 - 1; k < nz + 1; k++)
-         for (int j = 0 - 1; j < ny + 1; j++)
-            for (int i = 0 - 1; i < nx + 1; i++)
-            {
-               Lab_(i, j, k).energy = get_pressure(
-                   Lab_(i, j, k).alpha1rho1, Lab_(i, j, k).alpha2rho2, Lab_(i, j, k).ru,
-                   Lab_(i, j, k).rv, Lab_(i, j, k).rw, Lab_(i, j, k).alpha2, Lab_(i, j, k).energy);
-            }
-
-      for (int k = 0; k < nz; k++)
-         for (int j = 0; j < ny; j++)
-            for (int i = 0; i < nx; i++)
-            {
-#if 0
-          double dudx = 0.5*( Lab_(i+1,j  ,k  ).energy-Lab_(i-1,j  ,k  ).energy);
-          double dudy = 0.5*( Lab_(i  ,j+1,k  ).energy-Lab_(i  ,j-1,k  ).energy);
-          double dudz = 0.5*( Lab_(i  ,j  ,k+1).energy-Lab_(i  ,j  ,k-1).energy);  
-          double gradMag = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
-          gradMag /= ( 1e-6 + Lab_(i,j,k).energy);
-
-   #if 1
-            dudx = 0.5*( Lab_(i+1,j  ,k  ).alpha2-Lab_(i-1,j  ,k  ).alpha2);
-            dudy = 0.5*( Lab_(i  ,j+1,k  ).alpha2-Lab_(i  ,j-1,k  ).alpha2);
-            dudz = 0.5*( Lab_(i  ,j  ,k+1).alpha2-Lab_(i  ,j  ,k-1).alpha2);         
-            double gradMag1 = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
-            gradMag1 /= ( 1e-6 + Lab_(i,j,k).alpha2); 
-            gradMag = max(gradMag,gradMag1);
-   #endif
+        static const int nx = BlockType::sizeX;
+        static const int ny = BlockType::sizeY;
+        static const int nz = BlockType::sizeZ;
     
-          L1 += gradMag;
-          Linf = max(Linf,gradMag);
-#else
-               double s0 = Lab_(i, j, k).energy;
-               double s0i = 1.0 / s0;
-
-               double ax = std::abs((Lab_(i + 1, j, k).energy - s0) * s0i);
-               double ay = std::abs((Lab_(i, j + 1, k).energy - s0) * s0i);
-               double az = std::abs((Lab_(i, j, k + 1).energy - s0) * s0i);
-               ax = max(ax, std::abs((s0 - Lab_(i - 1, j, k).energy) * s0i));
-               ay = max(ay, std::abs((s0 - Lab_(i, j - 1, k).energy) * s0i));
-               az = max(az, std::abs((s0 - Lab_(i, j, k - 1).energy) * s0i));
-               Linf = max(Linf, ax);
-               Linf = max(Linf, ay);
-               Linf = max(Linf, az);
-
-               s0 = Lab_(i, j, k).alpha2;
-               ax = std::abs(Lab_(i + 1, j, k).alpha2 - s0);
-               ay = std::abs(Lab_(i, j + 1, k).alpha2 - s0);
-               az = std::abs(Lab_(i, j, k + 1).alpha2 - s0);
-               ax = max(ax, std::abs(s0 - Lab_(i - 1, j, k).alpha2));
-               ay = max(ay, std::abs(s0 - Lab_(i, j - 1, k).alpha2));
-               az = max(az, std::abs(s0 - Lab_(i, j, k - 1).alpha2));
-               Linf_2 = max(Linf_2, ax);
-               Linf_2 = max(Linf_2, ay);
-               Linf_2 = max(Linf_2, az);
-#endif
+        // double L1     = 0.0;
+        double Linf   = 0.0;
+        double Linf_2 = 0.0;
+    
+        //for (int k = 0 - 1; k < nz + 1; k++)
+        //  for (int j = 0 - 1; j < ny + 1; j++)
+        //    for (int i = 0 - 1; i < nx + 1; i++) {
+        //      Lab_(i, j, k).energy = get_pressure(Lab_(i, j, k).alpha1rho1, Lab_(i, j, k).alpha2rho2,
+        //                                          Lab_(i, j, k).ru, Lab_(i, j, k).rv, Lab_(i, j, k).rw,
+        //                                          Lab_(i, j, k).alpha2, Lab_(i, j, k).energy);
+        //    }
+    
+        for (int k = 0; k < nz; k++)
+          for (int j = 0; j < ny; j++)
+            for (int i = 0; i < nx; i++) {
+            #if 0
+                      double dudx = 0.5*( Lab_(i+1,j  ,k  ).energy-Lab_(i-1,j  ,k  ).energy);
+                      double dudy = 0.5*( Lab_(i  ,j+1,k  ).energy-Lab_(i  ,j-1,k  ).energy);
+                      double dudz = 0.5*( Lab_(i  ,j  ,k+1).energy-Lab_(i  ,j  ,k-1).energy);  
+                      double gradMag = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
+                      gradMag /= ( 1e-6 + Lab_(i,j,k).energy);
+            
+            #if 1
+                        dudx = 0.5*( Lab_(i+1,j  ,k  ).alpha2-Lab_(i-1,j  ,k  ).alpha2);
+                        dudy = 0.5*( Lab_(i  ,j+1,k  ).alpha2-Lab_(i  ,j-1,k  ).alpha2);
+                        dudz = 0.5*( Lab_(i  ,j  ,k+1).alpha2-Lab_(i  ,j  ,k-1).alpha2);         
+                        double gradMag1 = sqrt(dudx*dudx+dudy*dudy+dudz*dudz);
+                        gradMag1 /= ( 1e-6 + Lab_(i,j,k).alpha2); 
+                        gradMag = max(gradMag,gradMag1);
+            #endif
+                
+                      L1 += gradMag;
+                      Linf = max(Linf,gradMag);
+            #else
+            /*
+                           double s0 = Lab_(i, j, k).energy;
+                           double s0i = 1.0 / s0;
+                           double ax = std::abs((Lab_(i + 1, j, k).energy - s0) * s0i);
+                           double ay = std::abs((Lab_(i, j + 1, k).energy - s0) * s0i);
+                           double az = std::abs((Lab_(i, j, k + 1).energy - s0) * s0i);
+                           ax = max(ax, std::abs((s0 - Lab_(i - 1, j, k).energy) * s0i));
+                           ay = max(ay, std::abs((s0 - Lab_(i, j - 1, k).energy) * s0i));
+                           az = max(az, std::abs((s0 - Lab_(i, j, k - 1).energy) * s0i));
+            */
+                   double s0 = Lab_(i, j, k).alpha2rho2;
+                   double s0i = 1.0 / s0;
+                   double ax = std::abs((Lab_(i + 1, j, k).alpha2rho2 - s0) * s0i);
+                   double ay = std::abs((Lab_(i, j + 1, k).alpha2rho2 - s0) * s0i);
+                   double az = std::abs((Lab_(i, j, k + 1).alpha2rho2 - s0) * s0i);
+                   ax = max(ax, std::abs((s0 - Lab_(i - 1, j, k).alpha2rho2) * s0i));
+                   ay = max(ay, std::abs((s0 - Lab_(i, j - 1, k).alpha2rho2) * s0i));
+                   az = max(az, std::abs((s0 - Lab_(i, j, k - 1).alpha2rho2) * s0i));
+    
+              Linf = max(Linf, ax);
+              Linf = max(Linf, ay);
+              Linf = max(Linf, az);
+    
+              //s0 = Lab_(i, j, k).alpha2;
+              //ax = std::abs(Lab_(i + 1, j, k).alpha2 - s0);
+              //ay = std::abs(Lab_(i, j + 1, k).alpha2 - s0);
+              //az = std::abs(Lab_(i, j, k + 1).alpha2 - s0);
+              //ax = max(ax, std::abs(s0 - Lab_(i - 1, j, k).alpha2));
+              //ay = max(ay, std::abs(s0 - Lab_(i, j - 1, k).alpha2));
+              //az = max(az, std::abs(s0 - Lab_(i, j, k - 1).alpha2));
+              //Linf_2 = max(Linf_2, ax);
+              //Linf_2 = max(Linf_2, ay);
+              //Linf_2 = max(Linf_2, az);
+            #endif
             }
-
-      for (int k = 0 - 1; k < nz + 1; k++)
-         for (int j = 0 - 1; j < ny + 1; j++)
-            for (int i = 0 - 1; i < nx + 1; i++)
-            {
-               Lab_(i, j, k).energy = get_energy(
-                   Lab_(i, j, k).alpha1rho1, Lab_(i, j, k).alpha2rho2, Lab_(i, j, k).ru,
-                   Lab_(i, j, k).rv, Lab_(i, j, k).rw, Lab_(i, j, k).alpha2, Lab_(i, j, k).energy);
-            }
-
-      if (Linf > tolerance_for_refinement) return Refine;
-      if (Linf_2 > 0.05) return Refine;
-      if (Linf < tolerance_for_compression && Linf_2 < 0.01) return Compress;
-
-      return Leave;
+    
+        //for (int k = 0 - 1; k < nz + 1; k++)
+        //  for (int j = 0 - 1; j < ny + 1; j++)
+        //    for (int i = 0 - 1; i < nx + 1; i++) {
+        //      Lab_(i, j, k).energy = get_energy(Lab_(i, j, k).alpha1rho1, Lab_(i, j, k).alpha2rho2,
+        //                                        Lab_(i, j, k).ru, Lab_(i, j, k).rv, Lab_(i, j, k).rw,
+        //                                        Lab_(i, j, k).alpha2, Lab_(i, j, k).energy);
+        //    }
+    
+        if (Linf > tolerance_for_refinement)
+          return Refine;
+        if (Linf_2 > 0.05)
+          return Refine;
+        if (Linf < tolerance_for_compression && Linf_2 < 0.01)
+          return Compress;
+    
+        return Leave;
    }
 };
 

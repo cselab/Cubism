@@ -26,6 +26,7 @@ struct Interface
       infos[1] = &i1;
       icode[0] = a_icode0;
       icode[1] = a_icode1;
+      CoarseStencil = false;
    }
 };
 
@@ -48,12 +49,9 @@ struct MyRange
    std::vector<int> removedIndices;
    bool avg_down;
 
-   // int type;
-
    bool contains(MyRange r) const
    {
       if (avg_down != r.avg_down) return false;
-      // if (type < r.type )         return false;
 
       int V  = (ez - sz) * (ey - sy) * (ex - sx);
       int Vr = (r.ez - r.sz) * (r.ey - r.sy) * (r.ex - r.sx);
@@ -85,13 +83,23 @@ struct MyRange
 struct UnPackInfo
 {
    int offset;
-   int lx, ly, lz;
-   int srcxstart, srcystart, srczstart;
-   int LX, LY;
+   int lx;
+   int ly;
+   int lz;
+   int srcxstart;
+   int srcystart;
+   int srczstart;
+   int LX;
+   int LY;
    int CoarseVersionOffset;
-   int CoarseVersionLX, CoarseVersionLY;
-   int CoarseVersionsrcxstart, CoarseVersionsrcystart, CoarseVersionsrczstart;
-   int level, Z, icode;
+   int CoarseVersionLX;
+   int CoarseVersionLY;
+   int CoarseVersionsrcxstart;
+   int CoarseVersionsrcystart;
+   int CoarseVersionsrczstart;
+   int level;
+   int Z;
+   int icode;
    long long IDreceiver;
 };
 
@@ -105,8 +113,7 @@ struct StencilManager
    std::array<MyRange, 3 * 27> AllStencils;
    MyRange Coarse_Range;
 
-   StencilManager(StencilInfo a_stencil, StencilInfo a_Cstencil, int nX, int nY, int nZ, int bX,
-                  int bY, int bZ)
+   StencilManager(StencilInfo a_stencil, StencilInfo a_Cstencil, int nX, int nY, int nZ, int bX,int bY, int bZ)
        : stencil(a_stencil), Cstencil(a_Cstencil)
    {
       blocksize[0] = nX;
@@ -188,50 +195,34 @@ struct StencilManager
    }
    void CoarseStencilLength(const int *code, int *L) const
    {
-#if 1
       L[0] = code[0] < 1 ? (code[0] < 0 ? -((stencil.sx - 1) / 2 + Cstencil.sx) : blocksize[0] / 2)
                          : (stencil.ex / 2 + Cstencil.ex - 1);
       L[1] = code[1] < 1 ? (code[1] < 0 ? -((stencil.sy - 1) / 2 + Cstencil.sy) : blocksize[1] / 2)
                          : (stencil.ey / 2 + Cstencil.ey - 1);
       L[2] = code[2] < 1 ? (code[2] < 0 ? -((stencil.sz - 1) / 2 + Cstencil.sz) : blocksize[2] / 2)
                          : (stencil.ez / 2 + Cstencil.ez - 1);
-#else
-      int eC[3] = {stencil.ex / 2 + Cstencil.ex, stencil.ey / 2 + Cstencil.ey,
-                   stencil.ez / 2 + Cstencil.ez};
-      int sC[3] = {(stencil.sx - 1) / 2 + Cstencil.sx, (stencil.sy - 1) / 2 + Cstencil.sy,
-                   (stencil.sz - 1) / 2 + Cstencil.sz};
-      sC[0]     = code[0] < 1 ? (code[0] < 0 ? sC[0] : 0) : blocksize[0] / 2;
-      sC[1]     = code[1] < 1 ? (code[1] < 0 ? sC[1] : 0) : blocksize[1] / 2;
-      sC[2]     = code[2] < 1 ? (code[2] < 0 ? sC[2] : 0) : blocksize[2] / 2;
-      eC[0]     = code[0] < 1 ? (code[0] < 0 ? 0 : blocksize[0] / 2) : blocksize[0] / 2 + eC[0] - 1;
-      eC[1]     = code[1] < 1 ? (code[1] < 0 ? 0 : blocksize[1] / 2) : blocksize[1] / 2 + eC[1] - 1;
-      eC[2]     = code[2] < 1 ? (code[2] < 0 ? 0 : blocksize[2] / 2) : blocksize[2] / 2 + eC[2] - 1;
-      L[0]      = eC[0] - sC[0];
-      L[1]      = eC[1] - sC[1];
-      L[2]      = eC[2] - sC[2];
-#endif
+
    }
 
-   void DetermineStencilLength(const int level_sender, const int level_receiver,
-                               /*const int * code,*/ const int icode, int *L)
+   void DetermineStencilLength(const int level_sender, const int level_receiver, const int icode, int *L)
    {
       if (level_sender == level_receiver)
       {
-         L[0] = sLength[3 * icode +0]; // code[0]<1? (code[0]<0 ? -stencil.sx:blocksize[0]):stencil.ex-1;
-         L[1] = sLength[3 * icode +1]; // code[1]<1? (code[1]<0 ? -stencil.sy:blocksize[1]):stencil.ey-1;
-         L[2] = sLength[3 * icode +2]; // code[2]<1? (code[2]<0 ? -stencil.sz:blocksize[2]):stencil.ez-1;
+         L[0] = sLength[3 * icode +0];
+         L[1] = sLength[3 * icode +1];
+         L[2] = sLength[3 * icode +2];
       }
       else if (level_sender > level_receiver)
       {
-         L[0] = sLength[3 * (icode + 27) +0]; // code[0]<1? (code[0]<0 ? -stencil.sx:blocksize[0]/2):stencil.ex-1;
-         L[1] = sLength[3 * (icode + 27) +1]; // code[1]<1? (code[1]<0 ? -stencil.sy:blocksize[1]/2):stencil.ey-1;
-         L[2] = sLength[3 * (icode + 27) +2]; // code[2]<1? (code[2]<0 ? -stencil.sz:blocksize[2]/2):stencil.ez-1;
+         L[0] = sLength[3 * (icode + 27) +0];
+         L[1] = sLength[3 * (icode + 27) +1];
+         L[2] = sLength[3 * (icode + 27) +2];
       }
       else
       {
-         L[0] = sLength[3 * (icode + 2 * 27) +0]; // code[0]<1? (code[0]<0 ? -((stencil.sx-1)/2+Cstencil.sx):blocksize[0]/2):(stencil.ex)/2+ Cstencil.ex -1;
-         L[1] = sLength[3 * (icode + 2 * 27) +1]; // code[1]<1? (code[1]<0 ? -((stencil.sy-1)/2+Cstencil.sy):blocksize[1]/2):(stencil.ey)/2+ Cstencil.ey -1;
-         L[2] = sLength[3 * (icode + 2 * 27) +2]; // code[2]<1? (code[2]<0 ? -((stencil.sz-1)/2+Cstencil.sz):blocksize[2]/2):(stencil.ez)/2+ Cstencil.ez -1;
+         L[0] = sLength[3 * (icode + 2 * 27) +0];
+         L[1] = sLength[3 * (icode + 2 * 27) +1];
+         L[2] = sLength[3 * (icode + 2 * 27) +2];
       }
    }
 
@@ -361,7 +352,6 @@ struct StencilManager
          sz = range_dup.sz - range.sz;
       }
    }
-   #if 0
    void __FixDuplicates2(const Interface &f, const Interface &f_dup, int &sx, int &sy, int &sz)
    {
       if (f.infos[0]->level != f.infos[1]->level || f_dup.infos[0]->level != f_dup.infos[1]->level)
@@ -373,7 +363,6 @@ struct StencilManager
       sy                = range_dup.sy - range.sy;
       sz                = range_dup.sz - range.sz;
    }
-   #endif
 };
 
 template <typename Real>
@@ -397,7 +386,6 @@ class SynchronizerMPI_AMR
 
    static std::vector<GrowingVector<Interface>> send_interfaces;
    std::vector<std::vector<InterfaceInfo>> send_interfaces_infos;
-
    std::vector<GrowingVector<PackInfo>> send_packinfos;
 
    std::vector<int> send_buffer_size;
@@ -427,11 +415,14 @@ class SynchronizerMPI_AMR
       int size;
 
       std::vector<GrowingVector<UnPackInfo>> manyUnpacks;
-      std::vector<GrowingVector<UnPackInfo>> manyUnpacks_recv;
+      std::vector<GrowingVector<UnPackInfo>> manyUnpacks_recv; 
+
       GrowingVector<GrowingVector<UnPackInfo *>> unpacks;
 
       std::vector<MPI_Request> pack_requests;
       std::vector<std::array<long long int, 2>> MapOfInfos;
+
+      MPI_Datatype MPI_PACK;
 
       UnpacksManagerStruct()
       {
@@ -439,6 +430,41 @@ class SynchronizerMPI_AMR
          MPI_Comm_size(MPI_COMM_WORLD, &size);
          manyUnpacks_recv.resize(size);
          manyUnpacks.resize(size);
+
+         int array_of_blocklengths[19];
+         MPI_Datatype array_of_types[19];
+         for (int i=0;i<18;i++)
+         {
+             array_of_blocklengths[i] = 1;
+             array_of_types[i] = MPI_INT;
+         }
+         array_of_blocklengths[18] = 1;
+         array_of_types[18] = MPI_LONG_LONG_INT;
+
+         MPI_Aint array_of_displacements[19];
+         UnPackInfo p;    
+         MPI_Aint base; MPI_Get_address(&p,&base);
+         MPI_Aint offset; MPI_Get_address(&p.offset,&offset); array_of_displacements[0] = offset - base;
+         MPI_Aint lx; MPI_Get_address(&p.lx,&lx); array_of_displacements[1] = lx - base;
+         MPI_Aint ly; MPI_Get_address(&p.ly,&ly); array_of_displacements[2] = ly - base;
+         MPI_Aint lz; MPI_Get_address(&p.lz,&lz); array_of_displacements[3] = lz - base;
+         MPI_Aint srcxstart; MPI_Get_address(&p.srcxstart,&srcxstart); array_of_displacements[4] = srcxstart - base;
+         MPI_Aint srcystart; MPI_Get_address(&p.srcystart,&srcystart); array_of_displacements[5] = srcystart - base;
+         MPI_Aint srczstart; MPI_Get_address(&p.srczstart,&srczstart); array_of_displacements[6] = srczstart - base;
+         MPI_Aint LX; MPI_Get_address(&p.LX,&LX); array_of_displacements[7] = LX - base;
+         MPI_Aint LY; MPI_Get_address(&p.LY,&LY); array_of_displacements[8] = LY - base;
+         MPI_Aint CoarseVersionOffset; MPI_Get_address(&p.CoarseVersionOffset,&CoarseVersionOffset); array_of_displacements[9] = CoarseVersionOffset - base;
+         MPI_Aint CoarseVersionLX; MPI_Get_address(&p.CoarseVersionLX,&CoarseVersionLX); array_of_displacements[10] = CoarseVersionLX - base;
+         MPI_Aint CoarseVersionLY; MPI_Get_address(&p.CoarseVersionLY,&CoarseVersionLY); array_of_displacements[11] = CoarseVersionLY - base;
+         MPI_Aint CoarseVersionsrcxstart; MPI_Get_address(&p.CoarseVersionsrcxstart,&CoarseVersionsrcxstart); array_of_displacements[12] = CoarseVersionsrcxstart - base;
+         MPI_Aint CoarseVersionsrcystart; MPI_Get_address(&p.CoarseVersionsrcystart,&CoarseVersionsrcystart); array_of_displacements[13] = CoarseVersionsrcystart - base;
+         MPI_Aint CoarseVersionsrczstart; MPI_Get_address(&p.CoarseVersionsrczstart,&CoarseVersionsrczstart); array_of_displacements[14] = CoarseVersionsrczstart - base;
+         MPI_Aint level; MPI_Get_address(&p.level,&level); array_of_displacements[15] = level - base;
+         MPI_Aint Z; MPI_Get_address(&p.Z,&Z); array_of_displacements[16] = Z - base;
+         MPI_Aint icode; MPI_Get_address(&p.icode,&icode); array_of_displacements[17] = icode - base;
+         MPI_Aint IDreceiver; MPI_Get_address(&p.IDreceiver,&IDreceiver); array_of_displacements[18] = IDreceiver - base;
+         MPI_Type_create_struct(19, array_of_blocklengths, array_of_displacements, array_of_types,&MPI_PACK);
+         MPI_Type_commit(&MPI_PACK);
       }
 
       void clear()
@@ -460,52 +486,48 @@ class SynchronizerMPI_AMR
          MapOfInfos.clear();
       }
 
-      ~UnpacksManagerStruct() { clear(); }
+      ~UnpacksManagerStruct() { clear(); MPI_Type_free(&MPI_PACK);}
 
       void _allocate(size_t a_blocks, size_t *L)
       {
-         blocks = a_blocks;
-         unpacks.resize(blocks);
-         sizes = new size_t[blocks];
-         for (size_t i = 0; i < blocks; i++)
-         {
-            sizes[i] = 0;
-            unpacks[i].resize(L[i]);
-         }
+        blocks = a_blocks;
+        unpacks.resize(blocks);
+        sizes = new size_t[blocks];
+        for (size_t i = 0; i < blocks; i++)
+        {
+           sizes[i] = 0;
+           unpacks[i].resize(L[i]);
+        }
       }
 
       void add(UnPackInfo &info, size_t block_id)
       {
-         #pragma omp critical
-         {
-            unpacks[block_id][sizes[block_id]] = &info;
-            sizes[block_id]++;
-         }
+        assert(block_id < blocks);
+        assert(sizes[block_id] < unpacks[block_id].size());
+        unpacks[block_id][sizes[block_id]] = &info;
+        sizes[block_id]++;
       }
 
       void SendPacks(std::set<int> Neighbors, int timestamp)
       {
+         pack_requests.clear();
          assert(pack_requests.size() == 0);
+
          for (auto &r : Neighbors)
          {
             pack_requests.resize(pack_requests.size() + 1);
-            MPI_Isend(manyUnpacks[r].data(), sizeof(UnPackInfo) * manyUnpacks[r].size(), MPI_CHAR,
-                      r, timestamp, MPI_COMM_WORLD, &pack_requests.back());
+            MPI_Isend(manyUnpacks[r].data(), manyUnpacks[r].size(), MPI_PACK, r, timestamp, MPI_COMM_WORLD, &pack_requests.back());         
          }
-
          for (auto &r : Neighbors)
          {
             int number_amount;
             MPI_Status status;
             MPI_Probe(r, timestamp, MPI_COMM_WORLD, &status);
-            MPI_Get_count(&status, MPI_INT, &number_amount);
-            number_amount *= sizeof(int);
-            manyUnpacks_recv[r].resize(number_amount / sizeof(UnPackInfo));
-
+            MPI_Get_count(&status, MPI_PACK, &number_amount);
+            manyUnpacks_recv[r].resize(number_amount);
             pack_requests.resize(pack_requests.size() + 1);
-            MPI_Irecv(manyUnpacks_recv[r].data(), sizeof(UnPackInfo) * manyUnpacks_recv[r].size(),
-                      MPI_CHAR, r, timestamp, MPI_COMM_WORLD, &pack_requests.back());
-         }
+            MPI_Irecv(manyUnpacks_recv[r].data(), manyUnpacks_recv[r].size(),MPI_PACK, r, timestamp, MPI_COMM_WORLD, &pack_requests.back());           
+         }       
       }
 
       void MapIDs()
@@ -513,17 +535,21 @@ class SynchronizerMPI_AMR
          if (pack_requests.size() == 0) return;
 
          MPI_Waitall(pack_requests.size(), pack_requests.data(), MPI_STATUSES_IGNORE);
-         pack_requests.clear();
+         pack_requests.clear();        
+
          std::sort(MapOfInfos.begin(), MapOfInfos.end());
 
-         for (int r = 0; r < size; r++)
+         int rank;
+         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+
+         for (int r = 0; r < size; r++) if (r!=rank)
             for (size_t i = 0; i < manyUnpacks_recv[r].size(); i++)
             {
                UnPackInfo &info                     = manyUnpacks_recv[r][i];
                std::array<long long int, 2> element = {info.IDreceiver, -1};
                auto low   = std::lower_bound(MapOfInfos.begin(), MapOfInfos.end(), element);
                int Target = (*low)[1];
-               assert(Target >= 0);
+               assert((*low)[0] == info.IDreceiver);
                add(info, Target);
             }
       }
@@ -532,9 +558,10 @@ class SynchronizerMPI_AMR
    UnpacksManagerStruct UnpacksManager;
    StencilManager SM;
 
+#if 1 //new
    struct DuplicatesManager
    {
-    #if 0
+     #if 0
       struct cube // could be more efficient, fix later
       {
          GrowingVector<MyRange> compass[27];
@@ -644,7 +671,7 @@ class SynchronizerMPI_AMR
       };
       cube C;
       std::vector<bool> skip_needed;
-    #endif
+     #endif
       int size;
       SynchronizerMPI_AMR *Synch_ptr;
       std::vector<GrowingVector<int>> positions;
@@ -719,12 +746,12 @@ class SynchronizerMPI_AMR
                                          (f[k1].icode[1] / 9) % 3 - 1};
                     if (abs(code1[0]) + abs(code1[1]) + abs(code1[2]) > 1 )
                     {
-                        if (code1[0] == code[0] || code1[1] == code[1] || code1[2] == code[2])
-                        {
-                            KEEP[i1] = false;
-                            removed[i].push_back(k1);
-                            fInfo[k1].ToBeKept = false;
-                        }
+                    //    if (code1[0] == code[0] || code1[1] == code[1] || code1[2] == code[2])
+                    //    {
+                    //        KEEP[i1] = false;
+                    //        removed[i].push_back(k1);
+                    //        fInfo[k1].ToBeKept = false;
+                    //    }
                     }
                 }
             }
@@ -815,7 +842,7 @@ class SynchronizerMPI_AMR
 
                fInfo[remEl1].dis = info.offset;
             }
-#if 0
+        #if 0
             for (size_t kk = 0; kk < (*i).removedIndices.size(); kk++)
             {
                int remEl1 = i->removedIndices[kk];
@@ -845,12 +872,247 @@ class SynchronizerMPI_AMR
 
                fInfo[remEl1].dis = info.offset;
             }
-#endif
+       #endif
          }
          ///*------------->*/ Clock.finish(24);
       }
 
    };
+#else
+    struct DuplicatesManager
+    {
+        struct cube //could be more efficient, fix later
+        {
+            GrowingVector <MyRange> compass [27];
+
+            void clear()
+            {
+                for (int i=0;i<27;i++) compass[i].clear();
+            }
+
+            void EraseAll()
+            {
+                for (int i=0;i<27;i++) compass[i].EraseAll();
+            }
+     
+            cube(){}
+        
+            std::vector<MyRange *> keepEl()
+            {
+                std::vector<MyRange *> retval;
+            
+                for (int i=0; i<27; i++)
+                {
+                    for (size_t j=0; j< compass[i].size() ; j++)
+                    {
+                        if (compass[i][j].needed)
+                            retval.push_back(&compass[i][j]);
+                    }
+                }    
+                return retval;
+            }
+        
+            void __needed(std::vector<int> & v)
+            {
+                static constexpr std::array <int,3> faces_and_edges [18] = {
+                    {0,1,1},{2,1,1},{1,0,1},{1,2,1},{1,1,0},{1,1,2},
+                    
+                    {0,0,1},{0,2,1},{2,0,1},{2,2,1},{1,0,0},{1,0,2},
+                    {1,2,0},{1,2,2},{0,1,0},{0,1,2},{2,1,0},{2,1,2}};
+    
+                for (auto & f:faces_and_edges)
+                if ( compass[f[0] + f[1]*3 + f[2]*9].size() != 0 )
+                {
+                    auto & me = compass[f[0] + f[1]*3 + f[2]*9];
+
+                    bool needme = false;
+                    auto & other1 = compass[f[0] + f[1]*3 + f[2]*9];       
+                    for (size_t j1=0; j1<other1.size(); j1++)
+                    { 
+                        auto & o = other1[j1];
+                        if (o.needed)
+                        {
+                            needme = true;
+    
+                            for (size_t j=0; j<me.size(); j++)
+                            {
+                             auto & m = me[j];
+                             if (m.needed && m.contains(o) )
+                             {
+                                o.needed = false;
+                                m.removedIndices.push_back(o.index);
+                                m.Remove(o);
+                                v.push_back(o.index);
+                                break;
+                             }
+                            }
+                        }
+                    }             
+                    if (!needme) continue;
+     
+                    int imax = (f[0] == 1) ? 2:f[0];
+                    int imin = (f[0] == 1) ? 0:f[0]; 
+                    
+                    int jmax = (f[1] == 1) ? 2:f[1];
+                    int jmin = (f[1] == 1) ? 0:f[1]; 
+                    
+                    int kmax = (f[2] == 1) ? 2:f[2];
+                    int kmin = (f[2] == 1) ? 0:f[2];  
+    
+                    for (int k=kmin;k<=kmax;k++)
+                    for (int j=jmin;j<=jmax;j++)
+                    for (int i=imin;i<=imax;i++)
+                    {
+                        if (i==f[0] && j==f[1] && k==f[2]) continue;
+                        auto & other = compass[i + j*3 + k*9];       
+    
+                        for (size_t j1=0; j1<other.size(); j1++)
+                        { 
+                            auto & o = other[j1];
+                            if (o.needed)
+                            {
+                               for (size_t k1=0; k1<me.size(); k1++)
+                               {  
+                                    auto & m = me[k1];
+                                    if (m.needed && m.contains(o) )
+                                    {
+                                        o.needed = false;
+                                        m.removedIndices.push_back(o.index);
+                                        m.Remove(o);
+                                        v.push_back(o.index);
+                                        break;
+                                    }
+                               }
+                            }
+                        }
+                    }
+                } 
+            }
+        };
+      
+        cube C;
+
+        std::vector<bool> skip_needed;
+        int size;
+
+        SynchronizerMPI_AMR * Synch_ptr;
+
+        //std::vector<std::vector <int>> positions;
+        std::vector< GrowingVector <int>> positions;
+
+
+        DuplicatesManager(int a_size, SynchronizerMPI_AMR & Synch)
+        {
+            size = a_size;
+            skip_needed.resize(size,false);
+            positions.resize(size);
+
+            Synch_ptr = & Synch;
+        }
+
+        void Add(int r,int index)
+        {
+            positions[r].push_back(index);
+        }
+
+
+        void RemoveDuplicates(int r, std::vector<Interface> & f, int & offset, int & total_size, int NC)
+        {
+            std::vector<int> remEl;
+
+            
+            /*------------->*/Clock.start(22,"SynchronizerMPI_AMR : RemoveDuplicates fill cube");
+            C.clear();
+            for (size_t i=0; i<positions[r].size();i++)
+            {              
+                C.compass[f[positions[r][i]].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[positions[r][i]]));
+                C.compass[f[positions[r][i]].icode[0]].back().index = positions[r][i];
+                C.compass[f[positions[r][i]].icode[0]].back().avg_down = (f[positions[r][i]].infos[0]->level > f[positions[r][i]].infos[1]->level);
+
+                if (!skip_needed[r]) skip_needed[r] = f[positions[r][i]].CoarseStencil;
+            }
+            /*------------->*/Clock.finish(22);
+
+
+            /*------------->*/Clock.start(23,"SynchronizerMPI_AMR : RemoveDuplicates __needed");
+            if (!skip_needed[r])
+            {
+                C.__needed(remEl);
+                for (size_t k=0; k< remEl.size();k++)
+                    f[remEl[k]].ToBeKept = false;
+            }
+            /*------------->*/Clock.finish(23); 
+  
+
+
+            /*------------->*/Clock.start(24,"SynchronizerMPI_AMR : Gather UnPackInfos");
+            for (auto & i:C.keepEl())
+            {
+                int k = i->index;            
+                int L [3] ={0,0,0};
+                int Lc[3] ={0,0,0};
+                 
+                int code[3] = { f[k].icode[1]%3-1, (f[k].icode[1]/3)%3-1, (f[k].icode[1]/9)%3-1};
+
+                Synch_ptr->SM.DetermineStencilLength(f[k].infos[0]->level,f[k].infos[1]->level,f[k].icode[1],&L[0]);
+
+                int V = L[0]*L[1]*L[2];
+                int Vc = 0;
+
+                total_size+= V;
+                if (f[k].CoarseStencil)
+                {
+                    Synch_ptr->SM.CoarseStencilLength(&code[0],&Lc[0]);
+                    Vc = Lc[0]*Lc[1]*Lc[2];
+                    total_size += Vc;
+                }                    
+
+                UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,f[k].infos[0]->Z,f[k].icode[1],f[k].infos[1]->blockID};
+                
+                f[k].dis = offset;
+                offset += V*NC;
+
+                if (f[k].CoarseStencil)
+                {
+                    offset += Vc*NC; 
+                    info.CoarseVersionOffset = V*NC;                                       
+                    info.CoarseVersionLX = Lc[0];
+                    info.CoarseVersionLY = Lc[1];
+                }                   
+                    
+                Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info);
+                
+                for (size_t kk=0; kk< (*i).removedIndices.size();kk++)
+                {
+                    int remEl1 = i->removedIndices[kk];
+
+                    Synch_ptr->SM.DetermineStencilLength(f[remEl1].infos[0]->level,f[remEl1].infos[1]->level,f[remEl1].icode[1],&L[0]);
+                        
+                    int srcx, srcy, srcz;
+
+                    Synch_ptr->SM.__FixDuplicates(f[k],f[remEl1], info.lx,info.ly,info.lz,L[0],L[1],L[2], srcx,srcy,srcz);
+
+                    int Csrcx=0;
+                    int Csrcy=0;
+                    int Csrcz=0;
+
+                    if (f[k].CoarseStencil)
+                    {
+                        Synch_ptr->SM.__FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);
+                    }
+
+                    Synch_ptr->UnpacksManager.manyUnpacks[r].push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,
+                    info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY,
+                    Csrcx, Csrcy, Csrcz,
+                    f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1],f[remEl1].infos[1]->blockID});
+                    
+                    f[remEl1].dis = info.offset;
+                } 
+            }
+            /*------------->*/Clock.finish(24);
+        }
+    };
+#endif
 
    int getZforward(const int level, const int i, const int j, const int k) const
    {
@@ -861,18 +1123,19 @@ class SynchronizerMPI_AMR
 
    bool UseCoarseStencil(Interface &f)
    {
+    //return true;
       BlockInfo &a = *f.infos[0];
       BlockInfo &b = *f.infos[1];
 
       if (a.level != b.level) return false;
 
-      int imin[3];
-      int imax[3];
-      for (int d = 0; d < 3; d++)
-      {
-         imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
-         imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
-      }
+      int imin[3]= {-1,-1,-1};
+      int imax[3]= {+1,+1,+1};
+      //for (int d = 0; d < 3; d++)
+      //{
+      //   imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
+      //   imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
+      //}
 
       bool retval = false;
 
@@ -1047,8 +1310,7 @@ class SynchronizerMPI_AMR
                if (!yperiodic && code[1] == yskip && yskin) continue;
                if (!zperiodic && code[2] == zskip && zskin) continue;
 
-               // if (!stencil.tensorial && !Cstencil.tensorial &&
-               // abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
+                //if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
 
                BlockInfo &infoNei =
                    getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
@@ -1059,13 +1321,11 @@ class SynchronizerMPI_AMR
                      interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
                   isInner    = false;
                   int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
-                  send_interfaces[infoNei.myrank].push_back(
-                      Interface(info, infoNei, icode, icode2));
+                  send_interfaces[infoNei.myrank].push_back(Interface(info, infoNei, icode, icode2));
                   ToBeChecked.push_back(infoNei.myrank);
                   ToBeChecked.push_back((int)send_interfaces[infoNei.myrank].size() - 1);
                   Neighbors.insert(infoNei.myrank);
-                  interface_ranks_and_positions.back().push_back(
-                      {infoNei.myrank, (int)send_interfaces[infoNei.myrank].size() - 1});
+                  interface_ranks_and_positions.back().push_back({infoNei.myrank, (int)send_interfaces[infoNei.myrank].size() - 1});
                   l++;
                }
 
@@ -1079,8 +1339,7 @@ class SynchronizerMPI_AMR
                   if (infoNeiCoarser.myrank != rank)
                   {
                      if (isInner)
-                        interface_ranks_and_positions.resize(interface_ranks_and_positions.size() +
-                                                             1);
+                        interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
                      isInner         = false;
                      int code2[3]    = {-code[0], -code[1], -code[2]};
                      int icode2      = (code2[0] + 1) + (code2[1] + 1) * 3 + (code2[2] + 1) * 9;
@@ -1106,9 +1365,7 @@ class SynchronizerMPI_AMR
                   else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3))
                      Bstep = 4; // corner
 
-                  for (int B = 0; B <= 3;
-                       B += Bstep) // loop over blocks that make up face/edge/corner (respectively
-                                   // 4,2 or 1 blocks)
+                  for (int B = 0; B <= 3;B += Bstep) // loop over blocks that make up face/edge/corner (4/2/1 blocks)
                   {
                      const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
@@ -1129,15 +1386,11 @@ class SynchronizerMPI_AMR
                      if (infoNeiFiner.myrank != rank)
                      {
                         if (isInner)
-                           interface_ranks_and_positions.resize(
-                               interface_ranks_and_positions.size() + 1);
+                           interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
                         isInner    = false;
                         int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
-                        send_interfaces[infoNeiFiner.myrank].push_back(
-                            Interface(info, infoNeiFiner, icode, icode2));
-                        interface_ranks_and_positions.back().push_back(
-                            {infoNeiFiner.myrank,
-                             (int)send_interfaces[infoNeiFiner.myrank].size() - 1});
+                        send_interfaces[infoNeiFiner.myrank].push_back(Interface(info, infoNeiFiner, icode, icode2));
+                        interface_ranks_and_positions.back().push_back({infoNeiFiner.myrank,(int)send_interfaces[infoNeiFiner.myrank].size() - 1});
                         Neighbors.insert(infoNeiFiner.myrank);
                         l++;
                         if (Bstep == 3) // if I'm filling an edge then I'm also filling a corner
@@ -1264,7 +1517,6 @@ class SynchronizerMPI_AMR
             getBlockInfoAll(info.level, info.Z).halo_block_id = info.halo_block_id;
          } // i-loop
 
-      ///*------------->*/ Clock.start(18, "DefineInterfaces: Duplicates handling");
       for (int r = 0; r < size; r++) send_interfaces_infos[r].resize(send_interfaces[r].size());
 
       DuplicatesManager DM(size, *(this));
@@ -1289,14 +1541,16 @@ class SynchronizerMPI_AMR
       }
       
       UnpacksManager._allocate(halo_blocks.size(), lengths.data());
-      ///*------------->*/ Clock.finish(18);
    }
 
  public:
-   static std::set<int> Neighbors;
+   static 
+   std::set<int> Neighbors;
    bool define_neighbors;
-   static std::vector<std::vector<std::pair<int, int>>> interface_ranks_and_positions;
-   static std::vector<size_t> lengths;
+   static 
+   std::vector<std::vector<std::pair<int, int>>> interface_ranks_and_positions;
+   static 
+   std::vector<size_t> lengths;
 
    SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, MPI_Comm a_comm,
                        const bool a_periodic[3], const int a_levelMax, const int a_nx,
@@ -1315,7 +1569,9 @@ class SynchronizerMPI_AMR
       blocksPerDim[1] = a_by;
       blocksPerDim[2] = a_bz;
       send_interfaces.resize(size);
+      #if 1 //new
       send_interfaces_infos.resize(size);
+      #endif
       send_packinfos.resize(size);
       send_buffer_size.resize(size);
       recv_buffer_size.resize(size);
@@ -1331,11 +1587,15 @@ class SynchronizerMPI_AMR
       return halo_blocks;
    }
 
+
+
    std::vector<MPI_Request> size_requests;
    std::vector<int> ss1;
    std::vector<int> ss;
-   void _Setup(BlockInfo *a_myInfos, size_t a_myInfos_size,
-               std::vector<std::vector<BlockInfo>> &a_BlockInfoAll, const int timestamp,
+   void _Setup(BlockInfo *a_myInfos, 
+               size_t a_myInfos_size,
+               std::vector<std::vector<BlockInfo>> &a_BlockInfoAll, 
+               const int timestamp,
                const bool a_define_neighbors = false)
    {
       define_neighbors = a_define_neighbors;
@@ -1346,20 +1606,21 @@ class SynchronizerMPI_AMR
       for (int m = 0; m < levelMax; m++) BlockInfoAll[m] = &a_BlockInfoAll[m];
       const int NC = stencil.selcomponents.size();
 
-      if (rank == 0)
+      if (rank == 0) 
       {
-         std::cout << " Calling _Setup with define_neighbors=" << define_neighbors << "\n";
+        std::cout << " Calling _Setup with define_neighbors=" << define_neighbors << "\n";
       }
+        
 
       /*------------->*/ Clock.start(12, "DefineInterfaces total time");
       DefineInterfaces();
       /*------------->*/ Clock.finish(12);
 
+
       /*------------->*/ Clock.start(13, "Synchronizer: send/recv sizes");
-      for (int r = 0; r < size; r++) send_buffer[r].resize(send_buffer_size[r] * NC, 666.0);
+      for (int r = 0; r < size; r++) 
+        send_buffer[r].resize(send_buffer_size[r] * NC, 666.0);
       recv_buffer_size.resize(size, 0);
-      ss1.clear();
-      ss.clear();
       ss1.resize(size, 0);
       ss.resize(size, 0);
       size_requests.clear();
@@ -1368,7 +1629,7 @@ class SynchronizerMPI_AMR
       for (auto r : Neighbors)
       {
          ss1[r] = send_buffer[r].size();
-         MPI_Irecv(&ss[r], 1, MPI_INT, r, timestamp, comm, &size_requests[k]);
+         MPI_Irecv(&ss [r], 1, MPI_INT, r, timestamp, comm, &size_requests[k]    );
          MPI_Isend(&ss1[r], 1, MPI_INT, r, timestamp, comm, &size_requests[k + 1]);
          k += 2;
       }
@@ -1388,6 +1649,7 @@ class SynchronizerMPI_AMR
          for (int i = 0; i < (int)send_interfaces[r].size(); i++)
          {
             Interface &f         = send_interfaces[r][i];
+            
             InterfaceInfo &fInfo = send_interfaces_infos[r][i];
             if (!fInfo.ToBeKept) continue;
 
@@ -1476,7 +1738,7 @@ class SynchronizerMPI_AMR
 
       /*------------->*/ Clock.start(13, "Synchronizer: send/recv sizes");
       MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);
-      for (int r = 0; r < size; r++)
+      for (auto r : Neighbors)
       {
          recv_buffer_size[r] = ss[r] / NC;
          recv_buffer[r].resize(recv_buffer_size[r] * NC, 777.0);
@@ -1485,7 +1747,7 @@ class SynchronizerMPI_AMR
 
       send_requests.clear();
       recv_requests.clear();
-      for (int r = 0; r < size; r++)
+      for (auto r : Neighbors)
       {
          if (recv_buffer_size[r] > 0)
          {
@@ -1494,7 +1756,7 @@ class SynchronizerMPI_AMR
                       &recv_requests.back());
          }
       }
-      for (int r = 0; r < size; r++)
+      for (auto r : Neighbors)
       {
          if (send_buffer_size[r] > 0)
          {
@@ -1622,6 +1884,7 @@ class SynchronizerMPI_AMR
                }
 
                assert(t == 0 || t == 1);
+
                if (t == 1) B = 3;
                else
                   B = 0;
@@ -1680,23 +1943,11 @@ class SynchronizerMPI_AMR
    }
 };
 
-template <typename Real>
-std::set<int> SynchronizerMPI_AMR<Real>::Neighbors;
-
-template <typename Real>
-std::vector<BlockInfo *> SynchronizerMPI_AMR<Real>::halo_blocks;
-
-template <typename Real>
-std::vector<BlockInfo *> SynchronizerMPI_AMR<Real>::inner_blocks;
-
-template <typename Real>
-std::vector<std::vector<std::pair<int, int>>>
-    SynchronizerMPI_AMR<Real>::interface_ranks_and_positions;
-
-template <typename Real>
-std::vector<GrowingVector<Interface>> SynchronizerMPI_AMR<Real>::send_interfaces;
-
-template <typename Real>
-std::vector<size_t> SynchronizerMPI_AMR<Real>::lengths;
+template <typename Real> std::set<int> SynchronizerMPI_AMR<Real>::Neighbors;
+template <typename Real> std::vector<BlockInfo *> SynchronizerMPI_AMR<Real>::halo_blocks;
+template <typename Real> std::vector<BlockInfo *> SynchronizerMPI_AMR<Real>::inner_blocks;
+template <typename Real> std::vector<std::vector<std::pair<int, int>>> SynchronizerMPI_AMR<Real>::interface_ranks_and_positions;
+template <typename Real> std::vector<GrowingVector<Interface>> SynchronizerMPI_AMR<Real>::send_interfaces;
+template <typename Real> std::vector<size_t> SynchronizerMPI_AMR<Real>::lengths;
 
 CUBISM_NAMESPACE_END

@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdint.h>
 
+#include<mpi.h>//for debug
 using namespace std;
 
 //#define MortonCurve
@@ -168,17 +169,17 @@ class SpaceFillingCurve
    }
 
  public:
-   // int * Z_ORIGIN;
    int *SUBSTRACT;
    int base_level;
 
+
+   std::vector< std::vector<int> > i_inverse;
+   std::vector< std::vector<int> > j_inverse;
+   std::vector< std::vector<int> > k_inverse;
+
    SpaceFillingCurve(){};
 
-   ~SpaceFillingCurve()
-   {
-      // delete [] Z_ORIGIN;
-      delete[] SUBSTRACT;
-   }
+   ~SpaceFillingCurve(){ delete[] SUBSTRACT; }
 
    void __setup(int nx, int ny, int nz)
    {
@@ -187,10 +188,21 @@ class SpaceFillingCurve
       BZ = nz;
    }
 
-   SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ)
-       : BX(a_BX), BY(a_BY), BZ(a_BZ)
+   SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ) : BX(a_BX), BY(a_BY), BZ(a_BZ)
    {
-      // Z_ORIGIN = new int [BX*BY*BZ];
+      int lmax = 5; //lvlMax();
+      std::cout << "Level Max = " << lmax << std::endl;
+      i_inverse.resize(lmax);
+      j_inverse.resize(lmax);
+      k_inverse.resize(lmax);
+      for (int l = 0 ; l < lmax ; l++)
+      {
+        int aux = pow( pow(2,l) , 3);
+        i_inverse[l].resize(BX*BY*BZ*aux,-666);
+        j_inverse[l].resize(BX*BY*BZ*aux,-666);
+        k_inverse[l].resize(BX*BY*BZ*aux,-666);
+      }
+
       SUBSTRACT = new int[BX * BY * BZ];
 
       int n_max  = max(max(BX, BY), BZ);
@@ -217,6 +229,21 @@ class SpaceFillingCurve
         index -= substract;
         SUBSTRACT[(j + k*BY)*BX + i] = substract;
       }  
+
+      #pragma omp parallel for 
+      for (int l = 0 ; l < lmax ; l++)
+      {
+        int aux = pow(2,l);
+        for (unsigned int k=0;k<BZ*aux;k++)
+        for (unsigned int j=0;j<BY*aux;j++)
+        for (unsigned int i=0;i<BX*aux;i++)
+        {
+          int retval = forward(l,i,j,k);
+          i_inverse[l][retval] = i;
+          j_inverse[l][retval] = j;
+          k_inverse[l][retval] = k;
+        }      
+      }
    }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)
@@ -227,40 +254,44 @@ class SpaceFillingCurve
       unsigned int I   = i / aux;
       unsigned int J   = j / aux;
       unsigned int K   = k / aux;
+      
       if (I >= BX || J >= BY || K >= BZ) return 0;
 
-#if defined(MortonCurve)
-      unsigned int I1 = i % aux;
-      unsigned int J1 = j % aux;
-      unsigned int K1 = k % aux;
-      int z           = mortonEncode_for(I1, J1, K1);
-      int z_origin    = ((J + K * BY) * BX + I) * aux * aux * aux;
-      return z + z_origin;
-#elif defined(HilbertCurve)
+      #if defined(MortonCurve)
+        unsigned int I1 = i % aux;
+        unsigned int J1 = j % aux;
+        unsigned int K1 = k % aux;
+        int z           = mortonEncode_for(I1, J1, K1);
+        int z_origin    = ((J + K * BY) * BX + I) * aux * aux * aux;
+        return z + z_origin;
+      #elif defined(HilbertCurve)
 
       const unsigned int c2_a[3] = {i, j, k};
       int s                      = SUBSTRACT[((J + K * BY) * BX + I)] * aux * aux * aux;
 
-      assert(s == 0);
+      int retval = AxestoTranspose(c2_a, l + base_level) - s;
 
-      return AxestoTranspose(c2_a, l + base_level) - s;
-
-      //  const unsigned int c1[3] = {I1,J1,K1};
-      //  return Z_ORIGIN[((J + K*BY)*BX + I)]*aux*aux*aux + AxestoTranspose(c1, l);
-      //  int z_origin = ((J + K*BY)*BX + I)*aux*aux*aux;
-      //  return z_origin + AxestoTranspose(c1, l);
+      return retval;
 #endif
    }
 
    void inverse(int Z, unsigned int l, unsigned int &i, unsigned int &j, unsigned int &k)
    {
-      unsigned int X[3] = {0, 0, 0};
+      //unsigned int X[3] = {0, 0, 0};
+      //TransposetoAxes(Z, X, l + base_level);
+      //i = X[0];
+      //j = X[1];
+      //k = X[2];
 
-      TransposetoAxes(Z, X, l + base_level);
-
-      i = X[0];
-      j = X[1];
-      k = X[2];
+      i = i_inverse[l][Z];
+      j = j_inverse[l][Z];
+      k = k_inverse[l][Z];
+      assert(i_inverse[l][Z]>=0);
+      assert(j_inverse[l][Z]>=0);
+      assert(k_inverse[l][Z]>=0);
+      assert(i_inverse[l][Z] < BX * (1<<l));
+      assert(j_inverse[l][Z] < BY * (1<<l));
+      assert(k_inverse[l][Z] < BZ * (1<<l));
    }
 
    // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)
@@ -274,20 +305,6 @@ class SpaceFillingCurve
 
    int Encode(int level, int Z, int index[3])
    {
-#if 0
-    int retval;
-    if (level == 0) 
-    {
-      retval = Z;
-    }
-    else 
-    {
-      int V = BX*BY*BZ * pow(pow(2,level-1),3);
-      retval = V + Z; 
-    }
-    return retval;
-#else
-
       int lmax   = lvlMax();
       int retval = 0;
 
@@ -321,9 +338,8 @@ class SpaceFillingCurve
       }
 
       retval += level;
-
+  
       return retval;
-#endif
    }
 };
 

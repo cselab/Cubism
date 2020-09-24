@@ -15,7 +15,7 @@
 namespace cubism
 {
 
-#define WENOWAVELET 5
+#define WENOWAVELET 3
 
 template <typename TGrid, typename TLab>
 class MeshAdaptation

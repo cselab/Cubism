@@ -424,10 +424,13 @@ class SynchronizerMPI_AMR
 
       MPI_Datatype MPI_PACK;
 
+      MPI_Comm comm;
+
       UnpacksManagerStruct()
       {
+         comm = MPI_COMM_WORLD;
          sizes = nullptr;
-         MPI_Comm_size(MPI_COMM_WORLD, &size);
+         MPI_Comm_size(comm, &size);
          manyUnpacks_recv.resize(size);
          manyUnpacks.resize(size);
 
@@ -516,17 +519,17 @@ class SynchronizerMPI_AMR
          for (auto &r : Neighbors)
          {
             pack_requests.resize(pack_requests.size() + 1);
-            MPI_Isend(manyUnpacks[r].data(), manyUnpacks[r].size(), MPI_PACK, r, timestamp, MPI_COMM_WORLD, &pack_requests.back());         
+            MPI_Isend(manyUnpacks[r].data(), manyUnpacks[r].size(), MPI_PACK, r, timestamp, comm, &pack_requests.back());         
          }
          for (auto &r : Neighbors)
          {
             int number_amount;
             MPI_Status status;
-            MPI_Probe(r, timestamp, MPI_COMM_WORLD, &status);
+            MPI_Probe(r, timestamp, comm, &status);
             MPI_Get_count(&status, MPI_PACK, &number_amount);
             manyUnpacks_recv[r].resize(number_amount);
             pack_requests.resize(pack_requests.size() + 1);
-            MPI_Irecv(manyUnpacks_recv[r].data(), manyUnpacks_recv[r].size(),MPI_PACK, r, timestamp, MPI_COMM_WORLD, &pack_requests.back());           
+            MPI_Irecv(manyUnpacks_recv[r].data(), manyUnpacks_recv[r].size(),MPI_PACK, r, timestamp, comm, &pack_requests.back());           
          }       
       }
 
@@ -540,7 +543,7 @@ class SynchronizerMPI_AMR
          std::sort(MapOfInfos.begin(), MapOfInfos.end());
 
          int rank;
-         MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+         MPI_Comm_rank(comm,&rank);
 
          for (int r = 0; r < size; r++) if (r!=rank)
             for (size_t i = 0; i < manyUnpacks_recv[r].size(); i++)
@@ -1577,6 +1580,9 @@ class SynchronizerMPI_AMR
       recv_buffer_size.resize(size);
       send_buffer.resize(size);
       recv_buffer.resize(size);
+
+
+      UnpacksManager.comm = comm;
    }
 
    std::vector<BlockInfo *> avail_inner() { return inner_blocks; }

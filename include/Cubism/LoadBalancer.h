@@ -23,6 +23,8 @@ class LoadBalancer
    int flux_left_old;
    int flux_right_old;
 
+   MPI_Comm comm;
+
  protected:
    TGrid *m_refGrid;
    int rank, size;
@@ -59,8 +61,9 @@ class LoadBalancer
  public:
    LoadBalancer(TGrid &grid)
    {
-      MPI_Comm_size(MPI_COMM_WORLD, &size);
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      comm = grid.getWorldComm();
+      MPI_Comm_size(comm, &size);
+      MPI_Comm_rank(comm, &rank);
       m_refGrid   = &grid;
       movedBlocks = false;
       MPI_Block dummy;
@@ -150,14 +153,14 @@ class LoadBalancer
                MPI_Request req;
                requests.push_back(req);
                MPI_Irecv(&recv_blocks[r][0], recv_blocks[r].size(), MPI_BLOCK, r, 123450,
-                         MPI_COMM_WORLD, &requests.back());
+                         comm, &requests.back());
             }
             if (send_blocks[r].size() != 0)
             {
                MPI_Request req;
                requests.push_back(req);
                MPI_Isend(&send_blocks[r][0], send_blocks[r].size(), MPI_BLOCK, r, 123450,
-                         MPI_COMM_WORLD, &requests.back());
+                         comm, &requests.back());
             }
          }
 
@@ -200,10 +203,10 @@ class LoadBalancer
       int right_blocks, left_blocks;
 
       std::vector<MPI_Request> reqs(4);
-      MPI_Irecv(&left_blocks, 1, MPI_INT, left, 123, MPI_COMM_WORLD, &reqs[0]);
-      MPI_Irecv(&right_blocks, 1, MPI_INT, right, 456, MPI_COMM_WORLD, &reqs[1]);
-      MPI_Isend(&my_blocks, 1, MPI_INT, left, 456, MPI_COMM_WORLD, &reqs[2]);
-      MPI_Isend(&my_blocks, 1, MPI_INT, right, 123, MPI_COMM_WORLD, &reqs[3]);
+      MPI_Irecv(&left_blocks, 1, MPI_INT, left, 123, comm, &reqs[0]);
+      MPI_Irecv(&right_blocks, 1, MPI_INT, right, 456, comm, &reqs[1]);
+      MPI_Isend(&my_blocks, 1, MPI_INT, left, 456, comm, &reqs[2]);
+      MPI_Isend(&my_blocks, 1, MPI_INT, right, 123, comm, &reqs[3]);
 
       MPI_Waitall(4, &reqs[0], MPI_STATUSES_IGNORE);
 
@@ -238,7 +241,7 @@ class LoadBalancer
 
          MPI_Request req;
          request.push_back(req);
-         MPI_Isend(&send_left[0], send_left.size(), MPI_BLOCK, left, 7890, MPI_COMM_WORLD,
+         MPI_Isend(&send_left[0], send_left.size(), MPI_BLOCK, left, 7890, comm,
                    &request.back());
       }
       else if (flux_left < 0) // then I will receive blocks from my left rank
@@ -246,7 +249,7 @@ class LoadBalancer
          recv_left.resize(abs(flux_left));
          MPI_Request req;
          request.push_back(req);
-         MPI_Irecv(&recv_left[0], recv_left.size(), MPI_BLOCK, left, 4560, MPI_COMM_WORLD,
+         MPI_Irecv(&recv_left[0], recv_left.size(), MPI_BLOCK, left, 4560, comm,
                    &request.back());
       }
 
@@ -258,7 +261,7 @@ class LoadBalancer
 
          MPI_Request req;
          request.push_back(req);
-         MPI_Isend(&send_right[0], send_right.size(), MPI_BLOCK, right, 4560, MPI_COMM_WORLD,
+         MPI_Isend(&send_right[0], send_right.size(), MPI_BLOCK, right, 4560, comm,
                    &request.back());
       }
       else if (flux_right < 0) // then I will receive blocks from my right rank
@@ -266,7 +269,7 @@ class LoadBalancer
          recv_right.resize(abs(flux_right));
          MPI_Request req;
          request.push_back(req);
-         MPI_Irecv(&recv_right[0], recv_right.size(), MPI_BLOCK, right, 7890, MPI_COMM_WORLD,
+         MPI_Irecv(&recv_right[0], recv_right.size(), MPI_BLOCK, right, 7890, comm,
                    &request.back());
       }
 
@@ -320,13 +323,13 @@ class LoadBalancer
       }
 
       int temp = movedBlocks ? 1 : 0;
-      MPI_Allreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_LOR, comm);
       movedBlocks = (temp == 1);
 #if 0      
       {
          int b = m_refGrid->getBlocksInfo().size();
          std::vector<int> all_b(size);
-         MPI_Gather(&b, 1, MPI_INT, &all_b[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+         MPI_Gather(&b, 1, MPI_INT, &all_b[0], 1, MPI_INT, 0, comm);
 
          if (rank == 0)
          {

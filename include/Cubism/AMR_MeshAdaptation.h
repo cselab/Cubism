@@ -27,6 +27,8 @@ class MeshAdaptation
    typedef SynchronizerMPI_AMR<Real> SynchronizerMPIType;
    typedef typename TGrid::BlockType Block;
 
+   double tolerance_for_refinement;
+   double tolerance_for_compression;
  protected:
    TGrid *m_refGrid;
    int s[3];
@@ -35,8 +37,8 @@ class MeshAdaptation
    int Is[3];
    int Ie[3];
    std::vector<int> components;
-   double tolerance_for_refinement;
-   double tolerance_for_compression;
+   //double tolerance_for_refinement;
+   //double tolerance_for_compression;
    TLab *labs;
    double time;
 
@@ -91,7 +93,7 @@ class MeshAdaptation
       bool per[3]          = {m_refGrid->xperiodic, m_refGrid->yperiodic, m_refGrid->zperiodic};
       StencilInfo Cstencil = stencil;
       Synch                = new SynchronizerMPIType(
-          stencil, Cstencil, MPI_COMM_WORLD, per, m_refGrid->getlevelMax(), TGrid::Block::sizeX,
+          stencil, Cstencil, m_refGrid->getWorldComm(), per, m_refGrid->getlevelMax(), TGrid::Block::sizeX,
           TGrid::Block::sizeY, TGrid::Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2]);
 
       Synch->_Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),
@@ -147,7 +149,7 @@ class MeshAdaptation
                     {
                       tmp = 1;
                       Reduction = true;
-                      MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD,&Reduction_req);
+                      MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, m_refGrid->getWorldComm(),&Reduction_req);
                     }
                 }                
             }
@@ -184,7 +186,7 @@ class MeshAdaptation
                     {
                       tmp = 1;
                       Reduction = true;
-                      MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD,&Reduction_req);
+                      MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, m_refGrid->getWorldComm(),&Reduction_req);
                     }
                 }                
             }
@@ -197,7 +199,7 @@ class MeshAdaptation
       {
         tmp = CallValidStates ? 1 : 0;
         Reduction = true;
-        MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD,&Reduction_req);
+        MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, m_refGrid->getWorldComm(),&Reduction_req);
       }
 
       LoadBalancer<TGrid> Balancer(*m_refGrid);
@@ -276,9 +278,9 @@ class MeshAdaptation
       #if 1
       int temp[2] = {r, c};
       int result[2];
-      MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, m_refGrid->getWorldComm());
       int rank;
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      MPI_Comm_rank(m_refGrid->getWorldComm(), &rank);
       if (rank == 0)
       {
          std::cout << "==============================================================\n";
@@ -382,7 +384,7 @@ class MeshAdaptation
    void compress(int level, int Z)
    {
         int rank;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_rank(m_refGrid->getWorldComm(), &rank);
         assert(level > 0);
 
         BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);

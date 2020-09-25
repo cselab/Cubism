@@ -33,7 +33,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const typename TGrid::R
 {
 #ifdef CUBISM_USE_HDF
 
-   MPI_Comm comm = MPI_COMM_WORLD;
+   MPI_Comm comm = grid.getWorldComm();
    int rank, size;
    MPI_Comm_rank(comm, &rank);
    MPI_Comm_size(comm, &size);
@@ -71,7 +71,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const typename TGrid::R
 
    // 3.All ranks need to create datasets dset*
    std::vector<unsigned int> Block_per_rank(size);
-   MPI_Allgather(&Ngrids, 1, MPI_UNSIGNED, &Block_per_rank[0], 1, MPI_UNSIGNED, MPI_COMM_WORLD);
+   MPI_Allgather(&Ngrids, 1, MPI_UNSIGNED, &Block_per_rank[0], 1, MPI_UNSIGNED, comm);
    for (int r = 0; r < size; r++)
    {
       hsize_t dims1[4] = {nZ, nY, nX, NCHANNELS * Block_per_rank[r]};
@@ -206,7 +206,7 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const typename TGrid::R
       MPI_File_open(comm, (fullpath.str() + ".xmf").c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE,
                     MPI_INFO_NULL, &xmf);
 
-      MPI_Exscan(&len, &offset, 1, MPI_OFFSET, MPI_SUM, MPI_COMM_WORLD);
+      MPI_Exscan(&len, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
 
       MPI_File_write_at_all(xmf, offset, st.data(), st.size(), MPI_CHAR, MPI_STATUS_IGNORE);
 

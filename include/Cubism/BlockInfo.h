@@ -55,42 +55,38 @@ struct MyClock
 
    void display()
    {
-      int rank;
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-      double m1, m2;
-      MPI_Reduce(&total_f, &m1, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-      MPI_Reduce(&total_f, &m2, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-
-      double *mean    = new double[N];
-      double *maximum = new double[N];
-      MPI_Reduce(t, mean, N, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-      MPI_Reduce(t, maximum, N, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-      int size;
-      MPI_Comm_size(MPI_COMM_WORLD, &size);
-      if (rank != 0)
-      {
-         delete[] mean;
-         delete[] maximum;
-         return;
-      }
-
-      std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
-      for (int i = 0; i < N; i++)
-      {
-         padTo(name[i], 40);
-         mean[i] /= size;
-         printf("%s    :  %8.4f (max)     %8.4f (mean) \n", name[i].c_str(), maximum[i], mean[i]);
-      }
-      std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
-      std::cout << "TOTAL TIME = " << m1 << " " << m2 << "\n";
-
-      std::ofstream outfile;
-      outfile.open("TIMES.txt", std::ios_base::app); // append instead of overwrite
-      outfile << size << " " << m1 << " " << m2 << "\n";
-
-      delete[] mean;
-      delete[] maximum;
+      //int rank;
+      //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      //double m1, m2;
+      //MPI_Reduce(&total_f, &m1, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+      //MPI_Reduce(&total_f, &m2, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      //double *mean    = new double[N];
+      //double *maximum = new double[N];
+      //MPI_Reduce(t, mean, N, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+      //MPI_Reduce(t, maximum, N, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      //int size;
+      //MPI_Comm_size(MPI_COMM_WORLD, &size);
+      //if (rank != 0)
+      //{
+      //   delete[] mean;
+      //   delete[] maximum;
+      //   return;
+      //}
+      //std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
+      //for (int i = 0; i < N; i++)
+      //{
+      //   padTo(name[i], 40);
+      //   mean[i] /= size;
+      //   printf("%s    :  %8.4f (max)     %8.4f (mean) \n", name[i].c_str(), maximum[i], mean[i]);
+      //}
+      //std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
+      //std::cout << "TOTAL TIME = " << m1 << " " << m2 << "\n";
+      //std::ofstream outfile;
+      //outfile.open("TIMES.txt", std::ios_base::app); // append instead of overwrite
+      //outfile << size << " " << m1 << " " << m2 << "\n";
+      //delete[] mean;
+      //delete[] maximum;
    }
 };
 extern MyClock Clock;

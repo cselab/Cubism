@@ -62,8 +62,8 @@ class FluxCorrectionMPI : public TFluxCorrection
 
       TFluxCorrection::prepare(grid);
 
-      MPI_Comm_size(MPI_COMM_WORLD, &size);
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      MPI_Comm_size(grid.getWorldComm(), &size);
+      MPI_Comm_rank(grid.getWorldComm(), &rank);
 
       if (rank == 0) std::cout << "FluxCorrectionMPI: prepare...\n";
 
@@ -313,14 +313,14 @@ class FluxCorrectionMPI : public TFluxCorrection
             MPI_Request req;
             recv_requests.push_back(req);
             MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 123456,
-                      MPI_COMM_WORLD, &recv_requests.back());
+                      (*TFluxCorrection::m_refGrid).getWorldComm(), &recv_requests.back());
          }
          if (send_buffer[r].size() != 0)
          {
             MPI_Request req;
             send_requests.push_back(req);
             MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 123456,
-                      MPI_COMM_WORLD, &send_requests.back());
+                      (*TFluxCorrection::m_refGrid).getWorldComm(), &send_requests.back());
          }
       }
 

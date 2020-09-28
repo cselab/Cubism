@@ -55,7 +55,6 @@ class GridMPI : public TGrid
                a_zperiodic),
          timestamp(0), worldcomm(comm)
    {
-
       assert(npeX > 0 && "Number of processes per X must be greater than 0.");
       assert(npeY > 0 && "Number of processes per Y must be greater than 0.");
       assert(npeZ > 0 && "Number of processes per Z must be greater than 0.");
@@ -139,7 +138,7 @@ class GridMPI : public TGrid
 
       FillPos(true);
 
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(worldcomm);
       std::cout << "GridMPI constructor called (ok)\n";
    }
 
@@ -210,7 +209,7 @@ class GridMPI : public TGrid
 
       Clock.display();
 
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(worldcomm);
 
       _deallocAll();
    }
@@ -272,8 +271,8 @@ class GridMPI : public TGrid
       static auto blocksPerDim = TGrid::getMaxBlocks();
 
       int rank, size;
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-      MPI_Comm_size(MPI_COMM_WORLD, &size);
+      MPI_Comm_rank(worldcomm, &rank);
+      MPI_Comm_size(worldcomm, &size);
 
       std::vector<std::vector<int>> send_buffer(size);
 
@@ -376,11 +375,11 @@ class GridMPI : public TGrid
          {
             send_requests.resize(send_requests.size() + 1);
             if (send_buffer[r].size() != 0)
-               MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_INT, r, 123, MPI_COMM_WORLD,
+               MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_INT, r, 123, worldcomm,
                          &send_requests[send_requests.size() - 1]);
             else
             {
-               MPI_Isend(&dummy, 1, MPI_INT, r, 123, MPI_COMM_WORLD,
+               MPI_Isend(&dummy, 1, MPI_INT, r, 123, worldcomm,
                          &send_requests[send_requests.size() - 1]);
             }
          }
@@ -392,13 +391,13 @@ class GridMPI : public TGrid
          {
             int recv_size;
             MPI_Status status;
-            MPI_Probe(r, 123, MPI_COMM_WORLD, &status);
+            MPI_Probe(r, 123, worldcomm, &status);
             MPI_Get_count(&status, MPI_INT, &recv_size);
             if (recv_size > 0)
             {
                recv_buffer[r].resize(recv_size);
                recv_requests.resize(recv_requests.size() + 1);
-               MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_INT, r, 123, MPI_COMM_WORLD,
+               MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_INT, r, 123, worldcomm,
                          &recv_requests[recv_requests.size() - 1]);
             }
          }
@@ -420,8 +419,8 @@ class GridMPI : public TGrid
    void UpdateBlockInfoAll_States(bool GlobalUpdate = false)
    {
       int rank, size;
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-      MPI_Comm_size(MPI_COMM_WORLD, &size);
+      MPI_Comm_rank(worldcomm, &rank);
+      MPI_Comm_size(worldcomm, &size);
 
       std::vector<BlockInfo> ChangedInfos;
       for (auto &info : TGrid::m_vInfo)
@@ -455,7 +454,7 @@ class GridMPI : public TGrid
 
       // 2.Gather lengths of all processes and use them to allocate memory on each process
       int *AllLengths = new int[size];
-      MPI_Allgather(&myLength, 1, MPI_INT, AllLengths, 1, MPI_INT, MPI_COMM_WORLD);
+      MPI_Allgather(&myLength, 1, MPI_INT, AllLengths, 1, MPI_INT, worldcomm);
       assert((size_t)AllLengths[rank] == myLength);
 
       int sumL = 0;
@@ -473,7 +472,7 @@ class GridMPI : public TGrid
       }
 
       MPI_Allgatherv(myData, myLength, MPI_INT, All_data, AllLengths, displacement.data(), MPI_INT,
-                     MPI_COMM_WORLD);
+                     worldcomm);
 
       for (int r = 0; r < size; r++)
       {
@@ -553,8 +552,7 @@ class GridMPI : public TGrid
          queryresult = itSynchronizerMPI->second;
       }
       queryresult->sync(sizeof(typename Block::element_type) / sizeof(Real),
-                        sizeof(Real) > 4 ? MPI_DOUBLE : MPI_FLOAT,
-                        timestamp); //, TGrid::getBlocksInfo(),TGrid::getBlockInfoAll());
+                        sizeof(Real) > 4 ? MPI_DOUBLE : MPI_FLOAT,timestamp);
       timestamp = (timestamp + 1) % 32768;
       return queryresult;
    }

@@ -400,7 +400,7 @@ class SynchronizerMPI_AMR
    const int levelMax;
    int blocksPerDim[3];
    int blocksize[3];
-   SpaceFillingCurve Zcurve;
+   //SpaceFillingCurve * Zcurve;
    size_t myInfos_size;
    BlockInfo *myInfos;
    std::vector<std::vector<BlockInfo> *> BlockInfoAll;
@@ -1117,11 +1117,6 @@ class SynchronizerMPI_AMR
     };
 #endif
 
-   int getZforward(const int level, const int i, const int j, const int k) const
-   {
-      return Zcurve.forward(level, i, j, k);
-   }
-
    inline BlockInfo &getBlockInfoAll(int m, int n) { return (*BlockInfoAll[m])[n]; }
 
    bool UseCoarseStencil(Interface &f)
@@ -1146,7 +1141,7 @@ class SynchronizerMPI_AMR
          for (int i1 = imin[1]; i1 <= imax[1]; i1++)
             for (int i0 = imin[0]; i0 <= imax[0]; i0++)
             {
-               int n = a.Znei_(i0, i1, i2); /// getZforward(a.level,i0,i1,i2);
+               int n = a.Znei_(i0, i1, i2);
                if ((getBlockInfoAll(a.level, n)).TreePos == CheckCoarser)
                {
                   retval = true;
@@ -1372,18 +1367,12 @@ class SynchronizerMPI_AMR
                   {
                      const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-                    #if 0
-                        int nFine = getZforward(infoNei.level+1,2*info.index[0] + max(code[0],0) +code[0]  + (B%2)*max(0, 1 - abs(code[0])),
-                                                                2*info.index[1] + max(code[1],0) +code[1]  + temp *max(0, 1 - abs(code[1])),
-                                                                2*info.index[2] + max(code[2],0) +code[2]  + (B/2)*max(0, 1 - abs(code[2])));
-                    #else
                      int nFine1 =
                          infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
                                        [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
                                        [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
                      int nFine = getBlockInfoAll(infoNei.level + 1, nFine1)
                                      .Znei_(-code[0], -code[1], -code[2]);
-                    #endif
 
                      BlockInfo &infoNeiFiner = getBlockInfoAll(infoNei.level + 1, nFine);
                      if (infoNeiFiner.myrank != rank)
@@ -1558,10 +1547,10 @@ class SynchronizerMPI_AMR
    SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, MPI_Comm a_comm,
                        const bool a_periodic[3], const int a_levelMax, const int a_nx,
                        const int a_ny, const int a_nz, const int a_bx, const int a_by,
-                       const int a_bz)
+                       const int a_bz)//, SpaceFillingCurve & sfc)
        : stencil(a_stencil), Cstencil(a_Cstencil), comm(a_comm), xperiodic(a_periodic[0]),
          yperiodic(a_periodic[1]), zperiodic(a_periodic[2]), levelMax(a_levelMax),
-         Zcurve(a_bx, a_by, a_bz), SM(a_stencil, a_Cstencil, a_nx, a_ny, a_nz, a_bx, a_by, a_bz)
+         /*Zcurve(&sfc) /*(a_bx, a_by, a_bz), */ SM(a_stencil, a_Cstencil, a_nx, a_ny, a_nz, a_bx, a_by, a_bz)
    {
       MPI_Comm_rank(comm, &rank);
       MPI_Comm_size(comm, &size);

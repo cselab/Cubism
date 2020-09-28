@@ -188,10 +188,10 @@ class SpaceFillingCurve
       BZ = nz;
    }
 
-   SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ) : BX(a_BX), BY(a_BY), BZ(a_BZ)
+   SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ, int lmax) : BX(a_BX), BY(a_BY), BZ(a_BZ)
    {
-      int lmax = 5; //lvlMax();
-      std::cout << "Level Max = " << lmax << std::endl;
+      std::cout << "Constructing Hilbert curve for " << BX << "x" << BY << "x" << BZ << 
+                   " octree with " << lmax << " levels..." << std::endl;
       i_inverse.resize(lmax);
       j_inverse.resize(lmax);
       k_inverse.resize(lmax);
@@ -205,35 +205,38 @@ class SpaceFillingCurve
 
       SUBSTRACT = new int[BX * BY * BZ];
 
-      int n_max  = max(max(BX, BY), BZ);
-      base_level = (log(n_max) / log(2));
-      if (base_level < (double)(log(n_max) / log(2))) base_level++;
-
-      for (unsigned int k=0;k<BZ;k++)
-      for (unsigned int j=0;j<BY;j++)
-      for (unsigned int i=0;i<BX;i++)
+      #pragma omp parallel
       {
-        const unsigned int c[3] = {i,j,k};
-        
-        int index = AxestoTranspose( c, base_level);
+        int n_max  = max(max(BX, BY), BZ);
+        base_level = (log(n_max) / log(2));
+        if (base_level < (double)(log(n_max) / log(2))) base_level++;
   
-        int substract = 0;
-        for (int h=0; h<index; h++)
+        #pragma omp for collapse(3)
+        for (unsigned int k=0;k<BZ;k++)
+        for (unsigned int j=0;j<BY;j++)
+        for (unsigned int i=0;i<BX;i++)
         {
-          unsigned int X[3] = {0,0,0};
-          TransposetoAxes(h, X, base_level);
-          if (X[0] >= BX ||  
-              X[1] >= BY ||  
-              X[2] >= BZ) substract++;   
-        }   
-        index -= substract;
-        SUBSTRACT[(j + k*BY)*BX + i] = substract;
-      }  
+          const unsigned int c[3] = {i,j,k};
+          
+          int index = AxestoTranspose( c, base_level);
+    
+          int substract = 0;
+          for (int h=0; h<index; h++)
+          {
+            unsigned int X[3] = {0,0,0};
+            TransposetoAxes(h, X, base_level);
+            if (X[0] >= BX ||  
+                X[1] >= BY ||  
+                X[2] >= BZ) substract++;   
+          }   
+          SUBSTRACT[(j + k*BY)*BX + i] = substract;
+        }
+      }
 
-      #pragma omp parallel for 
       for (int l = 0 ; l < lmax ; l++)
       {
         int aux = pow(2,l);
+        #pragma omp parallel for collapse(3)
         for (unsigned int k=0;k<BZ*aux;k++)
         for (unsigned int j=0;j<BY*aux;j++)
         for (unsigned int i=0;i<BX*aux;i++)
@@ -244,6 +247,8 @@ class SpaceFillingCurve
           k_inverse[l][retval] = k;
         }      
       }
+
+      std::cout << "Hilbert curve ready." << std::endl;
    }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)
@@ -289,9 +294,9 @@ class SpaceFillingCurve
       assert(i_inverse[l][Z]>=0);
       assert(j_inverse[l][Z]>=0);
       assert(k_inverse[l][Z]>=0);
-      assert(i_inverse[l][Z] < BX * (1<<l));
-      assert(j_inverse[l][Z] < BY * (1<<l));
-      assert(k_inverse[l][Z] < BZ * (1<<l));
+      //assert(i_inverse[l][Z] < BX * (1<<l));
+      //assert(j_inverse[l][Z] < BY * (1<<l));
+      //assert(k_inverse[l][Z] < BZ * (1<<l));
    }
 
    // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)

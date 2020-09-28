@@ -47,8 +47,6 @@ class Grid
    const bool yperiodic;
    const bool zperiodic;
 
-   SpaceFillingCurve Zcurve;
-
    bool UpdateFluxCorrection{true};
 
    void _alloc() // called in class constructor
@@ -201,14 +199,14 @@ class Grid
         const bool a_xperiodic = true, const bool a_yperiodic = true, const bool a_zperiodic = true)
        : NX(_NX), NY(_NY), NZ(_NZ), maxextent(_maxextent), levelMax(_levelMax),
          levelStart(_levelStart), xperiodic(a_xperiodic), yperiodic(a_yperiodic),
-         zperiodic(a_zperiodic), Zcurve(NX, NY, NZ)
+         zperiodic(a_zperiodic) //, Zcurve(NX, NY, NZ)
    {
 
       BlockInfo dummy;
       int nx     = dummy.blocks_per_dim(0, NX, NY, NZ);
       int ny     = dummy.blocks_per_dim(1, NX, NY, NZ);
       int nz     = dummy.blocks_per_dim(2, NX, NY, NZ);
-      int lvlMax = Zcurve.lvlMax(levelMax); // same as lvlMax = levelMax but this silences warnings
+      int lvlMax = dummy.levelMax(levelMax);
 
       N                = 0;
       int blocksize[3] = {Block::sizeX, Block::sizeY, Block::sizeZ};
@@ -223,7 +221,7 @@ class Grid
 
       for (int m = 0; m < lvlMax; m++)
       {
-         int TwoPower            = 1 << m; // pow(2,m);
+         int TwoPower            = 1 << m;
          const unsigned int Ntot = NX * NY * NZ * pow(TwoPower, 3);
 
          BlockInfoAll[m].resize(Ntot);
@@ -246,7 +244,7 @@ class Grid
             for (int j = 0; j < NY * TwoPower; j++)
                for (int k = 0; k < NZ * TwoPower; k++)
                {
-                  int n = Zcurve.forward(m, i, j, k);
+                  int n = BlockInfo::forward(m, i, j, k);
 
                   Zsave[m][i][j][k] = n;
 
@@ -290,12 +288,10 @@ class Grid
       int ix       = (i + TwoPower * NX) % (NX * TwoPower);
       int iy       = (j + TwoPower * NY) % (NY * TwoPower);
       int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
-
       return Zsave[level][ix][iy][iz];
-      // return   Zcurve.forward(level,ix,iy,iz);
    }
 
-   int getZchild(int level, int i, int j, int k) { return Zcurve.child(level, i, j, k); }
+   int getZchild(int level, int i, int j, int k) { return BlockInfo::child(level, i, j, k); }
 
    virtual Block &operator()(int ix, int iy, int iz, int m) const
    {

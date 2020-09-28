@@ -116,16 +116,31 @@ struct BlockInfo
       return a[i];
    }
 
+   static int levelMax(int l=0)
+   {
+      static int lmax = l;
+      return lmax;
+   }
+
+   static SpaceFillingCurve * SFC()
+   {
+      static SpaceFillingCurve Zcurve(blocks_per_dim(0), blocks_per_dim(1), blocks_per_dim(2),levelMax());
+      return &Zcurve;
+   }
+
    static int forward(int level, int ix, int iy, int iz)
    {
-      static SpaceFillingCurve Zcurve(blocks_per_dim(0), blocks_per_dim(1), blocks_per_dim(2));
-      return Zcurve.forward(level, ix, iy, iz);
+      return (*SFC()).forward(level, ix, iy, iz);
+   }
+
+   static int child(int level, int ix, int iy, int iz)
+   {
+      return (*SFC()).child(level, ix, iy, iz);     
    }
 
    static int Encode(int level, int Z, int index[3])
    {
-      static SpaceFillingCurve Zcurve(blocks_per_dim(0), blocks_per_dim(1), blocks_per_dim(2));
-      return Zcurve.Encode(level, Z, index);
+      return (*SFC()).Encode(level, Z, index);
    }
 
    long long blockID;

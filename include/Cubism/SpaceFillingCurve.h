@@ -171,6 +171,7 @@ class SpaceFillingCurve
  public:
    int *SUBSTRACT;
    int base_level;
+   int levelMax;
 
 
    std::vector< std::vector<int> > i_inverse;
@@ -188,7 +189,7 @@ class SpaceFillingCurve
       BZ = nz;
    }
 
-   SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ, int lmax) : BX(a_BX), BY(a_BY), BZ(a_BZ)
+   SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ, int lmax) : BX(a_BX), BY(a_BY), BZ(a_BZ), levelMax(lmax)
    {
       std::cout << "Constructing Hilbert curve for " << BX << "x" << BY << "x" << BZ << 
                    " octree with " << lmax << " levels..." << std::endl;
@@ -302,15 +303,9 @@ class SpaceFillingCurve
    // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)
    int child(int l, int i, int j, int k) { return forward(l + 1, 2 * i, 2 * j, 2 * k); }
 
-   static int lvlMax(int l = 0)
-   {
-      static int retval = l;
-      return retval;
-   }
-
    int Encode(int level, int Z, int index[3])
    {
-      int lmax   = lvlMax();
+      int lmax   = levelMax;
       int retval = 0;
 
       int ix = index[0];

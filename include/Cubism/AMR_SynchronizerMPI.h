@@ -1550,7 +1550,7 @@ class SynchronizerMPI_AMR
                        const int a_bz)//, SpaceFillingCurve & sfc)
        : stencil(a_stencil), Cstencil(a_Cstencil), comm(a_comm), xperiodic(a_periodic[0]),
          yperiodic(a_periodic[1]), zperiodic(a_periodic[2]), levelMax(a_levelMax),
-         /*Zcurve(&sfc) /*(a_bx, a_by, a_bz), */ SM(a_stencil, a_Cstencil, a_nx, a_ny, a_nz, a_bx, a_by, a_bz)
+         SM(a_stencil, a_Cstencil, a_nx, a_ny, a_nz, a_bx, a_by, a_bz)
    {
       MPI_Comm_rank(comm, &rank);
       MPI_Comm_size(comm, &size);

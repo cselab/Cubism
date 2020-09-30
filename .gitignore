@@ -4,4 +4,4 @@
 *.swo
 *.bak
 .DS_Store
-*._
+._*

@@ -62,7 +62,7 @@ class MeshAdaptation
       components.push_back(4);
       components.push_back(5);
       components.push_back(6);
-      components.push_back(7);
+      //components.push_back(7); //dummy (not needed!)
 
       StencilInfo stencil(-Gx, -Gy, -Gz, Gx + 1, Gy + 1, Gz + 1, tensorial, components);
 
@@ -94,7 +94,7 @@ class MeshAdaptation
       StencilInfo Cstencil = stencil;
       Synch                = new SynchronizerMPIType(
           stencil, Cstencil, m_refGrid->getWorldComm(), per, m_refGrid->getlevelMax(), TGrid::Block::sizeX,
-          TGrid::Block::sizeY, TGrid::Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2]);
+          TGrid::Block::sizeY, TGrid::Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2]);//, m_refGrid->Zcurve);
 
       Synch->_Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),
                     m_refGrid->getBlockInfoAll(), timestamp, true);
@@ -138,7 +138,7 @@ class MeshAdaptation
             BlockInfo &ary0 = *avail0[i];
             mylab.load(ary0, t);
             BlockInfo &info = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            ary0.state      = TagLoadedBlock(labs[tid]);
+            ary0.state      = TagLoadedBlock(labs[tid],info.level);
             info.state      = ary0.state;
             #pragma omp critical
             {
@@ -174,7 +174,7 @@ class MeshAdaptation
             BlockInfo &ary1 = *avail1[i];
             mylab.load(ary1, t);
             BlockInfo &info = m_refGrid->getBlockInfoAll(ary1.level, ary1.Z);
-            ary1.state      = TagLoadedBlock(labs[tid]);
+            ary1.state      = TagLoadedBlock(labs[tid],info.level);
             info.state      = ary1.state;
             
             #pragma omp critical
@@ -973,7 +973,7 @@ class MeshAdaptation
       return energy;
    }
 
-   virtual State TagLoadedBlock(TLab &Lab_)
+   virtual State TagLoadedBlock(TLab &Lab_, int level)
    {
         static const int nx = BlockType::sizeX;
         static const int ny = BlockType::sizeY;
@@ -983,13 +983,13 @@ class MeshAdaptation
         double Linf   = 0.0;
         double Linf_2 = 0.0;
     
-        //for (int k = 0 - 1; k < nz + 1; k++)
-        //  for (int j = 0 - 1; j < ny + 1; j++)
-        //    for (int i = 0 - 1; i < nx + 1; i++) {
-        //      Lab_(i, j, k).energy = get_pressure(Lab_(i, j, k).alpha1rho1, Lab_(i, j, k).alpha2rho2,
-        //                                          Lab_(i, j, k).ru, Lab_(i, j, k).rv, Lab_(i, j, k).rw,
-        //                                          Lab_(i, j, k).alpha2, Lab_(i, j, k).energy);
-        //    }
+        for (int k = 0 - 1; k < nz + 1; k++)
+          for (int j = 0 - 1; j < ny + 1; j++)
+            for (int i = 0 - 1; i < nx + 1; i++) {
+              Lab_(i, j, k).energy = get_pressure(Lab_(i, j, k).alpha1rho1, Lab_(i, j, k).alpha2rho2,
+                                                  Lab_(i, j, k).ru, Lab_(i, j, k).rv, Lab_(i, j, k).rw,
+                                                  Lab_(i, j, k).alpha2, Lab_(i, j, k).energy);
+            }
     
         for (int k = 0; k < nz; k++)
           for (int j = 0; j < ny; j++)
@@ -1013,56 +1013,69 @@ class MeshAdaptation
                       L1 += gradMag;
                       Linf = max(Linf,gradMag);
             #else
-            /*
-                           double s0 = Lab_(i, j, k).energy;
-                           double s0i = 1.0 / s0;
-                           double ax = std::abs((Lab_(i + 1, j, k).energy - s0) * s0i);
-                           double ay = std::abs((Lab_(i, j + 1, k).energy - s0) * s0i);
-                           double az = std::abs((Lab_(i, j, k + 1).energy - s0) * s0i);
-                           ax = max(ax, std::abs((s0 - Lab_(i - 1, j, k).energy) * s0i));
-                           ay = max(ay, std::abs((s0 - Lab_(i, j - 1, k).energy) * s0i));
-                           az = max(az, std::abs((s0 - Lab_(i, j, k - 1).energy) * s0i));
-            */
-                   double s0 = Lab_(i, j, k).alpha2rho2;
-                   double s0i = 1.0 / s0;
-                   double ax = std::abs((Lab_(i + 1, j, k).alpha2rho2 - s0) * s0i);
-                   double ay = std::abs((Lab_(i, j + 1, k).alpha2rho2 - s0) * s0i);
-                   double az = std::abs((Lab_(i, j, k + 1).alpha2rho2 - s0) * s0i);
-                   ax = max(ax, std::abs((s0 - Lab_(i - 1, j, k).alpha2rho2) * s0i));
-                   ay = max(ay, std::abs((s0 - Lab_(i, j - 1, k).alpha2rho2) * s0i));
-                   az = max(az, std::abs((s0 - Lab_(i, j, k - 1).alpha2rho2) * s0i));
+            
+              double s0 = Lab_(i, j, k).energy;
+              double s0i = 1.0 / s0;
+              double ax = std::abs((Lab_(i + 1, j, k).energy - s0) * s0i);
+              double ay = std::abs((Lab_(i, j + 1, k).energy - s0) * s0i);
+              double az = std::abs((Lab_(i, j, k + 1).energy - s0) * s0i);
+              ax = max(ax, std::abs((s0 - Lab_(i - 1, j, k).energy) * s0i));
+              ay = max(ay, std::abs((s0 - Lab_(i, j - 1, k).energy) * s0i));
+              az = max(az, std::abs((s0 - Lab_(i, j, k - 1).energy) * s0i));
+            
+            //       double s0 = Lab_(i, j, k).alpha2rho2;
+            //       double s0i = 1.0 / s0;
+            //       double ax = std::abs((Lab_(i + 1, j, k).alpha2rho2 - s0) * s0i);
+            //       double ay = std::abs((Lab_(i, j + 1, k).alpha2rho2 - s0) * s0i);
+            //       double az = std::abs((Lab_(i, j, k + 1).alpha2rho2 - s0) * s0i);
+            //       ax = max(ax, std::abs((s0 - Lab_(i - 1, j, k).alpha2rho2) * s0i));
+            //       ay = max(ay, std::abs((s0 - Lab_(i, j - 1, k).alpha2rho2) * s0i));
+            //       az = max(az, std::abs((s0 - Lab_(i, j, k - 1).alpha2rho2) * s0i));
     
               Linf = max(Linf, ax);
               Linf = max(Linf, ay);
               Linf = max(Linf, az);
     
-              //s0 = Lab_(i, j, k).alpha2;
-              //ax = std::abs(Lab_(i + 1, j, k).alpha2 - s0);
-              //ay = std::abs(Lab_(i, j + 1, k).alpha2 - s0);
-              //az = std::abs(Lab_(i, j, k + 1).alpha2 - s0);
-              //ax = max(ax, std::abs(s0 - Lab_(i - 1, j, k).alpha2));
-              //ay = max(ay, std::abs(s0 - Lab_(i, j - 1, k).alpha2));
-              //az = max(az, std::abs(s0 - Lab_(i, j, k - 1).alpha2));
-              //Linf_2 = max(Linf_2, ax);
-              //Linf_2 = max(Linf_2, ay);
-              //Linf_2 = max(Linf_2, az);
+              s0 = Lab_(i, j, k).alpha2;
+              ax = std::abs(Lab_(i + 1, j, k).alpha2 - s0);
+              ay = std::abs(Lab_(i, j + 1, k).alpha2 - s0);
+              az = std::abs(Lab_(i, j, k + 1).alpha2 - s0);
+              ax = max(ax, std::abs(s0 - Lab_(i - 1, j, k).alpha2));
+              ay = max(ay, std::abs(s0 - Lab_(i, j - 1, k).alpha2));
+              az = max(az, std::abs(s0 - Lab_(i, j, k - 1).alpha2));
+              Linf_2 = max(Linf_2, ax);
+              Linf_2 = max(Linf_2, ay);
+              Linf_2 = max(Linf_2, az);
             #endif
             }
     
-        //for (int k = 0 - 1; k < nz + 1; k++)
-        //  for (int j = 0 - 1; j < ny + 1; j++)
-        //    for (int i = 0 - 1; i < nx + 1; i++) {
-        //      Lab_(i, j, k).energy = get_energy(Lab_(i, j, k).alpha1rho1, Lab_(i, j, k).alpha2rho2,
-        //                                        Lab_(i, j, k).ru, Lab_(i, j, k).rv, Lab_(i, j, k).rw,
-        //                                        Lab_(i, j, k).alpha2, Lab_(i, j, k).energy);
-        //    }
+        for (int k = 0 - 1; k < nz + 1; k++)
+          for (int j = 0 - 1; j < ny + 1; j++)
+            for (int i = 0 - 1; i < nx + 1; i++) {
+              Lab_(i, j, k).energy = get_energy(Lab_(i, j, k).alpha1rho1, Lab_(i, j, k).alpha2rho2,
+                                                Lab_(i, j, k).ru, Lab_(i, j, k).rv, Lab_(i, j, k).rw,
+                                                Lab_(i, j, k).alpha2, Lab_(i, j, k).energy);
+            }
     
+        //if (Linf > tolerance_for_refinement)
+        //  return Refine;
+        //if (Linf_2 > 0.05)
+        //  return Refine;
+        //if (Linf < tolerance_for_compression && Linf_2 < 0.01)
+        //  return Compress;
+
+        Linf   /= (level+1);
+        Linf_2 /= (level+1);
+
         if (Linf > tolerance_for_refinement)
           return Refine;
-        if (Linf_2 > 0.05)
+        if (Linf_2 > tolerance_for_refinement)
           return Refine;
-        if (Linf < tolerance_for_compression && Linf_2 < 0.01)
+        if (Linf < tolerance_for_compression && Linf_2 < tolerance_for_compression)
           return Compress;
+
+
+
     
         return Leave;
    }

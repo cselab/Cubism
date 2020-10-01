@@ -237,7 +237,6 @@ class GridMPI : public TGrid
       TGrid::_alloc(m, n);
       TGrid::BlockInfoAll[m][n].myrank = myrank;
       TGrid::m_vInfo.back().myrank     = myrank;
-      TGrid::m_vInfo.back().TreePos    = Exists;
    }
 
    std::vector<BlockInfo> &getBlocksInfo() override { return TGrid::getBlocksInfo(); }

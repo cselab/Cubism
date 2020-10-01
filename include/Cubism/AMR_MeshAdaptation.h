@@ -22,10 +22,9 @@ class MeshAdaptation
 {
 
  public:
-   typedef typename TGrid::Block BlockType;
-   typedef typename TGrid::Block::ElementType ElementType;
-   typedef SynchronizerMPI_AMR<Real> SynchronizerMPIType;
-   typedef typename TGrid::BlockType Block;
+   typedef typename TGrid::BlockType BlockType;
+   typedef typename TGrid::BlockType::ElementType ElementType;
+   //typedef typename TGrid::BlockType Block;
 
    double tolerance_for_refinement;
    double tolerance_for_compression;
@@ -37,13 +36,9 @@ class MeshAdaptation
    int Is[3];
    int Ie[3];
    std::vector<int> components;
-   //double tolerance_for_refinement;
-   //double tolerance_for_compression;
    TLab *labs;
    double time;
 
-   SynchronizerMPI_AMR<Real> *Synch;
-   int timestamp;
    bool flag;
 
  public:
@@ -62,7 +57,6 @@ class MeshAdaptation
       components.push_back(4);
       components.push_back(5);
       components.push_back(6);
-      //components.push_back(7); //dummy (not needed!)
 
       StencilInfo stencil(-Gx, -Gy, -Gz, Gx + 1, Gy + 1, Gz + 1, tensorial, components);
 
@@ -86,47 +80,27 @@ class MeshAdaptation
       tolerance_for_refinement  = Rtol;
       tolerance_for_compression = Ctol;
 
-      timestamp = 0;
       flag      = true;
-
-      auto blockperDim     = m_refGrid->getMaxBlocks();
-      bool per[3]          = {m_refGrid->xperiodic, m_refGrid->yperiodic, m_refGrid->zperiodic};
-      StencilInfo Cstencil = stencil;
-      Synch                = new SynchronizerMPIType(
-          stencil, Cstencil, m_refGrid->getWorldComm(), per, m_refGrid->getlevelMax(), TGrid::Block::sizeX,
-          TGrid::Block::sizeY, TGrid::Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2]);//, m_refGrid->Zcurve);
-
-      Synch->_Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),
-                    m_refGrid->getBlockInfoAll(), timestamp, true);
    }
 
-   virtual ~MeshAdaptation() { delete Synch; }
+   virtual ~MeshAdaptation() {  }
 
-   void AdaptTheMesh(double t = 0)
+   virtual void AdaptTheMesh(double t = 0)
    {
       time = t;
-      /*------------->*/ Clock.start(10, "sync");
-      Synch->sync(sizeof(typename Block::element_type) / sizeof(Real),
-                  sizeof(Real) > 4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
-      /*------------->*/ Clock.finish(10);
 
-      timestamp = (timestamp + 1) % 32768;
-
-      vector<BlockInfo *> avail0, avail1;
+      vector<BlockInfo> & avail0= m_refGrid->getBlocksInfo();
 
       const int nthreads = omp_get_max_threads();
 
       labs = new TLab[nthreads];
-      for (int i = 0; i < nthreads; i++) labs[i].prepare(*m_refGrid, *Synch);
+      for (int i = 0; i < nthreads; i++) labs[i].prepare(*m_refGrid, s[0], e[0],s[1],e[1],s[2],e[2],true,Is[0],Ie[0],Is[1],Ie[1],Is[2],Ie[2]);
+
 
       bool CallValidStates = false;
 
       /*------------->*/ Clock.start(1, "MeshAdaptation: inner blocks tagging");
-      avail0           = Synch->avail_inner();
       const int Ninner = avail0.size();
-      bool Reduction = false;
-      MPI_Request Reduction_req;
-      int tmp;
       #pragma omp parallel num_threads(nthreads)
       {
          int tid     = omp_get_thread_num();
@@ -135,7 +109,7 @@ class MeshAdaptation
          #pragma omp for schedule(dynamic, 1)
          for (int i = 0; i < Ninner; i++)
          {
-            BlockInfo &ary0 = *avail0[i];
+            BlockInfo &ary0 = avail0[i];
             mylab.load(ary0, t);
             BlockInfo &info = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
             ary0.state      = TagLoadedBlock(labs[tid],info.level);
@@ -143,71 +117,11 @@ class MeshAdaptation
             #pragma omp critical
             {
                 if (info.state != Leave)
-                {
                     CallValidStates = true;
-                    if (!Reduction) 
-                    {
-                      tmp = 1;
-                      Reduction = true;
-                      MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, m_refGrid->getWorldComm(),&Reduction_req);
-                    }
-                }                
             }
          }
       }
       /*------------->*/ Clock.finish(1);
-
-      /*------------->*/ Clock.start(2, "MeshAdaptation: waiting for inner blocks");
-      avail1 = Synch->avail_halo();
-      /*------------->*/ Clock.finish(2);
-
-      /*------------->*/ Clock.start(3, "MeshAdaptation: outer block tagging");
-      const int Nhalo = avail1.size();
-      #pragma omp parallel num_threads(nthreads)
-      {
-         int tid     = omp_get_thread_num();
-         TLab &mylab = labs[tid];
-
-         #pragma omp for schedule(dynamic, 1)
-         for (int i = 0; i < Nhalo; i++)
-         {
-            BlockInfo &ary1 = *avail1[i];
-            mylab.load(ary1, t);
-            BlockInfo &info = m_refGrid->getBlockInfoAll(ary1.level, ary1.Z);
-            ary1.state      = TagLoadedBlock(labs[tid],info.level);
-            info.state      = ary1.state;
-            
-            #pragma omp critical
-            {
-                if (info.state != Leave)
-                {
-                    CallValidStates = true;
-                    if (!Reduction) 
-                    {
-                      tmp = 1;
-                      Reduction = true;
-                      MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, m_refGrid->getWorldComm(),&Reduction_req);
-                    }
-                }                
-            }
-         }
-      }
-      /*------------->*/ Clock.finish(3);
-
-      /*------------->*/ Clock.start(24, "MeshAdaptation: MPI_LOR");
-      if (!Reduction) 
-      {
-        tmp = CallValidStates ? 1 : 0;
-        Reduction = true;
-        MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, m_refGrid->getWorldComm(),&Reduction_req);
-      }
-
-      LoadBalancer<TGrid> Balancer(*m_refGrid);
-
-      MPI_Wait(&Reduction_req,MPI_STATUS_IGNORE);
-      CallValidStates     = (tmp > 0);
-      m_refGrid->boundary = avail1;
-      /*------------->*/ Clock.finish(24);
 
       /*------------->*/ Clock.start(4, "MeshAdaptation: ValidStates");
       if (CallValidStates) ValidStates();
@@ -259,10 +173,6 @@ class MeshAdaptation
          }
      }
 
-      /*------------->*/ Clock.start(5, "MeshAdaptation: PrepareCompression");
-      Balancer.PrepareCompression();
-      /*------------->*/ Clock.finish(5);
-
       #pragma omp parallel
       {
          #pragma omp for schedule(runtime)
@@ -275,55 +185,19 @@ class MeshAdaptation
             c++;
          }
       }
-      #if 1
-      int temp[2] = {r, c};
-      int result[2];
-      MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, m_refGrid->getWorldComm());
-      int rank;
-      MPI_Comm_rank(m_refGrid->getWorldComm(), &rank);
-      if (rank == 0)
+      int result[2] = {r,c};
+      std::cout << "==============================================================\n";
+      std::cout << " refined:" << result[0] << "   compressed:" << result[1] << std::endl;
+      std::cout << "==============================================================\n";
+      m_refGrid->FillPos();     
+      delete[] labs;
+      if (!CallValidStates)
       {
-         std::cout << "==============================================================\n";
-         std::cout << " refined:" << result[0] << "   compressed:" << result[1] << std::endl;
-         std::cout << "==============================================================\n";
+        m_refGrid->UpdateFluxCorrection = flag;
+        flag                            = false;
       }
-      #endif
       /*************************************************/
       /*------------->*/ Clock.finish(6);
-
-      /*------------->*/ Clock.start(8, "MeshAdaptation : Balance_Diffusion");
-      m_refGrid->FillPos();     
-      Balancer.Balance_Diffusion();
-      /*------------->*/ Clock.finish(8);
-
-      delete[] labs;
-
-      /*------------->*/ Clock.start(9, "MeshAdaptation : Setup");
-      if (CallValidStates || Balancer.movedBlocks)
-      {
-         m_refGrid->UpdateFluxCorrection = true;
-
-         /*------------->*/ Clock.start(7, "MeshAdaptation : UpdateBlockInfoAll_States");
-         m_refGrid->UpdateBlockInfoAll_States(false);
-         m_refGrid->UpdateBlockInfoAll_States(true);
-         /*------------->*/ Clock.finish(7);
-
-         Synch->_Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(), timestamp, true);
-
-         // typename std::map<StencilInfo,SynchronizerMPIType*>::iterator
-         auto it = m_refGrid->SynchronizerMPIs.begin();
-         while (it != m_refGrid->SynchronizerMPIs.end())
-         {
-            (*it->second)._Setup(&(m_refGrid->getBlocksInfo())[0], (m_refGrid->getBlocksInfo()).size(),m_refGrid->getBlockInfoAll(), timestamp);
-            it++;
-         }
-      }
-      else
-      {
-         m_refGrid->UpdateFluxCorrection = flag;
-         flag                            = false;
-      }
-      /*------------->*/ Clock.finish(9);
    }
 
  protected:
@@ -381,10 +255,9 @@ class MeshAdaptation
             }
    }
 
-   void compress(int level, int Z)
+   virtual void compress(int level, int Z)
    {
-        int rank;
-        MPI_Comm_rank(m_refGrid->getWorldComm(), &rank);
+        int rank=0;
         assert(level > 0);
 
         BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
@@ -456,7 +329,7 @@ class MeshAdaptation
         }
    }
 
-   void ValidStates()
+   virtual void ValidStates()
    {
       static std::array<int, 3> blocksPerDim = m_refGrid->getMaxBlocks();
       static const int levelMin              = 0;
@@ -559,11 +432,6 @@ class MeshAdaptation
             }
          }
          /*------------->*/ Clock.finish(20);
-
-
-         /*------------->*/ Clock.start(0, "MeshAdaptation: UpdateBoundary");
-         m_refGrid->UpdateBoundary();
-         /*------------->*/ Clock.finish(0);
 
          if (m == levelMin) break;
          // 2.

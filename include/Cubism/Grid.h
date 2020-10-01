@@ -65,7 +65,6 @@ class Grid
       allocator<Block> alloc;
       BlockInfoAll[m][n].ptrBlock = alloc.allocate(1);
       BlockInfoAll[m][n].changed  = true;
-
       // BlockInfoAll[m][n].ptrBlock = (Block*)calloc(1,sizeof(Block));
 
 #ifdef HACK
@@ -74,7 +73,7 @@ class Grid
 
       m_blocks.push_back((Block *)BlockInfoAll[m][n].ptrBlock);
       m_vInfo.push_back(BlockInfoAll[m][n]);
-
+      m_vInfo.back().TreePos    = Exists;
       N++;
    }
 

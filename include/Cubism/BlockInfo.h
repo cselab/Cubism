@@ -1,176 +1,285 @@
-/*
- *  BlockInfo.h
- *  Cubism
- *
- *  Created by Diego Rossinelli on 5/24/09.
- *  Copyright 2009 CSE Lab, ETH Zurich. All rights reserved.
- *
- */
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cstdlib>
-#include "MeshMap.h"
+#include <fstream>
+#include <iostream>
+#include <limits.h>
+#include <math.h>
+#include <stdint.h>
+#include <vector>
 
-CUBISM_NAMESPACE_BEGIN
+#include "SpaceFillingCurve.h"
+#include "SpaceFillingCurve2D.h"
+
+using namespace std;
+
+#include <mpi.h>
+
+#include <string>
+
+#define DIMENSION 2
+
+
+
+namespace cubism // AMR_CUBISM
+{
+
+enum TreePosition
+{
+   Exists       = 0,
+   CheckCoarser = -1,
+   CheckFiner   = 1
+};
+
+enum State
+{
+   Leave    = 0,
+   Refine   = 1,
+   Compress = -1
+};
 
 struct BlockInfo
 {
-    long long blockID;
-    void * ptrBlock;
-    bool special;
-    int index[3];
+   static int levelMax(int l=0)
+   {
+      static int lmax = l;
+      return lmax;
+   }
 
-    double origin[3];
-    double h, h_gridpoint;
-    double uniform_grid_spacing[3];
-    double block_extent[3];
+#if DIMENSION == 3
+   static int blocks_per_dim(int i, int nx = 0, int ny = 0, int nz = 0)
+   {
+      static int a[3] = {nx, ny, nz};
+      return a[i];
+   }
 
-    double* ptr_grid_spacing[3];
+   static SpaceFillingCurve * SFC()
+   {
+      static SpaceFillingCurve Zcurve(blocks_per_dim(0), blocks_per_dim(1), blocks_per_dim(2),levelMax());
+      return &Zcurve;
+   }
 
-    bool bUniform[3];
+   static int forward(int level, int ix, int iy, int iz)
+   {
+      return (*SFC()).forward(level, ix, iy, iz);
+   }
 
-///////////////////////////////////////////////////////////////////////////////
-    template <typename T>
-    inline void pos(T p[2], int ix, int iy) const
-    {
-        const int I[2] = {ix, iy};
-        for (int j = 0; j < 2; ++j)
-        {
-            T delta = 0.0;
-            if (bUniform[j])
-                delta = uniform_grid_spacing[j]*(I[j]+0.5);
-            else
+   static int child(int level, int ix, int iy, int iz)
+   {
+      return (*SFC()).child(level, ix, iy, iz);     
+   }
+
+   static int Encode(int level, int Z, int index[3])
+   {
+      return (*SFC()).Encode(level, Z, index);
+   }
+#endif
+
+#if DIMENSION == 2
+   static int blocks_per_dim(int i, int nx = 0, int ny = 0)
+   {
+      static int a[2] = {nx, ny};
+      return a[i];
+   }
+
+   static SpaceFillingCurve2D * SFC()
+   {
+      static SpaceFillingCurve2D Zcurve(blocks_per_dim(0), blocks_per_dim(1),levelMax());
+      return &Zcurve;
+   }
+
+   static int forward(int level, int ix, int iy)
+   {
+      return (*SFC()).forward(level, ix, iy);
+   }
+
+   static int child(int level, int ix, int iy)
+   {
+      return (*SFC()).child(level, ix, iy);     
+   }
+
+   static int Encode(int level, int Z, int index[2])
+   {
+      return (*SFC()).Encode(level, Z, index);
+   }
+#endif
+
+
+   long long blockID,blockID_2;
+   int index[3];         //(i,j,k) coordinates of block at given refinement level
+   void *ptrBlock;       // Pointer to data stored in user-defined Block
+   int myrank;           // MPI rank to which the associated block currently belongs
+   TreePosition TreePos; // Indicates if block (level,Zorder) actually Exists in the Octree or if
+                         // one should look for its coarser (finer) parents (children)
+   State state;       // Refine/Compress/Leave this block
+   int Z, level;      // Z-order curve index of this block and refinement level   
+   int Znei[3][3][3]; // Z-order curve index of 26 neighboring boxes (Znei[1][1][1] = Z)
+
+   double h,h_gridpoint;          // grid spacing
+   void *auxiliary;   // Pointer to blockcase
+   double origin[3];  //(x,y,z) of block's origin
+
+   bool changed;
+   bool changed2;
+
+   int halo_block_id;
+   int Zparent;
+
+#if DIMENSION == 3
+   int Zchild[2][2][2];
+#endif
+#if DIMENSION == 2
+   int Zchild[2][2];
+#endif
+
+#if DIMENSION == 3
+   template <typename T>
+   inline void pos(T p[3], int ix, int iy, int iz) const
+   {
+      p[0] = origin[0] + h * (ix + 0.5);
+      p[1] = origin[1] + h * (iy + 0.5);
+      p[2] = origin[2] + h * (iz + 0.5);
+   }
+   template <typename T>
+   inline std::array<T, 3> pos(int ix, int iy, int iz) const
+   {
+      std::array<T, 3> result;
+      pos(result.data(), ix, iy, iz);
+      return result;
+   }
+#endif
+
+#if DIMENSION == 2
+   template <typename T>
+   inline void pos(T p[2], int ix, int iy) const
+   {
+      p[0] = origin[0] + h * (ix + 0.5);
+      p[1] = origin[1] + h * (iy + 0.5);
+   }
+   template <typename T>
+   inline std::array<T, 2> pos(int ix, int iy) const
+   {
+      std::array<T, 2> result;
+      pos(result.data(), ix, iy);
+      return result;
+   }
+#endif
+
+
+   BlockInfo(){};
+
+   bool operator<(const BlockInfo &other) const
+   {
+      return (blockID_2 < other.blockID_2);
+   }
+
+   BlockInfo(const int a_level, const double a_h, const double a_origin[3], int a_index[3],
+             int a_myrank, TreePosition a_TreePos)
+   {
+      setup(a_level, a_h, a_origin, a_index, a_myrank, a_TreePos);
+   };
+
+   void setup(const int a_level, const double a_h, const double a_origin[3], int a_index[3],
+              int a_myrank, TreePosition a_TreePos)
+   {
+      myrank   = a_myrank;
+      TreePos  = a_TreePos;
+      index[0] = a_index[0];
+      index[1] = a_index[1];
+      index[2] = a_index[2];
+      state    = Leave;
+      // if (ptrBlock != NULL)
+      h_gridpoint = a_h;
+
+      level     = a_level;
+      h         = a_h;
+      origin[0] = a_origin[0];
+      origin[1] = a_origin[1];
+      origin[2] = a_origin[2];
+
+      changed     = true;
+
+      const int TwoPower = 1 << level;
+#if DIMENSION == 3
+      const int Bmax[3]  = {blocks_per_dim(0) * TwoPower, 
+                            blocks_per_dim(1) * TwoPower,
+                            blocks_per_dim(2) * TwoPower};
+      Z = forward(level, index[0], index[1], index[2]);
+
+      for (int i = -1; i < 2; i++)
+         for (int j = -1; j < 2; j++)
+            for (int k = -1; k < 2; k++)
             {
-                const double* const dh = ptr_grid_spacing[j];
-                for (int i = 0; i < I[j]; ++i)
-                    delta += dh[i];
-                delta += 0.5*dh[I[j]];
+               Znei[i + 1][j + 1][k + 1] =
+                   forward(level, (index[0] + i + Bmax[0]) % Bmax[0],
+                           (index[1] + j + Bmax[1]) % Bmax[1], (index[2] + k + Bmax[2]) % Bmax[2]);
             }
-            p[j] = origin[j] + delta;
-        }
-    }
+      if (level == 0)
+      {
+         Zparent = 0;
+      }
+      else
+      {
+         Zparent = forward(level - 1, (index[0] / 2 + Bmax[0]) % Bmax[0],
+                           (index[1] / 2 + Bmax[1]) % Bmax[1], (index[2] / 2 + Bmax[2]) % Bmax[2]);
+      }
 
-    template <typename T>
-    inline void pos(T p[3], int ix, int iy, int iz) const
-    {
-        const int I[3] = {ix, iy, iz};
-        for (int j = 0; j < 3; ++j)
-        {
-            T delta = 0.0;
-            if (bUniform[j])
-                delta = uniform_grid_spacing[j]*(I[j]+0.5);
-            else
+      for (int i = 0; i < 2; i++)
+         for (int j = 0; j < 2; j++)
+            for (int k = 0; k < 2; k++)
             {
-                const double* const dh = ptr_grid_spacing[j];
-                for (int i = 0; i < I[j]; ++i)
-                    delta += dh[i];
-                delta += 0.5*dh[I[j]];
+               Zchild[i][j][k] =
+                   forward(level + 1, 2 * index[0] + i, 2 * index[1] + j, 2 * index[2] + k);
             }
-            p[j] = origin[j] + delta;
-        }
-    }
 
-    // Return the position as an `std::array<>`,
-    // as opposed to returning it via a pointer argument.
-    template <typename T>
-    inline std::array<T, 2> pos(int ix, int iy) const
-    {
-        std::array<T, 2> result;
-        pos(result.data(), ix, iy);
-        return result;
-    }
 
-    template <typename T>
-    inline std::array<T, 3> pos(int ix, int iy, int iz) const
-    {
-        std::array<T, 3> result;
-        pos(result.data(), ix, iy, iz);
-        return result;
-    }
+#endif
+#if DIMENSION == 2
+      const int Bmax[3]  = {blocks_per_dim(0) * TwoPower, 
+                            blocks_per_dim(1) * TwoPower,
+                            blocks_per_dim(2) * TwoPower};
+      Z = forward(level, index[0], index[1]);
 
-    // Return grid spacing dx in all dimensions for cell {ix, iy, iz}
-    template <typename T> // 2D
-    inline void spacing(T dx[2], int ix, int iy) const
-    {
-        const int I[2] = {ix, iy};
-        for (int i = 0; i < 2; ++i)
-        {
-            if (bUniform[i])
-                dx[i] = uniform_grid_spacing[i];
-            else
-                dx[i] = ptr_grid_spacing[i][I[i]];
-        }
-    }
+      for (int i = -1; i < 2; i++)
+         for (int j = -1; j < 2; j++)
+            for (int k = -1; k < 2; k++)
+            {
+               Znei[i + 1][j + 1][k + 1] =
+                   forward(level, (index[0] + i + Bmax[0]) % Bmax[0],
+                                  (index[1] + j + Bmax[1]) % Bmax[1]);
+            }
+      if (level == 0)
+      {
+         Zparent = 0;
+      }
+      else
+      {
+         Zparent = forward(level - 1, (index[0] / 2 + Bmax[0]) % Bmax[0],
+                                      (index[1] / 2 + Bmax[1]) % Bmax[1]);
+      }
 
-    template <typename T> // 3D
-    inline void spacing(T dx[3], int ix, int iy, int iz) const
-    {
-        const int I[3] = {ix, iy, iz};
-        for (int i = 0; i < 3; ++i)
-        {
-            if (bUniform[i])
-                dx[i] = uniform_grid_spacing[i];
-            else
-                dx[i] = ptr_grid_spacing[i][I[i]];
-        }
-    }
-///////////////////////////////////////////////////////////////////////////////
+      for (int i = 0; i < 2; i++)
+         for (int j = 0; j < 2; j++)
+         {
+            Zchild[i][j] =
+                forward(level + 1, 2 * index[0] + i, 2 * index[1] + j);
+         }
+#endif
 
-    BlockInfo(long long ID, const int idx[3], const double _pos[3], const double _spacing, double h_gridpoint_, void * ptr=NULL, const bool _special=false):
-    blockID(ID), ptrBlock(ptr), special(_special)
-    {
-        h = _spacing;
-        h_gridpoint = h_gridpoint_;
+      blockID = index[0] + (1<<level)*blocks_per_dim(0)*index[1];
+      blockID_2 = Encode(level, Z, index);
 
-        for (int i = 0; i < 3; ++i)
-        {
-            ptr_grid_spacing[i] = NULL;
+   }
 
-            index[i] = idx[i];
+   int Znei_(int i, int j, int k) const
+   {
+      assert(abs(i) <= 1);
+      assert(abs(j) <= 1);
+      assert(abs(k) <= 1);
+      return Znei[1 + i][1 + j][1 + k];
+   }
 
-            origin[i] = _pos[i];
-
-            uniform_grid_spacing[i] = h_gridpoint_;
-
-            block_extent[i] = h;
-
-            bUniform[i] = true;
-        }
-    }
-
-    template <typename TBlock>
-    BlockInfo(long long ID, const int idx[3], MeshMap<TBlock>* const mapX, MeshMap<TBlock>* const mapY, MeshMap<TBlock>* const mapZ, void * ptr=NULL, const bool _special=false):
-    blockID(ID), ptrBlock(ptr), special(_special)
-    {
-        // TODO: [fabianw@mavt.ethz.ch; Wed May 03 2017 05:06:58 PM (-0700)]
-        // ugly but keep this for the moment to ensure that nothing breaks
-        // down as this has propagated into uniform mesh applications.
-        // WARNING: THIS CAN CAUSE UNEXPECTED RESULTS (if used with a
-        // nonuniform grid)!
-        h = -1.0;
-        h_gridpoint = -1.0;
-
-        MeshMap<TBlock>* const ptr_map[3] = {mapX, mapY, mapZ};
-        for (int i = 0; i < 3; ++i)
-        {
-            index[i] = idx[i];
-
-            origin[i] = ptr_map[i]->block_origin(idx[i]);
-
-            block_extent[i] = ptr_map[i]->block_width(idx[i]);
-
-            ptr_grid_spacing[i] = ptr_map[i]->get_grid_spacing(idx[i]);
-
-            bUniform[i] = ptr_map[i]->uniform();
-
-            const double* const dh = ptr_grid_spacing[i];
-            if (bUniform[i]) uniform_grid_spacing[i] = dh[0];
-            else             uniform_grid_spacing[i] = -1.0;
-        }
-    }
-
-    BlockInfo():blockID(-1), ptrBlock(NULL) {}
 };
-
-CUBISM_NAMESPACE_END
+} // namespace cubism

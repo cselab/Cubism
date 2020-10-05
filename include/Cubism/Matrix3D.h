@@ -12,6 +12,11 @@
 #include <cstdlib>
 #include <algorithm>
 
+
+
+#include <iostream>
+#include "math.h"
+
 #include "Common.h"
 
 CUBISM_NAMESPACE_BEGIN
@@ -20,10 +25,10 @@ template <class DataType, bool bPrimitiveType, template <typename T> class alloc
 class Matrix3D
 {
 private:
-    DataType * m_pData;
-    unsigned int m_vSize[3];
-    unsigned int m_nElements;
-    unsigned int m_nElementsPerSlice;
+    DataType * m_pData {nullptr};
+    unsigned int m_vSize[3] {0, 0, 0};
+    unsigned int m_nElements {0};
+    unsigned int m_nElementsPerSlice {0};
 
 public:
     void _Release()
@@ -76,37 +81,7 @@ public:
     ~Matrix3D() { _Release(); }
 
 
-    Matrix3D(const Matrix3D& m):
-    m_pData(NULL), m_nElements(0), m_nElementsPerSlice(0)
-    {
-        m_vSize[0] = m.m_vSize[0];
-        m_vSize[1] = m.m_vSize[1];
-        m_vSize[2] = m.m_vSize[2];
 
-        m_nElementsPerSlice = m_vSize[0]*m_vSize[1];
-
-        m_nElements = m_vSize[0]*m_vSize[1]*m_vSize[2];
-
-        m_pData = m.m_pData;
-        /*_Setup(m.m_vSize[0], m.m_vSize[1], m.m_vSize[2]);
-
-        const int n = m_nElements;
-        for(int i=0; i<n; i++)
-            m_pData[i] = m.m_pData[i];*/
-    }
-
-    Matrix3D& operator=(const Matrix3D& m)
-    {
-        assert(m_vSize[0] == m.m_vSize[0]);
-        assert(m_vSize[1] == m.m_vSize[1]);
-        assert(m_vSize[2] == m.m_vSize[2]);
-
-        const int n = m_nElements;
-        for(int i=0; i<n; i++)
-            m_pData[i] = m.m_pData[i];
-
-        return *this;
-    }
 
 
     Matrix3D(unsigned int nSizeX, unsigned int nSizeY, unsigned int nSizeZ):
@@ -131,6 +106,43 @@ public:
     {
         Deserialize(f, bSwapBytes);
     }
+
+    Matrix3D(const Matrix3D& m) = delete;
+    Matrix3D(Matrix3D &&m) :
+        m_pData{m.m_pData},
+        m_vSize{m.m_vSize[0], m.m_vSize[1], m.m_vSize[2]},
+        m_nElements{m.m_nElements},
+        m_nElementsPerSlice{m.m_nElementsPerSlice}
+    {
+        std::cout<<"Matrix3D move constructor called\n";
+        m.m_pData = nullptr;
+    }
+
+    Matrix3D& operator=(const Matrix3D& m)
+    {
+        assert(m_vSize[0] == m.m_vSize[0]);
+        assert(m_vSize[1] == m.m_vSize[1]);
+        assert(m_vSize[2] == m.m_vSize[2]);
+
+        const int n = m_nElements;
+        for(int i=0; i<n; i++)
+            m_pData[i] = m.m_pData[i];
+
+        return *this;
+    }
+
+
+    Matrix3D& operator=(const double a)
+    {
+        const int n = m_nElements;
+        for(int i=0; i<n; i++)
+        {
+            m_pData[i] = a;
+        }
+
+        return *this;
+    }
+
 
 
     inline DataType& Access(unsigned int ix, unsigned int iy, unsigned int iz) const

@@ -71,7 +71,7 @@ class MeshAdaptation
       istensorial = stencil.tensorial;
 
       Is[0] = stencil.sx;
-      Ie[0] = stencil.ez;
+      Ie[0] = stencil.ex;
       Is[1] = stencil.sy;
       Ie[1] = stencil.ey;
       Is[2] = stencil.sz;
@@ -94,7 +94,7 @@ class MeshAdaptation
       const int nthreads = omp_get_max_threads();
 
       labs = new TLab[nthreads];
-      for (int i = 0; i < nthreads; i++) labs[i].prepare(*m_refGrid, s[0], e[0],s[1],e[1],s[2],e[2],true,Is[0],Ie[0],Is[1],Ie[1],Is[2],Ie[2]);
+      //for (int i = 0; i < nthreads; i++) labs[i].prepare(*m_refGrid, s[0], e[0],s[1],e[1],s[2],e[2],true,Is[0],Ie[0],Is[1],Ie[1],Is[2],Ie[2]);
 
 
       bool CallValidStates = false;

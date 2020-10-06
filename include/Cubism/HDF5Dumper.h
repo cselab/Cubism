@@ -116,7 +116,7 @@ void DumpHDF5(const TGrid &grid,
             for (unsigned int m = 0; m < Ngrids; m++) // loop order inefficient AF but works
             {
                B &block = *MyBlocks[m];
-               hdf5Real output[NCHANNELS];
+               hdf5Real output[NCHANNELS]={0.0};//initialize to silence warning
                TStreamer::operate(block, ix, iy, iz, (hdf5Real *)output);
                for (unsigned int j = 0; j < NCHANNELS; ++j)
                {

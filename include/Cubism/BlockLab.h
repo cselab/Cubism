@@ -1161,7 +1161,9 @@ class BlockLab
 
          for (int iz = s[2]; iz < e[2]; iz += 1)
          {
+#if DIMENSION == 3
             int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2];
+#endif
             // /*comment to silence warnings*/const int my_izx =
             // (iz-m_stencilStart[2])*m_nElemsPerSlice
             // + my_ix;

@@ -851,14 +851,12 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
 
    virtual void compress(int level, int Z) override
    {
-        int rank=0;
         assert(level > 0);
 
         BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
 
         assert(info.TreePos == Exists);
         assert(info.state == Compress);
-        assert(info.myrank == rank);
 
        #if DIMENSION == 3
         BlockType *Blocks[8];

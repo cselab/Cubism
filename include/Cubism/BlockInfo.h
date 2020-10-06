@@ -49,11 +49,14 @@ struct BlockInfo
    }
 
 #if DIMENSION == 3
+ #pragma GCC diagnostic push
+ #pragma GCC diagnostic ignored "-Warray-bounds" //ignore weird gcc warning
    static int blocks_per_dim(int i, int nx = 0, int ny = 0, int nz = 0)
    {
       static int a[3] = {nx, ny, nz};
       return a[i];
    }
+ #pragma GCC diagnostic pop
 
    static SpaceFillingCurve * SFC()
    {
@@ -78,11 +81,16 @@ struct BlockInfo
 #endif
 
 #if DIMENSION == 2
+
+ #pragma GCC diagnostic push
+ #pragma GCC diagnostic ignored "-Warray-bounds" //ignore weird gcc warning
    static int blocks_per_dim(int i, int nx = 0, int ny = 0)
    {
       static int a[2] = {nx, ny};
       return a[i];
    }
+ #pragma GCC diagnostic pop
+
 
    static SpaceFillingCurve2D * SFC()
    {

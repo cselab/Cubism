@@ -819,6 +819,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
                BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
 
                Child.state = Leave;
+               Child.TreePos = Exists;
                #pragma omp critical
                {
                   m_refGrid->_alloc(level + 1, nc);
@@ -833,6 +834,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
             BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
             Child.state = Leave;
+            Child.TreePos = Exists;
             #pragma omp critical
             {
                m_refGrid->_alloc(level + 1, nc);

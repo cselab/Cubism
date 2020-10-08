@@ -45,7 +45,7 @@ void DumpZBin_MPI(const TGrid &grid,
 {
   std::cout << "DumpZBin_MPI skipped!\n";
   return;
-
+#if 0
 
     typedef typename TGrid::BlockType B;
 
@@ -196,6 +196,7 @@ void DumpZBin_MPI(const TGrid &grid,
 
     MPI_File_close(&file_id);
     delete[] array_all;
+#endif
 }
 
 template <typename TStreamer, typename TGrid>
@@ -205,6 +206,7 @@ void ReadZBin_MPI(TGrid &grid,
 {
 
     std::cout << "ReadZBin_MPI skipped\n"; return;
+#if 0
 
     typedef typename TGrid::BlockType B;
 
@@ -336,6 +338,7 @@ void ReadZBin_MPI(TGrid &grid,
 
     MPI_File_close(&file_id);
     delete [] array_all;
+#endif
 }
 
 CUBISM_NAMESPACE_END

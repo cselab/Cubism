@@ -39,7 +39,7 @@ void DumpZBin(const TGrid &grid,
               const bool bDummy = false)
 {
     std::cout << "DumpZBin skipped.\n"; return;
-
+#if 0
     typedef typename TGrid::BlockType B;
 
     // f_name is the base filename without file type extension
@@ -131,6 +131,7 @@ void DumpZBin(const TGrid &grid,
     fclose(file_id);
 
     delete[] array_all;
+#endif
 }
 
 template <typename TStreamer, typename TGrid>
@@ -139,6 +140,7 @@ void ReadZBin(TGrid &grid,
               const std::string &read_path = ".")
 {
     std::cout << "ReadZBin skipped.\n"; return;
+#if 0
     typedef typename TGrid::BlockType B;
     typedef typename TGrid::Real Real;
 
@@ -234,6 +236,7 @@ void ReadZBin(TGrid &grid,
 
     fclose(file_id);
     delete [] array_all;
+#endif
 }
 
 CUBISM_NAMESPACE_END

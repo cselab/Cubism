@@ -15,8 +15,6 @@
 #include "BlockInfo.h"
 #include "MeshMap.h"
 
-#define HACK
-
 namespace cubism // AMR_CUBISM
 {
 
@@ -52,7 +50,7 @@ class Grid
    void _alloc() // called in class constructor
    {
       int m        = levelStart;
-      int TwoPower = 1 << m; // pow(2,m);
+      int TwoPower = 1 << m;
       for (int n = 0; n < NX * NY * NZ * pow(TwoPower, 3); n++)
       {
          _alloc(m, n);
@@ -67,9 +65,7 @@ class Grid
       BlockInfoAll[m][n].changed  = true;
       // BlockInfoAll[m][n].ptrBlock = (Block*)calloc(1,sizeof(Block));
 
-#ifdef HACK
       BlockInfoAll[m][n].h_gridpoint = BlockInfoAll[m][n].h;
-#endif
 
       m_blocks.push_back((Block *)BlockInfoAll[m][n].ptrBlock);
       m_vInfo.push_back(BlockInfoAll[m][n]);
@@ -142,47 +138,6 @@ class Grid
             m_blocks[j] = (Block *)BlockInfoAll[m][n].ptrBlock;
          }
    }
-
-#ifdef HACK // empty functions just to make the code compile with stretched meshes
-   std::vector<MeshMap<Block> *> m_mesh_maps;
-
-   Grid(const MeshMap<Block> *const mapX, const MeshMap<Block> *const mapY,
-        const MeshMap<Block> *const mapZ, const int _NX, const int _NY = 1, const int _NZ = 1)
-       : m_blocks(NULL), maxextent(-1.0), N(_NX * _NY * _NZ), NX(_NX), NY(_NY), NZ(_NZ)
-   {
-      std::cout << "Grid was constructed using MeshMap in an AMR setting. Are you sure?\n";
-      assert(false);
-      abort();
-   }
-   inline MeshMap<Block> &getMeshMap(const int i)
-   {
-      assert(false);
-      abort();
-      assert(i >= 0 && i < 3);
-      return *m_mesh_maps[i];
-   }
-   inline const MeshMap<Block> &getMeshMap(const int i) const
-   {
-      assert(false);
-      abort();
-      assert(i >= 0 && i < 3);
-      return *m_mesh_maps[i];
-   }
-
-   void setup(const unsigned int nX, const unsigned int nY, const unsigned int nZ)
-   {
-      assert(false && "You called Grid::setup() in an AMR solver. Do you really need that?\n");
-      abort();
-   }
-
-   virtual int getBlocksPerDimension(int idim) const
-   {
-      assert(
-          false &&
-          "You called Grid::getBlocksPerDimension() in an AMR solver. Do you really need that?\n");
-      abort();
-   }
-#endif
 
    Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1,
         const double _maxextent = 1, const unsigned int _levelStart = 0,

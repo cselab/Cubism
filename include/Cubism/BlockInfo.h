@@ -179,8 +179,9 @@ struct BlockInfo
       return result;
    }
 
-#ifdef HACK
    double h_gridpoint;
+
+#ifdef HACK
    double uniform_grid_spacing[3];
    double block_extent[3];
    double *ptr_grid_spacing[3];

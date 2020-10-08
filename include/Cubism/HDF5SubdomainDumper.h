@@ -29,6 +29,7 @@ namespace SubdomainTypes
         template <typename TSubdomain>
         static std::vector<TSubdomain> getEntities(ArgumentParser& parser, TGrid& grid)
         {
+#if 0
             typedef typename TGrid::BlockType B;
 
             // Concept:
@@ -128,6 +129,10 @@ namespace SubdomainTypes
                 subdomains.emplace_back(&grid, id, sub_start, sub_end, h, idx_start, idx_end);
             }
             return subdomains;
+#else
+            std::vector<TSubdomain> subdomains;
+            return subdomains;
+#endif
         }
 
     public:

@@ -1,9 +1,8 @@
 /*
  *  GridMPI.h
- *  FacesMPI
  *
- *  Created by Diego Rossinelli on 10/21/11.
- *  Copyright 2011 ETH Zurich. All rights reserved.
+ *  Created by Michalis Chatzimanolakis
+ *  Copyright 2020 ETH Zurich. All rights reserved.
  *
  */
 #pragma once
@@ -141,64 +140,6 @@ class GridMPI : public TGrid
       MPI_Barrier(worldcomm);
       std::cout << "GridMPI constructor called (ok)\n";
    }
-
-   GridMPI(const MeshMap<Block> *const mapX, const MeshMap<Block> *const mapY,
-           const MeshMap<Block> *const mapZ, const int npeX, const int npeY, const int npeZ,
-           const int nX = 0, const int nY = 0, const int nZ = 0,
-           const MPI_Comm comm = MPI_COMM_WORLD)
-       : TGrid(mapX, mapY, mapZ, nX, nY, nZ), timestamp(0), worldcomm(comm)
-   {
-      assert(false && "GridMPI MeshMap constructor");
-      assert(this->m_mesh_maps[0]->nblocks() == static_cast<size_t>(npeX * nX));
-      assert(this->m_mesh_maps[1]->nblocks() == static_cast<size_t>(npeY * nY));
-      assert(this->m_mesh_maps[2]->nblocks() == static_cast<size_t>(npeZ * nZ));
-
-      blocksize[0] = Block::sizeX;
-      blocksize[1] = Block::sizeY;
-      blocksize[2] = Block::sizeZ;
-
-      mybpd[0]          = nX;
-      mybpd[1]          = nY;
-      mybpd[2]          = nZ;
-      myblockstotalsize = nX * nY * nZ;
-
-      periodic[0] = true;
-      periodic[1] = true;
-      periodic[2] = true;
-
-      pesize[0] = npeX;
-      pesize[1] = npeY;
-      pesize[2] = npeZ;
-
-      int world_size;
-      MPI_Comm_size(worldcomm, &world_size);
-      assert(npeX * npeY * npeZ == world_size);
-
-      MPI_Cart_create(worldcomm, 3, pesize, periodic, true, &cartcomm);
-      MPI_Comm_rank(cartcomm, &myrank);
-      MPI_Cart_coords(cartcomm, myrank, 3, mypeindex);
-
-      const std::vector<BlockInfo> vInfo = TGrid::getBlocksInfo();
-
-      for (size_t i = 0; i < vInfo.size(); ++i)
-      {
-         BlockInfo info = vInfo[i];
-
-         for (int j = 0; j < 3; ++j)
-         {
-            info.index[j] += mypeindex[j] * mybpd[j];
-
-            info.origin[j] = this->m_mesh_maps[j]->block_origin(info.index[j]);
-
-            info.block_extent[j] = this->m_mesh_maps[j]->block_width(info.index[j]);
-
-            info.ptr_grid_spacing[j] = this->m_mesh_maps[j]->get_grid_spacing(info.index[j]);
-         }
-
-         cached_blockinfo.push_back(info);
-      }
-   }
-
    virtual ~GridMPI() override
    {
       for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
@@ -564,29 +505,9 @@ class GridMPI : public TGrid
       return *SynchronizerMPIs.find(p.stencil)->second;
    }
 
-   int getResidentBlocksPerDimension(int idim) const
-   {
-      // assert(false);
-      assert(idim >= 0 && idim < 3);
-      return 1; // mybpd[idim];
-   }
-
    int rank() const override { return myrank; }
 
    virtual void FillPos(bool CopyInfos = true) override { TGrid::FillPos(CopyInfos); }
-
-   int getBlocksPerDimension(int idim) const override
-   {
-      // assert(false);
-      assert(idim >= 0 && idim < 3);
-      return 1; // mybpd[idim]*pesize[idim];
-   }
-
-   void peindex(int _mypeindex[3]) const
-   {
-      // assert(false);
-      for (int i = 0; i < 3; ++i) _mypeindex[i] = 0; // mypeindex[i];
-   }
 
    size_t getTimeStamp() const { return timestamp; }
 

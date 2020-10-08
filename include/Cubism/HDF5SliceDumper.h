@@ -76,6 +76,7 @@ namespace SliceTypes
                 const double frac) :
             m_grid(grid), m_id(id), m_dir(dir)
         {
+#if 0
             assert(m_grid != NULL);
             assert(m_dir >= 0 && m_dir < 3);
 
@@ -135,6 +136,7 @@ namespace SliceTypes
 
             if (m_intersecting_blocks.empty())
                 m_valid = false;
+#endif
         }
 
         Slice(const Slice& c) = default;
@@ -313,6 +315,7 @@ void DumpSliceHDF5(const TSlice& slice,
                    const bool bXMF = true)
 {
     std::cout<<"mike: DumpSliceHDF5 skipped! \n"; return;
+#if 0
 #ifdef CUBISM_USE_HDF
     typedef typename TSlice::GridType::BlockType B;
 
@@ -452,6 +455,7 @@ void DumpSliceHDF5(const TSlice& slice,
 
 #else
     _warn_no_hdf5();
+#endif
 #endif
 }
 

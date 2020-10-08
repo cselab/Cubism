@@ -44,6 +44,7 @@ namespace SliceTypesMPI
                 const double frac) :
             SliceTypes::Slice<TGrid>(grid, id, dir, idx, frac)
         {
+#if 0
             const int localDim[3] = {
                 static_cast<int>(this->m_grid->getResidentBlocksPerDimension(0)*TBlock::sizeX),
                 static_cast<int>(this->m_grid->getResidentBlocksPerDimension(1)*TBlock::sizeY),
@@ -85,6 +86,7 @@ namespace SliceTypesMPI
             this->m_localHeight = localDim[ this->m_coord_idx[1] ];
             m_offsetWidth = peIdx[ this->m_coord_idx[0] ] * localDim[ this->m_coord_idx[0] ];
             m_offsetHeight= peIdx[ this->m_coord_idx[1] ] * localDim[ this->m_coord_idx[1] ];
+#endif
         }
 
         Slice(const Slice& c) = default;
@@ -115,6 +117,7 @@ void DumpSliceHDF5MPI(const TSlice& slice,
                       const bool bXMF = true)
 {
     std::cout<<"mike: DumpSliceHDF5MPI skipped! \n"; return;
+#if 0
 #ifdef CUBISM_USE_HDF
     typedef typename TSlice::GridType::BlockType B;
 
@@ -283,6 +286,7 @@ void DumpSliceHDF5MPI(const TSlice& slice,
     }
 #else
     _warn_no_hdf5();
+#endif
 #endif
 }
 

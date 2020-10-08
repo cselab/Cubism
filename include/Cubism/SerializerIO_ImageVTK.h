@@ -30,6 +30,7 @@ public:
     void Write(GridType & inputGrid, std::string fileName)
     {
         std::cout << "SerializerIO_ImageVTK Write skipped.\n"; return;
+#if 0
         static const int BX = TBlock::sizeX;
         static const int BY = TBlock::sizeY;
         static const int BZ = TBlock::sizeZ;
@@ -79,6 +80,7 @@ public:
         writer->SetFileName(fileName.c_str());
         writer->SetInputData(imageData);
         writer->Write();
+#endif
     }
 
     template<typename TLab>
@@ -86,6 +88,7 @@ public:
     {
 
         std::cout << "WriteLabs skipped.\n"; return;
+#if 0
         const std::vector<BlockInfo> vInfo = inputGrid.getBlocksInfo();
 
         static const int BX = TBlock::sizeX;
@@ -143,6 +146,7 @@ public:
         writer->SetInputData(imageData);
         writer->Write();
     }
+#endif
 };
 
 CUBISM_NAMESPACE_END

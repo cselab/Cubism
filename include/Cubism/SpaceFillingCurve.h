@@ -206,13 +206,13 @@ class SpaceFillingCurve
 
       SUBSTRACT = new int[BX * BY * BZ];
 
-      #pragma omp parallel
+      //#pragma omp parallel
       {
         int n_max  = max(max(BX, BY), BZ);
         base_level = (log(n_max) / log(2));
         if (base_level < (double)(log(n_max) / log(2))) base_level++;
   
-        #pragma omp for collapse(3)
+        #pragma omp parallel for collapse(3)
         for (unsigned int k=0;k<BZ;k++)
         for (unsigned int j=0;j<BY;j++)
         for (unsigned int i=0;i<BX;i++)

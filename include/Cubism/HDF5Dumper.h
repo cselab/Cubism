@@ -404,7 +404,7 @@ template<typename TStreamer, typename hdf5Real, typename TGrid>
 void ReadHDF5(TGrid &grid, const std::string& fname, const std::string& dpath=".")
 {
     std::cout<<"mike: ReadHDF5 skipped! \n"; return;
-
+#if 0
 #ifdef CUBISM_USE_HDF
     typedef typename TGrid::BlockType B;
 
@@ -477,6 +477,7 @@ void ReadHDF5(TGrid &grid, const std::string& fname, const std::string& dpath=".
     delete [] array_all;
 #else
     _warn_no_hdf5();
+#endif
 #endif
 }
 

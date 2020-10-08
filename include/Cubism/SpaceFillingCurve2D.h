@@ -102,29 +102,26 @@ class SpaceFillingCurve2D
 
       SUBSTRACT = new int[BX * BY];
 
-      #pragma omp parallel
+      int n_max  = max(BX, BY);
+      base_level = (log(n_max) / log(2));
+      if (base_level < (double)(log(n_max) / log(2))) base_level++;
+
+      #pragma omp parallel for collapse(2)
+      for (unsigned int j=0;j<BY;j++)
+      for (unsigned int i=0;i<BX;i++)
       {
-        int n_max  = max(BX, BY);
-        base_level = (log(n_max) / log(2));
-        if (base_level < (double)(log(n_max) / log(2))) base_level++;
-  
-        #pragma omp for collapse(2)
-        for (unsigned int j=0;j<BY;j++)
-        for (unsigned int i=0;i<BX;i++)
-        {
-          const unsigned int c[2] = {i,j};
+        const unsigned int c[2] = {i,j};
           
-          int index = AxestoTranspose( c, base_level);
+        int index = AxestoTranspose( c, base_level);
     
-          int substract = 0;
-          for (int h=0; h<index; h++)
-          {
-            unsigned int X[2] = {0,0};
-            TransposetoAxes(h, X, base_level);
-            if (X[0] >= BX || X[1] >= BY) substract++;   
-          }   
-          SUBSTRACT[j*BX + i] = substract;
-        }
+        int substract = 0;
+        for (int h=0; h<index; h++)
+        {
+          unsigned int X[2] = {0,0};
+          TransposetoAxes(h, X, base_level);
+          if (X[0] >= BX || X[1] >= BY) substract++;   
+        }   
+        SUBSTRACT[j*BX + i] = substract;
       }
 
       for (int l = 0 ; l < lmax ; l++)

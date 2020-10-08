@@ -154,14 +154,6 @@ class Grid
       assert(false);
       abort();
    }
-
-   double getH() const
-   {
-      // std::vector<BlockInfo> vInfo = this->getBlocksInfo();
-      // BlockInfo info = vInfo[0];
-      return -1.0; // info.h_gridpoint;
-   }
-
    inline MeshMap<Block> &getMeshMap(const int i)
    {
       assert(false);

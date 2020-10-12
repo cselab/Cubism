@@ -1121,31 +1121,11 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
         for (int i = 0; i < nx; i += 2)
         {      
             ElementType dudx = 0.5*( Lab(i/2+offsetX[I]+1,j/2+offsetY[J]  )-Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ));
-            ElementType dudy = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1)-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1));
-
-
-            double xm = dudx.magnitude();
-            double ym = dudy.magnitude();
-
-            if (xm > 1e5 || std::isnan(xm))
-              {
-                std::cout << "Too big xm!  " << xm << std::endl;
-                std::cout << Lab(i/2+offsetX[I]+1,j/2+offsetY[J]  ).magnitude() << std::endl;
-                std::cout << Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ).magnitude() << std::endl;
-                std::cout << "i=" << i << " j=" << j << "  I="<<I<<" J="<<J <<std::endl; 
-              }
-            if (ym > 1e5 || std::isnan(ym))
-              {
-                std::cout << "Too big ym!  " << ym << std::endl;
-                std::cout << Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1).magnitude() << std::endl;
-                std::cout << Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1).magnitude() << std::endl;
-                std::cout << "i=" << i << " j=" << j << "  I="<<I<<" J="<<J <<std::endl; 
-              }
-      
-            b(i  ,j  ,0) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]) + (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy; 
-            b(i+1,j  ,0) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]) + (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy; 
-            b(i  ,j+1,0) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]) + (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy; 
-            b(i+1,j+1,0) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]) + (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy; 
+            ElementType dudy = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1)-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1));    
+            b(i  ,j  ,0) = Lab( i/2+offsetX[I],j/2+offsetY[J]) - 0.25*dudx - 0.25*dudy;
+            b(i+1,j  ,0) = Lab( i/2+offsetX[I],j/2+offsetY[J]) + 0.25*dudx - 0.25*dudy;
+            b(i  ,j+1,0) = Lab( i/2+offsetX[I],j/2+offsetY[J]) - 0.25*dudx + 0.25*dudy;
+            b(i+1,j+1,0) = Lab( i/2+offsetX[I],j/2+offsetY[J]) + 0.25*dudx + 0.25*dudy;
         }
       }
      #endif
@@ -1306,19 +1286,10 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
       for (int j = 0; j < ny; j++)
       for (int i = 0; i < nx; i++)
       {
-        double s0 = Lab_(i, j).magnitude();
-        //ElementType ax = (Lab_(i + 1, j) - s0).ABS() / ( s0 + eps);
-        //ElementType ay = (Lab_(i, j + 1) - s0).ABS() / ( s0 + eps);
-        //ax = max(ax, (s0 - Lab_(i - 1, j)).ABS() / (s0 + eps) );
-        //ay = max(ay, (s0 - Lab_(i, j - 1)).ABS() / (s0 + eps) );
-        //Linf = max(Linf, ax);
-        //Linf = max(Linf, ay);
-
+        double s0 = std::fabs( Lab_(i, j).magnitude() );
         Linf = max(Linf,s0);
-        //Linf = std::max(Linf,Lab_(i,j).magnitude());
       }
 #endif
-
       Linf *= 1.0/(level+1);
 
       if (Linf > tolerance_for_refinement) return Refine;

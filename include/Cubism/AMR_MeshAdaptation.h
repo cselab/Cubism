@@ -768,7 +768,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
          {
             int m = mn_ref[2 * i];
             int n = mn_ref[2 * i + 1];
-            MeshAdaptation_basic<TGrid>::refine_2(m, n);
+            refine_2(m, n);
          }
      }
       #pragma omp parallel
@@ -817,9 +817,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             {
                int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
                BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
-
                Child.state = Leave;
-               Child.TreePos = Exists;
                #pragma omp critical
                {
                   m_refGrid->_alloc(level + 1, nc);
@@ -834,7 +832,6 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
             BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
             Child.state = Leave;
-            Child.TreePos = Exists;
             #pragma omp critical
             {
                m_refGrid->_alloc(level + 1, nc);
@@ -1125,6 +1122,25 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
         {      
             ElementType dudx = 0.5*( Lab(i/2+offsetX[I]+1,j/2+offsetY[J]  )-Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ));
             ElementType dudy = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1)-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1));
+
+
+            double xm = dudx.magnitude();
+            double ym = dudy.magnitude();
+
+            if (xm > 1e5 || std::isnan(xm))
+              {
+                std::cout << "Too big xm!  " << xm << std::endl;
+                std::cout << Lab(i/2+offsetX[I]+1,j/2+offsetY[J]  ).magnitude() << std::endl;
+                std::cout << Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ).magnitude() << std::endl;
+                std::cout << "i=" << i << " j=" << j << "  I="<<I<<" J="<<J <<std::endl; 
+              }
+            if (ym > 1e5 || std::isnan(ym))
+              {
+                std::cout << "Too big ym!  " << ym << std::endl;
+                std::cout << Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1).magnitude() << std::endl;
+                std::cout << Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1).magnitude() << std::endl;
+                std::cout << "i=" << i << " j=" << j << "  I="<<I<<" J="<<J <<std::endl; 
+              }
       
             b(i  ,j  ,0) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]) + (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy; 
             b(i+1,j  ,0) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]) + (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy; 

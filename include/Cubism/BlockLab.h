@@ -1213,6 +1213,8 @@ class BlockLab
 
    Real Slope(Real al, Real ac, Real ar)
    {
+    return 0.5*(ar-al);
+
         assert(!std::isnan(al));
         assert(!std::isnan(ac));
         assert(!std::isnan(ar));
@@ -1264,11 +1266,57 @@ class BlockLab
       R                = *C[1][1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy + (2 * z - 1) * 0.25 * dudz;
    }
 #else
+   virtual void WENOWavelets3(double cm, double c, double cp, double &left, double &right)
+   {
+      double b1  = (c - cm) * (c - cm);
+      double b2  = (c - cp) * (c - cp);
+      double w1  = (1e-6 + b2) * (1e-6 + b2); // yes, 2 goes to 1 and 1 goes to 2
+      double w2  = (1e-6 + b1) * (1e-6 + b1);
+      double aux = 1.0 / (w1 + w2);
+      w1 *= aux;
+      w2 *= aux;
+      double g1, g2;
+      g1    = 0.75 * c + 0.25 * cm;
+      g2    = 1.25 * c - 0.25 * cp;
+      left  = g1 * w1 + g2 * w2;
+      g1    = 1.25 * c - 0.25 * cm;
+      g2    = 0.75 * c + 0.25 * cp;
+      right = g1 * w1 + g2 * w2;
+   }
+
+   virtual void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType &left, ElementType &right)
+   {
+      for (int i = 0 ; i < ElementType::DIM; i++)
+        WENOWavelets3(E0.member(i), E1.member(i), E2.member(i), left.member(i), right.member(i));
+   }
+
+
+
+
+
    void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y, const std::vector<int> & selcomponents)
    {
+#if 1
       ElementType dudx = SlopeElement( *C[0][1], *C[1][1], *C[2][1], selcomponents); 
       ElementType dudy = SlopeElement( *C[1][0], *C[1][1], *C[1][2], selcomponents); 
       R                = *C[1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy;
+#else
+      ElementType TEMP [3][2];
+      for (int i2 = -1; i2 <= 1; i2++)
+        Kernel_1D(*C[0][i2 + 1],
+                  *C[1][i2 + 1],
+                  *C[2][i2 + 1],
+                  TEMP[i2 + 1][0],
+                  TEMP[i2 + 1][1]);
+
+      ElementType a00,a01,a10,a11;
+      Kernel_1D(TEMP[0][0], TEMP[1][0], TEMP[2][0], a00, a01);
+      Kernel_1D(TEMP[0][1], TEMP[1][1], TEMP[2][1], a10, a11);
+      if (x==0 && y==0) R = a00;
+      if (x==1 && y==0) R = a10;
+      if (x==0 && y==1) R = a01;
+      if (x==1 && y==1) R = a11;
+#endif
    }
 #endif
 

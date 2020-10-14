@@ -33,6 +33,7 @@ class GridMPI : public TGrid
    int myrank, mypeindex[3], pesize[3];
    int periodic[3];
    int mybpd[3], myblockstotalsize, blocksize[3];
+   int world_size;
 
    std::vector<BlockInfo> cached_blockinfo;
 
@@ -74,7 +75,6 @@ class GridMPI : public TGrid
       pesize[1] = npeY;
       pesize[2] = npeZ;
 
-      int world_size;
       MPI_Comm_size(worldcomm, &world_size);
 
       cartcomm     = worldcomm;
@@ -514,6 +514,8 @@ class GridMPI : public TGrid
    MPI_Comm getCartComm() const { return cartcomm; }
 
    MPI_Comm getWorldComm() const { return worldcomm; }
+
+   virtual int get_world_size() const override {return world_size;}
 };
 
 CUBISM_NAMESPACE_END

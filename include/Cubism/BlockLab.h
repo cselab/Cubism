@@ -18,6 +18,14 @@
 namespace cubism // AMR_CUBISM
 {
 
+//default coarse-fine interpolation stencil
+#if DIMENSION == 3
+    const int default_start [3] = {-1,-1,-1};
+    const int default_end   [3] = {2,2,2}; 
+#else
+    const int default_start [3] = {-1,-1,0};
+    const int default_end   [3] = {2,2,1}; 
+#endif
 /*
    Working copy of Block + Ghosts.
    Data of original block is copied (!) here. So when changing something in
@@ -56,9 +64,9 @@ class BlockLab
 
    // Extra stuff for AMR:
    Matrix3D<ElementType, true, allocator> *m_CoarsenedBlock; // coarsened version of given block
-   int m_InterpStencilStart[3],
-       m_InterpStencilEnd[3]; // stencil used for refinement (assumed tensorial)
-   bool coarsened;            // will be true if block has at least one coarser neighbor
+   int m_InterpStencilStart[3], m_InterpStencilEnd[3];       // stencil used for refinement (assumed tensorial)
+   bool coarsened;                                           // will be true if block has at least one coarser neighbor
+   int CoarseBlockSize[3];                                   // size of coarsened block (nX/2,nY/2,nZ/2)
 
    virtual void _apply_bc(const BlockInfo &info, const Real t = 0, bool coarse = false) {}
 
@@ -82,6 +90,13 @@ class BlockLab
       m_stencilEnd[0] = m_stencilEnd[1] = m_stencilEnd[2] = 0;
       m_InterpStencilStart[0] = m_InterpStencilStart[1] = m_InterpStencilStart[2] = 0;
       m_InterpStencilEnd[0] = m_InterpStencilEnd[1] = m_InterpStencilEnd[2] = 0;
+
+      CoarseBlockSize[0] = (int)BlockType::sizeX / 2;
+      CoarseBlockSize[1] = (int)BlockType::sizeY / 2;
+      CoarseBlockSize[2] = (int)BlockType::sizeZ / 2;
+      if (CoarseBlockSize[0] == 0) CoarseBlockSize[0] = 1;
+      if (CoarseBlockSize[1] == 0) CoarseBlockSize[1] = 1;
+      if (CoarseBlockSize[2] == 0) CoarseBlockSize[2] = 1;
    }
 
    virtual std::string name() const { return "BlockLab"; }
@@ -103,10 +118,6 @@ class BlockLab
    }
 
    inline ElementType *getBuffer() const { return &m_cacheBlock->LinAccess(0); }
-
-   // rasthofer May 2016: required for non-relecting time-dependent boundary conditions
-   // virtual void apply_bc_update(const BlockInfo& info, const Real dt=0, const Real a=0, const
-   // Real b=0) { }
 
    bool UseCoarseStencil(const BlockInfo &a, const BlockInfo &b)
    {
@@ -137,8 +148,8 @@ class BlockLab
    }
 
    void prepare(Grid<BlockType, allocator> &grid, int startX, int endX, int startY, int endY,
-                int startZ, int endZ, const bool _istensorial, int IstartX = -1, int IendX = 2,
-                int IstartY = -1, int IendY = 2, int IstartZ = -1, int IendZ = 2)
+                int startZ, int endZ, const bool _istensorial, int IstartX = default_start[0], int IendX = default_end[0],
+                int IstartY = default_start[1], int IendY = default_end[1], int IstartZ = default_start[2], int IendZ = default_end[2])
    {
       const int ss[3]  = {startX, startY, startZ};
       const int se[3]  = {endX, endY, endZ};
@@ -159,8 +170,9 @@ class BlockLab
     *                      Defines how many ghosts we will get in extended block.
     */
    void prepare(Grid<BlockType, allocator> &grid, const int stencil_start[3],
-                const int stencil_end[3], const bool _istensorial, const int Istencil_start[3],
-                const int Istencil_end[3])
+                const int stencil_end[3], const bool _istensorial,
+                const int Istencil_start[3]=default_start,
+                const int Istencil_end[3]=default_end)
    {
       istensorial = _istensorial;
 
@@ -184,12 +196,9 @@ class BlockLab
       assert(stencil_start[2] <= stencil_end[2]);
 
       if (m_cacheBlock == NULL ||
-          (int)m_cacheBlock->getSize()[0] !=
-              (int)BlockType::sizeX + m_stencilEnd[0] - m_stencilStart[0] - 1 ||
-          (int)m_cacheBlock->getSize()[1] !=
-              (int)BlockType::sizeY + m_stencilEnd[1] - m_stencilStart[1] - 1 ||
-          (int)m_cacheBlock->getSize()[2] !=
-              (int)BlockType::sizeZ + m_stencilEnd[2] - m_stencilStart[2] - 1)
+          (int)m_cacheBlock->getSize()[0] != (int)BlockType::sizeX + m_stencilEnd[0] - m_stencilStart[0] - 1 ||
+          (int)m_cacheBlock->getSize()[1] != (int)BlockType::sizeY + m_stencilEnd[1] - m_stencilStart[1] - 1 ||
+          (int)m_cacheBlock->getSize()[2] != (int)BlockType::sizeZ + m_stencilEnd[2] - m_stencilStart[2] - 1)
       {
          if (m_cacheBlock != NULL) _release(m_cacheBlock);
 
@@ -224,9 +233,9 @@ class BlockLab
                         (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
 
       if (m_CoarsenedBlock == NULL ||
-          (int)m_CoarsenedBlock->getSize()[0] != (int)BlockType::sizeX / 2 + e[0] - s[0] - 1 ||
-          (int)m_CoarsenedBlock->getSize()[1] != (int)BlockType::sizeY / 2 + e[1] - s[1] - 1 ||
-          (int)m_CoarsenedBlock->getSize()[2] != (int)BlockType::sizeZ / 2 + e[2] - s[2] - 1)
+          (int)m_CoarsenedBlock->getSize()[0] != CoarseBlockSize[0] + e[0] - s[0] - 1 ||
+          (int)m_CoarsenedBlock->getSize()[1] != CoarseBlockSize[1] + e[1] - s[1] - 1 ||
+          (int)m_CoarsenedBlock->getSize()[2] != CoarseBlockSize[2] + e[2] - s[2] - 1)
       {
          if (m_CoarsenedBlock != NULL) _release(m_CoarsenedBlock);
 
@@ -234,9 +243,9 @@ class BlockLab
 
          allocator<Matrix3D<ElementType, true, allocator>>().construct(m_CoarsenedBlock);
 
-         m_CoarsenedBlock->_Setup(BlockType::sizeX / 2 + e[0] - s[0] - 1,
-                                  BlockType::sizeY / 2 + e[1] - s[1] - 1,
-                                  BlockType::sizeZ / 2 + e[2] - s[2] - 1);
+         m_CoarsenedBlock->_Setup(CoarseBlockSize[0] + e[0] - s[0] - 1,
+                                  CoarseBlockSize[1] + e[1] - s[1] - 1,
+                                  CoarseBlockSize[2] + e[2] - s[2] - 1);
       }
 
       m_state = eMRAGBlockLab_Prepared;
@@ -264,9 +273,6 @@ class BlockLab
       assert(m_state == eMRAGBlockLab_Prepared || m_state == eMRAGBlockLab_Loaded);
       assert(m_cacheBlock != NULL);
       assert(info.TreePos == Exists);
-      assert(sizeof(ElementType) == sizeof(typename BlockType::ElementType));
-      *m_cacheBlock     = NAN;
-      *m_CoarsenedBlock = NAN;
 #endif
 
       
@@ -294,9 +300,8 @@ class BlockLab
          const int _iy0   = -m_stencilStart[1];
          const int _iy1   = _iy0 + nY;
 
-         const int m_vSize0 = m_cacheBlock->getSize(0); // m_vSize[0];
-         const int m_nElemsPerSlice =
-             m_cacheBlock->getNumberOfElementsPerSlice(); // m_nElementsPerSlice;
+         const int m_vSize0 = m_cacheBlock->getSize(0);
+         const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
          const int my_ix = -m_stencilStart[0];
 
          for (int iz = _iz0; iz < _iz1; iz++)
@@ -304,16 +309,12 @@ class BlockLab
             const int my_izx = iz * m_nElemsPerSlice + my_ix;
             for (int iy = _iy0; iy < _iy1; iy += 4)
             {
-               ElementType *ptrDestination0 = &m_cacheBlock->LinAccess(my_izx + (iy)*m_vSize0);
-               ElementType *ptrDestination1 =
-                   &m_cacheBlock->LinAccess(my_izx + (iy + 1) * m_vSize0);
-               ElementType *ptrDestination2 =
-                   &m_cacheBlock->LinAccess(my_izx + (iy + 2) * m_vSize0);
-               ElementType *ptrDestination3 =
-                   &m_cacheBlock->LinAccess(my_izx + (iy + 3) * m_vSize0);
-
-               memcpy2((char *)ptrDestination0, (char *)(ptrSource), nbytes);
-               memcpy2((char *)ptrDestination1, (char *)(ptrSource + nX), nbytes);
+               ElementType *ptrDestination0 = &m_cacheBlock->LinAccess(my_izx + (iy    )*m_vSize0);
+               ElementType *ptrDestination1 = &m_cacheBlock->LinAccess(my_izx + (iy + 1)*m_vSize0);
+               ElementType *ptrDestination2 = &m_cacheBlock->LinAccess(my_izx + (iy + 2)*m_vSize0);
+               ElementType *ptrDestination3 = &m_cacheBlock->LinAccess(my_izx + (iy + 3)*m_vSize0);
+               memcpy2((char *)ptrDestination0, (char *)(ptrSource         ), nbytes);
+               memcpy2((char *)ptrDestination1, (char *)(ptrSource +     nX), nbytes);
                memcpy2((char *)ptrDestination2, (char *)(ptrSource + 2 * nX), nbytes);
                memcpy2((char *)ptrDestination3, (char *)(ptrSource + 3 * nX), nbytes);
                ptrSource += 4 * nX;
@@ -347,7 +348,6 @@ class BlockLab
       {
          coarsened = false;
 
-#if 1
          const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
          const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
          const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
@@ -366,7 +366,7 @@ class BlockLab
             if (!yperiodic && code[1] == yskip && yskin) continue;
             if (!zperiodic && code[2] == zskip && zskin) continue;
 
-            // mike: get neighbor on same level of resolution
+            //get neighbor on same level of resolution
             const BlockInfo &infoNei =
                 grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
@@ -382,8 +382,7 @@ class BlockLab
 
             if (!istensorial && abs(code[0]) + abs(code[1]) + abs(code[2]) > 1) continue;
 
-            // mike : s and e correspond to start and end of this lab's cells that are filled by
-            // neighbors
+            // s and e correspond to start and end of this lab's cells that are filled by neighbors
             const int s[3] = {code[0] < 1 ? (code[0] < 0 ? m_stencilStart[0] : 0) : nX,
                               code[1] < 1 ? (code[1] < 0 ? m_stencilStart[1] : 0) : nY,
                               code[2] < 1 ? (code[2] < 0 ? m_stencilStart[2] : 0) : nZ};
@@ -403,58 +402,15 @@ class BlockLab
                const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
                FillCoarseVersion(info, code);
             }
-#else
 
-         std::vector<int> icodes;
-         for (size_t j = 0; j < info.my_neighbors.size(); j++)
+         if (m_refGrid->get_world_size() == 1)
          {
-            BlockInfo &infoNei = *info.my_neighbors[j];
-            int code[3] = {-info.index[0] + infoNei.index[0], -info.index[1] + infoNei.index[1],
-                           -info.index[2] + infoNei.index[2]};
-            if (code[0] > 1) code[0] = -1;
-            if (code[1] > 1) code[1] = -1;
-            if (code[2] > 1) code[2] = -1;
-            if (code[0] < -1) code[0] = +1;
-            if (code[1] < -1) code[1] = +1;
-            if (code[2] < -1) code[2] = +1;
-
-            int icode = 1 * (code[0] + 1) + 3 * (code[1] + 1) + 9 * (code[2] + 1);
-
-            if (infoNei.TreePos == Exists)
-            {
-               icodes.push_back(icode);
-               if (!coarsened) coarsened = UseCoarseStencil(info, infoNei);
-            }
-            else if (infoNei.TreePos == CheckCoarser)
-            {
-               CoarseFineExchange(info, code);
-            }
-
-            if (!istensorial && abs(code[0]) + abs(code[1]) + abs(code[2]) > 1) continue;
-
-            // mike : s and e correspond to start and end of this lab's cells that are filled by
-            // neighbors
-            const int s[3] = {code[0] < 1 ? (code[0] < 0 ? m_stencilStart[0] : 0) : nX,
-                              code[1] < 1 ? (code[1] < 0 ? m_stencilStart[1] : 0) : nY,
-                              code[2] < 1 ? (code[2] < 0 ? m_stencilStart[2] : 0) : nZ};
-
-            const int e[3] = {code[0] < 1 ? (code[0] < 0 ? 0 : nX) : nX + m_stencilEnd[0] - 1,
-                              code[1] < 1 ? (code[1] < 0 ? 0 : nY) : nY + m_stencilEnd[1] - 1,
-                              code[2] < 1 ? (code[2] < 0 ? 0 : nZ) : nZ + m_stencilEnd[2] - 1};
-
-            if (infoNei.TreePos == Exists) SameLevelExchange(info, code, s, e);
-            else if (infoNei.TreePos == CheckFiner)
-               FineToCoarseExchange(info, code, s, e);
+            std::vector <int> selcomponents1; //this vector is used in Cubism-MPCF only
+            for (int i=0;i<ElementType::DIM;i++)
+                selcomponents1.push_back(i);
+            std::vector <int> selcomponents=selcomponents; //this vector is used in Cubism-MPCF only
+            post_load(info, selcomponents,t, applybc);
          }
-
-         if (coarsened)
-            for (int &icode : icodes)
-            {
-               const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
-               FillCoarseVersion(info, code);
-            }
-
-#endif
 
          m_state = eMRAGBlockLab_Loaded;
 
@@ -463,6 +419,7 @@ class BlockLab
 
    void post_load(const BlockInfo &info, const std::vector<int> & selcomponents, const Real t = 0, bool applybc = true)
    {
+    #if DIMENSION == 3
       static const int nX = BlockType::sizeX;
       static const int nY = BlockType::sizeY;
       static const int nZ = BlockType::sizeZ;
@@ -499,6 +456,34 @@ class BlockLab
          CoarseFineInterpolation(info,selcomponents);
       }
       if (applybc) _apply_bc(info, t);
+    #else
+      static const int nX = BlockType::sizeX;
+      static const int nY = BlockType::sizeY;
+
+      if (coarsened)
+      {
+         const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
+                                (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1]};
+         for (int j = 0; j < nY / 2; j++)
+               for (int i = 0; i < nX / 2; i++)
+               {
+                  if (i > -m_InterpStencilStart[0] && i < nX / 2 - m_InterpStencilEnd[0] &&
+                      j > -m_InterpStencilStart[1] && j < nY / 2 - m_InterpStencilEnd[1])
+                     continue;
+                  const int ix = 2 * i - m_stencilStart[0];
+                  const int iy = 2 * j - m_stencilStart[1];
+                  ElementType &coarseElement = m_CoarsenedBlock->Access(i - offset[0], j - offset[1],0);
+                  coarseElement = 0.25*
+                                 ( m_cacheBlock->Read(ix, iy    ,0) + m_cacheBlock->Read(ix + 1, iy    ,0)
+                                  +m_cacheBlock->Read(ix, iy + 1,0) + m_cacheBlock->Read(ix + 1, iy + 1,0));              
+                  assert(!std::isnan(coarseElement.magnitude()));
+               }
+         if (applybc) _apply_bc(info, t, true); // apply BC to coarse block
+         CoarseFineInterpolation(info,selcomponents);
+      }
+      if (applybc) _apply_bc(info, t); 
+
+    #endif
    }
 
    void SameLevelExchange(const BlockInfo &info, const int *const code, const int *const s,
@@ -513,11 +498,6 @@ class BlockLab
       BlockType *b_ptr = grid.avail(info.level, info.Znei_(code[0], code[1], code[2]));
       if (b_ptr == nullptr) return;
       BlockType &b = *b_ptr;
-
-      // if (!grid.avail(info.index[0] + code[0], info.index[1] + code[1], info.index[2] +
-      // code[2],info.level)) return; if (!grid.avail(info.level,
-      // info.Znei_(code[0],code[1],code[2]))) return; BlockType& b = grid(info.index[0] + code[0],
-      // info.index[1] + code[1], info.index[2] + code[2],info.level);
 
 #if 1
       const int bytes = (e[0] - s[0]) * sizeof(ElementType);
@@ -615,20 +595,26 @@ class BlockLab
 #endif
    }
 
+#if DIMENSION == 3
    ElementType AverageDown(const ElementType &e0, const ElementType &e1, const ElementType &e2,
                            const ElementType &e3, const ElementType &e4, const ElementType &e5,
                            const ElementType &e6, const ElementType &e7)
    {
-      //ElementType retval = 0.125 * ((e0 + e1) + (e2 + e3) + (e4 + e5) + (e6 + e7));
       ElementType retval = 0.125 * (e0 + e1 + e2 + e3 + e4 + e5 + e6 + e7);
-
       return retval;
    }
+#else
+   ElementType AverageDown(const ElementType &e0, const ElementType &e1, const ElementType &e2,
+                           const ElementType &e3)
+   {
+      ElementType retval = 0.25 * (e0 + e1 + e2 + e3);
+      return retval;
+   }  
+#endif
 
    void FineToCoarseExchange(const BlockInfo &info, const int *const code, const int *const s,
                              const int *const e)
    {
-      // Take averaged-down values from finer neighbors
       const Grid<BlockType, allocator> &grid = *m_refGrid;
       static const int nX                    = BlockType::sizeX;
       static const int nY                    = BlockType::sizeY;
@@ -675,11 +661,18 @@ class BlockLab
       {
          const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
+#if DIMENSION == 3
          BlockType *b_ptr = grid.avail1(
              2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
              2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])),
              2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2])),
              info.level + 1);
+#else
+         BlockType *b_ptr = grid.avail1(
+             2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
+             2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])),
+             info.level + 1);
+#endif
          if (b_ptr == nullptr) continue;
          BlockType &b = *b_ptr;
 
@@ -732,22 +725,30 @@ class BlockLab
 
                   const int YY =
                       (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
-
+#if DIMENSION == 3
                   const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
                   const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY, ZZ + 1);
                   const ElementType *ptrSrc_2 = (const ElementType *)&b(XX, YY + 1, ZZ);
                   const ElementType *ptrSrc_3 = (const ElementType *)&b(XX, YY + 1, ZZ + 1);
-
                   // average down elements of block b to send to coarser neighbor
-                  for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) +
-                                         (1 - abs(code[0])) * ((e[0] - s[0]) / 2));
-                       ee++)
+                  for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
                   {
                      ptrDest[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), *(ptrSrc_1 + 2 * ee),
                                                *(ptrSrc_2 + 2 * ee), *(ptrSrc_3 + 2 * ee),
                                                *(ptrSrc_0 + 2 * ee + 1), *(ptrSrc_1 + 2 * ee + 1),
                                                *(ptrSrc_2 + 2 * ee + 1), *(ptrSrc_3 + 2 * ee + 1));
                   }
+#else
+                  const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY    , ZZ);
+                  const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY + 1, ZZ);
+                  // average down elements of block b to send to coarser neighbor
+                  for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
+                  {
+                     ptrDest[ee] = AverageDown(*(ptrSrc_0 + 2 * ee    ), *(ptrSrc_1 + 2 * ee    ),
+                                               *(ptrSrc_0 + 2 * ee + 1), *(ptrSrc_1 + 2 * ee + 1));
+
+                  }
+#endif
                }
             }
             else
@@ -787,7 +788,7 @@ class BlockLab
                   const int YY3 = (abs(code[1]) == 1)
                                       ? 2 * (iy + 3 * yStep - code[1] * nY) + min(0, code[1]) * nY
                                       : iy + 3 * yStep;
-
+#if DIMENSION == 3
                   const ElementType *ptrSrc_00 = (const ElementType *)&b(XX, YY0, ZZ);
                   const ElementType *ptrSrc_10 = (const ElementType *)&b(XX, YY0, ZZ + 1);
                   const ElementType *ptrSrc_20 = (const ElementType *)&b(XX, YY0 + 1, ZZ);
@@ -832,6 +833,30 @@ class BlockLab
                                      *(ptrSrc_23 + 2 * ee), *(ptrSrc_33 + 2 * ee),
                                      *(ptrSrc_03 + 2 * ee + 1), *(ptrSrc_13 + 2 * ee + 1),
                                      *(ptrSrc_23 + 2 * ee + 1), *(ptrSrc_33 + 2 * ee + 1));
+#else
+                  const ElementType *ptrSrc_00 = (const ElementType *)&b(XX, YY0  , ZZ);
+                  const ElementType *ptrSrc_10 = (const ElementType *)&b(XX, YY0+1, ZZ);
+
+                  const ElementType *ptrSrc_01 = (const ElementType *)&b(XX, YY1  , ZZ);
+                  const ElementType *ptrSrc_11 = (const ElementType *)&b(XX, YY1+1, ZZ);
+
+                  const ElementType *ptrSrc_02 = (const ElementType *)&b(XX, YY2  ,ZZ);
+                  const ElementType *ptrSrc_12 = (const ElementType *)&b(XX, YY2+1,ZZ);
+
+                  const ElementType *ptrSrc_03 = (const ElementType *)&b(XX, YY3  ,ZZ);
+                  const ElementType *ptrSrc_13 = (const ElementType *)&b(XX, YY3+1,ZZ);
+
+                  for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
+                  {
+                     ptrDest0[ee] = AverageDown(*(ptrSrc_00 + 2 * ee    ), *(ptrSrc_10 + 2 * ee    ),
+                                                *(ptrSrc_00 + 2 * ee + 1), *(ptrSrc_10 + 2 * ee + 1));
+                     ptrDest1[ee] = AverageDown(*(ptrSrc_01 + 2 * ee    ), *(ptrSrc_11 + 2 * ee    ),
+                                                *(ptrSrc_01 + 2 * ee + 1), *(ptrSrc_11 + 2 * ee + 1));
+                     ptrDest2[ee] = AverageDown(*(ptrSrc_02 + 2 * ee), *(ptrSrc_12 + 2 * ee),
+                                                *(ptrSrc_02 + 2 * ee + 1), *(ptrSrc_12 + 2 * ee + 1));
+                     ptrDest3[ee] = AverageDown(*(ptrSrc_03 + 2 * ee), *(ptrSrc_13 + 2 * ee),
+                                                *(ptrSrc_03 + 2 * ee + 1), *(ptrSrc_13 + 2 * ee + 1));
+#endif
                   }
                }
             }
@@ -851,25 +876,23 @@ class BlockLab
 
       const BlockInfo &infoNei =
           grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+#if DIMENSION == 3
       BlockType *b_ptr = grid.avail1((infoNei.index[0]) / 2, (infoNei.index[1]) / 2,
                                      (infoNei.index[2]) / 2, info.level - 1);
+#else
+      BlockType *b_ptr = grid.avail1((infoNei.index[0]) / 2, (infoNei.index[1]) / 2,
+                                      info.level - 1);
+#endif
       if (b_ptr == nullptr) return;
       BlockType &b = *b_ptr;
 
-      const int s[3] = {
-          code[0] < 1 ? (code[0] < 0 ? ((m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0]) : 0)
-                      : nX / 2,
-          code[1] < 1 ? (code[1] < 0 ? ((m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1]) : 0)
-                      : nY / 2,
-          code[2] < 1 ? (code[2] < 0 ? ((m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]) : 0)
-                      : nZ / 2};
+      const int s[3] = {code[0] < 1 ? (code[0] < 0 ? ((m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0]) : 0) : CoarseBlockSize[0],
+                        code[1] < 1 ? (code[1] < 0 ? ((m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1]) : 0) : CoarseBlockSize[1],
+                        code[2] < 1 ? (code[2] < 0 ? ((m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]) : 0) : CoarseBlockSize[2]};
 
-      const int e[3] = {code[0] < 1 ? (code[0] < 0 ? 0 : nX / 2)
-                                    : nX / 2 + (m_stencilEnd[0]) / 2 + m_InterpStencilEnd[0] - 1,
-                        code[1] < 1 ? (code[1] < 0 ? 0 : nY / 2)
-                                    : nY / 2 + (m_stencilEnd[1]) / 2 + m_InterpStencilEnd[1] - 1,
-                        code[2] < 1 ? (code[2] < 0 ? 0 : nZ / 2)
-                                    : nZ / 2 + (m_stencilEnd[2]) / 2 + m_InterpStencilEnd[2] - 1};
+      const int e[3] = {code[0] < 1 ? (code[0] < 0 ? 0 : CoarseBlockSize[0]) : CoarseBlockSize[0] + (m_stencilEnd[0]) / 2 + m_InterpStencilEnd[0] - 1,
+                        code[1] < 1 ? (code[1] < 0 ? 0 : CoarseBlockSize[1]) : CoarseBlockSize[1] + (m_stencilEnd[1]) / 2 + m_InterpStencilEnd[1] - 1,
+                        code[2] < 1 ? (code[2] < 0 ? 0 : CoarseBlockSize[2]) : CoarseBlockSize[2] + (m_stencilEnd[2]) / 2 + m_InterpStencilEnd[2] - 1};
 
       const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
                              (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
@@ -988,21 +1011,21 @@ class BlockLab
                          (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
                          (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
 
-      const int s[3] = {code[0] < 1 ? (code[0] < 0 ? sC[0] : 0) : nX / 2,
-                        code[1] < 1 ? (code[1] < 0 ? sC[1] : 0) : nY / 2,
-                        code[2] < 1 ? (code[2] < 0 ? sC[2] : 0) : nZ / 2};
+      const int s[3] = {code[0] < 1 ? (code[0] < 0 ? sC[0] : 0) : CoarseBlockSize[0],
+                        code[1] < 1 ? (code[1] < 0 ? sC[1] : 0) : CoarseBlockSize[1],
+                        code[2] < 1 ? (code[2] < 0 ? sC[2] : 0) : CoarseBlockSize[2]};
 
-      const int e[3] = {code[0] < 1 ? (code[0] < 0 ? 0 : nX / 2) : nX / 2 + eC[0] - 1,
-                        code[1] < 1 ? (code[1] < 0 ? 0 : nY / 2) : nY / 2 + eC[1] - 1,
-                        code[2] < 1 ? (code[2] < 0 ? 0 : nZ / 2) : nZ / 2 + eC[2] - 1};
+      const int e[3] = {code[0] < 1 ? (code[0] < 0 ? 0 : CoarseBlockSize[0]) : CoarseBlockSize[0] + eC[0] - 1,
+                        code[1] < 1 ? (code[1] < 0 ? 0 : CoarseBlockSize[1]) : CoarseBlockSize[1] + eC[1] - 1,
+                        code[2] < 1 ? (code[2] < 0 ? 0 : CoarseBlockSize[2]) : CoarseBlockSize[2] + eC[2] - 1};
 
       const int bytes = (e[0] - s[0]) * sizeof(ElementType);
       if (!bytes) return;
 
       const int start[3] = {
-          s[0] + max(code[0], 0) * nX / 2 - code[0] * nX + min(0, code[0]) * (e[0] - s[0]),
-          s[1] + max(code[1], 0) * nY / 2 - code[1] * nY + min(0, code[1]) * (e[1] - s[1]),
-          s[2] + max(code[2], 0) * nZ / 2 - code[2] * nZ + min(0, code[2]) * (e[2] - s[2])};
+          s[0] + max(code[0], 0) * CoarseBlockSize[0] - code[0] * nX + min(0, code[0]) * (e[0] - s[0]),
+          s[1] + max(code[1], 0) * CoarseBlockSize[1] - code[1] * nY + min(0, code[1]) * (e[1] - s[1]),
+          s[2] + max(code[2], 0) * CoarseBlockSize[2] - code[2] * nZ + min(0, code[2]) * (e[2] - s[2])};
 
       const int m_vSize0         = m_CoarsenedBlock->getSize(0);
       const int m_nElemsPerSlice = m_CoarsenedBlock->getNumberOfElementsPerSlice();
@@ -1024,7 +1047,7 @@ class BlockLab
             ElementType *ptrDest1 = &m_CoarsenedBlock->LinAccess(my_izx + (iy - sC[1]) * m_vSize0);
 
             const int YY = 2 * (iy - s[1]) + start[1];
-
+#if DIMENSION == 3
             const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
             const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY, ZZ + 1);
             const ElementType *ptrSrc_2 = (const ElementType *)&b(XX, YY + 1, ZZ);
@@ -1033,16 +1056,33 @@ class BlockLab
             // average down elements of block b to send to coarser neighbor
             for (int ee = 0; ee < e[0] - s[0]; ee++)
             {
-               ptrDest1[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), *(ptrSrc_1 + 2 * ee),
-                                          *(ptrSrc_2 + 2 * ee), *(ptrSrc_3 + 2 * ee),
-                                          *(ptrSrc_0 + 2 * ee + 1), *(ptrSrc_1 + 2 * ee + 1),
-                                          *(ptrSrc_2 + 2 * ee + 1), *(ptrSrc_3 + 2 * ee + 1));
+               ptrDest1[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), 
+                                          *(ptrSrc_1 + 2 * ee),
+                                          *(ptrSrc_2 + 2 * ee), 
+                                          *(ptrSrc_3 + 2 * ee),
+                                          *(ptrSrc_0 + 2 * ee + 1), 
+                                          *(ptrSrc_1 + 2 * ee + 1),
+                                          *(ptrSrc_2 + 2 * ee + 1), 
+                                          *(ptrSrc_3 + 2 * ee + 1));
             }
+#else
+            const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
+            const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY + 1, ZZ);
+            
+            // average down elements of block b to send to coarser neighbor
+            for (int ee = 0; ee < e[0] - s[0]; ee++)
+            {
+               ptrDest1[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), 
+                                          *(ptrSrc_1 + 2 * ee),
+                                          *(ptrSrc_0 + 2 * ee + 1), 
+                                          *(ptrSrc_1 + 2 * ee + 1));
+            }
+#endif
+
          }
       }
    }
 
-   // Improve the following 2 functions (1/2)
    void CoarseFineInterpolation(const BlockInfo &info,const std::vector<int> & selcomponents)
    {
       const Grid<BlockType, allocator> &grid = *m_refGrid;
@@ -1082,8 +1122,7 @@ class BlockLab
 
          if (infoNei.TreePos != CheckCoarser) continue;
 
-         // mike : s and e correspond to start and end of this lab's cells that are filled by
-         // neighbors
+         // s and e correspond to start and end of this lab's cells that are filled by neighbors
          const int s[3] = {code[0] < 1 ? (code[0] < 0 ? m_stencilStart[0] : 0) : nX,
                            code[1] < 1 ? (code[1] < 0 ? m_stencilStart[1] : 0) : nY,
                            code[2] < 1 ? (code[2] < 0 ? m_stencilStart[2] : 0) : nZ};
@@ -1092,9 +1131,9 @@ class BlockLab
                            code[2] < 1 ? (code[2] < 0 ? 0 : nZ) : nZ + m_stencilEnd[2] - 1};
 
          const int sC[3] = {
-             code[0] < 1 ? (code[0] < 0 ? ((m_stencilStart[0] - 1) / 2) : 0) : nX / 2,
-             code[1] < 1 ? (code[1] < 0 ? ((m_stencilStart[1] - 1) / 2) : 0) : nY / 2,
-             code[2] < 1 ? (code[2] < 0 ? ((m_stencilStart[2] - 1) / 2) : 0) : nZ / 2};
+             code[0] < 1 ? (code[0] < 0 ? ((m_stencilStart[0] - 1) / 2) : 0) : CoarseBlockSize[0],
+             code[1] < 1 ? (code[1] < 0 ? ((m_stencilStart[1] - 1) / 2) : 0) : CoarseBlockSize[1],
+             code[2] < 1 ? (code[2] < 0 ? ((m_stencilStart[2] - 1) / 2) : 0) : CoarseBlockSize[2]};
          // /*comment to silence warnings*/const int eC[3] = {
          // /*comment to silence warnings*/code[0]<1? (code[0]<0 ? 0:nX/2 ) :
          // nX/2+(m_stencilEnd[0])/2
@@ -1111,7 +1150,9 @@ class BlockLab
 
          for (int iz = s[2]; iz < e[2]; iz += 1)
          {
+#if DIMENSION == 3
             int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2];
+#endif
             // /*comment to silence warnings*/const int my_izx =
             // (iz-m_stencilStart[2])*m_nElemsPerSlice
             // + my_ix;
@@ -1123,6 +1164,7 @@ class BlockLab
                {
                   int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
 
+#if DIMENSION == 3
                   ElementType *Test[3][3][3];
                   for (int i = 0; i < 3; i++)
                      for (int j = 0; j < 3; j++)
@@ -1131,12 +1173,20 @@ class BlockLab
                                                                      YY - 1 + j - offset[1],
                                                                      ZZ - 1 + k - offset[2]);
 
-
-                  
                   TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],iz - m_stencilStart[2]),
                              abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
                              abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,
                              abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2, selcomponents);
+#else
+                  ElementType *Test[3][3];
+                  for (int i = 0; i < 3; i++)
+                     for (int j = 0; j < 3; j++)
+                           Test[i][j] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
+                                                                  YY - 1 + j - offset[1],0);
+                  TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0),
+                             abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
+                             abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,selcomponents);
+#endif
                }
             }
          }
@@ -1166,28 +1216,14 @@ class BlockLab
    ElementType SlopeElement(ElementType Al, ElementType Ac, ElementType Ar, const std::vector<int> & selcomponents)
    {
      ElementType retval;
-     //retval.alpha1rho1 = Slope(Al.alpha1rho1, Ac.alpha1rho1, Ar.alpha1rho1); 
-     //retval.alpha2rho2 = Slope(Al.alpha2rho2, Ac.alpha2rho2, Ar.alpha2rho2); 
-     //retval.ru         = Slope(Al.ru        , Ac.ru        , Ar.ru        ); 
-     //retval.rv         = Slope(Al.rv        , Ac.rv        , Ar.rv        ); 
-     //retval.rw         = Slope(Al.rw        , Ac.rw        , Ar.rw        ); 
-     //retval.energy     = Slope(Al.energy    , Ac.energy    , Ar.energy    ); 
-     //retval.alpha2     = Slope(Al.alpha2    , Ac.alpha2    , Ar.alpha2    ); 
-     //retval.dummy      = Slope(Al.dummy     , Ac.dummy     , Ar.dummy     );
-     //
-     Real * L = &Al.alpha1rho1;
-     Real * R = &Ar.alpha1rho1;
-     Real * C = &Ac.alpha1rho1;
-     Real * sl = &retval.alpha1rho1;
-     for (size_t i = 0 ; i < selcomponents.size() ; i ++)
+     for (auto & i : selcomponents)
      {
-        int comp = selcomponents[i];
-        *(sl + comp) = Slope(*(L+comp),*(C+comp),*(R+comp));
+        retval.member(i) = Slope(Al.member(i),Ac.member(i),Ar.member(i));
      }
-
      return retval;
    }
 
+#if DIMENSION == 3
    void TestInterp(ElementType *C[3][3][3], ElementType &R, int x, int y, int z, const std::vector<int> & selcomponents)
    {
       ElementType dudx = SlopeElement( *C[0][1][1] , *C[1][1][1] , *C[2][1][1], selcomponents); 
@@ -1195,6 +1231,60 @@ class BlockLab
       ElementType dudz = SlopeElement( *C[1][1][0] , *C[1][1][1] , *C[1][1][2], selcomponents); 
       R                = *C[1][1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy + (2 * z - 1) * 0.25 * dudz;
    }
+#else
+   virtual void WENOWavelets3(double cm, double c, double cp, double &left, double &right)
+   {
+      double b1  = (c - cm) * (c - cm);
+      double b2  = (c - cp) * (c - cp);
+      double w1  = (1e-6 + b2) * (1e-6 + b2); // yes, 2 goes to 1 and 1 goes to 2
+      double w2  = (1e-6 + b1) * (1e-6 + b1);
+      double aux = 1.0 / (w1 + w2);
+      w1 *= aux;
+      w2 *= aux;
+      double g1, g2;
+      g1    = 0.75 * c + 0.25 * cm;
+      g2    = 1.25 * c - 0.25 * cp;
+      left  = g1 * w1 + g2 * w2;
+      g1    = 1.25 * c - 0.25 * cm;
+      g2    = 0.75 * c + 0.25 * cp;
+      right = g1 * w1 + g2 * w2;
+   }
+
+   virtual void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType &left, ElementType &right)
+   {
+      for (int i = 0 ; i < ElementType::DIM; i++)
+        WENOWavelets3(E0.member(i), E1.member(i), E2.member(i), left.member(i), right.member(i));
+   }
+
+
+
+
+
+   void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y, const std::vector<int> & selcomponents)
+   {
+#if 1
+      ElementType dudx = SlopeElement( *C[0][1], *C[1][1], *C[2][1], selcomponents); 
+      ElementType dudy = SlopeElement( *C[1][0], *C[1][1], *C[1][2], selcomponents); 
+      R                = *C[1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy;
+#else
+      ElementType TEMP [3][2];
+      for (int i2 = -1; i2 <= 1; i2++)
+        Kernel_1D(*C[0][i2 + 1],
+                  *C[1][i2 + 1],
+                  *C[2][i2 + 1],
+                  TEMP[i2 + 1][0],
+                  TEMP[i2 + 1][1]);
+
+      ElementType a00,a01,a10,a11;
+      Kernel_1D(TEMP[0][0], TEMP[1][0], TEMP[2][0], a00, a01);
+      Kernel_1D(TEMP[0][1], TEMP[1][1], TEMP[2][1], a10, a11);
+      if (x==0 && y==0) R = a00;
+      if (x==1 && y==0) R = a10;
+      if (x==0 && y==1) R = a01;
+      if (x==1 && y==1) R = a11;
+#endif
+   }
+#endif
 
    /**
     * Get a single element from the block.

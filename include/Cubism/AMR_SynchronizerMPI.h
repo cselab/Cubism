@@ -807,7 +807,7 @@ class SynchronizerMPI_AMR
                                f[k].infos[0]->level,
                                f[k].infos[0]->Z,
                                f[k].icode[1],
-                               f[k].infos[1]->blockID};
+                               f[k].infos[1]->blockID_2};
 
             fInfo[k].dis = offset;
             offset += V * NC;
@@ -841,7 +841,7 @@ class SynchronizerMPI_AMR
                    {info.offset, L[0], L[1], L[2], srcx, srcy, srcz, info.LX, info.LY,
                     info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY, Csrcx,
                     Csrcy, Csrcz, f[remEl1].infos[0]->level, f[remEl1].infos[0]->Z,
-                    f[remEl1].icode[1], f[remEl1].infos[1]->blockID});
+                    f[remEl1].icode[1], f[remEl1].infos[1]->blockID_2});
 
                fInfo[remEl1].dis = info.offset;
             }
@@ -871,7 +871,7 @@ class SynchronizerMPI_AMR
                    {info.offset, L[0], L[1], L[2], srcx, srcy, srcz, info.LX, info.LY,
                     info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY, Csrcx,
                     Csrcy, Csrcz, f[remEl1].infos[0]->level, f[remEl1].infos[0]->Z,
-                    f[remEl1].icode[1], f[remEl1].infos[1]->blockID});
+                    f[remEl1].icode[1], f[remEl1].infos[1]->blockID_2});
 
                fInfo[remEl1].dis = info.offset;
             }
@@ -1070,7 +1070,7 @@ class SynchronizerMPI_AMR
                     total_size += Vc;
                 }                    
 
-                UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,f[k].infos[0]->Z,f[k].icode[1],f[k].infos[1]->blockID};
+                UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,f[k].infos[0]->Z,f[k].icode[1],f[k].infos[1]->blockID_2};
                 
                 f[k].dis = offset;
                 offset += V*NC;
@@ -1107,7 +1107,7 @@ class SynchronizerMPI_AMR
                     Synch_ptr->UnpacksManager.manyUnpacks[r].push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,
                     info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY,
                     Csrcx, Csrcy, Csrcz,
-                    f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1],f[remEl1].infos[1]->blockID});
+                    f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1],f[remEl1].infos[1]->blockID_2});
                     
                     f[remEl1].dis = info.offset;
                 } 
@@ -1518,7 +1518,7 @@ class SynchronizerMPI_AMR
 
          std::vector<std::pair<int, int>> &rp = interface_ranks_and_positions[i];
 
-         UnpacksManager.MapOfInfos.push_back({info.blockID, info.halo_block_id});
+         UnpacksManager.MapOfInfos.push_back({info.blockID_2, info.halo_block_id});
 
          for (int r = 0; r < size; r++) DM.positions[r].clear();
          for (auto &_rp : rp)

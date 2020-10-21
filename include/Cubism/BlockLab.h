@@ -405,10 +405,10 @@ class BlockLab
 
          if (m_refGrid->get_world_size() == 1)
          {
-            std::vector <int> selcomponents1; //this vector is used in Cubism-MPCF only
+            std::vector <int> selcomponents1;
             for (int i=0;i<ElementType::DIM;i++)
                 selcomponents1.push_back(i);
-            std::vector <int> selcomponents=selcomponents; //this vector is used in Cubism-MPCF only
+            const std::vector <int> selcomponents=selcomponents1;
             post_load(info, selcomponents,t, applybc);
          }
 
@@ -1199,6 +1199,8 @@ class BlockLab
 
    Real Slope(Real al, Real ac, Real ar)
    {
+    return 0.5*(ar-al);
+
         assert(!std::isnan(al));
         assert(!std::isnan(ac));
         assert(!std::isnan(ar));

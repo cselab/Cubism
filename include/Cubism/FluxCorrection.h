@@ -90,7 +90,7 @@ class FluxCorrection
       blocksPerDim = (*m_refGrid).getMaxBlocks();
 
       for (int m=0;m<m_refGrid->getlevelMax();m++)
-        for (int n=0; n< m_refGrid->getBlockInfoAll()[m].size() ;n++)
+        for (size_t n=0; n< m_refGrid->getBlockInfoAll()[m].size() ;n++)
           (*m_refGrid).getBlockInfoAll(m,n).auxiliary = nullptr;
 
       std::array<int,6> icode = {1*2 + 3*1 + 9*1, 1*0 + 3*1 + 9*1, 1*1 + 3*2 + 9*1, 1*1 + 3*0 + 9*1, 1*1 + 3*1 + 9*2, 1*1 + 3*1 + 9*0};
@@ -321,11 +321,18 @@ class FluxCorrection
                {
                   int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
                   for (int i1 = 0; i1 < N1; i1 += 1)
-                  for (int i2 = 0; i2 < N2; i2 += 1)
-                  {
-                    block(j,i2,i1) += CoarseFace[i2 + i1 * N2];
-                    CoarseFace[i2 + i1 * N2].clear();
-                  }
+                     for (int i2 = 0; i2 < N2; i2 += 1)
+                     {
+                        block.tmp[i1][i2][j][0] += CoarseFace[i2 + i1 * N2].alpha1rho1;
+                        block.tmp[i1][i2][j][1] += CoarseFace[i2 + i1 * N2].alpha2rho2;
+                        block.tmp[i1][i2][j][2] += CoarseFace[i2 + i1 * N2].ru;
+                        block.tmp[i1][i2][j][3] += CoarseFace[i2 + i1 * N2].rv;
+                        block.tmp[i1][i2][j][4] += CoarseFace[i2 + i1 * N2].rw;
+                        block.tmp[i1][i2][j][5] += CoarseFace[i2 + i1 * N2].energy;
+                        block.tmp[i1][i2][j][6] += CoarseFace[i2 + i1 * N2].alpha2;
+                        block.tmp[i1][i2][j][7] += CoarseFace[i2 + i1 * N2].dummy;
+                        CoarseFace[i2 + i1 * N2].clear();
+                     }
                }
                else if (d == 1)
                {
@@ -333,7 +340,14 @@ class FluxCorrection
                   for (int i1 = 0; i1 < N1; i1 += 1)
                      for (int i2 = 0; i2 < N2; i2 += 1)
                      {
-                        block(i2,j,i1) += CoarseFace[i2 + i1 * N2];
+                        block.tmp[i1][j][i2][0] += CoarseFace[i2 + i1 * N2].alpha1rho1;
+                        block.tmp[i1][j][i2][1] += CoarseFace[i2 + i1 * N2].alpha2rho2;
+                        block.tmp[i1][j][i2][2] += CoarseFace[i2 + i1 * N2].ru;
+                        block.tmp[i1][j][i2][3] += CoarseFace[i2 + i1 * N2].rv;
+                        block.tmp[i1][j][i2][4] += CoarseFace[i2 + i1 * N2].rw;
+                        block.tmp[i1][j][i2][5] += CoarseFace[i2 + i1 * N2].energy;
+                        block.tmp[i1][j][i2][6] += CoarseFace[i2 + i1 * N2].alpha2;
+                        block.tmp[i1][j][i2][7] += CoarseFace[i2 + i1 * N2].dummy;
                         CoarseFace[i2 + i1 * N2].clear();
                      }
                }
@@ -343,7 +357,14 @@ class FluxCorrection
                   for (int i1 = 0; i1 < N1; i1 += 1)
                      for (int i2 = 0; i2 < N2; i2 += 1)
                      {
-                        block(i2,i1,j) += CoarseFace[i2 + i1 * N2];
+                        block.tmp[j][i1][i2][0] += CoarseFace[i2 + i1 * N2].alpha1rho1;
+                        block.tmp[j][i1][i2][1] += CoarseFace[i2 + i1 * N2].alpha2rho2;
+                        block.tmp[j][i1][i2][2] += CoarseFace[i2 + i1 * N2].ru;
+                        block.tmp[j][i1][i2][3] += CoarseFace[i2 + i1 * N2].rv;
+                        block.tmp[j][i1][i2][4] += CoarseFace[i2 + i1 * N2].rw;
+                        block.tmp[j][i1][i2][5] += CoarseFace[i2 + i1 * N2].energy;
+                        block.tmp[j][i1][i2][6] += CoarseFace[i2 + i1 * N2].alpha2;
+                        block.tmp[j][i1][i2][7] += CoarseFace[i2 + i1 * N2].dummy;
                         CoarseFace[i2 + i1 * N2].clear();
                      }
                }

@@ -15,13 +15,7 @@
 
 using namespace std;
 
-#include <mpi.h>
-
-#include <string>
-
 #define DIMENSION 2
-
-
 
 namespace cubism // AMR_CUBISM
 {
@@ -278,7 +272,6 @@ struct BlockInfo
 
       blockID = index[0] + (1<<level)*blocks_per_dim(0)*index[1];
       blockID_2 = Encode(level, Z, index);
-
    }
 
    int Znei_(int i, int j, int k) const
@@ -288,6 +281,5 @@ struct BlockInfo
       assert(abs(k) <= 1);
       return Znei[1 + i][1 + j][1 + k];
    }
-
 };
 } // namespace cubism

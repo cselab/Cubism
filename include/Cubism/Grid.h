@@ -13,9 +13,6 @@
 #endif
 
 #include "BlockInfo.h"
-#include "MeshMap.h"
-
-#define HACK
 
 namespace cubism // AMR_CUBISM
 {
@@ -80,11 +77,10 @@ class Grid
       allocator<Block> alloc;
       BlockInfoAll[m][n].ptrBlock = alloc.allocate(1);
       BlockInfoAll[m][n].changed  = true;
-      //BlockInfoAll[m][n].TreePos = Exists;
+      BlockInfoAll[m][n].h_gridpoint = BlockInfoAll[m][n].h;
 
       m_blocks.push_back((Block *)BlockInfoAll[m][n].ptrBlock);
       m_vInfo.push_back(BlockInfoAll[m][n]);
-
       N++;
    }
 
@@ -132,7 +128,6 @@ class Grid
 
    virtual void FillPos(bool CopyInfos = true)
    {
-
       if (CopyInfos)
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {
@@ -153,7 +148,6 @@ class Grid
             assert(BlockInfoAll[m][n].TreePos == Exists);
             m_blocks[j] = (Block *)BlockInfoAll[m][n].ptrBlock;
          }
-
       for (size_t j = 0; j < m_vInfo.size(); j++)
       {
          int m            = m_vInfo[j].level;
@@ -162,7 +156,6 @@ class Grid
          BlockInfoAll[m][n].blockID = j;
       }
    }
-
 
    Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1,
         const double _maxextent = 1, const unsigned int _levelStart = 0,
@@ -197,7 +190,6 @@ class Grid
       BlockInfoAll.resize(lvlMax);
 
       Zsave.resize(lvlMax);
-
 
       for (int m = 0; m < lvlMax; m++)
       {
@@ -368,7 +360,6 @@ class Grid
    virtual std::vector<BlockInfo> &getBlocksInfo() { return m_vInfo; }
    virtual const std::vector<BlockInfo> &getBlocksInfo() const { return m_vInfo; }
 
-
    template <typename T>
    void apply_permutation_in_place(std::vector<T>& vec, std::vector<std::size_t>& p)
    {
@@ -404,59 +395,12 @@ class Grid
          m_vInfo[i].blockID = i;
    }
 
-
-
-#ifdef HACK // empty functions just to make the code compile with stretched meshes
-   std::vector<MeshMap<Block> *> m_mesh_maps;
-
-   Grid(const MeshMap<Block> *const mapX, const MeshMap<Block> *const mapY,
-        const MeshMap<Block> *const mapZ, const int _NX, const int _NY = 1, const int _NZ = 1)
-       : m_blocks(NULL), maxextent(-1.0), N(_NX * _NY * _NZ), NX(_NX), NY(_NY), NZ(_NZ)
-   {
-      std::cout << "Grid was constructed using MeshMap in an AMR setting. Are you sure?\n";
-      assert(false);
-      abort();
-   }
-
-   double getH() const
-   {
-      std::cout << "getH() is no longer a grid property!" << std::endl;
-      abort(); 
-      // std::vector<BlockInfo> vInfo = this->getBlocksInfo();
-      // BlockInfo info = vInfo[0];
-      return -1.0; // info.h_gridpoint;
-   }
-
-   inline MeshMap<Block> &getMeshMap(const int i)
-   {
-      assert(false);
-      abort();
-      assert(i >= 0 && i < 3);
-      return *m_mesh_maps[i];
-   }
-   inline const MeshMap<Block> &getMeshMap(const int i) const
-   {
-      assert(false);
-      abort();
-      assert(i >= 0 && i < 3);
-      return *m_mesh_maps[i];
-   }
-
-   void setup(const unsigned int nX, const unsigned int nY, const unsigned int nZ)
-   {
-      assert(false && "You called Grid::setup() in an AMR solver. Do you really need that?\n");
-      abort();
-   }
-
    virtual int getBlocksPerDimension(int idim) const
    {
-      assert(
-          false &&
-          "You called Grid::getBlocksPerDimension() in an AMR solver. Do you really need that?\n");
+      std::cout <<"You called Grid::getBlocksPerDimension() in an AMR solver. Do you really need that?"<<std::endl;
       abort();
    }
-#endif
-  
+   virtual int get_world_size() const {return 1;}
 };
 
 } // namespace cubism

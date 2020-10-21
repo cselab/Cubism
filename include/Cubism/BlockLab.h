@@ -26,7 +26,6 @@ namespace cubism // AMR_CUBISM
     const int default_start [3] = {-1,-1,0};
     const int default_end   [3] = {2,2,1}; 
 #endif
-
 /*
    Working copy of Block + Ghosts.
    Data of original block is copied (!) here. So when changing something in
@@ -170,7 +169,6 @@ class BlockLab
     * @param stencil_end   Maximal stencil used for computations at lower boundary.
     *                      Defines how many ghosts we will get in extended block.
     */
- 
    void prepare(Grid<BlockType, allocator> &grid, const int stencil_start[3],
                 const int stencil_end[3], const bool _istensorial,
                 const int Istencil_start[3]=default_start,
@@ -275,9 +273,6 @@ class BlockLab
       assert(m_state == eMRAGBlockLab_Prepared || m_state == eMRAGBlockLab_Loaded);
       assert(m_cacheBlock != NULL);
       assert(info.TreePos == Exists);
-      //assert(sizeof(ElementType) == sizeof(typename BlockType::ElementType));
-      //*m_cacheBlock     = NAN;
-      //*m_CoarsenedBlock = NAN;
 #endif
 
       
@@ -407,18 +402,19 @@ class BlockLab
                const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
                FillCoarseVersion(info, code);
             }
-         
-         ////////////////
-         // Mike:
-         // The part below should only be called here when running with a single node.
-         // This needs to be fixed when running with many ranks!
-         const std::vector <int> selcomponents ={0,1,2,3,4,5,6,7}; //this vector is used in Cubism-MPCF only
-         post_load(info, selcomponents,t, applybc);
+
+         if (m_refGrid->get_world_size() == 1)
+         {
+            std::vector <int> selcomponents1;
+            for (int i=0;i<ElementType::DIM;i++)
+                selcomponents1.push_back(i);
+            const std::vector <int> selcomponents=selcomponents1;
+            post_load(info, selcomponents,t, applybc);
+         }
 
          m_state = eMRAGBlockLab_Loaded;
 
       } // 2.
-
    }
 
    void post_load(const BlockInfo &info, const std::vector<int> & selcomponents, const Real t = 0, bool applybc = true)
@@ -741,8 +737,6 @@ class BlockLab
                                                *(ptrSrc_2 + 2 * ee), *(ptrSrc_3 + 2 * ee),
                                                *(ptrSrc_0 + 2 * ee + 1), *(ptrSrc_1 + 2 * ee + 1),
                                                *(ptrSrc_2 + 2 * ee + 1), *(ptrSrc_3 + 2 * ee + 1));
-
-                     assert(!std::isnan(ptrDest[ee].magnitude()));
                   }
 #else
                   const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY    , ZZ);
@@ -753,7 +747,6 @@ class BlockLab
                      ptrDest[ee] = AverageDown(*(ptrSrc_0 + 2 * ee    ), *(ptrSrc_1 + 2 * ee    ),
                                                *(ptrSrc_0 + 2 * ee + 1), *(ptrSrc_1 + 2 * ee + 1));
 
-                     assert(!std::isnan(ptrDest[ee].magnitude()));
                   }
 #endif
                }
@@ -864,10 +857,6 @@ class BlockLab
                      ptrDest3[ee] = AverageDown(*(ptrSrc_03 + 2 * ee), *(ptrSrc_13 + 2 * ee),
                                                 *(ptrSrc_03 + 2 * ee + 1), *(ptrSrc_13 + 2 * ee + 1));
 #endif
-                     assert(!std::isnan(ptrDest0[ee].magnitude()));
-                     assert(!std::isnan(ptrDest1[ee].magnitude()));
-                     assert(!std::isnan(ptrDest2[ee].magnitude()));
-                     assert(!std::isnan(ptrDest3[ee].magnitude()));
                   }
                }
             }
@@ -1063,7 +1052,7 @@ class BlockLab
             const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY, ZZ + 1);
             const ElementType *ptrSrc_2 = (const ElementType *)&b(XX, YY + 1, ZZ);
             const ElementType *ptrSrc_3 = (const ElementType *)&b(XX, YY + 1, ZZ + 1);
-            
+
             // average down elements of block b to send to coarser neighbor
             for (int ee = 0; ee < e[0] - s[0]; ee++)
             {
@@ -1198,9 +1187,6 @@ class BlockLab
                              abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
                              abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,selcomponents);
 #endif
-                  assert ( !std::isnan(m_cacheBlock->Access(ix - m_stencilStart[0], 
-                                                            iy - m_stencilStart[1],
-                                                            iz - m_stencilStart[2]).magnitude())); 
                }
             }
          }
@@ -1231,30 +1217,12 @@ class BlockLab
 
    ElementType SlopeElement(ElementType Al, ElementType Ac, ElementType Ar, const std::vector<int> & selcomponents)
    {
-        ElementType retval;
-        //retval.alpha1rho1 = Slope(Al.alpha1rho1, Ac.alpha1rho1, Ar.alpha1rho1); 
-        //retval.alpha2rho2 = Slope(Al.alpha2rho2, Ac.alpha2rho2, Ar.alpha2rho2); 
-        //retval.ru         = Slope(Al.ru        , Ac.ru        , Ar.ru        ); 
-        //retval.rv         = Slope(Al.rv        , Ac.rv        , Ar.rv        ); 
-        //retval.rw         = Slope(Al.rw        , Ac.rw        , Ar.rw        ); 
-        //retval.energy     = Slope(Al.energy    , Ac.energy    , Ar.energy    ); 
-        //retval.alpha2     = Slope(Al.alpha2    , Ac.alpha2    , Ar.alpha2    ); 
-        //retval.dummy      = Slope(Al.dummy     , Ac.dummy     , Ar.dummy     );
-        //Real * L = &Al.alpha1rho1;
-        //Real * R = &Ar.alpha1rho1;
-        //Real * C = &Ac.alpha1rho1;
-        //Real * sl = &retval.alpha1rho1;    
-        //for (size_t i = 0 ; i < selcomponents.size() ; i ++)
-        //{
-        //   int comp = selcomponents[i];
-        //   *(sl + comp) = Slope(*(L+comp),*(C+comp),*(R+comp));
-        //}
-
-        for (int i = 0 ; i < ElementType::DIM; i++)
-        {
-            retval.member(i) = Slope(Al.member(i),Ac.member(i),Ar.member(i));
-        }
-        return retval;
+     ElementType retval;
+     for (auto & i : selcomponents)
+     {
+        retval.member(i) = Slope(Al.member(i),Ac.member(i),Ar.member(i));
+     }
+     return retval;
    }
 
 #if DIMENSION == 3

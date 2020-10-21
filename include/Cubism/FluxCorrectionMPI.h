@@ -14,10 +14,9 @@ class FluxCorrectionMPI : public TFluxCorrection
    typedef typename TFluxCorrection::ElementType ElementType;
    typedef typename TFluxCorrection::Real Real;
    typedef typename TFluxCorrection::BlockType BlockType;
-   typedef typename TFluxCorrection::ElementTypeBlock ElementTypeBlock;
    typedef BlockCase<BlockType> Case;
 
-   typedef typename TFluxCorrection::LabType TLab;
+//   typedef typename TFluxCorrection::LabType TLab;
 
  protected:
    struct face
@@ -60,8 +59,6 @@ class FluxCorrectionMPI : public TFluxCorrection
       if (!grid.UpdateFluxCorrection) return;
       grid.UpdateFluxCorrection = false;
 
-      TFluxCorrection::prepare(grid);
-
       MPI_Comm_size(grid.getWorldComm(), &size);
       MPI_Comm_rank(grid.getWorldComm(), &rank);
 
@@ -96,11 +93,10 @@ class FluxCorrectionMPI : public TFluxCorrection
       TFluxCorrection::m_refGrid = &grid;
       std::vector<BlockInfo> &BB = (*TFluxCorrection::m_refGrid).getBlocksInfo();
 
-      TLab temp_Lab; // needed only to call functions is_xperiodic(),is_yperiodic(),is_zperiodic()
-      TFluxCorrection::xperiodic    = temp_Lab.is_xperiodic();
-      TFluxCorrection::yperiodic    = temp_Lab.is_yperiodic();
-      TFluxCorrection::zperiodic    = temp_Lab.is_zperiodic();
-      TFluxCorrection::blocksPerDim = (*TFluxCorrection::m_refGrid).getMaxBlocks();
+      TFluxCorrection::xperiodic = grid.xperiodic;
+      TFluxCorrection::yperiodic = grid.xperiodic;
+      TFluxCorrection::zperiodic = grid.xperiodic;
+      TFluxCorrection::blocksPerDim = grid.getMaxBlocks();
 
 #if 0
       for (int m = 0; m < TFluxCorrection::m_refGrid->getlevelMax(); m++)

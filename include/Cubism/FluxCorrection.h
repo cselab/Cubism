@@ -56,26 +56,19 @@ struct BlockCase
    ~BlockCase() {}
 };
 
-template <typename TGrid, typename TBlock, typename TLab,
-          template <typename X> class allocator = std::allocator,
-          typename ElementTypeT                 = typename TBlock::ElementType>
+template <typename TGrid, typename TBlock>
 class FluxCorrection
 {
  public:
-   typedef ElementTypeT ElementType;
-   typedef typename ElementTypeT::RealType Real;
    typedef TBlock BlockType;
-   typedef typename BlockType::ElementType ElementTypeBlock;
-
+   typedef typename BlockType::ElementType ElementType;
+   typedef typename ElementType::RealType Real;
    typedef BlockCase<BlockType> Case;
-   typedef TLab LabType;
 
  protected:
    std::map<std::array<int, 2>, Case *> MapOfCases;
-   // Grid<BlockType, allocator>*
    TGrid *m_refGrid;
    std::vector<Case> Cases;
-
    bool xperiodic;
    bool yperiodic;
    bool zperiodic;
@@ -84,82 +77,63 @@ class FluxCorrection
  public:
    virtual void prepare(TGrid &grid)
    {
-      /*
-            Cases.clear();
-            MapOfCases.clear();
+      if (grid.UpdateFluxCorrection == false) return;
 
-            m_refGrid = &grid;
-            std::vector<BlockInfo> & B = (*m_refGrid).getBlocksInfo();
+      Cases.clear();
+      MapOfCases.clear();
+      m_refGrid = &grid;
+      std::vector<BlockInfo> & B = (*m_refGrid).getBlocksInfo();
 
+      xperiodic = grid.xperiodic;
+      yperiodic = grid.xperiodic;
+      zperiodic = grid.xperiodic;
+      blocksPerDim = (*m_refGrid).getMaxBlocks();
 
-            TLab temp_Lab; //needed only to call functions
-         is_xperiodic(),is_yperiodic(),is_zperiodic() xperiodic = temp_Lab.is_xperiodic(); yperiodic
-         = temp_Lab.is_yperiodic(); zperiodic = temp_Lab.is_zperiodic(); blocksPerDim =
-         (*m_refGrid).getMaxBlocks();
+      for (int m=0;m<m_refGrid->getlevelMax();m++)
+        for (size_t n=0; n< m_refGrid->getBlockInfoAll()[m].size() ;n++)
+          (*m_refGrid).getBlockInfoAll(m,n).auxiliary = nullptr;
 
-            for (int m=0;m<m_refGrid->getlevelMax();m++)
-            {
-              int aux = pow(pow(2,m),3);
-              for (int n=0; n<aux*blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2];n++)
-              {
-                (*m_refGrid).getBlockInfoAll(m,n).auxiliary = nullptr;
-              }
-            }
+      std::array<int,6> icode = {1*2 + 3*1 + 9*1, 1*0 + 3*1 + 9*1, 1*1 + 3*2 + 9*1, 1*1 + 3*0 + 9*1, 1*1 + 3*1 + 9*2, 1*1 + 3*1 + 9*0};
 
-            std::array<int,6> icode = {1*2 + 3*1 + 9*1,
-                                       1*0 + 3*1 + 9*1,
-                                       1*1 + 3*2 + 9*1,
-                                       1*1 + 3*0 + 9*1,
-                                       1*1 + 3*1 + 9*2,
-                                       1*1 + 3*1 + 9*0};
+      for (auto & info: B)
+      {
+        const int aux = 1<<info.level;
 
-            for (auto & info: B)
-            {
-              const int aux = 1<<info.level;
+        const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
+        const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
+        const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
+        const int  xskip = info.index[0]==0 ? -1 : 1;
+        const int  yskip = info.index[1]==0 ? -1 : 1;
+        const int  zskip = info.index[2]==0 ? -1 : 1;
 
-              const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;
-              const bool yskin = info.index[1]==0 || info.index[1]==blocksPerDim[1]*aux-1;
-              const bool zskin = info.index[2]==0 || info.index[2]==blocksPerDim[2]*aux-1;
+        bool storeFace[6] = {false,false,false,false,false,false};
+        bool stored = false;
 
-              const int xskip  = info.index[0]==0 ? -1 : 1;
-              const int yskip  = info.index[1]==0 ? -1 : 1;
-              const int zskip  = info.index[2]==0 ? -1 : 1;
-
-              bool storeFace[6] = {false,false,false,false,false,false};
-              bool stored = false;
-
-              for (int f=0; f<6; f++)
-              {
-                const int code[3] = { icode[f]%3-1, (icode[f]/3)%3-1, (icode[f]/9)%3-1};
-
-                if (!xperiodic && code[0] == xskip && xskin) continue;
-                if (!yperiodic && code[1] == yskip && yskin) continue;
-                if (!zperiodic && code[2] == zskip && zskin) continue;
-
-                BlockInfo infoNei =
-         (*m_refGrid).getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));
-
-                if (infoNei.TreePos != Exists)
-                {
-                  storeFace[ abs(code[0]) * max(0,code[0]) + abs(code[1]) * (max(0,code[1])+2) +
-         abs(code[2]) * (max(0,code[2])+4)   ] = true; stored = true;
-                }
-              }//icode = 0,...,26
-
-              if (stored)
-              {
-                Cases.push_back(Case(storeFace,BlockType::sizeX,BlockType::sizeY,BlockType::sizeZ));
-                Cases.back().SetupMetaData(info.level,info.Z);
-              }
-            }
-
-            for (size_t i = 0; i < Cases.size() ; i ++ )
-            {
-              MapOfCases.insert(  std::pair<std::array <int,2>,Case *>  (
-         {Cases[i].level,Cases[i].Z}  , &Cases[i] ) );
-              (*m_refGrid).getBlockInfoAll(Cases[i].level,Cases[i].Z).auxiliary = &Cases[i];
-            }
-      */
+        for (int f=0; f<6; f++)
+        {
+          const int code[3] = { icode[f]%3-1, (icode[f]/3)%3-1, (icode[f]/9)%3-1};
+          if (!xperiodic && code[0] == xskip && xskin) continue;
+          if (!yperiodic && code[1] == yskip && yskin) continue;
+          if (!zperiodic && code[2] == zskip && zskin) continue;
+          BlockInfo infoNei =m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));
+          if (infoNei.TreePos != Exists)
+          {
+            storeFace[ abs(code[0]) *  max(0,code[0]) + abs(code[1]) * (max(0,code[1])+2) + abs(code[2]) * (max(0,code[2])+4)  ] = true;
+            stored = true;
+          }
+        }
+        if (stored)
+        {
+          Cases.push_back(Case(storeFace,BlockType::sizeX,BlockType::sizeY,BlockType::sizeZ));
+          Cases.back().SetupMetaData(info.level,info.Z);
+        }
+      }
+      for (size_t i = 0; i < Cases.size() ; i ++ )
+      {
+        MapOfCases.insert(  std::pair<std::array <int,2>,Case *> ({Cases[i].level,Cases[i].Z}, &Cases[i]) );
+        m_refGrid->getBlockInfoAll(Cases[i].level,Cases[i].Z).auxiliary = &Cases[i];
+      }
+      m_refGrid->FillPos();
    }
 
    Case *GetCase(int level, int Z)
@@ -182,78 +156,69 @@ class FluxCorrection
       // This assumes that the BlockCases have been filled by the user somehow...
       std::vector<BlockInfo> &B = (*m_refGrid).getBlocksInfo();
 
-      std::array<int, 6> icode = {1 * 2 + 3 * 1 + 9 * 1, 1 * 0 + 3 * 1 + 9 * 1,
-                                  1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1,
-                                  1 * 1 + 3 * 1 + 9 * 2, 1 * 1 + 3 * 1 + 9 * 0};
+      std::array<int, 6> icode = {1 * 2 + 3 * 1 + 9 * 1, 1 * 0 + 3 * 1 + 9 * 1, 1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1, 1 * 1 + 3 * 1 + 9 * 2, 1 * 1 + 3 * 1 + 9 * 0};
 
       for (auto &info : B)
       {
-         int aux = 1 << info.level;
+        const int aux = 1 << info.level;
+        const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
+        const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
+        const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
+        const int  xskip = info.index[0] == 0 ? -1 : 1;
+        const int  yskip = info.index[1] == 0 ? -1 : 1;
+        const int  zskip = info.index[2] == 0 ? -1 : 1;
 
-         const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
-         const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
-         const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
+        for (int f = 0; f < 6; f++)
+        {
+          const int code[3] = {icode[f] % 3 - 1, (icode[f] / 3) % 3 - 1, (icode[f] / 9) % 3 - 1};
 
-         const int xskip = info.index[0] == 0 ? -1 : 1;
-         const int yskip = info.index[1] == 0 ? -1 : 1;
-         const int zskip = info.index[2] == 0 ? -1 : 1;
+          if (!xperiodic && code[0] == xskip && xskin) continue;
+          if (!yperiodic && code[1] == yskip && yskin) continue;
+          if (!zperiodic && code[2] == zskip && zskin) continue;
 
-         for (int f = 0; f < 6; f++)
-         {
-            const int code[3] = {icode[f] % 3 - 1, (icode[f] / 3) % 3 - 1, (icode[f] / 9) % 3 - 1};
+          BlockInfo infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-            if (!xperiodic && code[0] == xskip && xskin) continue;
-            if (!yperiodic && code[1] == yskip && yskin) continue;
-            if (!zperiodic && code[2] == zskip && zskin) continue;
-
-            BlockInfo infoNei =
-                (*m_refGrid).getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-
-            if (infoNei.TreePos == CheckFiner)
-            {
-               FillCase(info, code);
-            }
-         } // icode = 0,...,26
+          if (infoNei.TreePos == CheckFiner) FillCase(info, code);
+        }
       }
-
       Correct();
    }
 
    virtual void FillCase(BlockInfo info, const int *const code)
    {
-      int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) +
-                   abs(code[2]) * (max(0, code[2]) + 4);
-      int otherFace = abs(-code[0]) * max(0, -code[0]) + abs(-code[1]) * (max(0, -code[1]) + 2) +
-                      abs(-code[2]) * (max(0, -code[2]) + 4);
+      const int myFace    = abs( code[0]) * max(0,  code[0]) + abs( code[1]) * (max(0,  code[1]) + 2) + abs( code[2]) * (max(0,  code[2]) + 4);
+      const int otherFace = abs(-code[0]) * max(0, -code[0]) + abs(-code[1]) * (max(0, -code[1]) + 2) + abs(-code[2]) * (max(0, -code[2]) + 4);
 
       std::array<int, 2> temp = {info.level, info.Z};
       auto search             = MapOfCases.find(temp);
 
+      Case &CoarseCase = (*search->second);
+      std::vector<ElementType> &CoarseFace = CoarseCase.m_pData[myFace];
+
       assert(myFace / 2 == otherFace / 2);
       assert(search != MapOfCases.end());
-
-      Case &CoarseCase = (*search->second);
-
       assert(CoarseCase.Z == info.Z);
       assert(CoarseCase.level == info.level);
 
-      std::vector<ElementType> &CoarseFace = CoarseCase.m_pData[myFace];
-
+     #if DIMENSION == 3
       for (int B = 0; B <= 3; B++) // loop over fine blocks that make up coarse face
+     #else
+      for (int B = 0; B <= 1; B++) // loop over fine blocks that make up coarse face
+     #endif
       {
-         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
+        const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-         int Z = (*m_refGrid)
-                     .getZforward(info.level + 1,
-                                  2 * info.index[0] + max(code[0], 0) + code[0] +
-                                      (B % 2) * max(0, 1 - abs(code[0])),
-                                  2 * info.index[1] + max(code[1], 0) + code[1] +
-                                      aux * max(0, 1 - abs(code[1])),
-                                  2 * info.index[2] + max(code[2], 0) + code[2] +
-                                      (B / 2) * max(0, 1 - abs(code[2])));
-
+       #if DIMENSION == 3
+        int Z = (*m_refGrid).getZforward(info.level + 1,
+                                          2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
+                                          2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])),
+                                          2 * info.index[2] + max(code[2], 0) + code[2] +(B / 2) * max(0, 1 - abs(code[2])));
+       #else
+         int Z = (*m_refGrid).getZforward(info.level + 1,
+                                          2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
+                                          2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])));
+       #endif
          auto search1 = MapOfCases.find({info.level + 1, Z});
-         assert(search1 != MapOfCases.end());
 
          Case &FineCase                     = (*search1->second);
          std::vector<ElementType> &FineFace = FineCase.m_pData[otherFace];
@@ -266,33 +231,39 @@ class FluxCorrection
          int N1  = N1F;
          int N2  = N2F;
 
+         assert(search1 != MapOfCases.end());
          assert(N1F == (int)CoarseCase.m_vSize[d1]);
          assert(N2F == (int)CoarseCase.m_vSize[d2]);
 
-         int base = 0; //(B%2)*(N1/2)+ (B/2)*(N2/2)*N1;
-         if (B == 1) base = (N2 / 2) + (0) * N2;
-         else if (B == 2)
-            base = (0) + (N1 / 2) * N2;
-         else if (B == 3)
-            base = (N2 / 2) + (N1 / 2) * N2;
+         int base = 0;
+         if      (B == 1)  base = (N2 / 2) + (0) * N2;
+         else if (B == 2)  base = (0) + (N1 / 2) * N2;
+         else if (B == 3)  base = (N2 / 2) + (N1 / 2) * N2;
 
          assert(FineFace.size() == CoarseFace.size());
 
+        #if DIMENSION == 3
          double coef = 1.0 / info.h;
-
          for (int i1 = 0; i1 < N1; i1 += 2)
-            for (int i2 = 0; i2 < N2; i2 += 2)
-            {
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] *= coef;
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] +=
-                   (0.25 * coef) *
-                   ((FineFace[i2 + i1 * N2] + FineFace[i2 + 1 + i1 * N2]) +
+         for (int i2 = 0; i2 < N2; i2 += 2)
+         {
+            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] *= coef;
+            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] += (0.25 * coef) *
+                   ((FineFace[i2 + i1       * N2] + FineFace[i2 + 1 +  i1      * N2]) +
                     (FineFace[i2 + (i1 + 1) * N2] + FineFace[i2 + 1 + (i1 + 1) * N2]));
-               FineFace[i2 + i1 * N2].clear();
-               FineFace[i2 + 1 + i1 * N2].clear();
-               FineFace[i2 + (i1 + 1) * N2].clear();
-               FineFace[i2 + 1 + (i1 + 1) * N2].clear();
-            }
+            FineFace[i2 + i1 * N2].clear();
+            FineFace[i2 + 1 + i1 * N2].clear();
+            FineFace[i2 + (i1 + 1) * N2].clear();
+            FineFace[i2 + 1 + (i1 + 1) * N2].clear();
+        }
+       #else
+        for (int i2 = 0; i2 < N2; i2 += 2)
+        {
+          CoarseFace[base + i2/2] += ( FineFace[i2] + FineFace[i2 + 1] );              
+          FineFace[i2].clear();
+          FineFace[i2 + 1].clear();
+        }
+       #endif
       }
    }
 
@@ -305,12 +276,11 @@ class FluxCorrection
                                   1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1,
                                   1 * 1 + 3 * 1 + 9 * 2, 1 * 1 + 3 * 1 + 9 * 0};
 
-#pragma omp parallel for schedule(runtime)
+      #pragma omp parallel for schedule(runtime)
       for (size_t k = 0; k < B.size(); k++)
       {
          BlockInfo &info = B[k];
-         int aux         = 1 << info.level;
-
+         const int aux    = 1 << info.level;
          const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
          const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
          const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
@@ -321,18 +291,15 @@ class FluxCorrection
          for (int f = 0; f < 6; f++)
          {
             const int code[3] = {icode[f] % 3 - 1, (icode[f] / 3) % 3 - 1, (icode[f] / 9) % 3 - 1};
-
             if (!xperiodic && code[0] == xskip && xskin) continue;
             if (!yperiodic && code[1] == yskip && yskin) continue;
             if (!zperiodic && code[2] == zskip && zskin) continue;
 
-            BlockInfo infoNei =
-                (*m_refGrid).getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+            BlockInfo infoNei = (*m_refGrid).getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
             if (infoNei.TreePos == CheckFiner)
             {
-               int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) +
-                            abs(code[2]) * (max(0, code[2]) + 4);
+               int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
                std::array<int, 2> temp = {info.level, info.Z};
                auto search             = MapOfCases.find(temp);
                assert(search != MapOfCases.end());
@@ -340,15 +307,14 @@ class FluxCorrection
                std::vector<ElementType> &CoarseFace = CoarseCase.m_pData[myFace];
 
                int d  = myFace / 2;
-               int d1 = max((d + 1) % 3, (d + 2) % 3);
                int d2 = min((d + 1) % 3, (d + 2) % 3);
-               int N1 = CoarseCase.m_vSize[d1];
                int N2 = CoarseCase.m_vSize[d2];
 
-               assert(N1 == _BLOCKSIZE_);
-               assert(N2 == _BLOCKSIZE_);
-
                BlockType &block = *(BlockType *)info.ptrBlock;
+
+#if DIMENSION == 3
+               int d1 = max((d + 1) % 3, (d + 2) % 3);
+               int N1 = CoarseCase.m_vSize[d1];
 
                // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
                if (d == 0)
@@ -402,8 +368,29 @@ class FluxCorrection
                         CoarseFace[i2 + i1 * N2].clear();
                      }
                }
+#else
+               assert(d!=2);
+               if (d == 0)
+               {
+                  int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+                  for (int i2 = 0; i2 < N2; i2 += 1)
+                  {
+                    block(j,i2) += CoarseFace[i2];
+                    CoarseFace[i2].clear();
+                  }
+               }
+               else if (d == 1)
+               {
+                  int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+                  for (int i2 = 0; i2 < N2; i2 += 1)
+                  {
+                     block(i2,j) += CoarseFace[i2];
+                     CoarseFace[i2].clear();
+                  }
+               }
+#endif
             }
-         } // icode = 0,...,26
+         }// f = 0,...,5
       }
    }
 };

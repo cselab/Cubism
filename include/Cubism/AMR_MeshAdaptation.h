@@ -643,7 +643,6 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             mn_com.push_back(info.Z);
          }
       }
-      
       #pragma omp parallel
       {
          #pragma omp for schedule(runtime)
@@ -655,7 +654,6 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             #pragma omp atomic
             r++;
          }
-
          #pragma omp for schedule(runtime)
          for (size_t i = 0; i < mn_ref.size() / 2; i++)
          {
@@ -980,136 +978,45 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
    virtual void RefineBlocks(BlockType *B[8], BlockInfo parent)
    {
       int tid = omp_get_thread_num();
-
       const int nx = BlockType::sizeX;
       const int ny = BlockType::sizeY;
 
+      int offsetX[2] = {0, nx / 2};
+      int offsetY[2] = {0, ny / 2};
+
+      TLab &Lab = labs[tid];
 
      #if DIMENSION == 3
       const int nz = BlockType::sizeZ;
-
-      int offsetX[2] = {0, nx / 2};
-      int offsetY[2] = {0, ny / 2};
       int offsetZ[2] = {0, nz / 2};
 
-      TLab &Lab = labs[tid];
-
       for (int K = 0; K < 2; K++)
-         for (int J = 0; J < 2; J++)
-            for (int I = 0; I < 2; I++)
-            {
-               BlockType &b = *B[K * 4 + J * 2 + I];
-               b.clear();
+      for (int J = 0; J < 2; J++)
+      for (int I = 0; I < 2; I++)
+      {
+        BlockType &b = *B[K * 4 + J * 2 + I];
+        b.clear();
 
-               for (int k = 0; k < nz; k += 2)
-                  for (int j = 0; j < ny; j += 2)
-                     for (int i = 0; i < nx; i += 2)
-                     {
+        for (int k = 0; k < nz; k += 2)
+        for (int j = 0; j < ny; j += 2)
+        for (int i = 0; i < nx; i += 2)
+        {
+          ElementType dudx = 0.5*( Lab(i/2+offsetX[I]+1,j/2+offsetY[J]  ,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ,k/2+offsetZ[K]  ));
+          ElementType dudy = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1,k/2+offsetZ[K]  ));
+          ElementType dudz = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]  ,k/2+offsetZ[K]+1)-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]  ,k/2+offsetZ[K]-1));
 
-                #if 1 // simple linear 
-      
-                  ElementType dudx = 0.5*( Lab(i/2+offsetX[I]+1,j/2+offsetY[J]  ,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ,k/2+offsetZ[K]  ));
-                  ElementType dudy = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]+1,k/2+offsetZ[K]  )-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1,k/2+offsetZ[K]  ));
-                  ElementType dudz = 0.5*( Lab(i/2+offsetX[I]  ,j/2+offsetY[J]  ,k/2+offsetZ[K]+1)-Lab(i/2+offsetX[I]  ,j/2+offsetY[J]  ,k/2+offsetZ[K]-1));
-      
-                  b(i  ,j  ,k  ) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
-                  b(i+1,j  ,k  ) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
-                  b(i  ,j+1,k  ) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
-                  b(i+1,j+1,k  ) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
-                  b(i  ,j  ,k+1) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
-                  b(i+1,j  ,k+1) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
-                  b(i  ,j+1,k+1) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
-                  b(i+1,j+1,k+1) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz;
-                #else // WENO
+          b(i  ,j  ,k  ) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
+          b(i+1,j  ,k  ) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
+          b(i  ,j+1,k  ) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
+          b(i+1,j+1,k  ) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,k    /2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*(k    %2)-1)*0.25*dudz; 
+          b(i  ,j  ,k+1) = Lab( i   /2+offsetX[I], j   /2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
+          b(i+1,j  ,k+1) = Lab((i+1)/2+offsetX[I], j   /2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*( j   %2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
+          b(i  ,j+1,k+1) = Lab( i   /2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*( i   %2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz; 
+          b(i+1,j+1,k+1) = Lab((i+1)/2+offsetX[I],(j+1)/2+offsetY[J]  ,(k+1)/2+offsetZ[K] )+ (2*((i+1)%2)-1)*0.25*dudx + (2*((j+1)%2)-1)*0.25*dudy + (2*((k+1)%2)-1)*0.25*dudz;
+        }
+      }
+     #else
 
-                        const int Nweno = WENOWAVELET;
-                        ElementType El[Nweno][Nweno][Nweno];
-                        for (int i0 = -Nweno / 2; i0 <= Nweno / 2; i0++)
-                           for (int i1 = -Nweno / 2; i1 <= Nweno / 2; i1++)
-                              for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
-                                 El[i0 + Nweno / 2][i1 + Nweno / 2][i2 + Nweno / 2] =
-                                     Lab(i / 2 + offsetX[I] + i0, j / 2 + offsetY[J] + i1,
-                                         k / 2 + offsetZ[K] + i2);
-
-                        ElementType Lines[Nweno][Nweno][2];
-                        ElementType Planes[Nweno][4];
-                        ElementType Ref[8];
-
-                #if WENOWAVELET == 3
-
-                        for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
-                           for (int i1 = -Nweno / 2; i1 <= Nweno / 2; i1++)
-                              Kernel_1D(El[0][i1 + Nweno / 2][i2 + Nweno / 2],
-                                        El[1][i1 + Nweno / 2][i2 + Nweno / 2],
-                                        El[2][i1 + Nweno / 2][i2 + Nweno / 2],
-                                        Lines[i1 + Nweno / 2][i2 + Nweno / 2][0],
-                                        Lines[i1 + Nweno / 2][i2 + Nweno / 2][1]);
-                        for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
-                        {
-                           Kernel_1D(Lines[0][i2 + Nweno / 2][0], Lines[1][i2 + Nweno / 2][0],
-                                     Lines[2][i2 + Nweno / 2][0], Planes[i2 + Nweno / 2][0],
-                                     Planes[i2 + Nweno / 2][1]);
-
-                           Kernel_1D(Lines[0][i2 + Nweno / 2][1], Lines[1][i2 + Nweno / 2][1],
-                                     Lines[2][i2 + Nweno / 2][1], Planes[i2 + Nweno / 2][2],
-                                     Planes[i2 + Nweno / 2][3]);
-                        }
-                        Kernel_1D(Planes[0][0], Planes[1][0], Planes[2][0], Ref[0], Ref[1]);
-                        Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], Ref[2], Ref[3]);
-                        Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], Ref[4], Ref[5]);
-                        Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], Ref[6], Ref[7]);
-
-                #else
-
-                        for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
-                           for (int i1 = -Nweno / 2; i1 <= Nweno / 2; i1++)
-                              Kernel_1D(El[0][i1 + Nweno / 2][i2 + Nweno / 2],
-                                        El[1][i1 + Nweno / 2][i2 + Nweno / 2],
-                                        El[2][i1 + Nweno / 2][i2 + Nweno / 2],
-                                        El[3][i1 + Nweno / 2][i2 + Nweno / 2],
-                                        El[4][i1 + Nweno / 2][i2 + Nweno / 2],
-                                        Lines[i1 + Nweno / 2][i2 + Nweno / 2][0],
-                                        Lines[i1 + Nweno / 2][i2 + Nweno / 2][1]);
-
-                        for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
-                        {
-                           Kernel_1D(Lines[0][i2 + Nweno / 2][0], Lines[1][i2 + Nweno / 2][0],
-                                     Lines[2][i2 + Nweno / 2][0], Lines[3][i2 + Nweno / 2][0],
-                                     Lines[4][i2 + Nweno / 2][0], Planes[i2 + Nweno / 2][0],
-                                     Planes[i2 + Nweno / 2][1]);
-
-                           Kernel_1D(Lines[0][i2 + Nweno / 2][1], Lines[1][i2 + Nweno / 2][1],
-                                     Lines[2][i2 + Nweno / 2][1], Lines[3][i2 + Nweno / 2][1],
-                                     Lines[4][i2 + Nweno / 2][1], Planes[i2 + Nweno / 2][2],
-                                     Planes[i2 + Nweno / 2][3]);
-                        }
-                        Kernel_1D(Planes[0][0], Planes[1][0], Planes[2][0], Planes[3][0],
-                                  Planes[4][0], Ref[0], Ref[1]);
-                        Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], Planes[3][1],
-                                  Planes[4][1], Ref[2], Ref[3]);
-                        Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], Planes[3][2],
-                                  Planes[4][2], Ref[4], Ref[5]);
-                        Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], Planes[3][3],
-                                  Planes[4][3], Ref[6], Ref[7]);
-                #endif
-
-                        b(i, j, k)             = Ref[0];
-                        b(i, j, k + 1)         = Ref[1];
-                        b(i, j + 1, k)         = Ref[2];
-                        b(i, j + 1, k + 1)     = Ref[3];
-                        b(i + 1, j, k)         = Ref[4];
-                        b(i + 1, j, k + 1)     = Ref[5];
-                        b(i + 1, j + 1, k)     = Ref[6];
-                        b(i + 1, j + 1, k + 1) = Ref[7];
-                #endif
-                     }
-            }
-     #endif
-     #if DIMENSION == 2
-      int offsetX[2] = {0, nx / 2};
-      int offsetY[2] = {0, ny / 2};
-
-      TLab &Lab = labs[tid];
 
       for (int J = 0; J < 2; J++)
       for (int I = 0; I < 2; I++)
@@ -1131,171 +1038,36 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
      #endif
    }
 
-#if 0
-   virtual void WENOWavelets3(double cm, double c, double cp, double &left, double &right)
-   {
-      double b1  = (c - cm) * (c - cm);
-      double b2  = (c - cp) * (c - cp);
-      double w1  = (1e-6 + b2) * (1e-6 + b2); // yes, 2 goes to 1 and 1 goes to 2
-      double w2  = (1e-6 + b1) * (1e-6 + b1);
-      double aux = 1.0 / (w1 + w2);
-      w1 *= aux;
-      w2 *= aux;
-      double g1, g2;
-      g1    = 0.75 * c + 0.25 * cm;
-      g2    = 1.25 * c - 0.25 * cp;
-      left  = g1 * w1 + g2 * w2;
-      g1    = 1.25 * c - 0.25 * cm;
-      g2    = 0.75 * c + 0.25 * cp;
-      right = g1 * w1 + g2 * w2;
-   }
-
-   virtual void WENOWavelets5(double cm2, double cm, double c, double cp, double cp2, double &left,
-                              double &right)
-   {
-      static const double k  = 13.0 / 12.0;
-      static const double d1 = 0.625;
-      static const double d2 = 0.1875;
-      static const double d3 = 0.1875;
-
-      double b1 = k * pow(cm - 2.0 * c + cp, 2) + 0.25 * pow(cm - cp, 2);
-      double b2 = k * pow(c - 2.0 * cp + cp2, 2) + 0.25 * pow(3.0 * c - 4.0 * cp + cp2, 2);
-      double b3 = k * pow(c - 2.0 * cm + cm2, 2) + 0.25 * pow(3.0 * c - 4.0 * cm + cm2, 2);
-
-      double w1  = d1 / pow(1e-6 + b1, 2);
-      double w2  = d2 / pow(1e-6 + b2, 2);
-      double w3  = d3 / pow(1e-6 + b3, 2);
-      double aux = 1.0 / (w1 + w2 + w3);
-
-      double g1, g2, g3;
-
-      g1   = 0.125 * cm + c - 0.125 * cp;
-      g2   = 1.375 * c - 0.5 * cp + 0.125 * cp2;
-      g3   = 0.625 * c + 0.5 * cm - 0.125 * cm2;
-      left = aux * (g1 * w1 + g2 * w2 + g3 * w3);
-
-      g1    = -0.125 * cm + c + 0.125 * cp;
-      g2    = 0.625 * c + 0.5 * cp - 0.125 * cp2;
-      g3    = 1.375 * c - 0.5 * cm + 0.125 * cm2;
-      right = aux * (g1 * w1 + g2 * w2 + g3 * w3);
-   }
-
-#if WENOWAVELET == 3
-   virtual void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType &left, ElementType &right)
-   {
-      left.dummy  = E1.dummy; // - 0.125*(E2.dummy-E0.dummy);
-      right.dummy = E1.dummy; // + 0.125*(E2.dummy-E0.dummy);
-      WENOWavelets3(E0.alpha1rho1, E1.alpha1rho1, E2.alpha1rho1, left.alpha1rho1, right.alpha1rho1);
-      WENOWavelets3(E0.alpha2rho2, E1.alpha2rho2, E2.alpha2rho2, left.alpha2rho2, right.alpha2rho2);
-      WENOWavelets3(E0.ru, E1.ru, E2.ru, left.ru, right.ru);
-      WENOWavelets3(E0.rv, E1.rv, E2.rv, left.rv, right.rv);
-      WENOWavelets3(E0.rw, E1.rw, E2.rw, left.rw, right.rw);
-      WENOWavelets3(E0.alpha2, E1.alpha2, E2.alpha2, left.alpha2, right.alpha2);
-      WENOWavelets3(E0.energy, E1.energy, E2.energy, left.energy, right.energy);
-
-      // clipping
-      if (left.alpha2 < 0.0 || right.alpha2 < 0.0 || left.alpha2 > 1.0 || right.alpha2 > 1.0) {
-        left.alpha2  = E1.alpha2;
-        right.alpha2 = E1.alpha2;
-      }
-  
-      if (left.alpha1rho1 < 0.0 || right.alpha1rho1 < 0.0) {
-        left.alpha1rho1  = E1.alpha1rho1;
-        right.alpha1rho1 = E1.alpha1rho1;
-      }
-  
-      if (left.alpha2rho2 < 0.0 || right.alpha2rho2 < 0.0) {
-        left.alpha2rho2  = E1.alpha2rho2;
-        right.alpha2rho2 = E1.alpha2rho2;
-      }
-  
-      if (left.energy < 0.0 || right.energy < 0.0) {
-        left.energy  = E1.energy;
-        right.energy = E1.energy;
-      }
-   }
-#else
-   virtual void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType E3,
-                          ElementType E4, ElementType &left, ElementType &right)
-   {
-      left.dummy = E2.dummy;  // - 0.125*(E2.dummy-E0.dummy);
-      right.dummy = E2.dummy; // + 0.125*(E2.dummy-E0.dummy);
-
-      WENOWavelets5(E0.alpha1rho1, E1.alpha1rho1, E2.alpha1rho1, E3.alpha1rho1, E4.alpha1rho1,
-                    left.alpha1rho1, right.alpha1rho1);
-      WENOWavelets5(E0.alpha2rho2, E1.alpha2rho2, E2.alpha2rho2, E3.alpha2rho2, E4.alpha2rho2,
-                    left.alpha2rho2, right.alpha2rho2);
-      WENOWavelets5(E0.ru, E1.ru, E2.ru, E3.ru, E4.ru, left.ru, right.ru);
-      WENOWavelets5(E0.rv, E1.rv, E2.rv, E3.rv, E4.rv, left.rv, right.rv);
-      WENOWavelets5(E0.rw, E1.rw, E2.rw, E3.rw, E4.rw, left.rw, right.rw);
-      WENOWavelets5(E0.alpha2, E1.alpha2, E2.alpha2, E3.alpha2, E4.alpha2, left.alpha2,
-                    right.alpha2);
-      WENOWavelets5(E0.energy, E1.energy, E2.energy, E3.energy, E4.energy, left.energy,
-                    right.energy);
-
-      // clipping
-      if (left.alpha2 < 0.0 || right.alpha2 < 0.0 || left.alpha2 > 1.0 || right.alpha2 > 1.0) {
-        left.alpha2  = E1.alpha2;
-        right.alpha2 = E1.alpha2;
-      }
-  
-      if (left.alpha1rho1 < 0.0 || right.alpha1rho1 < 0.0) {
-        left.alpha1rho1  = E1.alpha1rho1;
-        right.alpha1rho1 = E1.alpha1rho1;
-      }
-  
-      if (left.alpha2rho2 < 0.0 || right.alpha2rho2 < 0.0) {
-        left.alpha2rho2  = E1.alpha2rho2;
-        right.alpha2rho2 = E1.alpha2rho2;
-      }
-  
-      if (left.energy < 0.0 || right.energy < 0.0) {
-        left.energy  = E1.energy;
-        right.energy = E1.energy;
-      }
-   }
-#endif
-#endif
-
    virtual State TagLoadedBlock(TLab &Lab_, int level)
    {
       static const int nx = BlockType::sizeX;
       static const int ny = BlockType::sizeY;
     
       double Linf = 0.0;
-#if DIMENSION == 3
-      double eps = 1e-10;
+     #if DIMENSION == 3
       static const int nz = BlockType::sizeZ;
       for (int k = 0; k < nz; k++)
       for (int j = 0; j < ny; j++)
       for (int i = 0; i < nx; i++)
       {
-        double s0 =  Lab_(i, j, k).magnitude();
-        double ax = (Lab_(i + 1, j, k) - s0).magnitude() / ( s0 + eps);
-        double ay = (Lab_(i, j + 1, k) - s0).magnitude() / ( s0 + eps);
-        ax = max(ax, (s0 - Lab_(i - 1, j, k)).magnitude() / (s0 + eps) );
-        ay = max(ay, (s0 - Lab_(i, j - 1, k)).magnitude() / (s0 + eps) );
-        Linf = max(Linf, ax);
-        Linf = max(Linf, ay);
-        double az = (Lab_(i, j, k + 1) - s0).magnitude() / ( s0 + eps);
-        az = max(az, (s0 - Lab_(i, j, k - 1)).magnitude() / (s0 + eps) );
-        Linf = max(Linf, az);
+        double s0 = std::fabs( Lab_(i, j, k).magnitude() );
+        Linf = max(Linf,s0);
       }
-#endif
-#if DIMENSION == 2
+     #endif
+     #if DIMENSION == 2
       for (int j = 0; j < ny; j++)
       for (int i = 0; i < nx; i++)
       {
         double s0 = std::fabs( Lab_(i, j).magnitude() );
         Linf = max(Linf,s0);
       }
-#endif
+     #endif
       Linf *= 1.0/(level+1);
 
       if (Linf > tolerance_for_refinement) return Refine;
-      else 
-      if (Linf < tolerance_for_compression) return Compress;
-      else return Leave;
+      else if (Linf < tolerance_for_compression) return Compress;
+      
+      return Leave;
    }
 };
 } // namespace cubism

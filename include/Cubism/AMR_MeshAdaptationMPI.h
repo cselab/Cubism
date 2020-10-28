@@ -206,9 +206,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
       std::vector<BlockInfo> &I = AMR::m_refGrid->getBlocksInfo();
 
-      for (auto &i : I)
+      for (auto &info : I)
       {
-         BlockInfo &info = AMR::m_refGrid->getBlockInfoAll(i.level, i.Z);
          if (info.state == Refine)
          {
             mn_ref.push_back(info.level);

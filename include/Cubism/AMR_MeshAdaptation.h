@@ -147,9 +147,6 @@ class MeshAdaptation_basic
             for (int i = 0; i < 2; i++)
             {
                int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
-               BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
-
-               Child.state = Leave;
                #pragma omp critical
                {
                   m_refGrid->_alloc(level + 1, nc);
@@ -161,8 +158,6 @@ class MeshAdaptation_basic
         for (int i = 0; i < 2; i++)
         {
           int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
-          BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
-          Child.state = Leave;
           #pragma omp critical
           {
              m_refGrid->_alloc(level + 1, nc);
@@ -176,11 +171,11 @@ class MeshAdaptation_basic
       #pragma omp critical
       {
          m_refGrid->_dealloc(level, Z);
-         m_refGrid->getBlockInfoAll(level, Z).state = Leave;
       }
 
       BlockInfo &parent = m_refGrid->getBlockInfoAll(level, Z);
       parent.TreePos    = CheckFiner;
+      parent.state = Leave;
 
       int p[3] = {parent.index[0], parent.index[1], parent.index[2]};
      #if DIMENSION == 3

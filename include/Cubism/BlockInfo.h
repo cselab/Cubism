@@ -178,12 +178,6 @@ struct BlockInfo
       return (blockID_2 < other.blockID_2);
    }
 
-   BlockInfo(const int a_level, const double a_h, const double a_origin[3], int a_index[3],
-             int a_myrank, TreePosition a_TreePos)
-   {
-      setup(a_level, a_h, a_origin, a_index, a_myrank, a_TreePos);
-   };
-
    void setup(const int a_level, const double a_h, const double a_origin[3], int a_index[3],
               int a_myrank, TreePosition a_TreePos)
    {

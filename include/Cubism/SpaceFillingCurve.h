@@ -174,10 +174,6 @@ class SpaceFillingCurve
    int levelMax;
 
 
-   std::vector< std::vector<int> > i_inverse;
-   std::vector< std::vector<int> > j_inverse;
-   std::vector< std::vector<int> > k_inverse;
-
    SpaceFillingCurve(){};
 
    ~SpaceFillingCurve(){ delete[] SUBSTRACT; }
@@ -193,16 +189,6 @@ class SpaceFillingCurve
    {
       std::cout << "Constructing Hilbert curve for " << BX << "x" << BY << "x" << BZ << 
                    " octree with " << lmax << " levels..." << std::endl;
-      i_inverse.resize(lmax);
-      j_inverse.resize(lmax);
-      k_inverse.resize(lmax);
-      for (int l = 0 ; l < lmax ; l++)
-      {
-        int aux = pow( pow(2,l) , 3);
-        i_inverse[l].resize(BX*BY*BZ*aux,-666);
-        j_inverse[l].resize(BX*BY*BZ*aux,-666);
-        k_inverse[l].resize(BX*BY*BZ*aux,-666);
-      }
 
       SUBSTRACT = new int[BX * BY * BZ];
 
@@ -231,21 +217,6 @@ class SpaceFillingCurve
           }   
           SUBSTRACT[(j + k*BY)*BX + i] = substract;
         }
-      }
-
-      for (int l = 0 ; l < lmax ; l++)
-      {
-        int aux = pow(2,l);
-        #pragma omp parallel for collapse(3)
-        for (unsigned int k=0;k<BZ*aux;k++)
-        for (unsigned int j=0;j<BY*aux;j++)
-        for (unsigned int i=0;i<BX*aux;i++)
-        {
-          int retval = forward(l,i,j,k);
-          i_inverse[l][retval] = i;
-          j_inverse[l][retval] = j;
-          k_inverse[l][retval] = k;
-        }      
       }
 
       std::cout << "Hilbert curve ready." << std::endl;
@@ -287,16 +258,21 @@ class SpaceFillingCurve
       //i = X[0];
       //j = X[1];
       //k = X[2];
-
-      i = i_inverse[l][Z];
-      j = j_inverse[l][Z];
-      k = k_inverse[l][Z];
-      assert(i_inverse[l][Z]>=0);
-      assert(j_inverse[l][Z]>=0);
-      assert(k_inverse[l][Z]>=0);
-      //assert(i_inverse[l][Z] < BX * (1<<l));
-      //assert(j_inverse[l][Z] < BY * (1<<l));
-      //assert(k_inverse[l][Z] < BZ * (1<<l));
+      for (unsigned int iz = 0; iz <= 1; iz++)
+      for (unsigned int iy = 0; iy <= 1; iy++)
+      for (unsigned int ix = 0; ix <= 1; ix++)
+      {
+        int Ztest = forward(l, ix+i, iy+j, iz+k);
+        if (Ztest == Z)
+        {
+          i = ix+i;
+          j = iy+j;
+          k = iz+k;
+          return;
+        }
+      }      
+      std::cout << "Didn't find inverse in SFC!" << std::endl;
+      abort();
    }
 
    // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)
@@ -330,6 +306,10 @@ class SpaceFillingCurve
          retval += Zc;
 
          unsigned int ix1, iy1, iz1;
+         ix1 = ix;
+         iy1 = iy;
+         iz1 = iz;
+
          inverse(Zc, l, ix1, iy1, iz1);
          ix = 2 * ix1;
          iy = 2 * iy1;

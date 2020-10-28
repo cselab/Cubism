@@ -82,6 +82,7 @@ class LoadBalancer
 
    void PrepareCompression()
    {
+      m_refGrid->FillPos();
       std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
       std::vector<std::vector<MPI_Block>> send_blocks(size);
       std::vector<std::vector<MPI_Block>> recv_blocks(size);
@@ -341,6 +342,7 @@ class LoadBalancer
          }
       }
 #endif
+      m_refGrid->FillPos();
       for (auto &info : m_refGrid->getBlocksInfo())
       {
          assert(info.TreePos == Exists);

@@ -209,16 +209,6 @@ class MeshAdaptation_basic
       assert(info.state == Compress);
 
      #if DIMENSION == 3
-      BlockType *Blocks[8];
-      for (int K = 0; K < 2; K++)
-      for (int J = 0; J < 2; J++)
-      for (int I = 0; I < 2; I++)
-      {
-          int blk = K * 4 + J * 2 + I;
-          int n   = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J,info.index[2] + K);
-          Blocks[blk] = (BlockType *)(m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
-      }
-
       int np             = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
       BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
       parent.myrank      = m_refGrid->rank();

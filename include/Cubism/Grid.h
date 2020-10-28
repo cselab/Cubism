@@ -20,11 +20,12 @@ namespace cubism // AMR_CUBISM
 template <typename Block, template <typename X> class allocator = std::allocator>
 class Grid
 {
+private:
+      std::vector<std::vector<BlockInfo>> BlockInfoAll;
 
  protected:
    std::vector<BlockInfo> m_vInfo; // meta-data for blocks that belong to this rank
    std::vector<Block *> m_blocks;  // pointers to blocks that belong to this rank
-   std::vector<std::vector<BlockInfo>> BlockInfoAll;
 
 #if DIMENSION == 3
    std::vector<std::vector<std::vector<std::vector<int>>>> Zsave;
@@ -58,14 +59,14 @@ class Grid
 #if DIMENSION == 3
       for (int n = 0; n < NX * NY * NZ * pow(TwoPower, 3); n++)
       {
-         BlockInfoAll[m][n].TreePos = Exists;
+         getBlockInfoAll(m,n).TreePos = Exists;
          _alloc(m, n);
       }
 #endif
 #if DIMENSION == 2
       for (int n = 0; n < NX * NY * pow(TwoPower, 2); n++)
       {
-         BlockInfoAll[m][n].TreePos = Exists;
+         getBlockInfoAll(m,n).TreePos = Exists;
          _alloc(m, n);
       }
 #endif
@@ -75,11 +76,11 @@ class Grid
    virtual void _alloc(int m, int n) // called whenever the grid is refined
    {
       allocator<Block> alloc;
-      BlockInfoAll[m][n].ptrBlock = alloc.allocate(1);
-      BlockInfoAll[m][n].changed  = true;
-      BlockInfoAll[m][n].h_gridpoint = BlockInfoAll[m][n].h;
+      getBlockInfoAll(m,n).ptrBlock = alloc.allocate(1);
+      getBlockInfoAll(m,n).changed  = true;
+      getBlockInfoAll(m,n).h_gridpoint = getBlockInfoAll(m,n).h;
 
-      m_blocks.push_back((Block *)BlockInfoAll[m][n].ptrBlock);
+      m_blocks.push_back((Block *)getBlockInfoAll(m,n).ptrBlock);
       m_vInfo.push_back(BlockInfoAll[m][n]);
       N++;
    }
@@ -98,8 +99,8 @@ class Grid
    {
       N--;
       allocator<Block> alloc;
-      alloc.deallocate((Block *)BlockInfoAll[m][n].ptrBlock, 1);
-      BlockInfoAll[m][n].myrank = -1;
+      alloc.deallocate((Block *)getBlockInfoAll(m,n).ptrBlock, 1);
+      getBlockInfoAll(m,n).myrank = -1;
       for (size_t j = 0; j < m_vInfo.size(); j++)
       {
          if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
@@ -117,10 +118,10 @@ class Grid
       {
          if (m == m_vInfo[j].level && n == m_vInfo[j].Z)
          {
-            BlockInfoAll[m_new][n_new].state   = Leave;
-            BlockInfoAll[m_new][n_new].changed = true;
-            m_vInfo[j]                         = BlockInfoAll[m_new][n_new];
-            m_blocks[j]                        = (Block *)BlockInfoAll[m_new][n_new].ptrBlock;
+            getBlockInfoAll(m_new,n_new).state   = Leave;
+            getBlockInfoAll(m_new,n_new).changed = true;
+            m_vInfo[j]                         = getBlockInfoAll(m_new,n_new);
+            m_blocks[j]                        = (Block *)getBlockInfoAll(m_new,n_new).ptrBlock;
             return;
          }
       }
@@ -133,27 +134,27 @@ class Grid
          {
             int m      = m_vInfo[j].level;
             int n      = m_vInfo[j].Z;
-            m_vInfo[j] = BlockInfoAll[m][n];
+            m_vInfo[j] = getBlockInfoAll(m,n);
 
-            assert(BlockInfoAll[m][n].state == m_vInfo[j].state);
-            assert(BlockInfoAll[m][n].TreePos == Exists);
-            m_blocks[j] = (Block *)BlockInfoAll[m][n].ptrBlock;
+            assert(getBlockInfoAll(m,n).state == m_vInfo[j].state);
+            assert(getBlockInfoAll(m,n).TreePos == Exists);
+            m_blocks[j] = (Block *)getBlockInfoAll(m,n).ptrBlock;
          }
       else
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {
             int m            = m_vInfo[j].level;
             int n            = m_vInfo[j].Z;
-            m_vInfo[j].state = BlockInfoAll[m][n].state;
-            assert(BlockInfoAll[m][n].TreePos == Exists);
-            m_blocks[j] = (Block *)BlockInfoAll[m][n].ptrBlock;
+            m_vInfo[j].state = getBlockInfoAll(m,n).state;
+            assert(getBlockInfoAll(m,n).TreePos == Exists);
+            m_blocks[j] = (Block *)getBlockInfoAll(m,n).ptrBlock;
          }
       for (size_t j = 0; j < m_vInfo.size(); j++)
       {
          int m            = m_vInfo[j].level;
          int n            = m_vInfo[j].Z;
          m_vInfo[j].blockID = j;
-         BlockInfoAll[m][n].blockID = j;
+         getBlockInfoAll(m,n).blockID = j;
       }
    }
 
@@ -295,7 +296,7 @@ class Grid
 
    virtual ~Grid() { _deallocAll(); }
 
-   virtual Block *avail(int m, int n) const { return (Block *)BlockInfoAll[m][n].ptrBlock; }
+   virtual Block *avail(int m, int n) const { return (Block *)getBlockInfoAll(m,n).ptrBlock; }
 
 #if DIMENSION == 3
    virtual Block *avail1(int ix, int iy, int iz, int m) const
@@ -327,7 +328,7 @@ class Grid
    virtual Block &operator()(int ix, int iy, int iz, int m) const
    {
       int n = getZforward(m, ix, iy, iz);
-      return *(Block *)BlockInfoAll[m][n].ptrBlock;
+      return *(Block *)getBlockInfoAll(m,n).ptrBlock;
    }
 #endif
 #if DIMENSION == 2
@@ -342,7 +343,7 @@ class Grid
    virtual Block &operator()(int ix, int iy, int m) const
    {
       int n = getZforward(m, ix, iy);
-      return *(Block *)BlockInfoAll[m][n].ptrBlock;
+      return *(Block *)getBlockInfoAll(m,n).ptrBlock;
    }
 #endif
 

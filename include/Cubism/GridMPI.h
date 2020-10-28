@@ -126,12 +126,11 @@ class GridMPI : public TGrid
                {
                   r = n / my_blocks;
                }
-
-               TGrid::BlockInfoAll[m][n].myrank = r;
+               TGrid::getBlockInfoAll(m,n).myrank = r;
             }
             else
             {
-               TGrid::BlockInfoAll[m][n].myrank = -1;
+               TGrid::getBlockInfoAll(m,n).myrank = -1;
             }
          }
 
@@ -163,11 +162,11 @@ class GridMPI : public TGrid
       {
          for (int n = 0; n < TGrid::NX * TGrid::NY * TGrid::NZ * pow(pow(2, m), 3); n++)
          {
-            if (TGrid::BlockInfoAll[m][n].TreePos == Exists &&
-                TGrid::BlockInfoAll[m][n].myrank == myrank)
+            if (TGrid::getBlockInfoAll(m,n).TreePos == Exists &&
+                TGrid::getBlockInfoAll(m,n).myrank == myrank)
             {
                allocator<Block> alloc;
-               alloc.deallocate((Block *)TGrid::BlockInfoAll[m][n].ptrBlock, 1);
+               alloc.deallocate((Block *)TGrid::getBlockInfoAll(m,n).ptrBlock, 1);
             }
          }
       }
@@ -176,7 +175,7 @@ class GridMPI : public TGrid
    virtual void _alloc(int m, int n) override
    {
       TGrid::_alloc(m, n);
-      TGrid::BlockInfoAll[m][n].myrank = myrank;
+      TGrid::getBlockInfoAll(m,n).myrank = myrank;
       TGrid::m_vInfo.back().myrank     = myrank;
    }
 
@@ -193,8 +192,8 @@ class GridMPI : public TGrid
 
    virtual Block *avail(int m, int n) const override
    {
-      if (TGrid::BlockInfoAll[m][n].myrank == myrank)
-         return (Block *)TGrid::BlockInfoAll[m][n].ptrBlock;
+      if (TGrid::getBlockInfoAll(m,n).myrank == myrank)
+         return (Block *)TGrid::getBlockInfoAll(m,n).ptrBlock;
       else
          return nullptr;
    }
@@ -351,7 +350,7 @@ class GridMPI : public TGrid
             {
                int level = recv_buffer[r][index];
                int Z     = recv_buffer[r][index + 1];
-               TGrid::BlockInfoAll[level][Z].state =
+               TGrid::getBlockInfoAll(level,Z).state =
                    (recv_buffer[r][index + 2] == 1) ? Compress : Refine;
             }
    };
@@ -421,7 +420,7 @@ class GridMPI : public TGrid
          {
             int level       = ptr[index__];
             int Z           = ptr[index__ + 1];
-            BlockInfo &info = TGrid::BlockInfoAll[level][Z];
+            BlockInfo &info = TGrid::getBlockInfoAll(level,Z);
 
             info.TreePos = Exists;
             info.state   = Leave;
@@ -436,14 +435,14 @@ class GridMPI : public TGrid
                      {
                         int nc =
                             TGrid::getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
-                        TGrid::BlockInfoAll[level + 1][nc].TreePos = CheckCoarser;
-                        TGrid::BlockInfoAll[level + 1][nc].myrank  = -1;
+                        TGrid::getBlockInfoAll(level + 1,nc).TreePos = CheckCoarser;
+                        TGrid::getBlockInfoAll(level + 1,nc).myrank  = -1;
                      }
             if (level > 0)
             {
                int nf = TGrid::getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
-               TGrid::BlockInfoAll[level - 1][nf].TreePos = CheckFiner;
-               TGrid::BlockInfoAll[level - 1][nf].myrank  = -1;
+               TGrid::getBlockInfoAll(level - 1,nf).TreePos = CheckFiner;
+               TGrid::getBlockInfoAll(level - 1,nf).myrank  = -1;
             }
          }
       }

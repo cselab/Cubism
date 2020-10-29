@@ -1,1 +1,1 @@
-# Cubism - Distributed block-structured uniform grid.
+# Cubism-AMR - Distributed block-structured adaptive grid.

@@ -238,6 +238,7 @@ class FluxCorrectionMPI : public TFluxCorrection
             offset += V * NC;
          }
       }
+      TFluxCorrection::m_refGrid->FillPos();
       /*------------->*/ Clock.finish(28);
    }
 

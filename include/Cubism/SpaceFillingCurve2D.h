@@ -157,7 +157,7 @@ class SpaceFillingCurve2D
       return retval;
    }
 
-   void inverse(int Z, unsigned int l, unsigned int &i, unsigned int &j)
+   void inverse(int Z, int l, int &i, int &j)
    {
       //unsigned int X[2] = {0, 0};
       //TransposetoAxes(Z, X, l + base_level);
@@ -199,7 +199,7 @@ class SpaceFillingCurve2D
          Zc -= Zc % 4;
          retval += Zc;
 
-         unsigned int ix1, iy1;
+         int ix1, iy1;
          inverse(Zc, l, ix1, iy1);
          ix = 2 * ix1;
          iy = 2 * iy1;

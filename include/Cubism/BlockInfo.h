@@ -196,7 +196,7 @@ struct BlockInfo
       level = a_level;
       Z     = a_Z;
 
-      inverse(Z,level,index[0],index[1],index[2]);
+      //inverse(Z,level,index[0],index[1],index[2]);
       
       state    = Leave;
       h_gridpoint = a_h;
@@ -211,6 +211,8 @@ struct BlockInfo
 
       const int TwoPower = 1 << level;
 #if DIMENSION == 3
+      inverse(Z,level,index[0],index[1],index[2]);
+
       const int Bmax[3]  = {blocks_per_dim(0) * TwoPower, 
                             blocks_per_dim(1) * TwoPower,
                             blocks_per_dim(2) * TwoPower};
@@ -244,6 +246,10 @@ struct BlockInfo
 
 #endif
 #if DIMENSION == 2
+
+      inverse(Z,level,index[0],index[1]);
+      index[2] = 0;
+      
       const int Bmax[3]  = {blocks_per_dim(0) * TwoPower, 
                             blocks_per_dim(1) * TwoPower,
                             blocks_per_dim(2) * TwoPower};

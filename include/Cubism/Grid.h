@@ -256,9 +256,8 @@ class Grid
 
                Zsave[m][i][j] = n;
 
-               int IJK[3] = {i, j, 0};
-               origin[0]  = i * blocksize[0] * h;
-               origin[1]  = j * blocksize[1] * h;
+               origin[0]  = i * Block::sizeX * h;
+               origin[1]  = j * Block::sizeY * h;
                origin[2]  = 0;
 
                TreePosition TreePos;
@@ -272,7 +271,7 @@ class Grid
 
                BlockInfoAll[m][n] = new BlockInfo();
 
-               BlockInfoAll[m][n].setup(m, h, origin, n, rank,TreePos); // Ranks are initialized in GridMPI constructor
+               BlockInfoAll[m][n]->setup(m, h, origin, n, rank,TreePos); // Ranks are initialized in GridMPI constructor
             }
       }
 #endif
@@ -349,9 +348,7 @@ class Grid
             int my_blocks = total_blocks / world_size;
             
             if (myrank < total_blocks % world_size) my_blocks++;
-            
-            int n_start = myrank * (total_blocks / world_size);
-            
+                      
             if (m == levelStart)
             {
                int r;
@@ -384,10 +381,18 @@ class Grid
             double h = h0 / TwoPower;
             double origin[3];
             int i,j,k;
+#if DIMENSION == 3
             BlockInfo::inverse(n,m,i,j,k);           
             origin[0]  = i * Block::sizeX * h;
             origin[1]  = j * Block::sizeY * h;
             origin[2]  = k * Block::sizeZ * h;
+#else
+            BlockInfo::inverse(n,m,i,j);
+            k = 0;           
+            origin[0]  = i * Block::sizeX * h;
+            origin[1]  = j * Block::sizeY * h;
+            origin[2]  = k * Block::sizeZ * h;
+#endif
             TreePosition TreePos;
             if      (m == levelStart) TreePos = Exists;
             else if (m <  levelStart) TreePos = CheckFiner;
@@ -408,9 +413,7 @@ class Grid
             int my_blocks = total_blocks / world_size;
             
             if (myrank < total_blocks % world_size) my_blocks++;
-            
-            int n_start = myrank * (total_blocks / world_size);
-            
+                       
             if (m == levelStart)
             {
                int r;
@@ -443,10 +446,18 @@ class Grid
             double h = h0 / TwoPower;
             double origin[3];
             int i,j,k;
+#if DIMENSION == 3
             BlockInfo::inverse(n,m,i,j,k);           
             origin[0]  = i * Block::sizeX * h;
             origin[1]  = j * Block::sizeY * h;
             origin[2]  = k * Block::sizeZ * h;
+#else
+            BlockInfo::inverse(n,m,i,j);
+            k = 0;           
+            origin[0]  = i * Block::sizeX * h;
+            origin[1]  = j * Block::sizeY * h;
+            origin[2]  = k * Block::sizeZ * h;
+#endif
             TreePosition TreePos;
             if      (m == levelStart) TreePos = Exists;
             else if (m <  levelStart) TreePos = CheckFiner;

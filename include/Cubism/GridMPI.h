@@ -29,60 +29,36 @@ class GridMPI : public TGrid
 
  protected:
    typedef SynchronizerMPI_AMR<Real> SynchronizerMPIType;
-
-   int myrank, mypeindex[3], pesize[3];
-   int periodic[3];
-   int mybpd[3], myblockstotalsize, blocksize[3];
-   int world_size;
-
-   std::vector<BlockInfo> cached_blockinfo;
-
-   MPI_Comm worldcomm;
-   MPI_Comm cartcomm;
+   int myrank,world_size;
+   int blocksize[3];
+   MPI_Comm worldcomm,cartcomm;
 
  public:
    typedef typename TGrid::BlockType Block;
    typedef typename TGrid::BlockType BlockType;
-
    std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs;
 
-   GridMPI(const int npeX, const int npeY, const int npeZ, const int nX, const int nY = 1,
-           const int nZ = 1, const double _maxextent = 1, const int a_levelStart = 0,
-           const int a_levelMax = 1, const MPI_Comm comm = MPI_COMM_WORLD,
-           const bool a_xperiodic = true, const bool a_yperiodic = true,
+   GridMPI(const int npeX, const int npeY, const int npeZ, 
+           const int nX, 
+           const int nY = 1,
+           const int nZ = 1, 
+           const double _maxextent = 1, 
+           const int a_levelStart = 0,
+           const int a_levelMax = 1, 
+           const MPI_Comm comm = MPI_COMM_WORLD,
+           const bool a_xperiodic = true, 
+           const bool a_yperiodic = true,
            const bool a_zperiodic = true)
-       : TGrid(nX, nY, nZ, _maxextent, a_levelStart, a_levelMax, false, a_xperiodic, a_yperiodic,
-               a_zperiodic),
-         timestamp(0), worldcomm(comm)
+       : TGrid(nX, nY, nZ, _maxextent, a_levelStart, a_levelMax, false, a_xperiodic, a_yperiodic, a_zperiodic), timestamp(0), worldcomm(comm)
    {
-      assert(npeX > 0 && "Number of processes per X must be greater than 0.");
-      assert(npeY > 0 && "Number of processes per Y must be greater than 0.");
-      assert(npeZ > 0 && "Number of processes per Z must be greater than 0.");
       blocksize[0] = Block::sizeX;
       blocksize[1] = Block::sizeY;
       blocksize[2] = Block::sizeZ;
 
-      mybpd[0]          = nX;
-      mybpd[1]          = nY;
-      mybpd[2]          = nZ;
-      myblockstotalsize = nX * nY * nZ;
-
-      periodic[0] = true;
-      periodic[1] = true;
-      periodic[2] = true;
-
-      pesize[0] = npeX;
-      pesize[1] = npeY;
-      pesize[2] = npeZ;
-
       MPI_Comm_size(worldcomm, &world_size);
+      MPI_Comm_rank(worldcomm, &myrank);
 
       cartcomm     = worldcomm;
-      mypeindex[0] = 0;
-      mypeindex[1] = 0;
-      mypeindex[2] = 0;
-
-      MPI_Comm_rank(worldcomm, &myrank);
 
       int total_blocks = nX * nY * nZ * pow(pow(2, a_levelStart), 3);
 
@@ -145,7 +121,6 @@ class GridMPI : public TGrid
          delete it->second;
 
       SynchronizerMPIs.clear();
-      // MPI_Comm_free(&cartcomm);
 
       Clock.display();
 
@@ -179,16 +154,25 @@ class GridMPI : public TGrid
       TGrid::m_vInfo.back().myrank     = myrank;
    }
 
-   std::vector<BlockInfo> &getBlocksInfo() override { return TGrid::getBlocksInfo(); }
+   std::vector<BlockInfo> &getBlocksInfo() override
+   { 
+      return TGrid::getBlocksInfo();
+   }
 
    const std::vector<BlockInfo> &getBlocksInfo() const override
    {
-      return TGrid::getBlocksInfo(); // cached_blockinfo;
+      return TGrid::getBlocksInfo();
    }
 
-   std::vector<BlockInfo> &getResidentBlocksInfo() { return TGrid::getBlocksInfo(); }
+   std::vector<BlockInfo> &getResidentBlocksInfo()
+   { 
+      return TGrid::getBlocksInfo();
+   }
 
-   const std::vector<BlockInfo> &getResidentBlocksInfo() const { return TGrid::getBlocksInfo(); }
+   const std::vector<BlockInfo> &getResidentBlocksInfo() const
+   { 
+      return TGrid::getBlocksInfo();
+   }
 
    virtual Block *avail(int m, int n) const override
    {

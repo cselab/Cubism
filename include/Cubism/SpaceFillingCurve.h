@@ -6,10 +6,8 @@
 #include <math.h>
 #include <stdint.h>
 
-#include<mpi.h>//for debug
 using namespace std;
 
-//#define MortonCurve
 #define HilbertCurve
 
 namespace cubism // AMR_CUBISM
@@ -21,53 +19,6 @@ class SpaceFillingCurve
  protected:
    unsigned int BX, BY, BZ;
 
-   // Copy-pasted from
-   // www.forceflow.be/2013/10/07/morton-encodingdecoding-through-bit-interleaving-implementations
-
-   // method to seperate bits from a given integer 3 positions apart
-   inline uint64_t splitBy3(unsigned int a) const
-   {
-      uint64_t x = a & 0x1fffff; // we only look at the first 21 bits
-      x          = (x | x << 32) &
-          0x1f00000000ffff; // shift left 32 bits, OR with self, and
-                            // 00011111000000000000000000000000000000001111111111111111
-      x = (x | x << 16) &
-          0x1f0000ff0000ff; // shift left 32 bits, OR with self, and
-                            // 00011111000000000000000011111111000000000000000011111111
-      x = (x | x << 8) &
-          0x100f00f00f00f00f; // shift left 32 bits, OR with self, and
-                              // 0001000000001111000000001111000000001111000000001111000000000000
-      x = (x | x << 4) &
-          0x10c30c30c30c30c3; // shift left 32 bits, OR with self, and
-                              // 0001000011000011000011000011000011000011000011000011000100000000
-      x = (x | x << 2) & 0x1249249249249249;
-      return x;
-   }
-
-   inline uint64_t mortonEncode_for(unsigned int x, unsigned int y, unsigned int z) const
-   {
-      uint64_t answer = 0;
-      answer |= splitBy3(x) | splitBy3(y) << 1 | splitBy3(z) << 2;
-      return answer;
-   }
-
-   //// DECODE 3D Morton code : For loop
-   inline void m3D_d_for(int m, int &x, int &y, int &z)
-   {
-      x             = 0;
-      y             = 0;
-      z             = 0;
-      int checkbits = static_cast<int>(floor((sizeof(int) * 8.0f / 3.0f)));
-      for (int i = 0; i <= checkbits; ++i)
-      {
-         int selector       = 1;
-         int shift_selector = 3 * i;
-         int shiftback      = 2 * i;
-         x |= (m & (selector << shift_selector)) >> (shiftback);
-         y |= (m & (selector << (shift_selector + 1))) >> (shiftback + 1);
-         z |= (m & (selector << (shift_selector + 2))) >> (shiftback + 2);
-      }
-   }
 
    int AxestoTranspose(const unsigned int *X_in, int b) const // position, #bits, dimension
    {
@@ -185,6 +136,11 @@ class SpaceFillingCurve
       BZ = nz;
    }
 
+   std::vector< std::vector<int> > i_inverse;
+   std::vector< std::vector<int> > j_inverse;
+   std::vector< std::vector<int> > k_inverse;
+
+
    SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ, int lmax) : BX(a_BX), BY(a_BY), BZ(a_BZ), levelMax(lmax)
    {
       std::cout << "Constructing Hilbert curve for " << BX << "x" << BY << "x" << BZ << 
@@ -219,6 +175,34 @@ class SpaceFillingCurve
         }
       }
 
+
+      i_inverse.resize(lmax);
+      j_inverse.resize(lmax);
+      k_inverse.resize(lmax);
+      for (int l = 0 ; l < lmax ; l++)
+      {
+        int aux = pow( pow(2,l) , 3);
+        i_inverse[l].resize(BX*BY*BZ*aux,-666);
+        j_inverse[l].resize(BX*BY*BZ*aux,-666);
+        k_inverse[l].resize(BX*BY*BZ*aux,-666);
+      }
+      for (int l = 0 ; l < lmax ; l++)
+      {
+        int aux = pow(2,l);
+        #pragma omp parallel for collapse(3)
+        for (unsigned int k=0;k<BZ*aux;k++)
+        for (unsigned int j=0;j<BY*aux;j++)
+        for (unsigned int i=0;i<BX*aux;i++)
+        {
+          int retval = forward(l,i,j,k);
+          i_inverse[l][retval] = i;
+          j_inverse[l][retval] = j;
+          k_inverse[l][retval] = k;
+        }
+      }
+
+
+
       std::cout << "Hilbert curve ready." << std::endl;
    }
 
@@ -251,8 +235,14 @@ class SpaceFillingCurve
 #endif
    }
 
-   void inverse(int Z, unsigned int l, unsigned int &i, unsigned int &j, unsigned int &k)
+   void inverse(int Z, int l, int &i, int &j, int &k)
    {
+
+      i = i_inverse[l][Z];
+      j = j_inverse[l][Z];
+      k = k_inverse[l][Z];
+      return;
+
       //unsigned int X[3] = {0, 0, 0};
       //TransposetoAxes(Z, X, l + base_level);
       //i = X[0];
@@ -305,7 +295,7 @@ class SpaceFillingCurve
          Zc -= Zc % 8;
          retval += Zc;
 
-         unsigned int ix1, iy1, iz1;
+         int ix1, iy1, iz1;
          ix1 = ix;
          iy1 = iy;
          iz1 = iz;

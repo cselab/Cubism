@@ -20,10 +20,9 @@ namespace cubism // AMR_CUBISM
 template <typename Block, template <typename X> class allocator = std::allocator>
 class Grid
 {
-private:
-      std::vector<std::vector<BlockInfo*>> BlockInfoAll;
-
  protected:
+   std::vector<std::vector<BlockInfo*>> BlockInfoAll;
+   std::vector<std::vector<bool>> ready;
    std::vector<BlockInfo> m_vInfo; // meta-data for blocks that belong to this rank
    std::vector<Block *> m_blocks;  // pointers to blocks that belong to this rank
 
@@ -180,7 +179,6 @@ private:
       int lvlMax = dummy.levelMax(levelMax);
 
       N                = 0;
-      int blocksize[3] = {Block::sizeX, Block::sizeY, Block::sizeZ};
 
 #if DIMENSION == 3
       double h0 =
@@ -189,6 +187,7 @@ private:
       // We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All
       // blockInfos are initialized here.
       BlockInfoAll.resize(lvlMax);
+      ready.resize(lvlMax);
 
       Zsave.resize(lvlMax);
 
@@ -198,6 +197,7 @@ private:
          const unsigned int Ntot = NX * NY * NZ * pow(TwoPower, 3);
 
          BlockInfoAll[m].resize(Ntot);
+         ready[m].resize(Ntot,false);
 
          Zsave[m].resize(NX * TwoPower);
          for (int ix = 0; ix < NX * TwoPower; ix++)
@@ -218,27 +218,8 @@ private:
                for (int k = 0; k < NZ * TwoPower; k++)
                {
                   int n = BlockInfo::forward(m, i, j, k);
-
-                  Zsave[m][i][j][k] = n;
-
-                  int IJK[3] = {i, j, k};
-                  origin[0]  = i * blocksize[0] * h;
-                  origin[1]  = j * blocksize[1] * h;
-                  origin[2]  = k * blocksize[2] * h;
-
-                  TreePosition TreePos;
-                  if (m == levelStart) TreePos = Exists;
-                  else if (m < levelStart)
-                     TreePos = CheckFiner;
-                  else
-                     TreePos = CheckCoarser;
-
-                  int rank = (m == levelStart) ? 0 : -1;
-    
+                  Zsave[m][i][j][k] = n; 
                   BlockInfoAll[m][n] = new BlockInfo();
-
-                  getBlockInfoAll(m,n).setup(m, h, origin, IJK, rank,
-                                           TreePos); // Ranks are initialized in GridMPI constructor
                }
       }
 #endif
@@ -291,7 +272,7 @@ private:
 
                BlockInfoAll[m][n] = new BlockInfo();
 
-               BlockInfoAll[m][n].setup(m, h, origin, IJK, rank,TreePos); // Ranks are initialized in GridMPI constructor
+               BlockInfoAll[m][n].setup(m, h, origin, n, rank,TreePos); // Ranks are initialized in GridMPI constructor
             }
       }
 #endif
@@ -356,13 +337,131 @@ private:
    inline int getlevelMax() { return levelMax; }
    inline int getlevelMax() const { return levelMax; }
 
-   virtual BlockInfo &getBlockInfoAll(int m, int n) { return *BlockInfoAll[m][n]; }
-   virtual BlockInfo getBlockInfoAll(int m, int n) const { return *BlockInfoAll[m][n]; }
+   virtual BlockInfo &getBlockInfoAll(int m, int n)
+   {
+        if (BlockInfoAll[m][n]->ready == false)
+        {
+            int myrank,world_size;
+            MPI_Comm_rank(MPI_COMM_WORLD,&myrank);
+            MPI_Comm_size(MPI_COMM_WORLD,&world_size);
 
-   inline std::vector<std::vector<BlockInfo*>> &getBlockInfoAll() { return BlockInfoAll; }
-   inline std::vector<Block *> &GetBlocks() { return m_blocks; }
-   inline const std::vector<Block *> &GetBlocks() const { return m_blocks; }
-   virtual std::vector<BlockInfo> &getBlocksInfo() { return m_vInfo; }
+            int total_blocks = NX * NY * NZ * pow(pow(2, levelStart), 3);
+            int my_blocks = total_blocks / world_size;
+            
+            if (myrank < total_blocks % world_size) my_blocks++;
+            
+            int n_start = myrank * (total_blocks / world_size);
+            
+            if (m == levelStart)
+            {
+               int r;
+               if (total_blocks % world_size > 0)
+               {
+                  if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
+                  {
+                     int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
+
+                     r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
+                  }
+                  else
+                  {
+                     r = n / (total_blocks / world_size + 1);
+                  }
+               }
+               else
+               {
+                  r = n / my_blocks;
+               }
+               BlockInfoAll[m][n]->myrank = r;
+            }
+            else
+            {
+               BlockInfoAll[m][n]->myrank = -1;
+            }
+
+            int TwoPower = 1 << m;
+            double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
+            double h = h0 / TwoPower;
+            double origin[3];
+            int i,j,k;
+            BlockInfo::inverse(n,m,i,j,k);           
+            origin[0]  = i * Block::sizeX * h;
+            origin[1]  = j * Block::sizeY * h;
+            origin[2]  = k * Block::sizeZ * h;
+            TreePosition TreePos;
+            if      (m == levelStart) TreePos = Exists;
+            else if (m <  levelStart) TreePos = CheckFiner;
+            else                      TreePos = CheckCoarser;
+            BlockInfoAll[m][n]->setup(m, h, origin, n, BlockInfoAll[m][n]->myrank, TreePos);
+        }
+        return *BlockInfoAll[m][n];
+   }
+   virtual BlockInfo &getBlockInfoAll(int m, int n) const
+   {
+        if (BlockInfoAll[m][n]->ready == false)
+        {
+            int myrank,world_size;
+            MPI_Comm_rank(MPI_COMM_WORLD,&myrank);
+            MPI_Comm_size(MPI_COMM_WORLD,&world_size);
+
+            int total_blocks = NX * NY * NZ * pow(pow(2, levelStart), 3);
+            int my_blocks = total_blocks / world_size;
+            
+            if (myrank < total_blocks % world_size) my_blocks++;
+            
+            int n_start = myrank * (total_blocks / world_size);
+            
+            if (m == levelStart)
+            {
+               int r;
+               if (total_blocks % world_size > 0)
+               {
+                  if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
+                  {
+                     int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
+
+                     r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
+                  }
+                  else
+                  {
+                     r = n / (total_blocks / world_size + 1);
+                  }
+               }
+               else
+               {
+                  r = n / my_blocks;
+               }
+               BlockInfoAll[m][n]->myrank = r;
+            }
+            else
+            {
+               BlockInfoAll[m][n]->myrank = -1;
+            }
+
+            int TwoPower = 1 << m;
+            double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
+            double h = h0 / TwoPower;
+            double origin[3];
+            int i,j,k;
+            BlockInfo::inverse(n,m,i,j,k);           
+            origin[0]  = i * Block::sizeX * h;
+            origin[1]  = j * Block::sizeY * h;
+            origin[2]  = k * Block::sizeZ * h;
+            TreePosition TreePos;
+            if      (m == levelStart) TreePos = Exists;
+            else if (m <  levelStart) TreePos = CheckFiner;
+            else                      TreePos = CheckCoarser;
+            BlockInfoAll[m][n]->setup(m, h, origin, n, BlockInfoAll[m][n]->myrank, TreePos);
+        }
+        return *BlockInfoAll[m][n];
+   }
+
+   virtual std::vector<std::vector<BlockInfo*>> &getBlockInfoAll() { return BlockInfoAll; }
+
+   inline        std::vector<Block *> &GetBlocks()       { return m_blocks; }
+   inline const  std::vector<Block *> &GetBlocks() const { return m_blocks; }
+
+   virtual       std::vector<BlockInfo> &getBlocksInfo()       { return m_vInfo; }
    virtual const std::vector<BlockInfo> &getBlocksInfo() const { return m_vInfo; }
 
    template <typename T>

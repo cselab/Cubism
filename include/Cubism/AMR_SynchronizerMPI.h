@@ -365,7 +365,7 @@ struct StencilManager
    }
 };
 
-template <typename Real>
+template <typename Real, typename TGrid>
 class SynchronizerMPI_AMR
 {
    StencilInfo stencil;  // stencil associated with kernel (advection,diffusion etc.)
@@ -373,7 +373,7 @@ class SynchronizerMPI_AMR
 
    MPI_Comm comm;
    int rank, size;
-   const bool xperiodic, yperiodic, zperiodic;
+   bool xperiodic, yperiodic, zperiodic;
 
    struct PackInfo
    {
@@ -398,9 +398,9 @@ class SynchronizerMPI_AMR
 
    // grid parameters
    const int levelMax;
-   int blocksPerDim[3];
-   int blocksize[3];
-   //SpaceFillingCurve * Zcurve;
+   std::array<int,3> blocksPerDim;
+   std::array<int,3> blocksize;
+
    size_t myInfos_size;
    BlockInfo *myInfos;
    std::vector<std::vector<BlockInfo*> *> BlockInfoAll;
@@ -1117,7 +1117,6 @@ class SynchronizerMPI_AMR
     };
 #endif
 
-   inline BlockInfo &getBlockInfoAll(int m, int n) { return *(*BlockInfoAll[m])[n]; }
 
    bool UseCoarseStencil(Interface &f)
    {
@@ -1142,7 +1141,7 @@ class SynchronizerMPI_AMR
             for (int i0 = imin[0]; i0 <= imax[0]; i0++)
             {
                int n = a.Znei_(i0, i1, i2);
-               if ((getBlockInfoAll(a.level, n)).TreePos == CheckCoarser)
+               if ((grid->getBlockInfoAll(a.level, n)).TreePos == CheckCoarser)
                {
                   retval = true;
                   break;
@@ -1311,7 +1310,7 @@ class SynchronizerMPI_AMR
                 //if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
 
                BlockInfo &infoNei =
-                   getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+                   grid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
                if (infoNei.TreePos == Exists && infoNei.myrank != rank)
                {
@@ -1333,7 +1332,7 @@ class SynchronizerMPI_AMR
                   // int nCoarse = infoNei.Z /8; // this does not work for Hilbert
                   int nCoarse = infoNei.Zparent;
 
-                  BlockInfo &infoNeiCoarser = getBlockInfoAll(infoNei.level - 1, nCoarse);
+                  BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, nCoarse);
                   if (infoNeiCoarser.myrank != rank)
                   {
                      if (isInner)
@@ -1341,7 +1340,7 @@ class SynchronizerMPI_AMR
                      isInner         = false;
                      int code2[3]    = {-code[0], -code[1], -code[2]};
                      int icode2      = (code2[0] + 1) + (code2[1] + 1) * 3 + (code2[2] + 1) * 9;
-                     BlockInfo &test = getBlockInfoAll(
+                     BlockInfo &test = grid->getBlockInfoAll(
                          infoNeiCoarser.level, infoNeiCoarser.Znei_(code2[0], code2[1], code2[2]));
                      if (info.index[0] / 2 == test.index[0] && info.index[1] / 2 == test.index[1] &&
                          info.index[2] / 2 == test.index[2])
@@ -1371,10 +1370,10 @@ class SynchronizerMPI_AMR
                          infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
                                        [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
                                        [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
-                     int nFine = getBlockInfoAll(infoNei.level + 1, nFine1)
+                     int nFine = grid->getBlockInfoAll(infoNei.level + 1, nFine1)
                                      .Znei_(-code[0], -code[1], -code[2]);
 
-                     BlockInfo &infoNeiFiner = getBlockInfoAll(infoNei.level + 1, nFine);
+                     BlockInfo &infoNeiFiner = grid->getBlockInfoAll(infoNei.level + 1, nFine);
                      if (infoNeiFiner.myrank != rank)
                      {
                         if (isInner)
@@ -1506,7 +1505,7 @@ class SynchronizerMPI_AMR
                          UseCoarseStencil(send_interfaces[ToBeChecked[j]][ToBeChecked[j + 1]]);
             }
 
-            getBlockInfoAll(info.level, info.Z).halo_block_id = info.halo_block_id;
+            grid->getBlockInfoAll(info.level, info.Z).halo_block_id = info.halo_block_id;
          } // i-loop
 
       for (int r = 0; r < size; r++) send_interfaces_infos[r].resize(send_interfaces[r].size());
@@ -1544,22 +1543,33 @@ class SynchronizerMPI_AMR
    static 
    std::vector<size_t> lengths;
 
-   SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, MPI_Comm a_comm,
-                       const bool a_periodic[3], const int a_levelMax, const int a_nx,
+   TGrid * grid;
+
+   SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil,
+                       const int a_levelMax, const int a_nx,
                        const int a_ny, const int a_nz, const int a_bx, const int a_by,
-                       const int a_bz)//, SpaceFillingCurve & sfc)
-       : stencil(a_stencil), Cstencil(a_Cstencil), comm(a_comm), xperiodic(a_periodic[0]),
-         yperiodic(a_periodic[1]), zperiodic(a_periodic[2]), levelMax(a_levelMax),
+                       const int a_bz, TGrid * _grid)
+       : stencil(a_stencil), Cstencil(a_Cstencil), levelMax(a_levelMax),
          SM(a_stencil, a_Cstencil, a_nx, a_ny, a_nz, a_bx, a_by, a_bz)
    {
+
+      grid = _grid; 
+
+      comm = grid->getWorldComm();
+
+      xperiodic = grid->xperiodic;
+      yperiodic = grid->yperiodic;
+      zperiodic = grid->zperiodic;
+
       MPI_Comm_rank(comm, &rank);
       MPI_Comm_size(comm, &size);
-      blocksize[0]    = a_nx;
-      blocksize[1]    = a_ny;
-      blocksize[2]    = a_nz;
-      blocksPerDim[0] = a_bx;
-      blocksPerDim[1] = a_by;
-      blocksPerDim[2] = a_bz;
+      blocksize[0]    = TGrid::Block::sizeX;
+      blocksize[1]    = TGrid::Block::sizeY;
+      blocksize[2]    = TGrid::Block::sizeZ;
+
+      blocksPerDim = grid->getMaxBlocks();
+
+
       send_interfaces.resize(size);
       #if 1 //new
       send_interfaces_infos.resize(size);
@@ -1790,7 +1800,7 @@ class SynchronizerMPI_AMR
          const int code[3] = {unpack.icode % 3 - 1, (unpack.icode / 3) % 3 - 1,
                               (unpack.icode / 9) % 3 - 1};
 
-         BlockInfo &other = getBlockInfoAll(unpack.level, unpack.Z);
+         BlockInfo &other = grid->getBlockInfoAll(unpack.level, unpack.Z);
 
          const int s[3] = {code[0] < 1 ? (code[0] < 0 ? stencil.sx : 0) : nX,
                            code[1] < 1 ? (code[1] < 0 ? stencil.sy : 0) : nY,
@@ -1938,11 +1948,11 @@ class SynchronizerMPI_AMR
    }
 };
 
-template <typename Real> std::set<int> SynchronizerMPI_AMR<Real>::Neighbors;
-template <typename Real> std::vector<BlockInfo *> SynchronizerMPI_AMR<Real>::halo_blocks;
-template <typename Real> std::vector<BlockInfo *> SynchronizerMPI_AMR<Real>::inner_blocks;
-template <typename Real> std::vector<std::vector<std::pair<int, int>>> SynchronizerMPI_AMR<Real>::interface_ranks_and_positions;
-template <typename Real> std::vector<GrowingVector<Interface>> SynchronizerMPI_AMR<Real>::send_interfaces;
-template <typename Real> std::vector<size_t> SynchronizerMPI_AMR<Real>::lengths;
+template <typename Real,typename TGrid> std::set<int> SynchronizerMPI_AMR<Real,TGrid>::Neighbors;
+template <typename Real,typename TGrid> std::vector<BlockInfo *> SynchronizerMPI_AMR<Real,TGrid>::halo_blocks;
+template <typename Real,typename TGrid> std::vector<BlockInfo *> SynchronizerMPI_AMR<Real,TGrid>::inner_blocks;
+template <typename Real,typename TGrid> std::vector<std::vector<std::pair<int, int>>> SynchronizerMPI_AMR<Real,TGrid>::interface_ranks_and_positions;
+template <typename Real,typename TGrid> std::vector<GrowingVector<Interface>> SynchronizerMPI_AMR<Real,TGrid>::send_interfaces;
+template <typename Real,typename TGrid> std::vector<size_t> SynchronizerMPI_AMR<Real,TGrid>::lengths;
 
 CUBISM_NAMESPACE_END

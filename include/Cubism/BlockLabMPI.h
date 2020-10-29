@@ -5,7 +5,7 @@
 
 CUBISM_NAMESPACE_BEGIN
 
-template <typename MyBlockLab>
+template <typename MyBlockLab, typename TGrid>
 class BlockLabMPI : public MyBlockLab
 {
  public:
@@ -13,12 +13,11 @@ class BlockLabMPI : public MyBlockLab
 
  private:
    typedef typename MyBlockLab::BlockType BlockType;
-   typedef SynchronizerMPI_AMR<Real> SynchronizerMPIType;
+   typedef SynchronizerMPI_AMR<Real,TGrid> SynchronizerMPIType;
    SynchronizerMPIType *refSynchronizerMPI;
 
  public:
-   template <typename TGrid>
-   void prepare(GridMPI<TGrid> &grid, SynchronizerMPIType &synchronizer)
+   void prepare( TGrid &grid, SynchronizerMPIType &synchronizer)
    {
       refSynchronizerMPI   = &synchronizer;
       StencilInfo stencil  = refSynchronizerMPI->getstencil();

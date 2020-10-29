@@ -28,9 +28,8 @@ class GridMPI : public TGrid
    size_t timestamp;
 
  protected:
-   typedef SynchronizerMPI_AMR<Real> SynchronizerMPIType;
+   typedef SynchronizerMPI_AMR<Real, GridMPI<TGrid> > SynchronizerMPIType;
    int myrank,world_size;
-   int blocksize[3];
    MPI_Comm worldcomm,cartcomm;
 
  public:
@@ -51,70 +50,29 @@ class GridMPI : public TGrid
            const bool a_zperiodic = true)
        : TGrid(nX, nY, nZ, _maxextent, a_levelStart, a_levelMax, false, a_xperiodic, a_yperiodic, a_zperiodic), timestamp(0), worldcomm(comm)
    {
-      blocksize[0] = Block::sizeX;
-      blocksize[1] = Block::sizeY;
-      blocksize[2] = Block::sizeZ;
-
       MPI_Comm_size(worldcomm, &world_size);
       MPI_Comm_rank(worldcomm, &myrank);
-
       cartcomm     = worldcomm;
 
       int total_blocks = nX * nY * nZ * pow(pow(2, a_levelStart), 3);
-
-      if (myrank == 0) std::cout << "Total blocks = " << total_blocks << "\n";
-
       int my_blocks = total_blocks / world_size;
       if (myrank < total_blocks % world_size) my_blocks++;
       int n_start = myrank * (total_blocks / world_size);
-
       if (total_blocks % world_size > 0)
       {
          if (myrank < total_blocks % world_size) n_start += myrank;
-         else
-            n_start += total_blocks % world_size;
+         else n_start += total_blocks % world_size;
       }
+      for (int n = n_start; n < n_start + my_blocks; n++) _alloc(a_levelStart, n);
 
+      if (myrank == 0) std::cout << "Total blocks = " << total_blocks << "\n";
       std::cout << "rank " << myrank << " gets " << my_blocks << " \n";
-
-      for (int n = n_start; n < n_start + my_blocks; n++) TGrid::_alloc(a_levelStart, n);
-
-      for (int m = 0; m < a_levelMax; m++)
-         for (int n = 0; n < nX * nY * nZ * pow(pow(2, m), 3); n++)
-         {
-            if (m == a_levelStart)
-            {
-               int r;
-               if (total_blocks % world_size > 0)
-               {
-                  if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
-                  {
-                     int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
-
-                     r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
-                  }
-                  else
-                  {
-                     r = n / (total_blocks / world_size + 1);
-                  }
-               }
-               else
-               {
-                  r = n / my_blocks;
-               }
-               TGrid::getBlockInfoAll(m,n).myrank = r;
-            }
-            else
-            {
-               TGrid::getBlockInfoAll(m,n).myrank = -1;
-            }
-         }
 
       FillPos(true);
 
       MPI_Barrier(worldcomm);
-      std::cout << "GridMPI constructor called (ok)\n";
    }
+
    virtual ~GridMPI() override
    {
       for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
@@ -438,8 +396,6 @@ class GridMPI : public TGrid
    template <typename Processing>
    SynchronizerMPIType *sync(Processing &p)
    {
-      bool per[3] = {TGrid::xperiodic, TGrid::yperiodic, TGrid::zperiodic};
-
       // temporarily hardcoded Cstencil
       StencilInfo Cstencil = p.stencil;
       Cstencil.sx          = -1;
@@ -462,8 +418,8 @@ class GridMPI : public TGrid
       if (itSynchronizerMPI == SynchronizerMPIs.end())
       {
          queryresult = new SynchronizerMPIType(
-             p.stencil, Cstencil, worldcomm, per, TGrid::getlevelMax(), Block::sizeX, Block::sizeY,
-             Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2]);
+             p.stencil, Cstencil, TGrid::getlevelMax(), Block::sizeX, Block::sizeY,
+             Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2], this);
 
          if (myrank == 0) std::cout << "GRIDMPI IS CALLING SETUP!!!!\n";
          queryresult->_Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(),

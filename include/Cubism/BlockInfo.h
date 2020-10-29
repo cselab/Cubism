@@ -73,6 +73,11 @@ struct BlockInfo
    {
       return (*SFC()).Encode(level, Z, index);
    }
+
+   static void inverse(int Z, int l, int &i, int &j, int &k)
+   {
+      (*SFC()).inverse(Z,l,i,j,k);   
+   }
 #endif
 
 #if DIMENSION == 2
@@ -106,6 +111,10 @@ struct BlockInfo
    static int Encode(int level, int Z, int index[2])
    {
       return (*SFC()).Encode(level, Z, index);
+   }
+   static void inverse(int Z, int l, int &i, int &j)
+   {
+      (*SFC()).inverse(Z,l,i,j);   
    }
 #endif
 
@@ -170,24 +179,26 @@ struct BlockInfo
    }
 #endif
 
-
-   BlockInfo(){};
+   bool ready;
+   BlockInfo(){ready = false;};
 
    bool operator<(const BlockInfo &other) const
    {
       return (blockID_2 < other.blockID_2);
    }
 
-   void setup(const int a_level, const double a_h, const double a_origin[3], int a_index[3],
-              int a_myrank, TreePosition a_TreePos)
+   void setup(const int a_level, const double a_h, const double a_origin[3], const int a_Z, int a_myrank, TreePosition a_TreePos)
    {
-      myrank   = a_myrank;
+      ready = true;
+      //myrank   = a_myrank;
       TreePos  = a_TreePos;
-      index[0] = a_index[0];
-      index[1] = a_index[1];
-      index[2] = a_index[2];
+
+      level = a_level;
+      Z     = a_Z;
+
+      inverse(Z,level,index[0],index[1],index[2]);
+      
       state    = Leave;
-      // if (ptrBlock != NULL)
       h_gridpoint = a_h;
 
       level     = a_level;
@@ -203,7 +214,6 @@ struct BlockInfo
       const int Bmax[3]  = {blocks_per_dim(0) * TwoPower, 
                             blocks_per_dim(1) * TwoPower,
                             blocks_per_dim(2) * TwoPower};
-      Z = forward(level, index[0], index[1], index[2]);
 
       for (int i = -1; i < 2; i++)
          for (int j = -1; j < 2; j++)
@@ -237,8 +247,6 @@ struct BlockInfo
       const int Bmax[3]  = {blocks_per_dim(0) * TwoPower, 
                             blocks_per_dim(1) * TwoPower,
                             blocks_per_dim(2) * TwoPower};
-      Z = forward(level, index[0], index[1]);
-
       for (int i = -1; i < 2; i++)
          for (int j = -1; j < 2; j++)
             for (int k = -1; k < 2; k++)

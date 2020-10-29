@@ -25,12 +25,12 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
  public:
    typedef typename TGrid::Block BlockType;
    typedef typename TGrid::BlockType::ElementType ElementType;
-   typedef SynchronizerMPI_AMR<Real> SynchronizerMPIType;
+   typedef SynchronizerMPI_AMR<Real,TGrid> SynchronizerMPIType;
    typedef typename TGrid::BlockType Block;
 
  protected:
 
-   SynchronizerMPI_AMR<Real> *Synch;
+   SynchronizerMPI_AMR<Real,TGrid> *Synch;
    int timestamp;
    bool flag;
 
@@ -77,9 +77,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       timestamp = 0;
       flag      = true;
       auto blockperDim     = AMR::m_refGrid->getMaxBlocks();
-      bool per[3]          = {AMR::m_refGrid->xperiodic, AMR::m_refGrid->yperiodic, AMR::m_refGrid->zperiodic};
       StencilInfo Cstencil = stencil;
-      Synch                = new SynchronizerMPIType(stencil, Cstencil, AMR::m_refGrid->getWorldComm(), per, AMR::m_refGrid->getlevelMax(), TGrid::Block::sizeX,TGrid::Block::sizeY, TGrid::Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2]);
+      Synch                = new SynchronizerMPIType(stencil, Cstencil, AMR::m_refGrid->getlevelMax(), TGrid::Block::sizeX,TGrid::Block::sizeY, TGrid::Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2], &grid);
       Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(),AMR::m_refGrid->getBlockInfoAll(), timestamp, true);
    }
 

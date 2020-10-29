@@ -403,7 +403,7 @@ class SynchronizerMPI_AMR
    //SpaceFillingCurve * Zcurve;
    size_t myInfos_size;
    BlockInfo *myInfos;
-   std::vector<std::vector<BlockInfo> *> BlockInfoAll;
+   std::vector<std::vector<BlockInfo*> *> BlockInfoAll;
 
    static std::vector<BlockInfo *> inner_blocks;
    static std::vector<BlockInfo *> halo_blocks;
@@ -1117,7 +1117,7 @@ class SynchronizerMPI_AMR
     };
 #endif
 
-   inline BlockInfo &getBlockInfoAll(int m, int n) { return (*BlockInfoAll[m])[n]; }
+   inline BlockInfo &getBlockInfoAll(int m, int n) { return *(*BlockInfoAll[m])[n]; }
 
    bool UseCoarseStencil(Interface &f)
    {
@@ -1589,7 +1589,7 @@ class SynchronizerMPI_AMR
    std::vector<int> ss;
    void _Setup(BlockInfo *a_myInfos, 
                size_t a_myInfos_size,
-               std::vector<std::vector<BlockInfo>> &a_BlockInfoAll, 
+               std::vector<std::vector<BlockInfo*>> &a_BlockInfoAll, 
                const int timestamp,
                const bool a_define_neighbors = false)
    {

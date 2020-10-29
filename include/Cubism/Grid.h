@@ -21,7 +21,7 @@ template <typename Block, template <typename X> class allocator = std::allocator
 class Grid
 {
 private:
-      std::vector<std::vector<BlockInfo>> BlockInfoAll;
+      std::vector<std::vector<BlockInfo*>> BlockInfoAll;
 
  protected:
    std::vector<BlockInfo> m_vInfo; // meta-data for blocks that belong to this rank
@@ -81,7 +81,7 @@ private:
       getBlockInfoAll(m,n).h_gridpoint = getBlockInfoAll(m,n).h;
 
       m_blocks.push_back((Block *)getBlockInfoAll(m,n).ptrBlock);
-      m_vInfo.push_back(BlockInfoAll[m][n]);
+      m_vInfo.push_back(*BlockInfoAll[m][n]);
       N++;
    }
 
@@ -234,8 +234,10 @@ private:
                      TreePos = CheckCoarser;
 
                   int rank = (m == levelStart) ? 0 : -1;
+    
+                  BlockInfoAll[m][n] = new BlockInfo();
 
-                  BlockInfoAll[m][n].setup(m, h, origin, IJK, rank,
+                  getBlockInfoAll(m,n).setup(m, h, origin, IJK, rank,
                                            TreePos); // Ranks are initialized in GridMPI constructor
                }
       }
@@ -286,6 +288,8 @@ private:
                   TreePos = CheckCoarser;
 
                int rank = (m == levelStart) ? 0 : -1;
+
+               BlockInfoAll[m][n] = new BlockInfo();
 
                BlockInfoAll[m][n].setup(m, h, origin, IJK, rank,TreePos); // Ranks are initialized in GridMPI constructor
             }
@@ -352,10 +356,10 @@ private:
    inline int getlevelMax() { return levelMax; }
    inline int getlevelMax() const { return levelMax; }
 
-   virtual BlockInfo &getBlockInfoAll(int m, int n) { return BlockInfoAll[m][n]; }
-   virtual BlockInfo getBlockInfoAll(int m, int n) const { return BlockInfoAll[m][n]; }
+   virtual BlockInfo &getBlockInfoAll(int m, int n) { return *BlockInfoAll[m][n]; }
+   virtual BlockInfo getBlockInfoAll(int m, int n) const { return *BlockInfoAll[m][n]; }
 
-   inline std::vector<std::vector<BlockInfo>> &getBlockInfoAll() { return BlockInfoAll; }
+   inline std::vector<std::vector<BlockInfo*>> &getBlockInfoAll() { return BlockInfoAll; }
    inline std::vector<Block *> &GetBlocks() { return m_blocks; }
    inline const std::vector<Block *> &GetBlocks() const { return m_blocks; }
    virtual std::vector<BlockInfo> &getBlocksInfo() { return m_vInfo; }

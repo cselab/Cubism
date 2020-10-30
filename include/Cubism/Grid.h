@@ -26,12 +26,6 @@ class Grid
    std::vector<BlockInfo> m_vInfo; // meta-data for blocks that belong to this rank
    std::vector<Block *> m_blocks;  // pointers to blocks that belong to this rank
 
-   #if DIMENSION == 3
-   std::vector<std::vector<std::vector<std::vector<int>>>> Zsave;
-   #else
-   std::vector<std::vector<std::vector<int>>> Zsave;
-   #endif
-
    const int NX;           // Total # of blocks for level 0 in X-direction
    const int NY;           // Total # of blocks for level 0 in Y-direction
    const int NZ;           // Total # of blocks for level 0 in Z-direction
@@ -157,7 +151,6 @@ class Grid
          levelStart(_levelStart), xperiodic(a_xperiodic), yperiodic(a_yperiodic),
          zperiodic(a_zperiodic)
    {
-
       BlockInfo dummy;
      #if DIMENSION == 3
       int nx     = dummy.blocks_per_dim(0, NX, NY, NZ);
@@ -166,61 +159,19 @@ class Grid
      #else
       int nx     = dummy.blocks_per_dim(0, NX, NY);
       int ny     = dummy.blocks_per_dim(1, NX, NY);
+      int nz     = 1;
      #endif      
       int lvlMax = dummy.levelMax(levelMax);
-
-      N                = 0;
-
+      N = 0;
       BlockInfoAll.resize(lvlMax);
       ready.resize(lvlMax);
-      Zsave.resize(lvlMax);
-
-#if DIMENSION == 3
       for (int m = 0; m < lvlMax; m++)
       {
         int TwoPower            = 1 << m;
-        const unsigned int Ntot = nx * ny * nz * pow(TwoPower, 3);
+        const unsigned int Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
         BlockInfoAll[m].resize(Ntot);
         ready[m].resize(Ntot,false);
-        Zsave[m].resize(nx * TwoPower);
-        for (int ix = 0; ix < nx * TwoPower; ix++)
-        {
-            Zsave[m][ix].resize(ny * TwoPower);
-            for (int iy = 0; iy < ny * TwoPower; iy++)
-            {
-               Zsave[m][ix][iy].resize(nz * TwoPower);
-            }
-        }
-        for (int i = 0; i < nx * TwoPower; i++)
-        for (int j = 0; j < ny * TwoPower; j++)
-        for (int k = 0; k < nz * TwoPower; k++)
-        {
-            int n = BlockInfo::forward(m, i, j, k);
-            Zsave[m][i][j][k] = n; 
-        }
       }
-#endif
-#if DIMENSION == 2      
-      for (int m = 0; m < lvlMax; m++)
-      {
-        int TwoPower            = 1 << m;
-        const unsigned int Ntot = nx * ny * pow(TwoPower, 2);
-        BlockInfoAll[m].resize(Ntot);
-        ready[m].resize(Ntot,false);
-        Zsave[m].resize(NX * TwoPower);
-        for (int ix = 0; ix < nx * TwoPower; ix++)
-        {
-            Zsave[m][ix].resize(ny * TwoPower);
-        }
-
-        for (int i = 0; i < NX * TwoPower; i++)
-        for (int j = 0; j < NY * TwoPower; j++)
-        {
-            int n = BlockInfo::forward(m, i, j);
-            Zsave[m][i][j] = n;
-        }
-      }
-#endif
       if (AllocateBlocks) _alloc();
    }
 
@@ -252,7 +203,7 @@ class Grid
       int ix       = (i + TwoPower * NX) % (NX * TwoPower);
       int iy       = (j + TwoPower * NY) % (NY * TwoPower);
       int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
-      return Zsave[level][ix][iy][iz];
+      return BlockInfo::forward(level, ix, iy, iz);
    }
    int getZchild(int level, int i, int j, int k) { return BlockInfo::child(level, i, j, k); }
    virtual Block &operator()(int ix, int iy, int iz, int m)
@@ -267,7 +218,7 @@ class Grid
       int TwoPower = 1 << level;
       int ix       = (i + TwoPower * NX) % (NX * TwoPower);
       int iy       = (j + TwoPower * NY) % (NY * TwoPower);
-      return Zsave[level][ix][iy];
+      return BlockInfo::forward(level, ix, iy);
    }
    int getZchild(int level, int i, int j) { return BlockInfo::child(level, i, j); }
    virtual Block &operator()(int ix, int iy, int m)

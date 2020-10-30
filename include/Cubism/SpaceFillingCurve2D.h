@@ -77,6 +77,7 @@ class SpaceFillingCurve2D
 
    std::vector< std::vector<int> > i_inverse;
    std::vector< std::vector<int> > j_inverse;
+   std::vector < std::vector <int> > Zsave;
 
    SpaceFillingCurve2D(){};
 
@@ -96,8 +97,9 @@ class SpaceFillingCurve2D
       for (int l = 0 ; l < lmax ; l++)
       {
         int aux = pow( pow(2,l) , 2);
-        i_inverse[l].resize(BX*BY*aux,-666);
-        j_inverse[l].resize(BX*BY*aux,-666);
+        i_inverse[l].resize(BX*BY*aux,-1);
+        j_inverse[l].resize(BX*BY*aux,-1);
+        Zsave[l].resize(BX*BY*aux,-1);
       }
 
       SUBSTRACT = new int[BX * BY];
@@ -132,8 +134,6 @@ class SpaceFillingCurve2D
         for (unsigned int i=0;i<BX*aux;i++)
         {
           int retval = forward(l,i,j);
-          i_inverse[l][retval] = i;
-          j_inverse[l][retval] = j;
         }      
       }
 
@@ -141,35 +141,32 @@ class SpaceFillingCurve2D
   }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)
-   int forward(const unsigned int l, const unsigned int i, const unsigned int j) const
+   int forward(const unsigned int l, const unsigned int i, const unsigned int j) //const
    {
       unsigned int aux = 1 << l;
+
+      if (Zsave[l][ j*aux*BX + i ] != -1) return Zsave[l][  j*aux*BX + i ];
       unsigned int I   = i / aux;
       unsigned int J   = j / aux;
       
       if (I >= BX || J >= BY) return 0;
+      if (l>=levelMax) return -1;
 
       const unsigned int c2_a[2] = {i, j};
       int s                      = SUBSTRACT[J * BX + I]  * aux * aux;
 
       int retval = AxestoTranspose(c2_a, l + base_level) - s;
 
+      Zsave[l][  j*aux*BX + i ] = retval;
       return retval;
    }
 
    void inverse(int Z, int l, int &i, int &j)
    {
-      //unsigned int X[2] = {0, 0};
-      //TransposetoAxes(Z, X, l + base_level);
-      //i = X[0];
-      //j = X[1];
-
       i = i_inverse[l][Z];
       j = j_inverse[l][Z];
       assert(i_inverse[l][Z]>=0);
       assert(j_inverse[l][Z]>=0);
-      //assert(i_inverse[l][Z] < BX * (1<<l));
-      //assert(j_inverse[l][Z] < BY * (1<<l));
    }
 
    // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)

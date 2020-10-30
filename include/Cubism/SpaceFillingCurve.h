@@ -8,8 +8,6 @@
 
 using namespace std;
 
-#define HilbertCurve
-
 namespace cubism // AMR_CUBISM
 {
 
@@ -136,6 +134,7 @@ class SpaceFillingCurve
       BZ = nz;
    }
 
+   std::vector < std::vector <int> > Zsave;
    std::vector< std::vector<int> > i_inverse;
    std::vector< std::vector<int> > j_inverse;
    std::vector< std::vector<int> > k_inverse;
@@ -175,79 +174,74 @@ class SpaceFillingCurve
         }
       }
 
-
       i_inverse.resize(lmax);
       j_inverse.resize(lmax);
       k_inverse.resize(lmax);
+      Zsave.resize(lmax);
       for (int l = 0 ; l < lmax ; l++)
       {
         int aux = pow( pow(2,l) , 3);
-        i_inverse[l].resize(BX*BY*BZ*aux,-666);
-        j_inverse[l].resize(BX*BY*BZ*aux,-666);
-        k_inverse[l].resize(BX*BY*BZ*aux,-666);
-      }
-      for (int l = 0 ; l < lmax ; l++)
-      {
-        int aux = pow(2,l);
-        #pragma omp parallel for collapse(3)
-        for (unsigned int k=0;k<BZ*aux;k++)
-        for (unsigned int j=0;j<BY*aux;j++)
-        for (unsigned int i=0;i<BX*aux;i++)
+        i_inverse[l].resize(BX*BY*BZ*aux,-1);
+        j_inverse[l].resize(BX*BY*BZ*aux,-1);
+        k_inverse[l].resize(BX*BY*BZ*aux,-1);
+        Zsave[l].resize(BX*BY*BZ*aux,-1);
+        for (int k = 0 ; k < BZ* (1<<l); k++)
+        for (int j = 0 ; j < BY* (1<<l); j++)
+        for (int i = 0 ; i < BX* (1<<l); i++)
         {
-          int retval = forward(l,i,j,k);
-          i_inverse[l][retval] = i;
-          j_inverse[l][retval] = j;
-          k_inverse[l][retval] = k;
+         int n = forward(l,i,j,k);
         }
+
       }
-
-
 
       std::cout << "Hilbert curve ready." << std::endl;
    }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)
-   int forward(const unsigned int l, const unsigned int i, const unsigned int j,
-               const unsigned int k) const
+   int forward(const int l, const int i, const int j, const int k)
    {
-      unsigned int aux = 1 << l;
-      unsigned int I   = i / aux;
-      unsigned int J   = j / aux;
-      unsigned int K   = k / aux;
+      const int aux = 1 << l;
+
+      if (l >= levelMax) return -1;
+      if (Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ] != -1) return Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ];
+
+      const int I   = i / aux;
+      const int J   = j / aux;
+      const int K   = k / aux;
       
       if (I >= BX || J >= BY || K >= BZ) return 0;
-
-      #if defined(MortonCurve)
-        unsigned int I1 = i % aux;
-        unsigned int J1 = j % aux;
-        unsigned int K1 = k % aux;
-        int z           = mortonEncode_for(I1, J1, K1);
-        int z_origin    = ((J + K * BY) * BX + I) * aux * aux * aux;
-        return z + z_origin;
-      #elif defined(HilbertCurve)
 
       const unsigned int c2_a[3] = {i, j, k};
       int s                      = SUBSTRACT[((J + K * BY) * BX + I)] * aux * aux * aux;
 
       int retval = AxestoTranspose(c2_a, l + base_level) - s;
 
+      i_inverse[l][retval] = i;
+      j_inverse[l][retval] = j;
+      k_inverse[l][retval] = k;
+      Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ] = retval;
+      
       return retval;
-#endif
    }
 
    void inverse(int Z, int l, int &i, int &j, int &k)
    {
-
+      assert ( i_inverse[l][Z] != -1);
+      assert ( j_inverse[l][Z] != -1);
+      assert ( k_inverse[l][Z] != -1);
       i = i_inverse[l][Z];
       j = j_inverse[l][Z];
       k = k_inverse[l][Z];
       return;
-
       //unsigned int X[3] = {0, 0, 0};
       //TransposetoAxes(Z, X, l + base_level);
       //i = X[0];
       //j = X[1];
       //k = X[2];
+   }
+
+   void inverse1(int Z, int l, int &i, int &j, int &k)
+   {
       for (unsigned int iz = 0; iz <= 1; iz++)
       for (unsigned int iy = 0; iy <= 1; iy++)
       for (unsigned int ix = 0; ix <= 1; ix++)
@@ -264,6 +258,7 @@ class SpaceFillingCurve
       std::cout << "Didn't find inverse in SFC!" << std::endl;
       abort();
    }
+
 
    // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)
    int child(int l, int i, int j, int k) { return forward(l + 1, 2 * i, 2 * j, 2 * k); }
@@ -300,7 +295,7 @@ class SpaceFillingCurve
          iy1 = iy;
          iz1 = iz;
 
-         inverse(Zc, l, ix1, iy1, iz1);
+         inverse1(Zc, l, ix1, iy1, iz1);
          ix = 2 * ix1;
          iy = 2 * iy1;
          iz = 2 * iz1;

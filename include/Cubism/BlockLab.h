@@ -59,7 +59,7 @@ class BlockLab
    int m_stencilStart[3], m_stencilEnd[3];
    bool istensorial;
 
-   const Grid<BlockType, allocator> *m_refGrid;
+   Grid<BlockType, allocator> *m_refGrid;
    int NX, NY, NZ;
 
    // Extra stuff for AMR:
@@ -253,7 +253,7 @@ class BlockLab
 
    void load(BlockInfo info, const Real t = 0, const bool applybc = true)
    {
-      const Grid<BlockType, allocator> &grid = *m_refGrid;
+      Grid<BlockType, allocator> &grid = *m_refGrid;
       static const int nX                    = BlockType::sizeX;
       static const int nY                    = BlockType::sizeY;
       static const int nZ                    = BlockType::sizeZ;
@@ -493,7 +493,7 @@ class BlockLab
       static const int nY = BlockType::sizeY;
       static const int nZ = BlockType::sizeZ;
 
-      const Grid<BlockType, allocator> &grid = *m_refGrid;
+      Grid<BlockType, allocator> &grid = *m_refGrid;
 
       BlockType *b_ptr = grid.avail(info.level, info.Znei_(code[0], code[1], code[2]));
       if (b_ptr == nullptr) return;
@@ -615,7 +615,7 @@ class BlockLab
    void FineToCoarseExchange(const BlockInfo &info, const int *const code, const int *const s,
                              const int *const e)
    {
-      const Grid<BlockType, allocator> &grid = *m_refGrid;
+      Grid<BlockType, allocator> &grid = *m_refGrid;
       static const int nX                    = BlockType::sizeX;
       static const int nY                    = BlockType::sizeY;
       static const int nZ                    = BlockType::sizeZ;
@@ -869,7 +869,7 @@ class BlockLab
    {
       // Coarse neighbors send their cells. Those are stored in m_CoarsenedBlock and are later used
       // in function CoarseFineInterpolation to interpolate fine values.
-      const Grid<BlockType, allocator> &grid = *m_refGrid;
+      Grid<BlockType, allocator> &grid = *m_refGrid;
       static const int nX                    = BlockType::sizeX;
       static const int nY                    = BlockType::sizeY;
       static const int nZ                    = BlockType::sizeZ;
@@ -997,7 +997,7 @@ class BlockLab
       static const int nY = BlockType::sizeY;
       static const int nZ = BlockType::sizeZ;
 
-      const Grid<BlockType, allocator> &grid = *m_refGrid;
+      Grid<BlockType, allocator> &grid = *m_refGrid;
 
       BlockType *b_ptr = grid.avail(info.level, info.Znei_(code[0], code[1], code[2]));
       if (b_ptr == nullptr) return;
@@ -1085,7 +1085,7 @@ class BlockLab
 
    void CoarseFineInterpolation(const BlockInfo &info,const std::vector<int> & selcomponents)
    {
-      const Grid<BlockType, allocator> &grid = *m_refGrid;
+      Grid<BlockType, allocator> &grid = *m_refGrid;
 
       static const int nX                    = BlockType::sizeX;
       static const int nY                    = BlockType::sizeY;

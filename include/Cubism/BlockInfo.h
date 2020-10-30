@@ -179,8 +179,7 @@ struct BlockInfo
    }
 #endif
 
-   bool ready;
-   BlockInfo(){ready = false;};
+   BlockInfo(){};
 
    bool operator<(const BlockInfo &other) const
    {
@@ -189,14 +188,11 @@ struct BlockInfo
 
    void setup(const int a_level, const double a_h, const double a_origin[3], const int a_Z, int a_myrank, TreePosition a_TreePos)
    {
-      ready = true;
-      //myrank   = a_myrank;
+      myrank   = a_myrank;
       TreePos  = a_TreePos;
 
       level = a_level;
       Z     = a_Z;
-
-      //inverse(Z,level,index[0],index[1],index[2]);
       
       state    = Leave;
       h_gridpoint = a_h;

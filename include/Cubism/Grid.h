@@ -6,10 +6,10 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <omp.h>
 
 #ifdef CUBISM_USE_NUMA
    #include <numa.h>
-   #include <omp.h>
 #endif
 
 #include "BlockInfo.h"
@@ -26,12 +26,11 @@ class Grid
    std::vector<BlockInfo> m_vInfo; // meta-data for blocks that belong to this rank
    std::vector<Block *> m_blocks;  // pointers to blocks that belong to this rank
 
-#if DIMENSION == 3
+   #if DIMENSION == 3
    std::vector<std::vector<std::vector<std::vector<int>>>> Zsave;
-#endif
-#if DIMENSION == 2
+   #else
    std::vector<std::vector<std::vector<int>>> Zsave;
-#endif
+   #endif
 
    const int NX;           // Total # of blocks for level 0 in X-direction
    const int NY;           // Total # of blocks for level 0 in Y-direction
@@ -54,21 +53,16 @@ class Grid
    void _alloc() // called in class constructor
    {
       int m        = levelStart;
-      int TwoPower = 1 << m;
-#if DIMENSION == 3
+      int TwoPower = 1 << m;      
+     #if DIMENSION == 3
       for (int n = 0; n < NX * NY * NZ * pow(TwoPower, 3); n++)
-      {
-         getBlockInfoAll(m,n).TreePos = Exists;
-         _alloc(m, n);
-      }
-#endif
-#if DIMENSION == 2
+     #else
       for (int n = 0; n < NX * NY * pow(TwoPower, 2); n++)
+     #endif  
       {
          getBlockInfoAll(m,n).TreePos = Exists;
          _alloc(m, n);
       }
-#endif
       FillPos();
    }
 
@@ -78,7 +72,6 @@ class Grid
       getBlockInfoAll(m,n).ptrBlock = alloc.allocate(1);
       getBlockInfoAll(m,n).changed  = true;
       getBlockInfoAll(m,n).h_gridpoint = getBlockInfoAll(m,n).h;
-
       m_blocks.push_back((Block *)getBlockInfoAll(m,n).ptrBlock);
       m_vInfo.push_back(*BlockInfoAll[m][n]);
       N++;
@@ -88,9 +81,7 @@ class Grid
    {
       m_vInfo.clear();
       allocator<Block> alloc;
-
       for (size_t j = 0; j < m_vInfo.size(); j++) alloc.deallocate(m_blocks[j], 1);
-
       BlockInfoAll.clear();
    }
 
@@ -106,7 +97,7 @@ class Grid
          {
             m_vInfo.erase(m_vInfo.begin() + j);
             m_blocks.erase(m_blocks.begin() + j);
-            break;
+            return;
          }
       }
    }
@@ -137,6 +128,7 @@ class Grid
 
             assert(getBlockInfoAll(m,n).state == m_vInfo[j].state);
             assert(getBlockInfoAll(m,n).TreePos == Exists);
+
             m_blocks[j] = (Block *)getBlockInfoAll(m,n).ptrBlock;
          }
       else
@@ -167,112 +159,66 @@ class Grid
    {
 
       BlockInfo dummy;
-#if DIMENSION == 3
+     #if DIMENSION == 3
       int nx     = dummy.blocks_per_dim(0, NX, NY, NZ);
       int ny     = dummy.blocks_per_dim(1, NX, NY, NZ);
       int nz     = dummy.blocks_per_dim(2, NX, NY, NZ);
-#endif
-#if DIMENSION == 2
+     #else
       int nx     = dummy.blocks_per_dim(0, NX, NY);
       int ny     = dummy.blocks_per_dim(1, NX, NY);
-#endif      
+     #endif      
       int lvlMax = dummy.levelMax(levelMax);
 
       N                = 0;
 
-#if DIMENSION == 3
-      double h0 =
-          (maxextent / std::max(nx * Block::sizeX, std::max(ny * Block::sizeY, nz * Block::sizeZ)));
-
-      // We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All
-      // blockInfos are initialized here.
       BlockInfoAll.resize(lvlMax);
       ready.resize(lvlMax);
-
       Zsave.resize(lvlMax);
 
+#if DIMENSION == 3
       for (int m = 0; m < lvlMax; m++)
       {
-         int TwoPower            = 1 << m;
-         const unsigned int Ntot = NX * NY * NZ * pow(TwoPower, 3);
-
-         BlockInfoAll[m].resize(Ntot);
-         ready[m].resize(Ntot,false);
-
-         Zsave[m].resize(NX * TwoPower);
-         for (int ix = 0; ix < NX * TwoPower; ix++)
-         {
-            Zsave[m][ix].resize(NY * TwoPower);
-            for (int iy = 0; iy < NY * TwoPower; iy++)
+        int TwoPower            = 1 << m;
+        const unsigned int Ntot = nx * ny * nz * pow(TwoPower, 3);
+        BlockInfoAll[m].resize(Ntot);
+        ready[m].resize(Ntot,false);
+        Zsave[m].resize(nx * TwoPower);
+        for (int ix = 0; ix < nx * TwoPower; ix++)
+        {
+            Zsave[m][ix].resize(ny * TwoPower);
+            for (int iy = 0; iy < ny * TwoPower; iy++)
             {
-               Zsave[m][ix][iy].resize(NZ * TwoPower);
+               Zsave[m][ix][iy].resize(nz * TwoPower);
             }
-         }
-
-         double h = h0 / TwoPower;
-
-         double origin[3];
-
-         for (int i = 0; i < NX * TwoPower; i++)
-            for (int j = 0; j < NY * TwoPower; j++)
-               for (int k = 0; k < NZ * TwoPower; k++)
-               {
-                  int n = BlockInfo::forward(m, i, j, k);
-                  Zsave[m][i][j][k] = n; 
-                  BlockInfoAll[m][n] = new BlockInfo();
-               }
+        }
+        for (int i = 0; i < nx * TwoPower; i++)
+        for (int j = 0; j < ny * TwoPower; j++)
+        for (int k = 0; k < nz * TwoPower; k++)
+        {
+            int n = BlockInfo::forward(m, i, j, k);
+            Zsave[m][i][j][k] = n; 
+        }
       }
 #endif
-#if DIMENSION == 2
-      double h0 = (maxextent / std::max(nx * Block::sizeX, ny * Block::sizeY));
-      
-      // We loop over all levels m=0,...,levelMax-1 and all blocks found in each level. All
-      // blockInfos are initialized here.
-      BlockInfoAll.resize(lvlMax);
-
-      Zsave.resize(lvlMax);
-
+#if DIMENSION == 2      
       for (int m = 0; m < lvlMax; m++)
       {
-         int TwoPower            = 1 << m;
-         const unsigned int Ntot = NX * NY * pow(TwoPower, 2);
+        int TwoPower            = 1 << m;
+        const unsigned int Ntot = nx * ny * pow(TwoPower, 2);
+        BlockInfoAll[m].resize(Ntot);
 
-         BlockInfoAll[m].resize(Ntot);
+        Zsave[m].resize(NX * TwoPower);
+        for (int ix = 0; ix < nx * TwoPower; ix++)
+        {
+            Zsave[m][ix].resize(ny * TwoPower);
+        }
 
-         Zsave[m].resize(NX * TwoPower);
-         for (int ix = 0; ix < NX * TwoPower; ix++)
-         {
-            Zsave[m][ix].resize(NY * TwoPower);
-         }
-
-         double h = h0 / TwoPower;
-
-         double origin[3];
-
-         for (int i = 0; i < NX * TwoPower; i++)
-            for (int j = 0; j < NY * TwoPower; j++)
-            {
-               int n = BlockInfo::forward(m, i, j);
-
-               Zsave[m][i][j] = n;
-
-               origin[0]  = i * Block::sizeX * h;
-               origin[1]  = j * Block::sizeY * h;
-               origin[2]  = 0;
-
-               TreePosition TreePos;
-               if (m == levelStart) TreePos = Exists;
-               else if (m < levelStart)
-                  TreePos = CheckFiner;
-               else
-                  TreePos = CheckCoarser;
-
-               int rank = (m == levelStart) ? 0 : -1;
-
-               BlockInfoAll[m][n] = new BlockInfo();
-
-               BlockInfoAll[m][n]->setup(m, h, origin, n, rank,TreePos); // Ranks are initialized in GridMPI constructor
-            }
+        for (int i = 0; i < NX * TwoPower; i++)
+        for (int j = 0; j < NY * TwoPower; j++)
+        {
+            int n = BlockInfo::forward(m, i, j);
+            Zsave[m][i][j] = n;
+        }
       }
 #endif
       if (AllocateBlocks) _alloc();
@@ -280,17 +226,17 @@ class Grid
 
    virtual ~Grid() { _deallocAll(); }
 
-   virtual Block *avail(int m, int n) const { return (Block *)getBlockInfoAll(m,n).ptrBlock; }
+   virtual Block *avail(int m, int n){ return (Block *)getBlockInfoAll(m,n).ptrBlock; }
 
 #if DIMENSION == 3
-   virtual Block *avail1(int ix, int iy, int iz, int m) const
+   virtual Block *avail1(int ix, int iy, int iz, int m)
    {
       int n = getZforward(m, ix, iy, iz);
       return avail(m, n);
    }
 #endif
 #if DIMENSION == 2
-   virtual Block *avail1(int ix, int iy, int m) const
+   virtual Block *avail1(int ix, int iy, int m)
    {
       int n = getZforward(m, ix, iy);
       return avail(m, n);
@@ -309,7 +255,7 @@ class Grid
       return Zsave[level][ix][iy][iz];
    }
    int getZchild(int level, int i, int j, int k) { return BlockInfo::child(level, i, j, k); }
-   virtual Block &operator()(int ix, int iy, int iz, int m) const
+   virtual Block &operator()(int ix, int iy, int iz, int m)
    {
       int n = getZforward(m, ix, iy, iz);
       return *(Block *)getBlockInfoAll(m,n).ptrBlock;
@@ -324,7 +270,7 @@ class Grid
       return Zsave[level][ix][iy];
    }
    int getZchild(int level, int i, int j) { return BlockInfo::child(level, i, j); }
-   virtual Block &operator()(int ix, int iy, int m) const
+   virtual Block &operator()(int ix, int iy, int m)
    {
       int n = getZforward(m, ix, iy);
       return *(Block *)getBlockInfoAll(m,n).ptrBlock;
@@ -336,135 +282,45 @@ class Grid
    inline int getlevelMax() { return levelMax; }
    inline int getlevelMax() const { return levelMax; }
 
+   
    virtual BlockInfo &getBlockInfoAll(int m, int n)
    {
-        if (BlockInfoAll[m][n]->ready == false)
+        if (ready[m][n])
         {
-            int myrank,world_size;
-            MPI_Comm_rank(MPI_COMM_WORLD,&myrank);
-            MPI_Comm_size(MPI_COMM_WORLD,&world_size);
-
-            int total_blocks = NX * NY * NZ * pow(pow(2, levelStart), 3);
-            int my_blocks = total_blocks / world_size;
-            
-            if (myrank < total_blocks % world_size) my_blocks++;
-                      
-            if (m == levelStart)
-            {
-               int r;
-               if (total_blocks % world_size > 0)
-               {
-                  if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
-                  {
-                     int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
-
-                     r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
-                  }
-                  else
-                  {
-                     r = n / (total_blocks / world_size + 1);
-                  }
-               }
-               else
-               {
-                  r = n / my_blocks;
-               }
-               BlockInfoAll[m][n]->myrank = r;
-            }
-            else
-            {
-               BlockInfoAll[m][n]->myrank = -1;
-            }
-
-            int TwoPower = 1 << m;
-            double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
-            double h = h0 / TwoPower;
-            double origin[3];
-            int i,j,k;
-#if DIMENSION == 3
-            BlockInfo::inverse(n,m,i,j,k);           
-            origin[0]  = i * Block::sizeX * h;
-            origin[1]  = j * Block::sizeY * h;
-            origin[2]  = k * Block::sizeZ * h;
-#else
-            BlockInfo::inverse(n,m,i,j);
-            k = 0;           
-            origin[0]  = i * Block::sizeX * h;
-            origin[1]  = j * Block::sizeY * h;
-            origin[2]  = k * Block::sizeZ * h;
-#endif
-            TreePosition TreePos;
-            if      (m == levelStart) TreePos = Exists;
-            else if (m <  levelStart) TreePos = CheckFiner;
-            else                      TreePos = CheckCoarser;
-            BlockInfoAll[m][n]->setup(m, h, origin, n, BlockInfoAll[m][n]->myrank, TreePos);
+            return *BlockInfoAll[m][n];
         }
-        return *BlockInfoAll[m][n];
-   }
-   virtual BlockInfo &getBlockInfoAll(int m, int n) const
-   {
-        if (BlockInfoAll[m][n]->ready == false)
+        else
         {
-            int myrank,world_size;
-            MPI_Comm_rank(MPI_COMM_WORLD,&myrank);
-            MPI_Comm_size(MPI_COMM_WORLD,&world_size);
-
-            int total_blocks = NX * NY * NZ * pow(pow(2, levelStart), 3);
-            int my_blocks = total_blocks / world_size;
-            
-            if (myrank < total_blocks % world_size) my_blocks++;
-                       
-            if (m == levelStart)
+            #pragma omp critical
             {
-               int r;
-               if (total_blocks % world_size > 0)
-               {
-                  if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
-                  {
-                     int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
-
-                     r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
-                  }
-                  else
-                  {
-                     r = n / (total_blocks / world_size + 1);
-                  }
-               }
-               else
-               {
-                  r = n / my_blocks;
-               }
-               BlockInfoAll[m][n]->myrank = r;
+                if (ready[m][n]==false)        
+                {
+                    BlockInfoAll[m][n] = new BlockInfo();                            
+                    int blockrank = 0;
+                    int TwoPower = 1 << m;
+                    double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
+                    double h = h0 / TwoPower;
+                    double origin[3];
+                    int i,j,k;
+                  #if DIMENSION == 3
+                    BlockInfo::inverse(n,m,i,j,k);           
+                  #else
+                    BlockInfo::inverse(n,m,i,j);
+                    k = 0;           
+                  #endif
+                    origin[0]  = i * Block::sizeX * h;
+                    origin[1]  = j * Block::sizeY * h;
+                    origin[2]  = k * Block::sizeZ * h;
+                    TreePosition TreePos;
+                    if      (m == levelStart) TreePos = Exists;
+                    else if (m <  levelStart) TreePos = CheckFiner;
+                    else                      TreePos = CheckCoarser;
+                    BlockInfoAll[m][n]->setup(m, h, origin, n, blockrank, TreePos);
+                    ready[m][n] = true;
+                }
             }
-            else
-            {
-               BlockInfoAll[m][n]->myrank = -1;
-            }
-
-            int TwoPower = 1 << m;
-            double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
-            double h = h0 / TwoPower;
-            double origin[3];
-            int i,j,k;
-#if DIMENSION == 3
-            BlockInfo::inverse(n,m,i,j,k);           
-            origin[0]  = i * Block::sizeX * h;
-            origin[1]  = j * Block::sizeY * h;
-            origin[2]  = k * Block::sizeZ * h;
-#else
-            BlockInfo::inverse(n,m,i,j);
-            k = 0;           
-            origin[0]  = i * Block::sizeX * h;
-            origin[1]  = j * Block::sizeY * h;
-            origin[2]  = k * Block::sizeZ * h;
-#endif
-            TreePosition TreePos;
-            if      (m == levelStart) TreePos = Exists;
-            else if (m <  levelStart) TreePos = CheckFiner;
-            else                      TreePos = CheckCoarser;
-            BlockInfoAll[m][n]->setup(m, h, origin, n, BlockInfoAll[m][n]->myrank, TreePos);
+            return *BlockInfoAll[m][n];
         }
-        return *BlockInfoAll[m][n];
    }
 
    virtual std::vector<std::vector<BlockInfo*>> &getBlockInfoAll() { return BlockInfoAll; }

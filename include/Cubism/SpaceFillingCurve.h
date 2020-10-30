@@ -15,10 +15,10 @@ class SpaceFillingCurve
 {
 
  protected:
-   unsigned int BX, BY, BZ;
+  int BX, BY, BZ;
 
 
-   int AxestoTranspose(const unsigned int *X_in, int b) const // position, #bits, dimension
+   int AxestoTranspose(const int *X_in, int b) const // position, #bits, dimension
    {
       if (b == 0)
       {
@@ -29,7 +29,7 @@ class SpaceFillingCurve
       }
 
       const int n       = 3;
-      unsigned int X[3] = {X_in[0], X_in[1], X_in[2]};
+      int X[3] = {X_in[0], X_in[1], X_in[2]};
 
       assert(b - 1 >= 0);
 
@@ -69,7 +69,7 @@ class SpaceFillingCurve
       return retval;
    }
 
-   void TransposetoAxes(int index, unsigned int *X, int b) const // position, #bits, dimension
+   void TransposetoAxes(int index, int *X, int b) const // position, #bits, dimension
    {
       const int n = 3;
 
@@ -140,7 +140,7 @@ class SpaceFillingCurve
    std::vector< std::vector<int> > k_inverse;
 
 
-   SpaceFillingCurve(unsigned int a_BX, unsigned int a_BY, unsigned int a_BZ, int lmax) : BX(a_BX), BY(a_BY), BZ(a_BZ), levelMax(lmax)
+   SpaceFillingCurve(int a_BX, int a_BY, int a_BZ, int lmax) : BX(a_BX), BY(a_BY), BZ(a_BZ), levelMax(lmax)
    {
       std::cout << "Constructing Hilbert curve for " << BX << "x" << BY << "x" << BZ << 
                    " octree with " << lmax << " levels..." << std::endl;
@@ -153,18 +153,18 @@ class SpaceFillingCurve
       #pragma omp parallel
       {
         #pragma omp for collapse(3)
-        for (unsigned int k=0;k<BZ;k++)
-        for (unsigned int j=0;j<BY;j++)
-        for (unsigned int i=0;i<BX;i++)
+        for (int k=0;k<BZ;k++)
+        for (int j=0;j<BY;j++)
+        for (int i=0;i<BX;i++)
         {
-          const unsigned int c[3] = {i,j,k};
+          const int c[3] = {i,j,k};
           
           int index = AxestoTranspose( c, base_level);
     
           int substract = 0;
           for (int h=0; h<index; h++)
           {
-            unsigned int X[3] = {0,0,0};
+            int X[3] = {0,0,0};
             TransposetoAxes(h, X, base_level);
             if (X[0] >= BX ||  
                 X[1] >= BY ||  
@@ -211,7 +211,7 @@ class SpaceFillingCurve
       
       if (I >= BX || J >= BY || K >= BZ) return 0;
 
-      const unsigned int c2_a[3] = {i, j, k};
+      const int c2_a[3] = {i, j, k};
       int s                      = SUBSTRACT[((J + K * BY) * BX + I)] * aux * aux * aux;
 
       int retval = AxestoTranspose(c2_a, l + base_level) - s;
@@ -233,7 +233,7 @@ class SpaceFillingCurve
       j = j_inverse[l][Z];
       k = k_inverse[l][Z];
       return;
-      //unsigned int X[3] = {0, 0, 0};
+      //int X[3] = {0, 0, 0};
       //TransposetoAxes(Z, X, l + base_level);
       //i = X[0];
       //j = X[1];
@@ -242,9 +242,9 @@ class SpaceFillingCurve
 
    void inverse1(int Z, int l, int &i, int &j, int &k)
    {
-      for (unsigned int iz = 0; iz <= 1; iz++)
-      for (unsigned int iy = 0; iy <= 1; iy++)
-      for (unsigned int ix = 0; ix <= 1; ix++)
+      for (int iz = 0; iz <= 1; iz++)
+      for (int iy = 0; iy <= 1; iy++)
+      for (int ix = 0; ix <= 1; ix++)
       {
         int Ztest = forward(l, ix+i, iy+j, iz+k);
         if (Ztest == Z)

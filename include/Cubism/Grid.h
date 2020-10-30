@@ -48,11 +48,7 @@ class Grid
    {
       int m        = levelStart;
       int TwoPower = 1 << m;      
-     #if DIMENSION == 3
-      for (int n = 0; n < NX * NY * NZ * pow(TwoPower, 3); n++)
-     #else
-      for (int n = 0; n < NX * NY * pow(TwoPower, 2); n++)
-     #endif  
+      for (int n = 0; n < NX * NY * NZ * pow(TwoPower, DIMENSION); n++)
       {
          getBlockInfoAll(m,n).TreePos = Exists;
          _alloc(m, n);

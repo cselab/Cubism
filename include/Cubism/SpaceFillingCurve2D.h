@@ -13,14 +13,14 @@ class SpaceFillingCurve2D
 {
 
  protected:
-   unsigned int BX, BY;
+   int BX, BY;
 
 
    //convert (x,y) to d
-   int AxestoTranspose(const unsigned int *X_in, int b) const
+   int AxestoTranspose(const int *X_in, int b) const
    {
-      unsigned int x = X_in[0];
-      unsigned int y = X_in[1];
+      int x = X_in[0];
+      int y = X_in[1];
       int n = 1 << b;
       int rx, ry, s, d=0;
       for (s=n/2; s>0; s/=2)
@@ -34,7 +34,7 @@ class SpaceFillingCurve2D
    }
 
    //convert d to (x,y)
-   void TransposetoAxes(int index, unsigned int *X, int b) const 
+   void TransposetoAxes(int index, int *X, int b) const 
    {
        // position, #bits, dimension
        int n = 1 << b;
@@ -52,7 +52,7 @@ class SpaceFillingCurve2D
    }
 
    //rotate/flip a quadrant appropriately
-   void rot(int n, unsigned int *x, unsigned int *y, int rx, int ry) const 
+   void rot(int n, int *x, int *y, int rx, int ry) const 
    {
        if (ry == 0) {
            if (rx == 1) {
@@ -89,11 +89,12 @@ class SpaceFillingCurve2D
       BY = ny;
    }
 
-   SpaceFillingCurve2D(unsigned int a_BX, unsigned int a_BY, int lmax) : BX(a_BX), BY(a_BY), levelMax(lmax)
+   SpaceFillingCurve2D(int a_BX, int a_BY, int lmax) : BX(a_BX), BY(a_BY), levelMax(lmax)
    {
       std::cout << "Constructing Hilbert curve for " << BX << "x" << BY <<  " quadree with " << lmax << " levels..." << std::endl;
       i_inverse.resize(lmax);
       j_inverse.resize(lmax);
+      Zsave.resize(lmax);
       for (int l = 0 ; l < lmax ; l++)
       {
         int aux = pow( pow(2,l) , 2);
@@ -109,17 +110,17 @@ class SpaceFillingCurve2D
       if (base_level < (double)(log(n_max) / log(2))) base_level++;
 
       #pragma omp parallel for collapse(2)
-      for (unsigned int j=0;j<BY;j++)
-      for (unsigned int i=0;i<BX;i++)
+      for (int j=0;j<BY;j++)
+      for (int i=0;i<BX;i++)
       {
-        const unsigned int c[2] = {i,j};
+        const int c[2] = {i,j};
           
         int index = AxestoTranspose( c, base_level);
     
         int substract = 0;
         for (int h=0; h<index; h++)
         {
-          unsigned int X[2] = {0,0};
+          int X[2] = {0,0};
           TransposetoAxes(h, X, base_level);
           if (X[0] >= BX || X[1] >= BY) substract++;   
         }   
@@ -130,10 +131,12 @@ class SpaceFillingCurve2D
       {
         int aux = pow(2,l);
         #pragma omp parallel for collapse(2)
-        for (unsigned int j=0;j<BY*aux;j++)
-        for (unsigned int i=0;i<BX*aux;i++)
+        for (int j=0;j<BY*aux;j++)
+        for (int i=0;i<BX*aux;i++)
         {
           int retval = forward(l,i,j);
+          i_inverse[l][retval]=i;
+          j_inverse[l][retval]=j;
         }      
       }
 
@@ -141,18 +144,19 @@ class SpaceFillingCurve2D
   }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)
-   int forward(const unsigned int l, const unsigned int i, const unsigned int j) //const
+   int forward(const int l, const int i, const int j) //const
    {
-      unsigned int aux = 1 << l;
+      const int aux = 1 << l;
 
-      if (Zsave[l][ j*aux*BX + i ] != -1) return Zsave[l][  j*aux*BX + i ];
-      unsigned int I   = i / aux;
-      unsigned int J   = j / aux;
-      
-      if (I >= BX || J >= BY) return 0;
       if (l>=levelMax) return -1;
 
-      const unsigned int c2_a[2] = {i, j};
+      if (Zsave[l][ j*aux*BX + i ] != -1) return Zsave[l][  j*aux*BX + i ];
+      const int I   = i / aux;
+      const int J   = j / aux;
+      
+      if (I >= BX || J >= BY) return 0;
+
+      const int c2_a[2] = {i, j};
       int s                      = SUBSTRACT[J * BX + I]  * aux * aux;
 
       int retval = AxestoTranspose(c2_a, l + base_level) - s;

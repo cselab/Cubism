@@ -206,7 +206,7 @@ class Grid
         int TwoPower            = 1 << m;
         const unsigned int Ntot = nx * ny * pow(TwoPower, 2);
         BlockInfoAll[m].resize(Ntot);
-
+        ready[m].resize(Ntot,false);
         Zsave[m].resize(NX * TwoPower);
         for (int ix = 0; ix < nx * TwoPower; ix++)
         {

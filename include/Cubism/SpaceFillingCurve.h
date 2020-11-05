@@ -173,7 +173,7 @@ class SpaceFillingCurve
           SUBSTRACT[(j + k*BY)*BX + i] = substract;
         }
       }
-
+int count=0;
       i_inverse.resize(lmax);
       j_inverse.resize(lmax);
       k_inverse.resize(lmax);
@@ -190,11 +190,12 @@ class SpaceFillingCurve
         for (int i = 0 ; i < BX* (1<<l); i++)
         {
          int n = forward(l,i,j,k);
+         count+=n;
         }
 
       }
 
-      std::cout << "Hilbert curve ready." << std::endl;
+      std::cout << "Hilbert curve ready." <<count<< std::endl;
    }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)

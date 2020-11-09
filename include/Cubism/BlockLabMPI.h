@@ -43,8 +43,8 @@ class BlockLabMPI : public MyBlockLab
       const size_t m_nElemsPerSlice[2] = {
           MyBlockLab::m_cacheBlock->getNumberOfElementsPerSlice(),
           MyBlockLab::m_CoarsenedBlock->getNumberOfElementsPerSlice()};
-      Real *dst  = &MyBlockLab ::m_cacheBlock->LinAccess(0).alpha1rho1;
-      Real *dst1 = &MyBlockLab ::m_CoarsenedBlock->LinAccess(0).alpha1rho1;
+      Real *dst  = &MyBlockLab ::m_cacheBlock    ->LinAccess(0).member(0);
+      Real *dst1 = &MyBlockLab ::m_CoarsenedBlock->LinAccess(0).member(0);
       refSynchronizerMPI->fetch(info, gptfloats, Length, CLength, m_nElemsPerSlice, dst, dst1);
 
       const std::vector<int> & selcomponents = refSynchronizerMPI->getstencil().selcomponents;

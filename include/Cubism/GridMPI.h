@@ -403,7 +403,7 @@ class GridMPI : public TGrid
    }
 
    template <typename Processing>
-   SynchronizerMPIType *sync(Processing &p)
+   SynchronizerMPIType *sync(const Processing &p)
    {
       // temporarily hardcoded Cstencil
       StencilInfo Cstencil = p.stencil;

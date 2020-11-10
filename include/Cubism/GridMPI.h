@@ -89,20 +89,15 @@ class GridMPI : public TGrid
 
    virtual void _deallocAll() override // called in class destructor
    {
+      allocator<Block> alloc;
+      for (size_t i = 0 ; i < TGrid::m_vInfo.size() ; i ++)
+      {
+         int m = TGrid::m_vInfo[i].level;
+         int n = TGrid::m_vInfo[i].Z;
+         alloc.deallocate((Block *)TGrid::BlockInfoAll[m][n]->ptrBlock, 1);
+      }
       TGrid::m_blocks.clear();
       TGrid::m_vInfo.clear();
-      for (int m = 0; m < TGrid::levelMax; m++)
-      {
-         for (int n = 0; n < TGrid::NX * TGrid::NY * TGrid::NZ * pow(pow(2, m), 3); n++)
-         {
-            if (getBlockInfoAll(m,n).TreePos == Exists &&
-                getBlockInfoAll(m,n).myrank == myrank)
-            {
-               allocator<Block> alloc;
-               alloc.deallocate((Block *)getBlockInfoAll(m,n).ptrBlock, 1);
-            }
-         }
-      }
    }
 
    virtual void _alloc(int m, int n) override

@@ -28,7 +28,7 @@ CUBISM_NAMESPACE_BEGIN
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
 template <typename TStreamer, typename hdf5Real, typename TGrid>
-void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const typename TGrid::Real absTime,
+void DumpHDF5_MPI(const TGrid &grid, const typename TGrid::Real absTime,
                   const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
 {
 #ifdef CUBISM_USE_HDF
@@ -106,14 +106,8 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const typename TGrid::R
    std::stringstream name;
    name << "dset" << std::setfill('0') << std::setw(10) << rank;
    dataset_id = H5Dopen(file_id, (name.str()).c_str(), H5P_DEFAULT);
-
-   // The following line is duplicated on purpose.
-   // When running on Euler, if MPI processes are mapped
-   // to different nodes (one process/node) something weird happens;
-   // some zeros are written at random locations in the dataset (could this be an HDF5 bug?).
-   // Strangely, this is fixed if the data is written twice in the file.
-   H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block.data());
-   H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block.data());
+   H5Dwrite(dataset_id, get_hdf5_type<hdf5Real>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block.data());
+   //H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block.data());
    H5Dclose(dataset_id);
 
    // 5.Close hdf5 file
@@ -215,6 +209,13 @@ void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const typename TGrid::R
 #else
    _warn_no_hdf5();
 #endif
+}
+
+template <typename TStreamer, typename hdf5Real, typename TGrid>
+void DumpHDF5_MPI(const TGrid &grid, const int iCounter, const typename TGrid::Real absTime,
+                  const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
+{
+  DumpHDF5_MPI<TStreamer,hdf5Real,TGrid>(grid,absTime,fname,dpath,bXMF);
 }
 
 template <typename TStreamer, typename hdf5Real, typename TGrid>

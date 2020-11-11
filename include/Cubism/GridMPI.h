@@ -533,6 +533,15 @@ class GridMPI : public TGrid
    MPI_Comm getWorldComm() const { return worldcomm; }
 
    virtual int get_world_size() const override {return world_size;}
+
+#ifdef Hack_CUP
+    int getResidentBlocksPerDimension(int idim) const
+    {
+      assert(false);
+        assert(idim>=0 && idim<3);
+        return 1;
+    }
+#endif
 };
 
 CUBISM_NAMESPACE_END

@@ -1197,7 +1197,7 @@ class BlockLab
    }
 
 
-   Real Slope(Real al, Real ac, Real ar)
+   virtual Real Slope(Real al, Real ac, Real ar)
    {
     return 0.5*(ar-al);
 
@@ -1226,7 +1226,7 @@ class BlockLab
    }
 
 #if DIMENSION == 3
-   void TestInterp(ElementType *C[3][3][3], ElementType &R, int x, int y, int z, const std::vector<int> & selcomponents)
+   virtual void TestInterp(ElementType *C[3][3][3], ElementType &R, int x, int y, int z, const std::vector<int> & selcomponents)
    {
       ElementType dudx = SlopeElement( *C[0][1][1] , *C[1][1][1] , *C[2][1][1], selcomponents); 
       ElementType dudy = SlopeElement( *C[1][0][1] , *C[1][1][1] , *C[1][2][1], selcomponents); 

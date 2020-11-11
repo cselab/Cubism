@@ -52,7 +52,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       AMR::components.push_back(4);
       AMR::components.push_back(5);
       AMR::components.push_back(6);
-      //components.push_back(7); //dummy (not needed!)
+      AMR::components.push_back(7); //dummy (not needed!)
 
       StencilInfo stencil(-Gx, -Gy, -Gz, Gx + 1, Gy + 1, Gz + 1, tensorial, AMR::components);
 

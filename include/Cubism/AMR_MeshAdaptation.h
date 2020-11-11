@@ -539,6 +539,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
       components.push_back(4);
       components.push_back(5);
       components.push_back(6);
+      components.push_back(7);
 
       StencilInfo stencil(-Gx, -Gy, -Gz, Gx + 1, Gy + 1, Gz + 1, tensorial, components);
 
@@ -1002,7 +1003,6 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
         }
       }
      #else
-
 
       for (int J = 0; J < 2; J++)
       for (int I = 0; I < 2; I++)

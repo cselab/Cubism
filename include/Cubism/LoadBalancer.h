@@ -39,7 +39,7 @@ class LoadBalancer
          mn[1] = info.Z;
          if (Fillptr)
          {
-            Real *aux = &((BlockType *)info.ptrBlock)->data[0][0][0].alpha1rho1;
+            Real *aux = &((BlockType *)info.ptrBlock)->data[0][0][0].member(0);
             std::memcpy(&data[0], aux, sizeof(BlockType));
          }
       }
@@ -50,7 +50,7 @@ class LoadBalancer
          mn[1] = info.Z;
          if (Fillptr)
          {
-            Real *aux = &((BlockType *)info.ptrBlock)->data[0][0][0].alpha1rho1;
+            Real *aux = &((BlockType *)info.ptrBlock)->data[0][0][0].member(0);
             std::memcpy(&data[0], aux, sizeof(BlockType));
          }
       }
@@ -189,7 +189,7 @@ class LoadBalancer
             BlockInfo info = m_refGrid->getBlockInfoAll(level, Z);
             BlockType *b1  = (BlockType *)info.ptrBlock;
             assert(b1 != NULL);
-            Real *a1 = &b1->data[0][0][0].alpha1rho1;
+            Real *a1 = &b1->data[0][0][0].member(0);
             std::memcpy(a1, recv_blocks[r][i].data, BlockBytes);
          }
       }
@@ -304,7 +304,7 @@ class LoadBalancer
          BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
          info.TreePos    = Exists;
          BlockType *b1   = (BlockType *)info.ptrBlock;
-         Real *a1        = &b1->data[0][0][0].alpha1rho1;
+         Real *a1        = &b1->data[0][0][0].member(0);
          std::memcpy(a1, recv_left[i].data, BlockBytes);
          assert(m_refGrid->getBlockInfoAll(level, Z).myrank == rank);
       }
@@ -318,7 +318,7 @@ class LoadBalancer
          info.TreePos    = Exists;
          BlockType *b1   = (BlockType *)info.ptrBlock;
          assert(b1 != NULL);
-         Real *a1 = &b1->data[0][0][0].alpha1rho1;
+         Real *a1 = &b1->data[0][0][0].member(0);
          std::memcpy(a1, recv_right[i].data, BlockBytes);
          assert(m_refGrid->getBlockInfoAll(level, Z).myrank == rank);
       }

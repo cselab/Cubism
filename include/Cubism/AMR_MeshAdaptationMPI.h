@@ -285,7 +285,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
          /*------------->*/ Clock.start(7, "MeshAdaptation : UpdateBlockInfoAll_States");
          AMR::m_refGrid->UpdateBlockInfoAll_States(false);
-         AMR::m_refGrid->UpdateBlockInfoAll_States(true);
+         //AMR::m_refGrid->UpdateBlockInfoAll_States(true);
          /*------------->*/ Clock.finish(7);
 
          Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(),AMR::m_refGrid->getBlockInfoAll(), timestamp, true);

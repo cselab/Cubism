@@ -78,7 +78,7 @@ void DumpHDF5_MPI(const TGrid &grid, const typename TGrid::Real absTime,
       fspace_id        = H5Screate_simple(4, dims1, NULL);
       std::stringstream name;
       name << "dset" << std::setfill('0') << std::setw(10) << r;
-      dataset_id = H5Dcreate(file_id, (name.str()).c_str(), H5T_NATIVE_DOUBLE, fspace_id,
+      dataset_id = H5Dcreate(file_id, (name.str()).c_str(), get_hdf5_type<hdf5Real>(), fspace_id,
                              H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
       H5Dclose(dataset_id);
       H5Sclose(fspace_id);

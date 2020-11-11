@@ -17,6 +17,16 @@ class BlockLabMPI : public MyBlockLab
    SynchronizerMPIType *refSynchronizerMPI;
 
  public:
+   void prepare(TGrid &grid, int startX, int endX, int startY, int endY,
+                int startZ, int endZ, const bool _istensorial, 
+                int IstartX = 0, int IendX = 0,
+                int IstartY = 0, int IendY = 0, 
+                int IstartZ = 0, int IendZ = 0)
+   {
+    std::cout << "BlockLabMPI should call prepare with a SynchronizerMPI. You should not be here." << std::endl;
+    MPI_Abort(grid.getWorldComm(),1);
+   }
+
    void prepare( TGrid &grid, SynchronizerMPIType &synchronizer)
    {
       refSynchronizerMPI   = &synchronizer;

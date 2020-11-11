@@ -749,12 +749,12 @@ class SynchronizerMPI_AMR
                                          (f[k1].icode[1] / 9) % 3 - 1};
                     if (abs(code1[0]) + abs(code1[1]) + abs(code1[2]) > 1 )
                     {
-                    //    if (code1[0] == code[0] || code1[1] == code[1] || code1[2] == code[2])
-                    //    {
-                    //        KEEP[i1] = false;
-                    //        removed[i].push_back(k1);
-                    //        fInfo[k1].ToBeKept = false;
-                    //    }
+                        if (code1[0] == code[0] || code1[1] == code[1] || code1[2] == code[2])
+                        {
+                            KEEP[i1] = false;
+                            removed[i].push_back(k1);
+                            fInfo[k1].ToBeKept = false;
+                        }
                     }
                 }
             }

@@ -426,8 +426,9 @@ class SynchronizerMPI_AMR
 
       MPI_Comm comm;
 
-      UnpacksManagerStruct()
+      UnpacksManagerStruct(MPI_Comm a_comm)
       {
+         comm = a_comm;
          sizes = nullptr;
          MPI_Comm_size(comm, &size);
          manyUnpacks_recv.resize(size);
@@ -1549,6 +1550,7 @@ class SynchronizerMPI_AMR
                        const int a_ny, const int a_nz, const int a_bx, const int a_by,
                        const int a_bz, TGrid * _grid)
        : stencil(a_stencil), Cstencil(a_Cstencil), levelMax(a_levelMax),
+         UnpacksManager(_grid->getWorldComm()),
          SM(a_stencil, a_Cstencil, a_nx, a_ny, a_nz, a_bx, a_by, a_bz)
    {
 
@@ -1578,9 +1580,6 @@ class SynchronizerMPI_AMR
       recv_buffer_size.resize(size);
       send_buffer.resize(size);
       recv_buffer.resize(size);
-
-
-      UnpacksManager.comm = comm;
    }
 
    std::vector<BlockInfo *> avail_inner() { return inner_blocks; }

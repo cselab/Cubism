@@ -428,7 +428,6 @@ class SynchronizerMPI_AMR
 
       UnpacksManagerStruct()
       {
-         comm = MPI_COMM_WORLD;
          sizes = nullptr;
          MPI_Comm_size(comm, &size);
          manyUnpacks_recv.resize(size);

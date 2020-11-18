@@ -83,21 +83,6 @@ class GridMPI : public TGrid
       Clock.display();
 
       MPI_Barrier(worldcomm);
-
-      _deallocAll();
-   }
-
-   virtual void _deallocAll() override // called in class destructor
-   {
-      allocator<Block> alloc;
-      for (size_t i = 0 ; i < TGrid::m_vInfo.size() ; i ++)
-      {
-         int m = TGrid::m_vInfo[i].level;
-         int n = TGrid::m_vInfo[i].Z;
-         alloc.deallocate((Block *)TGrid::BlockInfoAll[m][n]->ptrBlock, 1);
-      }
-      TGrid::m_blocks.clear();
-      TGrid::m_vInfo.clear();
    }
 
    virtual void _alloc(int m, int n) override

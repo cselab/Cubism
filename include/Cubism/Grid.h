@@ -67,11 +67,22 @@ class Grid
       N++;
    }
 
-   virtual void _deallocAll() // called in class destructor
+   void _deallocAll() // called in class destructor
    {
-      m_vInfo.clear();
       allocator<Block> alloc;
-      for (size_t j = 0; j < m_vInfo.size(); j++) alloc.deallocate(m_blocks[j], 1);
+      for (size_t i = 0 ; i < m_vInfo.size() ; i ++)
+      {
+         int m = m_vInfo[i].level;
+         int n = m_vInfo[i].Z;
+         alloc.deallocate((Block *)BlockInfoAll[m][n]->ptrBlock, 1);
+      }
+      for (int m = 0 ; m < levelMax; m++)
+        for (size_t n = 0 ; n < BlockInfoAll[m].size() ; n++)
+        {
+          if (BlockInfoAll[m][n] != nullptr) delete BlockInfoAll[m][n];
+        }
+      m_blocks.clear();
+      m_vInfo.clear();
       BlockInfoAll.clear();
    }
 
@@ -165,7 +176,7 @@ class Grid
       {
         int TwoPower            = 1 << m;
         const unsigned int Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
-        BlockInfoAll[m].resize(Ntot);
+        BlockInfoAll[m].resize(Ntot,nullptr);
         ready[m].resize(Ntot,false);
       }
       if (AllocateBlocks) _alloc();

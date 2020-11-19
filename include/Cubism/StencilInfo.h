@@ -27,27 +27,6 @@ struct StencilInfo
 
    StencilInfo() {}
 
-   // Deprecated, use std::vector constructor instead.
-   StencilInfo(int _sx, int _sy, int _sz, int _ex, int _ey, int _ez, bool _tensorial,
-               const int ncomponents, ...)
-       : sx(_sx), sy(_sy), sz(_sz), ex(_ex), ey(_ey), ez(_ez), selcomponents(),
-         tensorial(_tensorial)
-   {
-      assert(ncomponents > 0);
-
-      va_list ev_list;
-
-      va_start(ev_list, ncomponents);
-      for (int i = 0; i < ncomponents; i++) selcomponents.push_back(va_arg(ev_list, int));
-      va_end(ev_list);
-
-      if (!isvalid())
-      {
-         std::cout << "Stencilinfo instance not valid. Aborting\n";
-         abort();
-      }
-   }
-
    StencilInfo(int _sx, int _sy, int _sz, int _ex, int _ey, int _ez, bool _tensorial,
                const std::vector<int> &components)
        : sx(_sx), sy(_sy), sz(_sz), ex(_ex), ey(_ey), ez(_ez), selcomponents(components),

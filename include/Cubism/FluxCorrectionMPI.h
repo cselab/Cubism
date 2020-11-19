@@ -16,8 +16,6 @@ class FluxCorrectionMPI : public TFluxCorrection
    typedef typename TFluxCorrection::BlockType BlockType;
    typedef BlockCase<BlockType> Case;
 
-//   typedef typename TFluxCorrection::LabType TLab;
-
  protected:
    struct face
    {
@@ -98,18 +96,6 @@ class FluxCorrectionMPI : public TFluxCorrection
       TFluxCorrection::zperiodic = grid.xperiodic;
       TFluxCorrection::blocksPerDim = grid.getMaxBlocks();
 
-#if 0
-      for (int m = 0; m < TFluxCorrection::m_refGrid->getlevelMax(); m++)
-      {
-         int aux = pow(pow(2, m), 3);
-         int nmax = aux * TFluxCorrection::blocksPerDim[0] * TFluxCorrection::blocksPerDim[1] * TFluxCorrection::blocksPerDim[2];
-         for (int n = 0; n < nmax; n++)
-         {
-            (*TFluxCorrection::m_refGrid).getBlockInfoAll(m, n).auxiliary = nullptr;
-         }
-      }
-#endif
-
       std::array<int, 6> icode = {1 * 2 + 3 * 1 + 9 * 1, 1 * 0 + 3 * 1 + 9 * 1,
                                   1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1,
                                   1 * 1 + 3 * 1 + 9 * 2, 1 * 1 + 3 * 1 + 9 * 0};
@@ -158,7 +144,7 @@ class FluxCorrectionMPI : public TFluxCorrection
 
             if (infoNei.TreePos == CheckCoarser)
             {
-               int nCoarse = infoNei.Zparent; //(*TFluxCorrection::m_refGrid).getZforward(infoNei.level-1,infoNei.index[0]/2,infoNei.index[1]/2,infoNei.index[2]/2);
+               int nCoarse = infoNei.Zparent;
                BlockInfo &infoNeiCoarser = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level - 1, nCoarse);
                if (infoNeiCoarser.myrank != rank)
                {
@@ -279,10 +265,7 @@ class FluxCorrectionMPI : public TFluxCorrection
             for (int i1 = 0; i1 < N1; i1 += 2)
                for (int i2 = 0; i2 < N2; i2 += 2)
                {
-                  ElementType avg =
-                      0.25 * ((FineFace[i2 + i1 * N2] + FineFace[i2 + 1 + i1 * N2]) +
-                              (FineFace[i2 + (i1 + 1) * N2] + FineFace[i2 + 1 + (i1 + 1) * N2]));
-
+                  ElementType avg = ((FineFace[i2 + i1 * N2] + FineFace[i2 + 1 + i1 * N2]) + (FineFace[i2 + (i1 + 1) * N2] + FineFace[i2 + 1 + (i1 + 1) * N2]));
                   send_buffer[r][displacement]     = avg.alpha1rho1;
                   send_buffer[r][displacement + 1] = avg.alpha2rho2;
                   send_buffer[r][displacement + 2] = avg.ru;
@@ -427,31 +410,20 @@ class FluxCorrectionMPI : public TFluxCorrection
          else if (B == 3)
             base = (N2 / 2) + (N1 / 2) * N2;
 
-         double coef = 1.0 / info.h;
 
          int r   = F.infos[0]->myrank;
          int dis = 0;
          for (int i1 = 0; i1 < N1; i1 += 2)
             for (int i2 = 0; i2 < N2; i2 += 2)
             {
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] *= coef;
-
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].alpha1rho1 +=
-                   (coef)*recv_buffer[r][F.offset + dis];
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].alpha2rho2 +=
-                   (coef)*recv_buffer[r][F.offset + dis + 1];
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].ru +=
-                   (coef)*recv_buffer[r][F.offset + dis + 2];
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].rv +=
-                   (coef)*recv_buffer[r][F.offset + dis + 3];
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].rw +=
-                   (coef)*recv_buffer[r][F.offset + dis + 4];
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].energy +=
-                   (coef)*recv_buffer[r][F.offset + dis + 5];
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].alpha2 +=
-                   (coef)*recv_buffer[r][F.offset + dis + 6];
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].dummy +=
-                   (coef)*recv_buffer[r][F.offset + dis + 7];
+               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].alpha1rho1 +=recv_buffer[r][F.offset + dis];
+               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].alpha2rho2 +=recv_buffer[r][F.offset + dis + 1];
+               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].ru         +=recv_buffer[r][F.offset + dis + 2];
+               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].rv         +=recv_buffer[r][F.offset + dis + 3];
+               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].rw         +=recv_buffer[r][F.offset + dis + 4];
+               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].energy     +=recv_buffer[r][F.offset + dis + 5];
+               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].alpha2     +=recv_buffer[r][F.offset + dis + 6];
+               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].dummy      +=recv_buffer[r][F.offset + dis + 7];
                dis += 8;
             }
       }
@@ -519,14 +491,10 @@ class FluxCorrectionMPI : public TFluxCorrection
 
          assert(FineFace.size() == CoarseFace.size());
 
-         double coef = 1.0 / info.h;
-
          for (int i1 = 0; i1 < N1; i1 += 2)
             for (int i2 = 0; i2 < N2; i2 += 2)
             {
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] *= coef;
                CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] +=
-                   (0.25 * coef) *
                    ((FineFace[i2 + i1 * N2] + FineFace[i2 + 1 + i1 * N2]) +
                     (FineFace[i2 + (i1 + 1) * N2] + FineFace[i2 + 1 + (i1 + 1) * N2]));
                FineFace[i2 + i1 * N2].clear();

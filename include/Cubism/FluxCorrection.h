@@ -243,14 +243,10 @@ class FluxCorrection
          assert(FineFace.size() == CoarseFace.size());
 
         #if DIMENSION == 3
-         double coef = 1.0 / info.h;
          for (int i1 = 0; i1 < N1; i1 += 2)
          for (int i2 = 0; i2 < N2; i2 += 2)
          {
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] *= coef;
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] += (0.25 * coef) *
-                   ((FineFace[i2 + i1       * N2] + FineFace[i2 + 1 +  i1      * N2]) +
-                    (FineFace[i2 + (i1 + 1) * N2] + FineFace[i2 + 1 + (i1 + 1) * N2]));
+            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] += ((FineFace[i2 + i1 * N2] + FineFace[i2 + 1 + i1 * N2]) + (FineFace[i2 + (i1 + 1) * N2] + FineFace[i2 + 1 + (i1 + 1) * N2]));
             FineFace[i2 + i1 * N2].clear();
             FineFace[i2 + 1 + i1 * N2].clear();
             FineFace[i2 + (i1 + 1) * N2].clear();
@@ -311,6 +307,7 @@ class FluxCorrection
                int N2 = CoarseCase.m_vSize[d2];
 
                BlockType &block = *(BlockType *)info.ptrBlock;
+               double V = 1.0 / (info.h*info.h*info.h);
 
 #if DIMENSION == 3
                int d1 = max((d + 1) % 3, (d + 2) % 3);
@@ -323,14 +320,14 @@ class FluxCorrection
                   for (int i1 = 0; i1 < N1; i1 += 1)
                      for (int i2 = 0; i2 < N2; i2 += 1)
                      {
-                        block.tmp[i1][i2][j][0] += CoarseFace[i2 + i1 * N2].alpha1rho1;
-                        block.tmp[i1][i2][j][1] += CoarseFace[i2 + i1 * N2].alpha2rho2;
-                        block.tmp[i1][i2][j][2] += CoarseFace[i2 + i1 * N2].ru;
-                        block.tmp[i1][i2][j][3] += CoarseFace[i2 + i1 * N2].rv;
-                        block.tmp[i1][i2][j][4] += CoarseFace[i2 + i1 * N2].rw;
-                        block.tmp[i1][i2][j][5] += CoarseFace[i2 + i1 * N2].energy;
-                        block.tmp[i1][i2][j][6] += CoarseFace[i2 + i1 * N2].alpha2;
-                        block.tmp[i1][i2][j][7] += CoarseFace[i2 + i1 * N2].dummy;
+                        block.tmp[i1][i2][j][0] += V*CoarseFace[i2 + i1 * N2].alpha1rho1;
+                        block.tmp[i1][i2][j][1] += V*CoarseFace[i2 + i1 * N2].alpha2rho2;
+                        block.tmp[i1][i2][j][2] += V*CoarseFace[i2 + i1 * N2].ru;
+                        block.tmp[i1][i2][j][3] += V*CoarseFace[i2 + i1 * N2].rv;
+                        block.tmp[i1][i2][j][4] += V*CoarseFace[i2 + i1 * N2].rw;
+                        block.tmp[i1][i2][j][5] += V*CoarseFace[i2 + i1 * N2].energy;
+                        block.tmp[i1][i2][j][6] += V*CoarseFace[i2 + i1 * N2].alpha2;
+                        block.tmp[i1][i2][j][7] += V*CoarseFace[i2 + i1 * N2].dummy;
                         CoarseFace[i2 + i1 * N2].clear();
                      }
                }
@@ -340,14 +337,14 @@ class FluxCorrection
                   for (int i1 = 0; i1 < N1; i1 += 1)
                      for (int i2 = 0; i2 < N2; i2 += 1)
                      {
-                        block.tmp[i1][j][i2][0] += CoarseFace[i2 + i1 * N2].alpha1rho1;
-                        block.tmp[i1][j][i2][1] += CoarseFace[i2 + i1 * N2].alpha2rho2;
-                        block.tmp[i1][j][i2][2] += CoarseFace[i2 + i1 * N2].ru;
-                        block.tmp[i1][j][i2][3] += CoarseFace[i2 + i1 * N2].rv;
-                        block.tmp[i1][j][i2][4] += CoarseFace[i2 + i1 * N2].rw;
-                        block.tmp[i1][j][i2][5] += CoarseFace[i2 + i1 * N2].energy;
-                        block.tmp[i1][j][i2][6] += CoarseFace[i2 + i1 * N2].alpha2;
-                        block.tmp[i1][j][i2][7] += CoarseFace[i2 + i1 * N2].dummy;
+                        block.tmp[i1][j][i2][0] += V*CoarseFace[i2 + i1 * N2].alpha1rho1;
+                        block.tmp[i1][j][i2][1] += V*CoarseFace[i2 + i1 * N2].alpha2rho2;
+                        block.tmp[i1][j][i2][2] += V*CoarseFace[i2 + i1 * N2].ru;
+                        block.tmp[i1][j][i2][3] += V*CoarseFace[i2 + i1 * N2].rv;
+                        block.tmp[i1][j][i2][4] += V*CoarseFace[i2 + i1 * N2].rw;
+                        block.tmp[i1][j][i2][5] += V*CoarseFace[i2 + i1 * N2].energy;
+                        block.tmp[i1][j][i2][6] += V*CoarseFace[i2 + i1 * N2].alpha2;
+                        block.tmp[i1][j][i2][7] += V*CoarseFace[i2 + i1 * N2].dummy;
                         CoarseFace[i2 + i1 * N2].clear();
                      }
                }
@@ -357,14 +354,14 @@ class FluxCorrection
                   for (int i1 = 0; i1 < N1; i1 += 1)
                      for (int i2 = 0; i2 < N2; i2 += 1)
                      {
-                        block.tmp[j][i1][i2][0] += CoarseFace[i2 + i1 * N2].alpha1rho1;
-                        block.tmp[j][i1][i2][1] += CoarseFace[i2 + i1 * N2].alpha2rho2;
-                        block.tmp[j][i1][i2][2] += CoarseFace[i2 + i1 * N2].ru;
-                        block.tmp[j][i1][i2][3] += CoarseFace[i2 + i1 * N2].rv;
-                        block.tmp[j][i1][i2][4] += CoarseFace[i2 + i1 * N2].rw;
-                        block.tmp[j][i1][i2][5] += CoarseFace[i2 + i1 * N2].energy;
-                        block.tmp[j][i1][i2][6] += CoarseFace[i2 + i1 * N2].alpha2;
-                        block.tmp[j][i1][i2][7] += CoarseFace[i2 + i1 * N2].dummy;
+                        block.tmp[j][i1][i2][0] += V*CoarseFace[i2 + i1 * N2].alpha1rho1;
+                        block.tmp[j][i1][i2][1] += V*CoarseFace[i2 + i1 * N2].alpha2rho2;
+                        block.tmp[j][i1][i2][2] += V*CoarseFace[i2 + i1 * N2].ru;
+                        block.tmp[j][i1][i2][3] += V*CoarseFace[i2 + i1 * N2].rv;
+                        block.tmp[j][i1][i2][4] += V*CoarseFace[i2 + i1 * N2].rw;
+                        block.tmp[j][i1][i2][5] += V*CoarseFace[i2 + i1 * N2].energy;
+                        block.tmp[j][i1][i2][6] += V*CoarseFace[i2 + i1 * N2].alpha2;
+                        block.tmp[j][i1][i2][7] += V*CoarseFace[i2 + i1 * N2].dummy;
                         CoarseFace[i2 + i1 * N2].clear();
                      }
                }

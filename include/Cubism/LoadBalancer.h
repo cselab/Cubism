@@ -201,6 +201,13 @@ class LoadBalancer
       int left  = (rank == 0) ? MPI_PROC_NULL : rank - 1;
 
       int my_blocks = m_refGrid->getBlocksInfo().size();
+
+      if (my_blocks == 0)
+      {
+         std::cout << "Balance_Diffusion:: rank" << rank << " has zero blocks!" << std::endl;
+         MPI_Abort(comm,2);
+      }
+
       int right_blocks, left_blocks;
 
       std::vector<MPI_Request> reqs(4);
@@ -211,7 +218,7 @@ class LoadBalancer
 
       MPI_Waitall(4, &reqs[0], MPI_STATUSES_IGNORE);
 
-      int nu         = 8;
+      int nu         = 4;
       int flux_left  = ((my_blocks - left_blocks) / nu);
       int flux_right = ((my_blocks - right_blocks) / nu);
       // beta = 1.95;

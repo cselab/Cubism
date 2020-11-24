@@ -15,7 +15,6 @@ class FluxCorrectionMPI : public TFluxCorrection
    typedef typename TFluxCorrection::Real Real;
    typedef typename TFluxCorrection::BlockType BlockType;
    typedef BlockCase<BlockType> Case;
-
  protected:
    struct face
    {
@@ -54,13 +53,12 @@ class FluxCorrectionMPI : public TFluxCorrection
    virtual void prepare(TGrid &grid) override
    {
       /*------------->*/ Clock.start(28, "FluxCorrectionMPI prepare");
-      if (!grid.UpdateFluxCorrection) return;
+      if (grid.UpdateFluxCorrection == false) return;
       grid.UpdateFluxCorrection = false;
 
       MPI_Comm_size(grid.getWorldComm(), &size);
       MPI_Comm_rank(grid.getWorldComm(), &rank);
 
-      if (rank == 0) std::cout << "FluxCorrectionMPI: prepare...\n";
 
       send_buffer.resize(size);
       recv_buffer.resize(size);

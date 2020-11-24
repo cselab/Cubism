@@ -15,7 +15,9 @@
 
 using namespace std;
 
-#define DIMENSION 2
+#ifndef DIMENSION
+#define DIMENSION 3
+#endif
 #include "MyClock.h"
 
 namespace cubism // AMR_CUBISM
@@ -37,6 +39,15 @@ enum State
 
 struct BlockInfo
 {
+
+   template <typename T> // 3D
+   inline void spacing(T dx[3], int ix, int iy, int iz) const
+   {
+      dx[0] = h_gridpoint;
+      dx[1] = h_gridpoint;
+      dx[2] = h_gridpoint;
+   }
+
    static int levelMax(int l=0)
    {
       static int lmax = l;
@@ -204,6 +215,8 @@ struct BlockInfo
       origin[2] = a_origin[2];
 
       changed     = true;
+      changed2    = true;
+      auxiliary = nullptr;
 
       const int TwoPower = 1 << level;
 #if DIMENSION == 3
@@ -274,9 +287,8 @@ struct BlockInfo
                 forward(level + 1, 2 * index[0] + i, 2 * index[1] + j);
          }
 #endif
-
-      blockID = index[0] + (1<<level)*blocks_per_dim(0)*index[1];
       blockID_2 = Encode(level, Z, index);
+      blockID = blockID_2;
    }
 
    int Znei_(int i, int j, int k) const

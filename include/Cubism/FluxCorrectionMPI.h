@@ -363,7 +363,7 @@ class FluxCorrectionMPI : public TFluxCorrection
          }
       }
 
-      TFluxCorrection::Correct();
+      Correct();
 
       if (send_requests.size() > 0)
          MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);
@@ -510,6 +510,7 @@ class FluxCorrectionMPI : public TFluxCorrection
             }
       }
    }
+   virtual void Correct() override {TFluxCorrection::Correct();}
 };
 
 } // namespace cubism

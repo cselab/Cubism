@@ -148,7 +148,7 @@ class SpaceFillingCurve2D
    {
       const int aux = 1 << l;
 
-      if (l>=levelMax) return -1;
+      if (l>=levelMax) return 0;
 
       if (Zsave[l][ j*aux*BX + i ] != -1) return Zsave[l][  j*aux*BX + i ];
       const int I   = i / aux;

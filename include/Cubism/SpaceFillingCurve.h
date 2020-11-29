@@ -178,7 +178,7 @@ class SpaceFillingCurve
    {
       const int aux = 1 << l;
 
-      if (l >= levelMax) return -1;
+      if (l >= levelMax) return 0 ;//-1;
       if (Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ] != -1) return Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ];
 
       int retval;

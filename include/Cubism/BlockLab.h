@@ -1199,22 +1199,20 @@ class BlockLab
 
    virtual Real Slope(Real al, Real ac, Real ar)
    {
-    return 0.5*(ar-al);
-
-        assert(!std::isnan(al));
-        assert(!std::isnan(ac));
-        assert(!std::isnan(ar));
-        if ( (al-ac)*(ac-ar) <= 0 )
-        {
-            return 0.0;
-        } 
-        else
-        {
-            int sign = (ar>al) ? 1:-1;
-            return sign * std::min(  std::min(abs(al-ac),abs(ac-ar)), 0.5*abs(al-ar));
-        }
+      return 0.5*(ar-al);
+      assert(!std::isnan(al));
+      assert(!std::isnan(ac));
+      assert(!std::isnan(ar));
+      if ( (al-ac)*(ac-ar) <= 0 )
+      {
+          return 0.0;
+      } 
+      else
+      {
+          int sign = (ar>al) ? 1:-1;
+          return sign * std::min(  std::min(abs(al-ac),abs(ac-ar)), 0.5*abs(al-ar));
+      }
    }
-
    ElementType SlopeElement(ElementType Al, ElementType Ac, ElementType Ar, const std::vector<int> & selcomponents)
    {
      ElementType retval;
@@ -1228,12 +1226,48 @@ class BlockLab
 #if DIMENSION == 3
    virtual void TestInterp(ElementType *C[3][3][3], ElementType &R, int x, int y, int z, const std::vector<int> & selcomponents)
    {
-      ElementType dudx = SlopeElement( *C[0][1][1] , *C[1][1][1] , *C[2][1][1], selcomponents); 
-      ElementType dudy = SlopeElement( *C[1][0][1] , *C[1][1][1] , *C[1][2][1], selcomponents); 
-      ElementType dudz = SlopeElement( *C[1][1][0] , *C[1][1][1] , *C[1][1][2], selcomponents); 
-      R                = *C[1][1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy + (2 * z - 1) * 0.25 * dudz;
+      //ElementType dudx = SlopeElement( *C[0][1][1] , *C[1][1][1] , *C[2][1][1], selcomponents); 
+      //ElementType dudy = SlopeElement( *C[1][0][1] , *C[1][1][1] , *C[1][2][1], selcomponents); 
+      //ElementType dudz = SlopeElement( *C[1][1][0] , *C[1][1][1] , *C[1][1][2], selcomponents); 
+      //R                = *C[1][1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy + (2 * z - 1) * 0.25 * dudz;
+
+      const int Nweno = 3;
+      ElementType Lines[Nweno][Nweno][2];
+      ElementType Planes[Nweno][4];
+      ElementType Ref[8];
+
+      for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
+      for (int i1 = -Nweno / 2; i1 <= Nweno / 2; i1++)
+        Kernel_1D(*C[0][i1 + Nweno / 2][i2 + Nweno / 2],
+                  *C[1][i1 + Nweno / 2][i2 + Nweno / 2],
+                  *C[2][i1 + Nweno / 2][i2 + Nweno / 2],
+                  Lines[i1 + Nweno / 2][i2 + Nweno / 2][0],
+                  Lines[i1 + Nweno / 2][i2 + Nweno / 2][1]);
+  
+      for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
+      {
+        Kernel_1D(Lines[0][i2 + Nweno / 2][0], Lines[1][i2 + Nweno / 2][0],
+                  Lines[2][i2 + Nweno / 2][0], Planes[i2 + Nweno / 2][0],
+                  Planes[i2 + Nweno / 2][1]);
+        Kernel_1D(Lines[0][i2 + Nweno / 2][1], Lines[1][i2 + Nweno / 2][1],
+                  Lines[2][i2 + Nweno / 2][1], Planes[i2 + Nweno / 2][2],
+                  Planes[i2 + Nweno / 2][3]);
+      }
+      Kernel_1D(Planes[0][0], Planes[1][0], Planes[2][0], Ref[0], Ref[1]);
+      Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], Ref[2], Ref[3]);
+      Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], Ref[4], Ref[5]);
+      Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], Ref[6], Ref[7]);
+
+      if (x==0 && y==0 && z==0){R = Ref[0]; return;}
+      if (x==0 && y==0 && z==1){R = Ref[1]; return;}
+      if (x==0 && y==1 && z==0){R = Ref[2]; return;}
+      if (x==0 && y==1 && z==1){R = Ref[3]; return;}
+      if (x==1 && y==0 && z==0){R = Ref[4]; return;}
+      if (x==1 && y==0 && z==1){R = Ref[5]; return;}
+      if (x==1 && y==1 && z==0){R = Ref[6]; return;}
+      if (x==1 && y==1 && z==1){R = Ref[7]; return;}
    }
-#else
+
    virtual void WENOWavelets3(double cm, double c, double cp, double &left, double &right)
    {
       double b1  = (c - cm) * (c - cm);
@@ -1258,9 +1292,7 @@ class BlockLab
         WENOWavelets3(E0.member(i), E1.member(i), E2.member(i), left.member(i), right.member(i));
    }
 
-
-
-
+#else
 
    void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y, const std::vector<int> & selcomponents)
    {

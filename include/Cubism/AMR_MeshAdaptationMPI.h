@@ -86,6 +86,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
    virtual void AdaptTheMesh(double t = 0) override
    {
+      static const int levelMax = AMR::m_refGrid->getlevelMax();
+      static const int levelMin = 0;
       AMR::time = t;
       /*------------->*/ Clock.start(10, "sync");
       Synch->sync(sizeof(typename Block::element_type) / sizeof(Real),sizeof(Real) > 4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
@@ -120,7 +122,12 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             mylab.load(ary0, t);
             BlockInfo &info = AMR::m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
             ary0.state      = TagLoadedBlock(AMR::labs[tid],info.level);
-            info.state      = ary0.state;
+            if ((ary0.state == Refine && ary0.level == levelMax - 1) ||
+                (ary0.state == Compress && ary0.level == levelMin))
+            {
+               ary0.state = Leave;
+               info.state = ary0.state;
+            }
             #pragma omp critical
             {
                 if (info.state != Leave)
@@ -156,8 +163,12 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             mylab.load(ary1, t);
             BlockInfo &info = AMR::m_refGrid->getBlockInfoAll(ary1.level, ary1.Z);
             ary1.state      = TagLoadedBlock(AMR::labs[tid],info.level);
-            info.state      = ary1.state;
-            
+            if ((ary1.state == Refine && ary1.level == levelMax - 1) ||
+                (ary1.state == Compress && ary1.level == levelMin))
+            {
+               ary1.state = Leave;
+               info.state = ary1.state;
+            }                       
             #pragma omp critical
             {
                 if (info.state != Leave)
@@ -279,13 +290,13 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       delete[] AMR::labs;
 
       /*------------->*/ Clock.start(9, "MeshAdaptation : Setup");
-      if (CallValidStates || Balancer.movedBlocks)
+      if ( r > 0 || c > 0 || Balancer.movedBlocks)
       {
          AMR::m_refGrid->UpdateFluxCorrection = true;
+         AMR::m_refGrid->UpdateGroups = true;
 
          /*------------->*/ Clock.start(7, "MeshAdaptation : UpdateBlockInfoAll_States");
          AMR::m_refGrid->UpdateBlockInfoAll_States(false);
-         //AMR::m_refGrid->UpdateBlockInfoAll_States(true);
          /*------------->*/ Clock.finish(7);
 
          Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(),AMR::m_refGrid->getBlockInfoAll(), timestamp, true);
@@ -397,12 +408,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       for (size_t j = 0; j < I.size(); j++)
       {
          BlockInfo &info = I[j];
-         if ((info.state == Refine && info.level == levelMax - 1) ||
-             (info.state == Compress && info.level == levelMin))
-         {
-            info.state                                             = Leave;
-            (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
-         }
          if (info.state != Leave)
          {
             info.changed2                                             = true;

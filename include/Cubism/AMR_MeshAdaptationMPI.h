@@ -311,8 +311,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       }
       else
       {
-         AMR::m_refGrid->UpdateFluxCorrection = flag;
-         flag                            = false;
+         //AMR::m_refGrid->UpdateFluxCorrection = flag;
+         //flag                            = false;
       }
       /*------------->*/ Clock.finish(9);
    }

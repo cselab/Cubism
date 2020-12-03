@@ -126,8 +126,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
                 (ary0.state == Compress && ary0.level == levelMin))
             {
                ary0.state = Leave;
-               info.state = ary0.state;
             }
+            info.state = ary0.state;
             #pragma omp critical
             {
                 if (info.state != Leave)
@@ -167,8 +167,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
                 (ary1.state == Compress && ary1.level == levelMin))
             {
                ary1.state = Leave;
-               info.state = ary1.state;
             }                       
+            info.state = ary1.state;
             #pragma omp critical
             {
                 if (info.state != Leave)

@@ -23,6 +23,7 @@ class GridMPI : public TGrid
 {
  public:
    typedef typename TGrid::Real Real;
+   bool UpdateGroups{true};
 
  private:
    size_t timestamp;

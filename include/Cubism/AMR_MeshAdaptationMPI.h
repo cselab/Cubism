@@ -121,7 +121,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             BlockInfo &ary0 = *avail0[i];
             mylab.load(ary0, t);
             BlockInfo &info = AMR::m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            ary0.state      = TagLoadedBlock(AMR::labs[tid],info.level);
+            ary0.state      = TagLoadedBlock(AMR::labs[tid],info);
             if ((ary0.state == Refine && ary0.level == levelMax - 1) ||
                 (ary0.state == Compress && ary0.level == levelMin))
             {
@@ -162,7 +162,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             BlockInfo &ary1 = *avail1[i];
             mylab.load(ary1, t);
             BlockInfo &info = AMR::m_refGrid->getBlockInfoAll(ary1.level, ary1.Z);
-            ary1.state      = TagLoadedBlock(AMR::labs[tid],info.level);
+            ary1.state      = TagLoadedBlock(AMR::labs[tid],info);
             if ((ary1.state == Refine && ary1.level == levelMax - 1) ||
                 (ary1.state == Compress && ary1.level == levelMin))
             {
@@ -606,9 +606,9 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
    }
 
 
-   virtual State TagLoadedBlock(TLab &Lab_, int level) override
+   virtual State TagLoadedBlock(TLab &Lab_, BlockInfo & info) override
    {
-      return AMR::TagLoadedBlock(Lab_,level);
+      return AMR::TagLoadedBlock(Lab_,info);
    }
 };
 

@@ -594,7 +594,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             BlockInfo &ary0 = avail0[i];
             mylab.load(ary0, t);
             BlockInfo &info = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            ary0.state      = TagLoadedBlock(labs[tid],info.level);
+            ary0.state      = TagLoadedBlock(labs[tid],info);
             info.state      = ary0.state;
             #pragma omp critical
             {
@@ -1024,7 +1024,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
      #endif
    }
 
-   virtual State TagLoadedBlock(TLab &Lab_, int level)
+   virtual State TagLoadedBlock(TLab &Lab_, BlockInfo & info)
    {
       static const int nx = BlockType::sizeX;
       static const int ny = BlockType::sizeY;
@@ -1048,7 +1048,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
         Linf = max(Linf,s0);
       }
      #endif
-      Linf *= 1.0/(level+1);
+      Linf *= 1.0/(info.level+1);
 
       if (Linf > tolerance_for_refinement) return Refine;
       else if (Linf < tolerance_for_compression) return Compress;

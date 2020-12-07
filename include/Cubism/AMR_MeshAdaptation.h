@@ -1032,17 +1032,17 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
       double Linf = 0.0;
      #if DIMENSION == 3
       static const int nz = BlockType::sizeZ;
-      for (int k = 0; k < nz; k++)
-      for (int j = 0; j < ny; j++)
-      for (int i = 0; i < nx; i++)
+      for (int k = -1; k < nz+1; k++)
+      for (int j = -1; j < ny+1; j++)
+      for (int i = -1; i < nx+1; i++)
       {
         double s0 = std::fabs( Lab_(i, j, k).magnitude() );
         Linf = max(Linf,s0);
       }
      #endif
      #if DIMENSION == 2
-      for (int j = 0; j < ny; j++)
-      for (int i = 0; i < nx; i++)
+      for (int j = -1; j < ny+1; j++)
+      for (int i = -1; i < nx+1; i++)
       {
         double s0 = std::fabs( Lab_(i, j).magnitude() );
         Linf = max(Linf,s0);

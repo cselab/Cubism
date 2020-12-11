@@ -21,7 +21,7 @@
 #include "HDF5Dumper.h"
 #include "GridMPI.h"
 
-//CUBISM_NAMESPACE_BEGIN
+CUBISM_NAMESPACE_BEGIN
 
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
@@ -223,7 +223,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
    _warn_no_hdf5();
 #endif
 }
-#endif
+//#endif
 template <typename TStreamer, typename hdf5Real, typename TGrid>
 void DumpHDF5_MPI(/*const*/ TGrid &grid, const int iCounter, /*const*/ typename TGrid::Real absTime,
                   const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)

@@ -34,7 +34,6 @@ template <> inline hid_t get_hdf5_type<double>() { return H5T_NATIVE_DOUBLE; }
 #endif
 
 #include "BlockInfo.h"
-#include "MeshMap.h"
 
 CUBISM_NAMESPACE_BEGIN
 

@@ -160,6 +160,11 @@ public:
 
     virtual ~Grid() { _dealloc(); }
 
+    Grid(const Grid &) = delete;
+    Grid(Grid &&) = delete;
+    Grid &operator=(const Grid &) = delete;
+    Grid &operator=(Grid &&) = delete;
+
     void setup(const unsigned int nX, const unsigned int nY, const unsigned int nZ)
     {
         std::cout << "Setting up the grid with " << nX << "x" << nY << "x" << nZ << " blocks ...";

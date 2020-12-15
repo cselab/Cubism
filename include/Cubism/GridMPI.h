@@ -41,7 +41,7 @@ protected:
     MPI_Comm worldcomm;
     MPI_Comm cartcomm;
 
-    // Subdomain handled by this node.
+    // Subdomain handled by this node. Useful when coupling with other codes.
     double subdomain_low[3];
     double subdomain_high[3];
 public:
@@ -123,11 +123,6 @@ public:
             this->m_mesh_maps.push_back(m);
         }
 
-        // This subdomain box is used by the coupling framework. Please don't
-        // rearrange the formula for subdomain_high, as it has to exactly match
-        // subdomain_low of the neighbouring nodes. This way the roundings are
-        // guaranteed to be done in the same way. Well, at least without
-        // -ffast-math. (October 2017, kicici)
         subdomain_low[0] = mypeindex[0] * mybpd[0] * h_block[0];
         subdomain_low[1] = mypeindex[1] * mybpd[1] * h_block[1];
         subdomain_low[2] = mypeindex[2] * mybpd[2] * h_block[2];

@@ -21,6 +21,17 @@
 #include "HDF5Dumper.h"
 #include "GridMPI.h"
 
+#if 1
+#include <vtkCell.h>
+#include <vtkCellData.h>
+#include <vtkDataArray.h>
+#include <vtkDoubleArray.h>
+#include <vtkNonOverlappingAMR.h>
+#include <vtkUniformGrid.h>
+#include <vtkXMLPUniformGridAMRWriter.h>
+#include <vtkXMLUniformGridAMRWriter.h>
+#endif
+
 CUBISM_NAMESPACE_BEGIN
 
 // The following requirements for the data TStreamer are required:
@@ -30,8 +41,134 @@ CUBISM_NAMESPACE_BEGIN
 template <typename TStreamer, typename hdf5Real, typename TGrid> 
 void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
 {
-  #ifdef CUBISM_USE_HDF
+    #if 1 // VTK AMR-dataset
+    std::ostringstream filename;
+    std::ostringstream fullpath;
+    filename << fname;// fname is the base filepath without file type extension
+    fullpath << dpath << "/" << filename.str();
 
+    MPI_Comm comm = grid.getWorldComm();
+    const unsigned int NCHANNELS = TStreamer::NCHANNELS;
+    typedef typename TGrid::BlockType B;
+    static const unsigned int nX = B::sizeX;
+    static const unsigned int nY = B::sizeY;
+    static const unsigned int nZ = B::sizeZ;
+
+    std::vector<B *> MyBlocks      = grid.GetBlocks();
+    std::vector<BlockInfo> MyInfos = grid.getBlocksInfo();
+
+    int rank;
+    int size;
+    MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+    MPI_Comm_size(MPI_COMM_WORLD,&size);
+    int numberOfLevels = grid.getlevelMax();
+    auto  BLK = grid.getMaxBlocks();
+
+    std::vector<BlockGroup> & MyGroups = grid.MyGroups;
+    grid.UpdateMyGroups();
+
+    std::vector<int> blocksPerLevel(numberOfLevels);
+    for (unsigned int m = 0; m < MyGroups.size(); m++)
+        blocksPerLevel[MyGroups[m].level] ++;
+
+    std::vector<int> TotalblocksPerLevel(numberOfLevels);
+    MPI_Allreduce(blocksPerLevel.data(), TotalblocksPerLevel.data(), numberOfLevels, MPI_INT, MPI_SUM,comm);
+
+    std::vector<int> BaseblocksPerLevel(numberOfLevels);  
+    MPI_Exscan(blocksPerLevel.data(), BaseblocksPerLevel.data(), numberOfLevels, MPI_INT,  MPI_SUM , comm);
+
+    std::vector<int> CountblocksPerLevel(numberOfLevels,0);  
+
+    vtkNonOverlappingAMR* amrGrid = vtkNonOverlappingAMR::New();
+    amrGrid->Initialize(numberOfLevels, TotalblocksPerLevel.data());
+
+    for (unsigned int m = 0; m < MyGroups.size(); m++)
+    {
+        BlockGroup & info = MyGroups[m];
+        vtkUniformGrid* g = vtkUniformGrid::New();
+        g->SetSpacing(info.h, info.h, info.h);
+        g->SetOrigin(info.origin[0], info.origin[1], info.origin[2]);
+        g->SetExtent(0, info.NXX-1, 0, info.NYY-1, 0, info.NZZ-1);
+
+        vtkSmartPointer<vtkDoubleArray> xyz = vtkSmartPointer<vtkDoubleArray>::New();
+        xyz->SetName("data");
+        xyz->SetNumberOfComponents(NCHANNELS);
+        xyz->SetNumberOfTuples(g->GetNumberOfCells());
+
+        const unsigned int nX_max = info.NXX-1;
+        const unsigned int nY_max = info.NYY-1;
+        //const unsigned int nZ_max = info.NZZ-1;
+        for (int kB = info.i_min[2]; kB <= info.i_max[2]; kB++)
+        for (int jB = info.i_min[1]; jB <= info.i_max[1]; jB++)
+        for (int iB = info.i_min[0]; iB <= info.i_max[0]; iB++)
+        {
+            B &block = *grid.avail1(iB,jB,kB,info.level);
+            for (unsigned int iz = 0; iz < nZ; iz++)
+            for (unsigned int iy = 0; iy < nY; iy++)
+            for (unsigned int ix = 0; ix < nX; ix++)
+            {
+                double output[NCHANNELS];
+                TStreamer::operate(block,ix,iy,iz,output);
+                const int base = ( ((kB-info.i_min[2])*nZ + iz)*(nX_max*nY_max) + 
+                                   ((jB-info.i_min[1])*nY + iy)*(nX_max) + 
+                                   ((iB-info.i_min[0])*nX + ix) );
+                xyz->SetTuple(base, output);
+            }
+        }
+        g->GetCellData()->AddArray(xyz);
+        amrGrid->SetDataSet(info.level, BaseblocksPerLevel[info.level] + CountblocksPerLevel[info.level], g);
+        CountblocksPerLevel[info.level]++;
+        g->Delete();
+    }
+
+    std::vector<int> CountblocksPerLevel1(numberOfLevels,0);
+
+    std::string FNAME = (fullpath.str() + ".vthb").c_str();
+    auto writer = vtkSmartPointer<vtkXMLUniformGridAMRWriter>::New();
+    writer->SetFileName(FNAME.c_str());
+    writer->SetInputData(amrGrid);
+    writer->Write();
+
+    if (bXMF)
+    {
+        std::stringstream s;
+        if (rank == 0)
+        {
+            s << "<?xml version=\"1.0\"?>\n";
+            s << "<VTKFile type=\"vtkNonOverlappingAMR\" version=\"1.1\" byte_order=\"LittleEndian\" header_type=\"UInt32\" compressor=\"vtkZLibDataCompressor\">\n";
+            s << "  <vtkNonOverlappingAMR>\n";
+            s << "  <Time Value=\"" << std::scientific << absTime << "\"/>\n\n";
+        }
+        for (unsigned int m = 0; m < MyGroups.size(); m++)
+        {
+            BlockGroup & I = MyGroups[m];
+            int nID = BaseblocksPerLevel[I.level] + CountblocksPerLevel1[I.level];
+            CountblocksPerLevel1[I.level]++;
+            for (int l = 0 ; l < I.level ; l++)
+            {
+                nID += TotalblocksPerLevel[l];
+            }
+            s <<"     <Block level=\"" + std::to_string(I.level) + "\"> \n";
+            s <<"       <DataSet index=\""+ std::to_string(nID) + "\" file=\"" + filename.str() + "/" +filename.str() + "_" + std::to_string(nID)+ ".vti\"/>\n";
+                                                                                 
+            s <<"     </Block>\n";
+        }
+        if (rank == size - 1)
+        {
+           s << "   </vtkNonOverlappingAMR>\n";
+           s << " </VTKFile>\n";
+        }
+        std::string st    = s.str();
+        MPI_Offset offset = 0;
+        MPI_Offset len    = st.size() * sizeof(char);
+        MPI_File xmf;
+        MPI_File_delete((fullpath.str() + ".vthb").c_str(), MPI_INFO_NULL);// delete the xmf file is it exists; no worries if it doesn't
+        MPI_File_open(comm, (fullpath.str() + ".vthb").c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE,MPI_INFO_NULL, &xmf);
+        MPI_Exscan(&len, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
+        MPI_File_write_at_all(xmf, offset, st.data(), st.size(), MPI_CHAR, MPI_STATUS_IGNORE);
+        MPI_File_close(&xmf);
+    }
+    #else //HDF5
     typedef typename TGrid::BlockType B;
     static const unsigned int nX = B::sizeX;
     static const unsigned int nY = B::sizeY;
@@ -219,11 +356,9 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
    // 5.Close hdf5 file
    H5Fclose(file_id);
    H5close();
-#else
-   _warn_no_hdf5();
-#endif
+   #endif
 }
-//#endif
+
 template <typename TStreamer, typename hdf5Real, typename TGrid>
 void DumpHDF5_MPI(/*const*/ TGrid &grid, const int iCounter, /*const*/ typename TGrid::Real absTime,
                   const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
@@ -236,8 +371,7 @@ void ReadHDF5_MPI(TGrid &grid, const std::string &fname, const std::string &dpat
 {
    std::cout << "mike: ReadHDF5_MPI skipped! \n";
    return;
-
-#if 0 // mike
+   #if 0 // mike
    #ifdef CUBISM_USE_HDF
     typedef typename TGrid::BlockType B;
 
@@ -325,8 +459,9 @@ void ReadHDF5_MPI(TGrid &grid, const std::string &fname, const std::string &dpat
    #else
     _warn_no_hdf5();
    #endif
-#endif
+   #endif
 }
+
 #if 0
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)

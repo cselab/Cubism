@@ -62,7 +62,6 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     MPI_Comm_size(MPI_COMM_WORLD,&size);
     int numberOfLevels = grid.getlevelMax();
-    auto  BLK = grid.getMaxBlocks();
 
     std::vector<BlockGroup> & MyGroups = grid.MyGroups;
     grid.UpdateMyGroups();

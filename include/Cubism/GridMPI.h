@@ -553,7 +553,6 @@ class GridMPI : public TGrid
       const unsigned int nZ = B::sizeZ;
       const size_t Ngrids = TGrid::getBlocksInfo().size();
       const auto & MyInfos = TGrid::getBlocksInfo();
-      const auto & BLK = TGrid::getMaxBlocks();
       UpdateGroups = false;
 
       long long int id_min = MyInfos[0].blockID;

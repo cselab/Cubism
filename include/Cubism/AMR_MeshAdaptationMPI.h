@@ -193,7 +193,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
         Reduction = true;
         MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, AMR::m_refGrid->getWorldComm(),&Reduction_req);
       }
-
       LoadBalancer<TGrid> Balancer(*AMR::m_refGrid);
 
       MPI_Wait(&Reduction_req,MPI_STATUS_IGNORE);
@@ -281,7 +280,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       #endif
       /*************************************************/
       /*------------->*/ Clock.finish(6);
-
       /*------------->*/ Clock.start(8, "MeshAdaptation : Balance_Diffusion");
       AMR::m_refGrid->FillPos();     
       Balancer.Balance_Diffusion();
@@ -290,7 +288,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       delete[] AMR::labs;
 
       /*------------->*/ Clock.start(9, "MeshAdaptation : Setup");
-      if ( r > 0 || c > 0 || Balancer.movedBlocks)
+      if ( result[0] > 0 || result[1] > 0 || Balancer.movedBlocks)
       {
          AMR::m_refGrid->UpdateFluxCorrection = true;
          AMR::m_refGrid->UpdateGroups = true;

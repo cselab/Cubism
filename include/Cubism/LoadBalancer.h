@@ -192,11 +192,10 @@ class LoadBalancer
       if (counterg < 5 || (counterg % 10 ==0) )
       {
          int b = m_refGrid->getBlocksInfo().size();
-         std::vector<int> all_b(size);
          int max_b,min_b;
          MPI_Allreduce(&b, &max_b, 1, MPI_INT,  MPI_MAX, comm);
          MPI_Allreduce(&b, &min_b, 1, MPI_INT,  MPI_MIN, comm);
-         const double ratio = max_b / min_b;
+         const double ratio = static_cast<double>(max_b) / min_b;
          if (rank == 0) std::cout << "Load imbalance ratio = " << ratio << std::endl;
          if (ratio > 1.5)
          {

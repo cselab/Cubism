@@ -315,6 +315,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          //flag                            = false;
       }
       /*------------->*/ Clock.finish(9);
+      std::cout << std::flush;
    }
 
  protected:

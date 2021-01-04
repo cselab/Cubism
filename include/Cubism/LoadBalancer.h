@@ -193,28 +193,11 @@ class LoadBalancer
       {
          int b = m_refGrid->getBlocksInfo().size();
          std::vector<int> all_b(size);
-         MPI_Gather(&b, 1, MPI_INT, &all_b[0], 1, MPI_INT, 0, comm);
-
-         if (rank == 0)
-         {
-            std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
-            std::cout << " Distribution of blocks among ranks: \n";
-            for (int r = 0; r < size; r++) std::cout << all_b[r] << " | ";
-            std::cout << "\n";
-            std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
-            std::cout << std::endl;
-         }
-
-         int max_b = all_b[0];
-         int min_b = all_b[0];
-         for (int r = 1 ; r < size ; r++)
-         {
-            max_b = std::max(all_b[r],max_b);
-            min_b = std::min(all_b[r],min_b);
-         }
+         int max_b,min_b;
+         MPI_Allreduce(&b, &max_b, 1, MPI_INT,  MPI_MAX, comm);
+         MPI_Allreduce(&b, &min_b, 1, MPI_INT,  MPI_MIN, comm);
          const double ratio = max_b / min_b;
          if (rank == 0) std::cout << "Load imbalance ratio = " << ratio << std::endl;
-
          if (ratio > 1.5)
          {
             Balance_Global();

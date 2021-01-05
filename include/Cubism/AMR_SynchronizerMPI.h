@@ -57,15 +57,6 @@ struct MyRange
     return (sx <= r.sx && r.ex <= ex) && (sy <= r.sy && r.ey <= ey) && (sz <= r.sz && r.ez <= ez) && (Vr < V);
   }
   bool operator<(const MyRange &other) const { return index < other.index; }
-  //void copy(const MyRange &other)
-  //{
-  //  sx = other.sx;
-  //  sy = other.sy;
-  //  sz = other.sz;
-  //  ex = other.ex;
-  //  ey = other.ey;
-  //  ez = other.ez;
-  //}
   void Remove(const MyRange &other)
   {
     size_t s = removedIndices.size();
@@ -1291,6 +1282,7 @@ class SynchronizerMPI_AMR
 
    std::vector<BlockInfo *> avail_halo()
    {
+      MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
       MPI_Waitall(recv_requests.size(), recv_requests.data(), MPI_STATUSES_IGNORE);
       return halo_blocks;
    }
@@ -1304,6 +1296,7 @@ class SynchronizerMPI_AMR
                const int timestamp,
                const bool a_define_neighbors = false)
    {
+      //MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE); //segfault is used here
       define_neighbors = a_define_neighbors;
 
       myInfos_size = a_myInfos_size;
@@ -1342,7 +1335,7 @@ class SynchronizerMPI_AMR
          send_packinfos[r].clear();
          ToBeAveragedDown[r].clear();
 
-         MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
+         MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE); //segfault is used here
 
          for (int i = 0; i < (int)send_interfaces[r].size(); i++)
          {

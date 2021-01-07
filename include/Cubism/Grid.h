@@ -67,12 +67,12 @@ class Grid
       if (m - 1 >= 0)
       {
         for (int n = 0; n < NX * NY * NZ * pow( (1<<(m-1)), DIMENSION); n++)
-          Tree(m,n).setCheckFiner();
+          Tree(m-1,n).setCheckFiner();
       }
       if (m + 1 < levelMax)
       {
         for (int n = 0; n < NX * NY * NZ * pow( (1<<(m+1)), DIMENSION); n++)
-          Tree(m,n).setCheckCoarser();
+          Tree(m+1,n).setCheckCoarser();
       }
       FillPos();
    }
@@ -150,6 +150,7 @@ class Grid
 
             assert(getBlockInfoAll(m,n).state == m_vInfo[j].state);
             //assert(getBlockInfoAll(m,n).TreePos == Exists);
+            assert(Tree(m,n).Exists());
 
             m_blocks[j] = (Block *)getBlockInfoAll(m,n).ptrBlock;
          }
@@ -160,6 +161,7 @@ class Grid
             int n            = m_vInfo[j].Z;
             m_vInfo[j].state = getBlockInfoAll(m,n).state;
             //assert(getBlockInfoAll(m,n).TreePos == Exists);
+            assert(Tree(m,n).Exists());
             m_blocks[j] = (Block *)getBlockInfoAll(m,n).ptrBlock;
          }
       for (size_t j = 0; j < m_vInfo.size(); j++)

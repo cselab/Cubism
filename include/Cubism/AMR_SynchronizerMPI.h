@@ -865,7 +865,7 @@ class SynchronizerMPI_AMR
   {
     BlockInfo &a = *f.infos[0];
     BlockInfo &b = *f.infos[1];
-    if (a.level != b.level) return false;
+    if (a.level != b.level || a.level == 0) return false;
     int imin[3];
     int imax[3];
     for (int d = 0; d < 3; d++)

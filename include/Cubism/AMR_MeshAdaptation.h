@@ -186,6 +186,12 @@ class MeshAdaptation_basic
                int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
                BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
                m_refGrid->Tree(Child).setrank(m_refGrid->rank());
+
+               if (level+2 < m_refGrid->getlevelMax())
+                for (int i0 = 0; i0 < 2; i0 ++)
+                for (int i1 = 0; i1 < 2; i1 ++)
+                for (int i2 = 0; i2 < 2; i2 ++)
+                  m_refGrid->Tree(level+2,Child.Zchild[i0][i1][i2]).setCheckCoarser();
             }
      #endif
      #if DIMENSION == 2
@@ -195,6 +201,12 @@ class MeshAdaptation_basic
             int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
             BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
             m_refGrid->Tree(Child).setrank(m_refGrid->rank());
+
+            if (level+2 < m_refGrid->getlevelMax())
+             for (int i0 = 0; i0 < 2; i0 ++)
+             for (int i1 = 0; i1 < 2; i1 ++)
+               m_refGrid->Tree(level+2,Child.Zchild[i0][i1]).setCheckCoarser();
+
          }
      #endif
    }
@@ -214,6 +226,8 @@ class MeshAdaptation_basic
       m_refGrid->Tree(parent).setrank(m_refGrid->rank());
       parent.h_gridpoint = parent.h;
       parent.state       = Leave;
+      if (level-2>=0) 
+        m_refGrid->Tree(level-2,parent.Zparent).setCheckFiner();
 
       #pragma omp critical
       {
@@ -243,6 +257,8 @@ class MeshAdaptation_basic
       m_refGrid->Tree(parent).setrank(m_refGrid->rank());
       parent.h_gridpoint = parent.h;
       parent.state       = Leave;
+      if (level-2>=0) 
+        m_refGrid->Tree(level-2,parent.Zparent).setCheckFiner();
 
       #pragma omp critical
       {
@@ -599,9 +615,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             }
          }
       }
-
       if (CallValidStates) MeshAdaptation_basic<TGrid>::ValidStates();
-
       // Refinement/compression of blocks
       /*************************************************/
       int r = 0;
@@ -698,9 +712,9 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             BlockInfo &info = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
 
             BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            if      (m_refGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
-            else if (m_refGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
-            else if (m_refGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
+            if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
+            else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
+            else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
 
             info.state      = ary0.state;
          }
@@ -772,6 +786,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
         m_refGrid->UpdateFluxCorrection = flag;
         flag                            = false;
       }
+
       /*************************************************/
    }
 
@@ -877,6 +892,8 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
         parent.ptrBlock    = info.ptrBlock;
         parent.h_gridpoint = parent.h;
         parent.state       = Leave;
+        if (level-2>=0) 
+          m_refGrid->Tree(level-2,parent.Zparent).setCheckFiner();
 
         #pragma omp critical
         {
@@ -930,6 +947,9 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
         parent.ptrBlock    = info.ptrBlock;
         parent.h_gridpoint = parent.h;
         parent.state       = Leave;
+        if (level-2>=0) 
+          m_refGrid->Tree(level-2,parent.Zparent).setCheckFiner();
+
 
         #pragma omp critical
         {

@@ -121,7 +121,7 @@ class BlockLab
 
    bool UseCoarseStencil(const BlockInfo &a, const BlockInfo &b)
    {
-      if (a.level != b.level) return false;
+      if (a.level != b.level || a.level == 0) return false;
 
       int imin[3];
       int imax[3];

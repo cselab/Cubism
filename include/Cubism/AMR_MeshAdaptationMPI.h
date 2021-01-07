@@ -326,9 +326,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
         BlockInfo &info = AMR::m_refGrid->getBlockInfoAll(level, Z);
 
-        assert(info.TreePos == Exists);
         assert(info.state == Compress);
-        assert(info.myrank == rank);
+        //assert(info.myrank == rank);
 
 
         BlockType *Blocks[8];
@@ -366,9 +365,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
         int np             = AMR::m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
         BlockInfo &parent  = AMR::m_refGrid->getBlockInfoAll(level - 1, np);
-        parent.myrank      = AMR::m_refGrid->rank();
+        AMR::m_refGrid->Tree(parent.level,parent.Z).setrank(AMR::m_refGrid->rank());
         parent.ptrBlock    = info.ptrBlock;
-        parent.TreePos     = Exists;
         parent.h_gridpoint = parent.h;
         parent.state       = Leave;
 
@@ -387,7 +385,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
                 {
                    AMR::m_refGrid->_dealloc(level, n);
                 }
-                AMR::m_refGrid->getBlockInfoAll(level, n).TreePos = CheckCoarser;
+                AMR::m_refGrid->Tree(level,n).setCheckCoarser();
                 AMR::m_refGrid->getBlockInfoAll(level, n).state   = Leave;
             }
         }
@@ -426,7 +424,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             BlockInfo &info = I[j];
             if (info.level == m && info.state != Refine && info.level != levelMax - 1)
             {
-               assert(info.TreePos == Exists);
                int TwoPower = 1 << info.level;
                const bool xskin =
                    info.index[0] == 0 || info.index[0] == blocksPerDim[0] * TwoPower - 1;
@@ -448,7 +445,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
                   BlockInfo &infoNei =
                       AMR::m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-                  if (infoNei.TreePos == CheckFiner)
+                  if (AMR::m_refGrid->Tree(infoNei).CheckFiner())
                   {
                      if (info.state == Compress)
                      {
@@ -522,7 +519,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
                   BlockInfo &infoNei =
                       AMR::m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-                  if (infoNei.TreePos == Exists && infoNei.state == Refine)
+                  if (AMR::m_refGrid->Tree(infoNei).Exists()&& infoNei.state == Refine)
                   {
                      info.state                                             = Leave;
                      (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
@@ -547,7 +544,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
                {
                   int n              = AMR::m_refGrid->getZforward(m, i, j, k);
                   BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);
-                  if (infoNei.TreePos != Exists || infoNei.state != Compress)
+                  if (AMR::m_refGrid->Tree(infoNei).Exists() == false|| infoNei.state != Compress)
                   {
                      found = true;
                      if (info.state == Compress)
@@ -565,7 +562,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
                {
                   int n              = AMR::m_refGrid->getZforward(m, i, j, k);
                   BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);
-                  if (infoNei.TreePos == Exists && infoNei.state == Compress)
+                  if (AMR::m_refGrid->Tree(infoNei).Exists() && infoNei.state == Compress)
                   {
                      infoNei.state = Leave;
                   }

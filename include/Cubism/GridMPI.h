@@ -78,6 +78,36 @@ class GridMPI : public TGrid
       }
       for (int n = n_start; n < n_start + my_blocks; n++) _alloc(a_levelStart, n);
 
+      for (int m = 0 ; m < a_levelMax ; m ++)
+      {
+        int nmax = nX * nY * nZ * pow(pow(2, m), 3);
+        if (m == a_levelStart-1)
+            for (int n = 0 ; n < nmax ; n ++) TGrid::Tree(m,n).setCheckFiner(); 
+        else if (m == a_levelStart+1)
+            for (int n = 0 ; n < nmax ; n ++) TGrid::Tree(m,n).setCheckCoarser();
+        else if (m == TGrid::levelStart)
+            for (int n = 0 ; n < nmax ; n ++)
+            {
+                int r;
+                if (total_blocks % world_size > 0)
+                {
+                    if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
+                    {
+                        int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
+                        r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
+                    }
+                    else
+                    {
+                       r = n / (total_blocks / world_size + 1);
+                    }
+                }
+                else
+                {
+                   r = n / my_blocks;
+                }
+                TGrid::Tree(m,n).setrank(r);
+            }
+      }
       if (myrank == 0) std::cout << "Total blocks = " << total_blocks << "\n";
       std::cout << "rank " << myrank << " gets " << my_blocks << " \n";
 
@@ -101,28 +131,17 @@ class GridMPI : public TGrid
    virtual void _alloc(int m, int n) override
    {
       allocator<Block> alloc;
-      getBlockInfoAll(m,n).ptrBlock = alloc.allocate(1);
-      getBlockInfoAll(m,n).changed  = true;
-      getBlockInfoAll(m,n).h_gridpoint = getBlockInfoAll(m,n).h;
+      TGrid::getBlockInfoAll(m,n).ptrBlock = alloc.allocate(1);
+      TGrid::getBlockInfoAll(m,n).changed  = true;
+      TGrid::getBlockInfoAll(m,n).h_gridpoint = TGrid::getBlockInfoAll(m,n).h;
 
-      TGrid::m_blocks.push_back((Block *)getBlockInfoAll(m,n).ptrBlock);
+      TGrid::m_blocks.push_back((Block *)TGrid::getBlockInfoAll(m,n).ptrBlock);
       
       TGrid::m_vInfo.push_back(*TGrid::BlockInfoAll[m][n]);
-      TGrid::N++;
 
-      getBlockInfoAll(m,n).myrank = myrank;
-      TGrid::m_vInfo.back().myrank     = myrank;
+      TGrid::Tree(m,n).setrank(myrank);
    }
 
-   std::vector<BlockInfo> &getBlocksInfo() override
-   { 
-      return TGrid::getBlocksInfo();
-   }
-
-   const std::vector<BlockInfo> &getBlocksInfo() const override
-   {
-      return TGrid::getBlocksInfo();
-   }
 
    std::vector<BlockInfo> &getResidentBlocksInfo()
    { 
@@ -134,15 +153,15 @@ class GridMPI : public TGrid
       return TGrid::getBlocksInfo();
    }
 
-   virtual Block *avail(int m, int n) /*const*/ override
+   virtual Block *avail(int m, int n) override
    {
-      if (getBlockInfoAll(m,n).myrank == myrank)
-         return (Block *)getBlockInfoAll(m,n).ptrBlock;
+      if (TGrid::Tree(m,n).rank() == myrank)
+         return (Block *)TGrid::getBlockInfoAll(m,n).ptrBlock;
       else
          return nullptr;
    }
 
-   virtual Block *avail1(int ix, int iy, int iz, int m) /*const*/ override
+   virtual Block *avail1(int ix, int iy, int iz, int m) override
    {
       int n = TGrid::getZforward(m, ix, iy, iz);
       return avail(m, n);
@@ -185,26 +204,28 @@ class GridMPI : public TGrid
             if (!TGrid::zperiodic && code[2] == zskip && zskin) continue;
 
             BlockInfo &infoNei =
-                getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+                TGrid::getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-            if (infoNei.TreePos == Exists && infoNei.myrank != rank)
+            const TreePosition & infoNeiTree = TGrid::Tree(infoNei.level,infoNei.Z);
+            if (infoNeiTree.Exists() && infoNeiTree.rank() != rank)
             {
                if (infoNei.state != Refine) infoNei.state = Leave;
-               receivers.insert(infoNei.myrank);
-               Neighbors.insert(infoNei.myrank);
+               receivers.insert(infoNeiTree.rank());
+               Neighbors.insert(infoNeiTree.rank());
             }
-            else if (infoNei.TreePos == CheckCoarser)
+            else if (infoNeiTree.CheckCoarser())
             {
                int nCoarse               = infoNei.Zparent;
-               BlockInfo &infoNeiCoarser = getBlockInfoAll(infoNei.level - 1, nCoarse);
-               if (infoNeiCoarser.myrank != rank)
+               BlockInfo &infoNeiCoarser = TGrid::getBlockInfoAll(infoNei.level - 1, nCoarse);
+               const int infoNeiCoarserrank = TGrid::Tree(infoNei.level-1,nCoarse).rank();
+               if (infoNeiCoarserrank != rank)
                {
                   if (infoNeiCoarser.state != Refine) infoNeiCoarser.state = Leave;
-                  receivers.insert(infoNeiCoarser.myrank);
-                  Neighbors.insert(infoNeiCoarser.myrank);
+                  receivers.insert(infoNeiCoarserrank);
+                  Neighbors.insert(infoNeiCoarserrank);
                }
             }
-            else if (infoNei.TreePos == CheckFiner)
+            else if (infoNeiTree.CheckFiner())
             {
                int Bstep = 1;                                                    // face
                if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge
@@ -218,15 +239,16 @@ class GridMPI : public TGrid
                   int nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
                                              [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
                                              [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
-                  int nFine = getBlockInfoAll(infoNei.level + 1, nFine1)
+                  int nFine = TGrid::getBlockInfoAll(infoNei.level + 1, nFine1)
                                   .Znei_(-code[0], -code[1], -code[2]);
 
-                  BlockInfo &infoNeiFiner = getBlockInfoAll(infoNei.level + 1, nFine);
-                  if (infoNeiFiner.myrank != rank)
+                  BlockInfo &infoNeiFiner = TGrid::getBlockInfoAll(infoNei.level + 1, nFine);
+                  const int infoNeiFinerrank = TGrid::Tree(infoNei.level+1,nFine).rank();
+                  if (infoNeiFinerrank != rank)
                   {
                      if (infoNeiFiner.state != Refine) infoNeiFiner.state = Leave;
-                     receivers.insert(infoNeiFiner.myrank);
-                     Neighbors.insert(infoNeiFiner.myrank);
+                     receivers.insert(infoNeiFinerrank);
+                     Neighbors.insert(infoNeiFinerrank);
                   }
                }
             }
@@ -294,7 +316,7 @@ class GridMPI : public TGrid
             {
                int level = recv_buffer[r][index];
                int Z     = recv_buffer[r][index + 1];
-               getBlockInfoAll(level,Z).state =
+               TGrid::getBlockInfoAll(level,Z).state =
                    (recv_buffer[r][index + 2] == 1) ? Compress : Refine;
             }
    };
@@ -311,17 +333,17 @@ class GridMPI : public TGrid
          int m = info.level;
          int n = info.Z;
 
-         assert(info.TreePos == Exists);
+         //assert(info.TreePos == Exists);
 
          if (GlobalUpdate)
          {
             ChangedInfos.push_back(info);
             info.changed                         = false;
-            getBlockInfoAll(m, n).changed = false;
+            TGrid::getBlockInfoAll(m, n).changed = false;
          }
-         else if (getBlockInfoAll(m, n).changed)
+         else if (TGrid::getBlockInfoAll(m, n).changed)
          {
-            getBlockInfoAll(m, n).changed = false;
+            TGrid::getBlockInfoAll(m, n).changed = false;
             info.changed                         = false;
             ChangedInfos.push_back(info);
          }
@@ -364,13 +386,9 @@ class GridMPI : public TGrid
          {
             int level       = ptr[index__];
             int Z           = ptr[index__ + 1];
-            BlockInfo &info = getBlockInfoAll(level,Z);
-
-            info.TreePos = Exists;
-            info.state   = Leave;
-            info.myrank  = r;
-
-            int p[3] = {info.index[0], info.index[1], info.index[2]};
+            TGrid::Tree(level,Z).setrank(r);
+            int p[3];
+            BlockInfo::inverse(Z,level,p[0],p[1],p[2]);
 
             if (level < TGrid::levelMax - 1)
                for (int k = 0; k < 2; k++)
@@ -379,14 +397,12 @@ class GridMPI : public TGrid
                      {
                         int nc =
                             TGrid::getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
-                        getBlockInfoAll(level + 1,nc).TreePos = CheckCoarser;
-                        getBlockInfoAll(level + 1,nc).myrank  = -1;
+                        TGrid::Tree(level + 1,nc).setCheckCoarser();
                      }
             if (level > 0)
             {
                int nf = TGrid::getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
-               getBlockInfoAll(level - 1,nf).TreePos = CheckFiner;
-               getBlockInfoAll(level - 1,nf).myrank  = -1;
+               TGrid::Tree(level - 1,nf).setCheckFiner();
             }
          }
       }
@@ -445,80 +461,6 @@ class GridMPI : public TGrid
 
       return *SynchronizerMPIs.find(p.stencil)->second;
    }
-
-   virtual BlockInfo &getBlockInfoAll(int m, int n) override
-   {
-        if (TGrid::ready[m][n])
-        {
-            return *TGrid::BlockInfoAll[m][n];
-        }
-        else
-        {
-            #pragma omp critical
-            {
-                if (TGrid::ready[m][n]==false)        
-                {
-                    TGrid::BlockInfoAll[m][n] = new BlockInfo();
-            
-                    int total_blocks = TGrid::NX * TGrid::NY * TGrid::NZ * pow(pow(2, TGrid::levelStart), 3);
-                    int my_blocks = total_blocks / world_size;
-                        
-                    if (myrank < total_blocks % world_size) my_blocks++;
-                            
-                    int blockrank;      
-                    if (m == TGrid::levelStart)
-                    {
-                       int r;
-                       if (total_blocks % world_size > 0)
-                       {
-                          if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
-                          {
-                             int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
-                             r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
-                          }
-                          else
-                          {
-                             r = n / (total_blocks / world_size + 1);
-                          }
-                       }
-                       else
-                       {
-                          r = n / my_blocks;
-                       }
-                       blockrank = r;
-                    }
-                    else
-                    {
-                       blockrank = -1;
-                    }
-                    int TwoPower = 1 << m;
-                    double h0 = (TGrid::maxextent / std::max(TGrid::NX * Block::sizeX, std::max(TGrid::NY * Block::sizeY, TGrid::NZ * Block::sizeZ)));
-                    double h = h0 / TwoPower;
-                    double origin[3];
-                    int i,j,k;
-                  #if DIMENSION == 3
-                    BlockInfo::inverse(n,m,i,j,k);           
-                  #else
-                    BlockInfo::inverse(n,m,i,j);
-                    k = 0;           
-                  #endif
-                    origin[0]  = i * Block::sizeX * h;
-                    origin[1]  = j * Block::sizeY * h;
-                    origin[2]  = k * Block::sizeZ * h;
-                    TreePosition TreePos;
-                    if      (m == TGrid::levelStart) TreePos = Exists;
-                    else if (m <  TGrid::levelStart) TreePos = CheckFiner;
-                    else                      TreePos = CheckCoarser;
-                    TGrid::BlockInfoAll[m][n]->setup(m, h, origin, n, blockrank, TreePos);
-                    TGrid::ready[m][n] = true;
-                }
-            }
-            return *TGrid::BlockInfoAll[m][n];
-        }
-   }
-
-   virtual std::vector<std::vector<BlockInfo*>> &getBlockInfoAll() override { return TGrid::BlockInfoAll; }
-
 
    int rank() const override { return myrank; }
 
@@ -614,8 +556,10 @@ class GridMPI : public TGrid
                 
                 int blockrank = -1;               
                 if (TGrid::BlockInfoAll[I.level][n] != nullptr)
-                  blockrank = TGrid::BlockInfoAll[I.level][n]->myrank;
-                if (blockrank != myrank || TGrid::BlockInfoAll[I.level][n]->TreePos != Exists)
+                  blockrank = TGrid::Tree(I.level,n).rank();
+                  //blockrank = TGrid::BlockInfoAll[I.level][n]->myrank;
+                //if (blockrank != myrank || TGrid::BlockInfoAll[I.level][n]->TreePos != Exists)
+                if (blockrank != myrank || blockrank< 0)
                 {
                   valid = false;
                   break;

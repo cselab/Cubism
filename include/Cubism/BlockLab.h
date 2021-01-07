@@ -138,7 +138,7 @@ class BlockLab
             for (int i0 = imin[0]; i0 <= imax[0]; i0++)
             {
                int n = a.Znei_(i0, i1, i2);
-               if ((m_refGrid->getBlockInfoAll(a.level, n)).TreePos == CheckCoarser)
+               if ((m_refGrid->Tree(a.level, n)).CheckCoarser())
                {
                   retval = true;
                   break;
@@ -272,7 +272,6 @@ class BlockLab
 #ifndef NDEBUG
       assert(m_state == eMRAGBlockLab_Prepared || m_state == eMRAGBlockLab_Loaded);
       assert(m_cacheBlock != NULL);
-      assert(info.TreePos == Exists);
 #endif
 
       
@@ -370,12 +369,12 @@ class BlockLab
             const BlockInfo &infoNei =
                 grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-            if (infoNei.TreePos == Exists)
+            if (grid.Tree(infoNei).Exists())
             {
                icodes.push_back(icode);
                if (!coarsened) coarsened = UseCoarseStencil(info, infoNei);
             }
-            else if (infoNei.TreePos == CheckCoarser)
+            else if (grid.Tree(infoNei).CheckCoarser())
             {
                CoarseFineExchange(info, code);
             }
@@ -391,8 +390,8 @@ class BlockLab
                               code[1] < 1 ? (code[1] < 0 ? 0 : nY) : nY + m_stencilEnd[1] - 1,
                               code[2] < 1 ? (code[2] < 0 ? 0 : nZ) : nZ + m_stencilEnd[2] - 1};
 
-            if (infoNei.TreePos == Exists) SameLevelExchange(info, code, s, e);
-            else if (infoNei.TreePos == CheckFiner)
+            if (grid.Tree(infoNei).Exists()) SameLevelExchange(info, code, s, e);
+            else if (grid.Tree(infoNei).CheckFiner())
                FineToCoarseExchange(info, code, s, e);
          } // icode = 0,...,26
 
@@ -1120,7 +1119,7 @@ class BlockLab
          const BlockInfo &infoNei =
              grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-         if (infoNei.TreePos != CheckCoarser) continue;
+         if ( ! grid.Tree(infoNei).CheckCoarser()) continue;
 
          // s and e correspond to start and end of this lab's cells that are filled by neighbors
          const int s[3] = {code[0] < 1 ? (code[0] < 0 ? m_stencilStart[0] : 0) : nX,

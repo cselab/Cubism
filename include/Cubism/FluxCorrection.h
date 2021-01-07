@@ -117,7 +117,7 @@ class FluxCorrection
           if (!yperiodic && code[1] == yskip && yskin) continue;
           if (!zperiodic && code[2] == zskip && zskin) continue;
           BlockInfo infoNei =m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));
-          if (infoNei.TreePos != Exists)
+          if (!m_refGrid->Tree(infoNei).Exists())
           {
             storeFace[ abs(code[0]) *  max(0,code[0]) + abs(code[1]) * (max(0,code[1])+2) + abs(code[2]) * (max(0,code[2])+4)  ] = true;
             stored = true;
@@ -180,7 +180,7 @@ class FluxCorrection
 
           BlockInfo infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-          if (infoNei.TreePos == CheckFiner) FillCase(info, code);
+          if (m_refGrid->Tree(infoNei).CheckFiner()) FillCase(info, code);
         }
       }
       Correct();
@@ -298,7 +298,7 @@ class FluxCorrection
 
             BlockInfo infoNei = (*m_refGrid).getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-            if (infoNei.TreePos == CheckFiner)
+            if (m_refGrid->Tree(infoNei).CheckFiner())
             {
                int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
                std::array<int, 2> temp = {info.level, info.Z};

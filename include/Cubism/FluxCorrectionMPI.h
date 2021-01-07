@@ -128,7 +128,7 @@ class FluxCorrectionMPI : public TFluxCorrection
                 (*TFluxCorrection::m_refGrid)
                     .getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-            if (infoNei.TreePos != Exists)
+            if (! (*TFluxCorrection::m_refGrid).Tree(infoNei).Exists())
             {
                storeFace[abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) +
                          abs(code[2]) * (max(0, code[2]) + 4)] = true;
@@ -141,19 +141,20 @@ class FluxCorrectionMPI : public TFluxCorrection
             L[2]  = (code[2] == 0) ? blocksize[2] / 2 : 1;
             int V = L[0] * L[1] * L[2];
 
-            if (infoNei.TreePos == CheckCoarser)
+            if ( (*TFluxCorrection::m_refGrid).Tree(infoNei).CheckCoarser())
             {
                int nCoarse = infoNei.Zparent;
                BlockInfo &infoNeiCoarser = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level - 1, nCoarse);
-               if (infoNeiCoarser.myrank != rank)
+               const int infoNeiCoarserrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level - 1, nCoarse).rank();
+               if (infoNeiCoarserrank != rank)
                {
                   int code2[3] = {-code[0], -code[1], -code[2]};
                   int icode2   = (code2[0] + 1) + (code2[1] + 1) * 3 + (code2[2] + 1) * 9;
-                  send_faces[infoNeiCoarser.myrank].push_back(face(info, infoNeiCoarser, icode[f], icode2));
-                  send_buffer_size[infoNeiCoarser.myrank] += V;
+                  send_faces[infoNeiCoarserrank].push_back(face(info, infoNeiCoarser, icode[f], icode2));
+                  send_buffer_size[infoNeiCoarserrank] += V;
                }
             }
-            else if (infoNei.TreePos == CheckFiner)
+            else if ( (*TFluxCorrection::m_refGrid).Tree(infoNei).CheckFiner())
             {
                int Bstep = 1;                      // face
                for (int B = 0; B <= 3; B += Bstep) // loop over blocks that make up face
@@ -165,11 +166,12 @@ class FluxCorrectionMPI : public TFluxCorrection
 
                   int nFine = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
                   BlockInfo &infoNeiFiner = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine);
-                  if (infoNeiFiner.myrank != rank)
+                  const int infoNeiFinerrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level + 1, nFine).rank();
+                  if (infoNeiFinerrank != rank)
                   {
                      int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
-                     recv_faces[infoNeiFiner.myrank].push_back(face(infoNeiFiner, info, icode2, icode[f]));
-                     recv_buffer_size[infoNeiFiner.myrank] += V;
+                     recv_faces[infoNeiFinerrank].push_back(face(infoNeiFiner, info, icode2, icode[f]));
+                     recv_buffer_size[infoNeiFinerrank] += V;
                   }
                }
             }
@@ -344,7 +346,7 @@ class FluxCorrectionMPI : public TFluxCorrection
                 (*TFluxCorrection::m_refGrid)
                     .getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-            if (infoNei.TreePos == CheckFiner)
+            if ( (*TFluxCorrection::m_refGrid).Tree(infoNei).CheckFiner())
             {
                FillCase(info, code);
             }
@@ -417,7 +419,7 @@ class FluxCorrectionMPI : public TFluxCorrection
             base = (N2 / 2) + (N1 / 2) * N2;
 
 
-         int r   = F.infos[0]->myrank;
+         int r   = (*TFluxCorrection::m_refGrid).Tree(F.infos[0]->level,F.infos[0]->Z).rank();
          int dis = 0;
          for (int i1 = 0; i1 < N1; i1 += 2)
             for (int i2 = 0; i2 < N2; i2 += 2)
@@ -470,7 +472,7 @@ class FluxCorrectionMPI : public TFluxCorrection
             2 * info.index[1] + max(code[1], 0) + code[1] +     aux * max(0, 1 - abs(code[1])),
             2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2])));
 
-         if ((*TFluxCorrection::m_refGrid).getBlockInfoAll(info.level + 1, Z).myrank != rank) continue;
+         if ((*TFluxCorrection::m_refGrid).Tree(info.level + 1, Z).rank() != rank) continue;
 
          auto search1 = TFluxCorrection::MapOfCases.find({info.level + 1, Z});
          assert(search1 != TFluxCorrection::MapOfCases.end());

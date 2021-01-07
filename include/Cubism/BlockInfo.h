@@ -23,13 +23,6 @@ using namespace std;
 namespace cubism // AMR_CUBISM
 {
 
-enum TreePosition
-{
-   Exists       = 0,
-   CheckCoarser = -1,
-   CheckFiner   = 1
-};
-
 enum State
 {
    Leave    = 0,
@@ -129,13 +122,9 @@ struct BlockInfo
    }
 #endif
 
-
    long long blockID,blockID_2;
    int index[3];         //(i,j,k) coordinates of block at given refinement level
    void *ptrBlock;       // Pointer to data stored in user-defined Block
-   int myrank;           // MPI rank to which the associated block currently belongs
-   TreePosition TreePos; // Indicates if block (level,Zorder) actually Exists in the Octree or if
-                         // one should look for its coarser (finer) parents (children)
    State state;       // Refine/Compress/Leave this block
    int Z, level;      // Z-order curve index of this block and refinement level   
    int Znei[3][3][3]; // Z-order curve index of 26 neighboring boxes (Znei[1][1][1] = Z)
@@ -197,11 +186,8 @@ struct BlockInfo
       return (blockID_2 < other.blockID_2);
    }
 
-   void setup(const int a_level, const double a_h, const double a_origin[3], const int a_Z, int a_myrank, TreePosition a_TreePos)
+   void setup(const int a_level, const double a_h, const double a_origin[3], const int a_Z)
    {
-      myrank   = a_myrank;
-      TreePos  = a_TreePos;
-
       level = a_level;
       Z     = a_Z;
       

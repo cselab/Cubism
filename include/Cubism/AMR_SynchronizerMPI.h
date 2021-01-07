@@ -879,7 +879,7 @@ class SynchronizerMPI_AMR
     for (int i0 = imin[0]; i0 <= imax[0]; i0++)
     {
       int n = a.Znei_(i0, i1, i2);
-      if ((grid->getBlockInfoAll(a.level, n)).TreePos == CheckCoarser)
+      if ((grid->Tree(a.level, n)).CheckCoarser())
       {
         retval = true;
         break;
@@ -1021,26 +1021,29 @@ class SynchronizerMPI_AMR
          if (!zperiodic && code[2] == zskip && zskin) continue;
           //if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
          BlockInfo &infoNei = grid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-         if (infoNei.TreePos == Exists && infoNei.myrank != rank)
+         const TreePosition & infoNeiTree = grid->Tree(info.level,info.Znei_(code[0], code[1], code[2]));
+         //if (infoNei.TreePos == Exists && infoNeirank != rank)
+         if (infoNeiTree.Exists() && infoNeiTree.rank() != rank)
          {
             if (isInner)
                interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
             isInner    = false;
             int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
-            send_interfaces[infoNei.myrank].push_back(Interface(info, infoNei, icode, icode2));
-            ToBeChecked.push_back(infoNei.myrank);
-            ToBeChecked.push_back((int)send_interfaces[infoNei.myrank].size() - 1);
-            Neighbors.insert(infoNei.myrank);
-            interface_ranks_and_positions.back().push_back({infoNei.myrank, (int)send_interfaces[infoNei.myrank].size() - 1});
+            send_interfaces[infoNeiTree.rank()].push_back(Interface(info, infoNei, icode, icode2));
+            ToBeChecked.push_back(infoNeiTree.rank());
+            ToBeChecked.push_back((int)send_interfaces[infoNeiTree.rank()].size() - 1);
+            Neighbors.insert(infoNeiTree.rank());
+            interface_ranks_and_positions.back().push_back({infoNeiTree.rank(), (int)send_interfaces[infoNeiTree.rank()].size() - 1});
             l++;
          }
-         else if (infoNei.TreePos == CheckCoarser)
+         else if (infoNeiTree.CheckCoarser())
          {
             Coarsened = true;
             // int nCoarse = infoNei.Z /8; // this does not work for Hilbert
             int nCoarse = infoNei.Zparent;
             BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, nCoarse);
-            if (infoNeiCoarser.myrank != rank)
+            const int infoNeiCoarserrank = grid->Tree(info.level-1,nCoarse).rank();
+            if (infoNeiCoarserrank != rank)
             {
                if (isInner)
                   interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
@@ -1052,17 +1055,17 @@ class SynchronizerMPI_AMR
                if (info.index[0] / 2 == test.index[0] && info.index[1] / 2 == test.index[1] &&
                    info.index[2] / 2 == test.index[2])
                {
-                  send_interfaces[infoNeiCoarser.myrank].push_back(
+                  send_interfaces[infoNeiCoarserrank].push_back(
                       Interface(info, infoNeiCoarser, icode, icode2));
                   interface_ranks_and_positions.back().push_back(
-                      {infoNeiCoarser.myrank,
-                       (int)send_interfaces[infoNeiCoarser.myrank].size() - 1});
+                      {infoNeiCoarserrank,
+                       (int)send_interfaces[infoNeiCoarserrank].size() - 1});
                }
-               Neighbors.insert(infoNeiCoarser.myrank);
+               Neighbors.insert(infoNeiCoarserrank);
                l++;
             }
          }
-         else if (infoNei.TreePos == CheckFiner)
+         else if (infoNeiTree.CheckFiner())
          {
             int Bstep = 1;
             if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge
@@ -1078,14 +1081,15 @@ class SynchronizerMPI_AMR
                                        [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
               const int nFine = grid->getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
               BlockInfo &infoNeiFiner = grid->getBlockInfoAll(infoNei.level + 1, nFine);
-              if (infoNeiFiner.myrank != rank)
+              const int infoNeiFinerrank = grid->Tree(info.level+1,nFine).rank();
+              if (infoNeiFinerrank != rank)
               {
                 if (isInner) interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
                 isInner    = false;
                 int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
-                send_interfaces[infoNeiFiner.myrank].push_back(Interface(info, infoNeiFiner, icode, icode2));
-                interface_ranks_and_positions.back().push_back({infoNeiFiner.myrank,(int)send_interfaces[infoNeiFiner.myrank].size() - 1});
-                Neighbors.insert(infoNeiFiner.myrank);
+                send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode2));
+                interface_ranks_and_positions.back().push_back({infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1});
+                Neighbors.insert(infoNeiFinerrank);
                 l++;
                 if (Bstep == 3) // if I'm filling an edge then I'm also filling a corner
                 {
@@ -1094,11 +1098,11 @@ class SynchronizerMPI_AMR
                    code3[1]   = (code[1] == 0) ? (B == 0 ? 1 : -1) : -code[1];
                    code3[2]   = (code[2] == 0) ? (B == 0 ? 1 : -1) : -code[2];
                    int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
-                   send_interfaces[infoNeiFiner.myrank].push_back(
+                   send_interfaces[infoNeiFinerrank].push_back(
                        Interface(info, infoNeiFiner, icode, icode3));
                    interface_ranks_and_positions.back().push_back(
-                       {infoNeiFiner.myrank,
-                        (int)send_interfaces[infoNeiFiner.myrank].size() - 1});
+                       {infoNeiFinerrank,
+                        (int)send_interfaces[infoNeiFinerrank].size() - 1});
                 }
                 else if (Bstep == 1) // if I'm filling a face then I'm also filling two edges and a corner
                 {
@@ -1168,21 +1172,21 @@ class SynchronizerMPI_AMR
                   int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
                   int icode4 = (code4[0] + 1) + (code4[1] + 1) * 3 + (code4[2] + 1) * 9;
                   int icode5 = (code5[0] + 1) + (code5[1] + 1) * 3 + (code5[2] + 1) * 9;
-                  send_interfaces[infoNeiFiner.myrank].push_back(
+                  send_interfaces[infoNeiFinerrank].push_back(
                       Interface(info, infoNeiFiner, icode, icode3));
                   interface_ranks_and_positions.back().push_back(
-                      {infoNeiFiner.myrank,
-                       (int)send_interfaces[infoNeiFiner.myrank].size() - 1});
-                  send_interfaces[infoNeiFiner.myrank].push_back(
+                      {infoNeiFinerrank,
+                       (int)send_interfaces[infoNeiFinerrank].size() - 1});
+                  send_interfaces[infoNeiFinerrank].push_back(
                       Interface(info, infoNeiFiner, icode, icode4));
                   interface_ranks_and_positions.back().push_back(
-                      {infoNeiFiner.myrank,
-                       (int)send_interfaces[infoNeiFiner.myrank].size() - 1});
-                  send_interfaces[infoNeiFiner.myrank].push_back(
+                      {infoNeiFinerrank,
+                       (int)send_interfaces[infoNeiFinerrank].size() - 1});
+                  send_interfaces[infoNeiFinerrank].push_back(
                       Interface(info, infoNeiFiner, icode, icode5));
                   interface_ranks_and_positions.back().push_back(
-                      {infoNeiFiner.myrank,
-                       (int)send_interfaces[infoNeiFiner.myrank].size() - 1});
+                      {infoNeiFinerrank,
+                       (int)send_interfaces[infoNeiFinerrank].size() - 1});
                 }
               }
             }
@@ -1478,6 +1482,7 @@ class SynchronizerMPI_AMR
                               (unpack.icode / 9) % 3 - 1};
 
          BlockInfo &other = grid->getBlockInfoAll(unpack.level, unpack.Z);
+         const int otherrank = grid->Tree(unpack.level, unpack.Z).rank();
 
          const int s[3] = {code[0] < 1 ? (code[0] < 0 ? stencil.sx : 0) : nX,
                            code[1] < 1 ? (code[1] < 0 ? stencil.sy : 0) : nY,
@@ -1492,7 +1497,7 @@ class SynchronizerMPI_AMR
                                       (s[1] - stencil.sy) * Length[0] + s[0] - stencil.sx) *
                                          gptfloats;
 
-            unpack_subregion<Real>(&recv_buffer[other.myrank][unpack.offset], &dst[0], gptfloats,
+            unpack_subregion<Real>(&recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
                                    &stencil.selcomponents[0], stencil.selcomponents.size(),
                                    unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX,
                                    unpack.LY, 0, 0, 0, unpack.lx, unpack.ly, unpack.lz, Length[0],
@@ -1517,7 +1522,7 @@ class SynchronizerMPI_AMR
                SM.CoarseStencilLength(&code__[0], &L[0]);
 
                unpack_subregion<Real>(
-                   &recv_buffer[other.myrank][unpack.offset + unpack.CoarseVersionOffset], &dst1[0],
+                   &recv_buffer[otherrank][unpack.offset + unpack.CoarseVersionOffset], &dst1[0],
                    gptfloats, &stencil.selcomponents[0], stencil.selcomponents.size(),
                    unpack.CoarseVersionsrcxstart, unpack.CoarseVersionsrcystart,
                    unpack.CoarseVersionsrczstart, unpack.CoarseVersionLX, unpack.CoarseVersionLY, 0,
@@ -1539,7 +1544,7 @@ class SynchronizerMPI_AMR
                                        (sC[1] - offset[1]) * CLength[0]) *
                                           gptfloats;
 
-            unpack_subregion<Real>(&recv_buffer[other.myrank][unpack.offset], &dst[0], gptfloats,
+            unpack_subregion<Real>(&recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
                                    &stencil.selcomponents[0], stencil.selcomponents.size(),
                                    unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX,
                                    unpack.LY, 0, 0, 0, unpack.lx, unpack.ly, unpack.lz, CLength[0],
@@ -1615,7 +1620,7 @@ class SynchronizerMPI_AMR
                               m_vSize0) *
                     gptfloats;
 
-            unpack_subregion<Real>(&recv_buffer[other.myrank][unpack.offset], &dst[0], gptfloats,
+            unpack_subregion<Real>(&recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
                                    &stencil.selcomponents[0], stencil.selcomponents.size(),
                                    unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX,
                                    unpack.LY, 0, 0, 0, unpack.lx, unpack.ly, unpack.lz, Length[0],

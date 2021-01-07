@@ -1,11 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <array>
-#include <cassert>
-#include <fstream>
-#include <iostream>
-#include <vector>
 #include <omp.h>
 
 #ifdef CUBISM_USE_NUMA
@@ -17,12 +12,25 @@
 namespace cubism // AMR_CUBISM
 {
 
+struct TreePosition
+{
+    int position{-3};
+    bool CheckCoarser() const {return position == -2;}
+    bool CheckFiner  () const {return position == -1;}
+    bool Exists      () const {return position >=  0;}
+    int  rank        () const {return position;}
+    void setrank(const int r) {position = r;}
+    void setCheckCoarser()    {position = -2;}
+    void setCheckFiner  ()    {position = -1;}
+};
+
 template <typename Block, template <typename X> class allocator = std::allocator>
 class Grid
 {
  protected:
    std::vector<std::vector<BlockInfo*>> BlockInfoAll;
    std::vector<std::vector<bool>> ready;
+   std::vector<std::vector<TreePosition>> Octree;
    std::vector<BlockInfo> m_vInfo; // meta-data for blocks that belong to this rank
    std::vector<Block *> m_blocks;  // pointers to blocks that belong to this rank
 
@@ -34,14 +42,17 @@ class Grid
    const int levelStart;   // Initial refinement level
 
  public:
-   int N; // Current number of blocks
    typedef Block BlockType;
    typedef typename Block::RealType Real; // Block MUST provide `RealType`.
 
-   const bool xperiodic;
-   const bool yperiodic;
-   const bool zperiodic;
+   const bool xperiodic; // grid periodicity in x-direction
+   const bool yperiodic; // grid periodicity in y-direction
+   const bool zperiodic; // grid periodicity in z-direction
 
+   TreePosition & Tree(int m, int n) {return Octree[m][n];}
+   TreePosition & Tree(BlockInfo & info) {return Octree[info.level][info.Z];}
+   TreePosition & Tree(const BlockInfo & info) {return Octree[info.level][info.Z];}
+   
    bool UpdateFluxCorrection{true};
 
    void _alloc() // called in class constructor
@@ -50,8 +61,18 @@ class Grid
       int TwoPower = 1 << m;      
       for (int n = 0; n < NX * NY * NZ * pow(TwoPower, DIMENSION); n++)
       {
-         getBlockInfoAll(m,n).TreePos = Exists;
+         Tree(m,n).setrank(0);
          _alloc(m, n);
+      }
+      if (m - 1 >= 0)
+      {
+        for (int n = 0; n < NX * NY * NZ * pow( (1<<(m-1)), DIMENSION); n++)
+          Tree(m,n).setCheckFiner();
+      }
+      if (m + 1 < levelMax)
+      {
+        for (int n = 0; n < NX * NY * NZ * pow( (1<<(m+1)), DIMENSION); n++)
+          Tree(m,n).setCheckCoarser();
       }
       FillPos();
    }
@@ -64,7 +85,6 @@ class Grid
       getBlockInfoAll(m,n).h_gridpoint = getBlockInfoAll(m,n).h;
       m_blocks.push_back((Block *)getBlockInfoAll(m,n).ptrBlock);
       m_vInfo.push_back(*BlockInfoAll[m][n]);
-      N++;
    }
 
    void _deallocAll() // called in class destructor
@@ -88,10 +108,11 @@ class Grid
 
    void _dealloc(int m, int n) // called whenever the grid is compressed
    {
-      N--;
       allocator<Block> alloc;
       alloc.deallocate((Block *)getBlockInfoAll(m,n).ptrBlock, 1);
-      getBlockInfoAll(m,n).myrank = -1;
+      //getBlockInfoAll(m,n).myrank = -1;
+      //Tree(m,n) = -2;
+      Tree(m,n).setCheckCoarser();
       for (size_t j = 0; j < m_vInfo.size(); j++)
       {
          if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
@@ -128,7 +149,7 @@ class Grid
             m_vInfo[j] = getBlockInfoAll(m,n);
 
             assert(getBlockInfoAll(m,n).state == m_vInfo[j].state);
-            assert(getBlockInfoAll(m,n).TreePos == Exists);
+            //assert(getBlockInfoAll(m,n).TreePos == Exists);
 
             m_blocks[j] = (Block *)getBlockInfoAll(m,n).ptrBlock;
          }
@@ -138,7 +159,7 @@ class Grid
             int m            = m_vInfo[j].level;
             int n            = m_vInfo[j].Z;
             m_vInfo[j].state = getBlockInfoAll(m,n).state;
-            assert(getBlockInfoAll(m,n).TreePos == Exists);
+            //assert(getBlockInfoAll(m,n).TreePos == Exists);
             m_blocks[j] = (Block *)getBlockInfoAll(m,n).ptrBlock;
          }
       for (size_t j = 0; j < m_vInfo.size(); j++)
@@ -169,8 +190,8 @@ class Grid
       int nz     = 1;
      #endif      
       int lvlMax = dummy.levelMax(levelMax);
-      N = 0;
       BlockInfoAll.resize(lvlMax);
+      Octree.resize(lvlMax);
       ready.resize(lvlMax);
       for (int m = 0; m < lvlMax; m++)
       {
@@ -178,6 +199,8 @@ class Grid
         const unsigned int Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
         BlockInfoAll[m].resize(Ntot,nullptr);
         ready[m].resize(Ntot,false);
+        //Octree[m].resize(Ntot,-3);
+        Octree[m].resize(Ntot);
       }
       if (AllocateBlocks) _alloc();
    }
@@ -241,7 +264,7 @@ class Grid
    inline int getlevelMax() const { return levelMax; }
 
    
-   virtual BlockInfo &getBlockInfoAll(int m, int n)
+   BlockInfo &getBlockInfoAll(int m, int n)
    {
         if (ready[m][n])
         {
@@ -254,7 +277,6 @@ class Grid
                 if (ready[m][n]==false)        
                 {
                     BlockInfoAll[m][n] = new BlockInfo();                            
-                    int blockrank = 0;
                     int TwoPower = 1 << m;
                     double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
                     double h = h0 / TwoPower;
@@ -269,11 +291,7 @@ class Grid
                     origin[0]  = i * Block::sizeX * h;
                     origin[1]  = j * Block::sizeY * h;
                     origin[2]  = k * Block::sizeZ * h;
-                    TreePosition TreePos;
-                    if      (m == levelStart) TreePos = Exists;
-                    else if (m <  levelStart) TreePos = CheckFiner;
-                    else                      TreePos = CheckCoarser;
-                    BlockInfoAll[m][n]->setup(m, h, origin, n, blockrank, TreePos);
+                    BlockInfoAll[m][n]->setup(m, h, origin, n);
                     ready[m][n] = true;
                 }
             }
@@ -281,13 +299,13 @@ class Grid
         }
    }
 
-   virtual std::vector<std::vector<BlockInfo*>> &getBlockInfoAll() { return BlockInfoAll; }
+   std::vector<std::vector<BlockInfo*>> &getBlockInfoAll() { return BlockInfoAll; }
 
    inline        std::vector<Block *> &GetBlocks()       { return m_blocks; }
    inline const  std::vector<Block *> &GetBlocks() const { return m_blocks; }
 
-   virtual       std::vector<BlockInfo> &getBlocksInfo()       { return m_vInfo; }
-   virtual const std::vector<BlockInfo> &getBlocksInfo() const { return m_vInfo; }
+         std::vector<BlockInfo> &getBlocksInfo()       { return m_vInfo; }
+   const std::vector<BlockInfo> &getBlocksInfo() const { return m_vInfo; }
 
    template <typename T>
    void apply_permutation_in_place(std::vector<T>& vec, std::vector<std::size_t>& p)

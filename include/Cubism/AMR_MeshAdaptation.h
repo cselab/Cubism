@@ -52,9 +52,9 @@ class MeshAdaptation_basic
             BlockInfo &info = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
 
             BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            if      (infoOther.TreePos == Exists      ) ary0.state = Leave;
-            else if (infoOther.TreePos == CheckFiner  ) ary0.state = Refine;
-            else if (infoOther.TreePos == CheckCoarser) ary0.state = Compress;
+            if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
+            else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
+            else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
 
             info.state      = ary0.state;
          }
@@ -174,7 +174,7 @@ class MeshAdaptation_basic
       }
 
       BlockInfo &parent = m_refGrid->getBlockInfoAll(level, Z);
-      parent.TreePos    = CheckFiner;
+      m_refGrid->Tree(parent).setCheckFiner();
       parent.state = Leave;
 
       int p[3] = {parent.index[0], parent.index[1], parent.index[2]};
@@ -185,7 +185,7 @@ class MeshAdaptation_basic
             {
                int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
                BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
-               Child.TreePos    = Exists;
+               m_refGrid->Tree(Child).setrank(m_refGrid->rank());
             }
      #endif
      #if DIMENSION == 2
@@ -194,7 +194,7 @@ class MeshAdaptation_basic
          {
             int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
             BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
-            Child.TreePos    = Exists;
+            m_refGrid->Tree(Child).setrank(m_refGrid->rank());
          }
      #endif
    }
@@ -205,15 +205,13 @@ class MeshAdaptation_basic
 
       BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
 
-      assert(info.TreePos == Exists);
       assert(info.state == Compress);
 
      #if DIMENSION == 3
       int np             = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
       BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
-      parent.myrank      = m_refGrid->rank();
       parent.ptrBlock    = info.ptrBlock;
-      parent.TreePos     = Exists;
+      m_refGrid->Tree(parent).setrank(m_refGrid->rank());
       parent.h_gridpoint = parent.h;
       parent.state       = Leave;
 
@@ -232,8 +230,8 @@ class MeshAdaptation_basic
           {
              m_refGrid->_dealloc(level, n);
           }
-          m_refGrid->getBlockInfoAll(level, n).TreePos = CheckCoarser;
           m_refGrid->getBlockInfoAll(level, n).state   = Leave;
+          m_refGrid->Tree(level,n).setCheckCoarser();
         }
       }
      #endif
@@ -241,9 +239,8 @@ class MeshAdaptation_basic
 
       int np             = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2);
       BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
-      parent.myrank      = m_refGrid->rank();
       parent.ptrBlock    = info.ptrBlock;
-      parent.TreePos     = Exists;
+      m_refGrid->Tree(parent).setrank(m_refGrid->rank());
       parent.h_gridpoint = parent.h;
       parent.state       = Leave;
 
@@ -261,8 +258,8 @@ class MeshAdaptation_basic
           {
              m_refGrid->_dealloc(level, n);
           }
-          m_refGrid->getBlockInfoAll(level, n).TreePos = CheckCoarser;
           m_refGrid->getBlockInfoAll(level, n).state   = Leave;
+          m_refGrid->Tree(level,n).setCheckCoarser();
         }
       }
      #endif
@@ -308,7 +305,6 @@ class MeshAdaptation_basic
             BlockInfo &info = I[j];
             if (info.level == m && info.state != Refine && info.level != levelMax - 1)
             {
-               assert(info.TreePos == Exists);
                int TwoPower = 1 << info.level;
                const bool xskin =
                    info.index[0] == 0 || info.index[0] == blocksPerDim[0] * TwoPower - 1;
@@ -330,7 +326,7 @@ class MeshAdaptation_basic
 
                   BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-                  if (infoNei.TreePos == CheckFiner)
+                  if (m_refGrid->Tree(infoNei).CheckFiner())
                   {
                      if (info.state == Compress)
                      {
@@ -401,7 +397,7 @@ class MeshAdaptation_basic
 
                   BlockInfo &infoNei =
                       m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-                  if (infoNei.TreePos == Exists && infoNei.state == Refine)
+                  if (m_refGrid->Tree(infoNei).Exists() && infoNei.state == Refine)
                   {
                      info.state                                             = Leave;
                      (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
@@ -429,7 +425,7 @@ class MeshAdaptation_basic
                   int n              = m_refGrid->getZforward(m, i, j);
                     #endif
                   BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
-                  if (infoNei.TreePos != Exists || infoNei.state != Compress)
+                  if (m_refGrid->Tree(infoNei).Exists()== false || infoNei.state != Compress)
                   {
                      found = true;
                      if (info.state == Compress)
@@ -452,7 +448,7 @@ class MeshAdaptation_basic
                   int n              = m_refGrid->getZforward(m, i, j);
                  #endif
                   BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
-                  if (infoNei.TreePos == Exists && infoNei.state == Compress)
+                  if (m_refGrid->Tree(infoNei).Exists() && infoNei.state == Compress)
                   {
                      infoNei.state = Leave;
                   }
@@ -702,9 +698,9 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             BlockInfo &info = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
 
             BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            if      (infoOther.TreePos == Exists      ) ary0.state = Leave;
-            else if (infoOther.TreePos == CheckFiner  ) ary0.state = Refine;
-            else if (infoOther.TreePos == CheckCoarser) ary0.state = Compress;
+            if      (m_refGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
+            else if (m_refGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
+            else if (m_refGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
 
             info.state      = ary0.state;
          }
@@ -839,7 +835,6 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
 
         BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
 
-        assert(info.TreePos == Exists);
         assert(info.state == Compress);
 
        #if DIMENSION == 3
@@ -878,9 +873,8 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
 
         int np             = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
         BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
-        parent.myrank      = m_refGrid->rank();
+        m_refGrid->Tree(parent.level,parent.Z).setrank(m_refGrid->rank());
         parent.ptrBlock    = info.ptrBlock;
-        parent.TreePos     = Exists;
         parent.h_gridpoint = parent.h;
         parent.state       = Leave;
 
@@ -899,7 +893,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
                 {
                    m_refGrid->_dealloc(level, n);
                 }
-                m_refGrid->getBlockInfoAll(level, n).TreePos = CheckCoarser;
+                m_refGrid->Tree(level,n).setCheckCoarser();
                 m_refGrid->getBlockInfoAll(level, n).state   = Leave;
             }
         }
@@ -932,9 +926,8 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
         }
         int np             = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2);
         BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
-        parent.myrank      = m_refGrid->rank();
+        m_refGrid->Tree(parent.level,parent.Z).setrank(m_refGrid->rank());
         parent.ptrBlock    = info.ptrBlock;
-        parent.TreePos     = Exists;
         parent.h_gridpoint = parent.h;
         parent.state       = Leave;
 
@@ -952,7 +945,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
                 {
                    m_refGrid->_dealloc(level, n);
                 }
-                m_refGrid->getBlockInfoAll(level, n).TreePos = CheckCoarser;
+                m_refGrid->Tree(level,n).setCheckCoarser();
                 m_refGrid->getBlockInfoAll(level, n).state   = Leave;
             }
         }

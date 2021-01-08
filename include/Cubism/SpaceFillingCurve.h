@@ -13,14 +13,14 @@ namespace cubism // AMR_CUBISM
 
 class SpaceFillingCurve
 {
- protected:
+  protected:
    int BX, BY, BZ;
    bool isRegular;
    int base_level;
-   std::vector<std::vector<int>> Zsave;
-   std::vector<std::vector<int>> i_inverse;
-   std::vector<std::vector<int>> j_inverse;
-   std::vector<std::vector<int>> k_inverse;
+   std::vector < std::vector <int> > Zsave;
+   std::vector< std::vector<int> > i_inverse;
+   std::vector< std::vector<int> > j_inverse;
+   std::vector< std::vector<int> > k_inverse;
 
    int AxestoTranspose(const int *X_in, int b) const // position, #bits, dimension
    {
@@ -32,8 +32,8 @@ class SpaceFillingCurve
          return 0;
       }
 
-      const int n = 3;
-      int X[3]    = {X_in[0], X_in[1], X_in[2]};
+      const int n       = 3;
+      int X[3] = {X_in[0], X_in[1], X_in[2]};
 
       assert(b - 1 >= 0);
 
@@ -65,7 +65,8 @@ class SpaceFillingCurve
       int a      = 0;
       for (int level = 0; level < b; level++)
       {
-         retval += ((1 << (a)) * (X[2] >> level & 1)) + ((1 << (a + 1)) * (X[1] >> level & 1)) + ((1 << (a + 2)) * (X[0] >> level & 1));
+         retval += ((1 << (a)) * (X[2] >> level & 1)) + ((1 << (a + 1)) * (X[1] >> level & 1)) +
+                   ((1 << (a + 2)) * (X[0] >> level & 1));
          a += 3;
       }
 
@@ -120,10 +121,11 @@ class SpaceFillingCurve
       } // exchange
    }
 
- public:
+  public:
    int levelMax;
 
    SpaceFillingCurve(){};
+
 
    SpaceFillingCurve(int a_BX, int a_BY, int a_BZ, int lmax) : BX(a_BX), BY(a_BY), BZ(a_BZ), levelMax(lmax)
    {
@@ -137,37 +139,37 @@ class SpaceFillingCurve
       j_inverse.resize(lmax);
       k_inverse.resize(lmax);
       Zsave.resize(lmax);
-      for (int l = 0; l < lmax; l++)
+      for (int l = 0 ; l < lmax ; l++)
       {
-         int aux = pow(pow(2, l), 3);
-         i_inverse[l].resize(BX * BY * BZ * aux, -1);
-         j_inverse[l].resize(BX * BY * BZ * aux, -1);
-         k_inverse[l].resize(BX * BY * BZ * aux, -1);
-         Zsave[l].resize(BX * BY * BZ * aux, -1);
+        int aux = pow( pow(2,l) , 3);
+        i_inverse[l].resize(BX*BY*BZ*aux,-1);
+        j_inverse[l].resize(BX*BY*BZ*aux,-1);
+        k_inverse[l].resize(BX*BY*BZ*aux,-1);
+        Zsave[l].resize(BX*BY*BZ*aux,-1);
       }
 
       isRegular = true;
-#pragma omp parallel for collapse(3)
-      for (int k = 0; k < BZ; k++)
-         for (int j = 0; j < BY; j++)
-            for (int i = 0; i < BX; i++)
-            {
-               const int c[3] = {i, j, k};
-               int index      = AxestoTranspose(c, base_level);
-               int substract  = 0;
-               for (int h = 0; h < index; h++)
-               {
-                  int X[3] = {0, 0, 0};
-                  TransposetoAxes(h, X, base_level);
-                  if (X[0] >= BX || X[1] >= BY || X[2] >= BZ) substract++;
-               }
-               index -= substract;
-               if (substract > 0) isRegular = false;
-               i_inverse[0][index]                = i;
-               j_inverse[0][index]                = j;
-               k_inverse[0][index]                = k;
-               Zsave[0][k * BX * BY + j * BX + i] = index;
-            }
+      #pragma omp parallel for collapse(3)
+      for (int k=0;k<BZ;k++)
+      for (int j=0;j<BY;j++)
+      for (int i=0;i<BX;i++)
+      {
+        const int c[3] = {i,j,k};       
+        int index = AxestoTranspose( c, base_level);
+        int substract = 0;
+        for (int h=0; h<index; h++)
+        {
+          int X[3] = {0,0,0};
+          TransposetoAxes(h, X, base_level);
+          if (X[0] >= BX || X[1] >= BY || X[2] >= BZ) substract++;
+        }
+        index -= substract;
+        if (substract > 0) isRegular = false;
+        i_inverse[0][index] = i;
+        j_inverse[0][index] = j;
+        k_inverse[0][index] = k;
+        Zsave[0][k*BX*BY + j*BX + i] = index;
+      }
       std::cout << "Hilbert curve ready. isRegular=" << isRegular << std::endl;
    }
 
@@ -176,29 +178,29 @@ class SpaceFillingCurve
    {
       const int aux = 1 << l;
 
-      if (l >= levelMax) return 0; //-1;
-      if (Zsave[l][k * aux * aux * BX * BY + j * aux * BX + i] != -1) return Zsave[l][k * aux * aux * BX * BY + j * aux * BX + i];
+      if (l >= levelMax) return 0 ;//-1;
+      if (Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ] != -1) return Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ];
 
       int retval;
       if (!isRegular)
       {
-         const int I = i / aux;
-         const int J = j / aux;
-         const int K = k / aux;
-         assert(!(I >= BX || J >= BY || K >= BZ));
-         const int c2_a[3] = {i - I * aux, j - J * aux, k - K * aux};
-         retval            = AxestoTranspose(c2_a, l);
-         retval += IJK_to_index(I, J, K) * aux * aux * aux;
+        const int I   = i / aux;
+        const int J   = j / aux;
+        const int K   = k / aux;
+        assert(! (I >= BX || J >= BY || K >= BZ) );
+        const int c2_a[3] = {i-I*aux,j-J*aux,k-K*aux};
+        retval = AxestoTranspose(c2_a, l);
+        retval += IJK_to_index(I,J,K)*aux*aux*aux;
       }
       else
       {
-         const int c2_a[3] = {i, j, k};
-         retval            = AxestoTranspose(c2_a, l + base_level);
+        const int c2_a[3] = {i,j,k};
+        retval = AxestoTranspose(c2_a, l + base_level);
       }
-      i_inverse[l][retval]                                 = i;
-      j_inverse[l][retval]                                 = j;
-      k_inverse[l][retval]                                 = k;
-      Zsave[l][k * aux * aux * BX * BY + j * aux * BX + i] = retval;
+      i_inverse[l][retval] = i;
+      j_inverse[l][retval] = j;
+      k_inverse[l][retval] = k;
+      Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ] = retval;
       return retval;
    }
 
@@ -206,57 +208,57 @@ class SpaceFillingCurve
    {
       if (i_inverse[l][Z] != -1)
       {
-         assert(j_inverse[l][Z] != -1 && k_inverse[l][Z] != -1);
-         i = i_inverse[l][Z];
-         j = j_inverse[l][Z];
-         k = k_inverse[l][Z];
-         return;
+        assert(j_inverse[l][Z] != -1 && k_inverse[l][Z] != -1);
+        i = i_inverse[l][Z];
+        j = j_inverse[l][Z];
+        k = k_inverse[l][Z];
+        return;
       }
       if (isRegular)
       {
-         int aux  = 1 << l;
-         int X[3] = {0, 0, 0};
-         TransposetoAxes(Z, X, l + base_level);
-         i                                                    = X[0];
-         j                                                    = X[1];
-         k                                                    = X[2];
-         i_inverse[l][Z]                                      = i;
-         j_inverse[l][Z]                                      = j;
-         k_inverse[l][Z]                                      = k;
-         Zsave[l][k * aux * aux * BX * BY + j * aux * BX + i] = Z;
+        int aux   = 1 << l;
+        int X[3] = {0, 0, 0};
+        TransposetoAxes(Z, X, l + base_level);
+        i = X[0];
+        j = X[1];
+        k = X[2];
+        i_inverse[l][Z] = i;
+        j_inverse[l][Z] = j;
+        k_inverse[l][Z] = k;
+        Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ] = Z;
       }
       else
       {
-         int aux  = 1 << l;
-         int Zloc = Z % (aux * aux * aux);
-         int X[3] = {0, 0, 0};
-         TransposetoAxes(Zloc, X, l);
-         int index = Z / (aux * aux * aux);
-         int I, J, K;
-         index_to_IJK(index, I, J, K);
-         i                                                    = X[0] + I * aux;
-         j                                                    = X[1] + J * aux;
-         k                                                    = X[2] + K * aux;
-         i_inverse[l][Z]                                      = i;
-         j_inverse[l][Z]                                      = j;
-         k_inverse[l][Z]                                      = k;
-         Zsave[l][k * aux * aux * BX * BY + j * aux * BX + i] = Z;
+        int aux   = 1 << l;
+        int Zloc  = Z % (aux*aux*aux);
+        int X[3] = {0, 0, 0};
+        TransposetoAxes(Zloc, X, l);
+        int index = Z / (aux*aux*aux);
+        int I,J,K;
+        index_to_IJK(index,I,J,K);
+        i = X[0] + I*aux;
+        j = X[1] + J*aux;
+        k = X[2] + K*aux;
+        i_inverse[l][Z] = i;
+        j_inverse[l][Z] = j;
+        k_inverse[l][Z] = k;
+        Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ] = Z;
       }
       return;
    }
 
    int IJK_to_index(int I, int J, int K)
    {
-      // int index = (J + K * BY) * BX + I;
-      int index = Zsave[0][(J + K * BY) * BX + I];
-      return index;
+     //int index = (J + K * BY) * BX + I;
+     int index = Zsave[0][(J + K * BY) * BX + I];
+     return index;
    }
 
-   void index_to_IJK(int index, int &I, int &J, int &K)
+   void index_to_IJK(int index, int & I, int & J, int & K)
    {
-      // K = index / (BX*BY);
-      // J = (index - K*(BX*BY) ) / BX;
-      // I = index - K*(BX*BY) - J*BX;
+      //K = index / (BX*BY);
+      //J = (index - K*(BX*BY) ) / BX;
+      //I = index - K*(BX*BY) - J*BX;
       I = i_inverse[0][index];
       J = j_inverse[0][index];
       K = k_inverse[0][index];
@@ -305,7 +307,7 @@ class SpaceFillingCurve
       }
 
       retval += level;
-
+  
       return retval;
    }
 };

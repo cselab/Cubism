@@ -61,7 +61,7 @@ class GrowingVector
       s   = 0;
    }
 
-   ~GrowingVector() { v.clear(); }
+   ~GrowingVector(){v.clear();}
 };
 
 } // namespace cubism

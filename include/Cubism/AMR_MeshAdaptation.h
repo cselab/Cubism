@@ -817,6 +817,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
                #pragma omp critical
                {
                   m_refGrid->_alloc(level + 1, nc);
+                  m_refGrid->Tree(level + 1, nc).setCheckCoarser();
                }
                Blocks[k * 4 + j * 2 + i] = (BlockType *)Child.ptrBlock;
             }

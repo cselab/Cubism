@@ -370,6 +370,10 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
         parent.h_gridpoint = parent.h;
         parent.state       = Leave;
 
+      if (level-2>=0){
+        AMR::m_refGrid->Tree(level-2,parent.Zparent).setCheckFiner();
+        AMR::m_refGrid->getBlockInfoAll(level-2,parent.Zparent).TreePos = CheckFiner;
+      }
         #pragma omp critical
         {
             for (int K = 0; K < 2; K++)

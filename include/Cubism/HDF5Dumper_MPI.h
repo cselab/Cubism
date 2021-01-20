@@ -87,421 +87,152 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     std::vector<BlockGroup> & MyGroups = grid.MyGroups;
     grid.UpdateMyGroups();
 
-#ifdef USE_VTK //VTK AMR-dataset
-
-    const int numberOfLevels = grid.getlevelMax();
-
-    std::vector<int> blocksPerLevel (numberOfLevels);
-    std::vector<int> blocksPerLevel1(numberOfLevels);
-    for (size_t m = 0; m < MyGroups.size(); m++)
-        blocksPerLevel[MyGroups[m].level] ++;
-    for (int l = numberOfLevels-1 ; l >=0 ; l--)
-    {
-      blocksPerLevel1[l] += blocksPerLevel[l];
-      if (l>0) blocksPerLevel1[l-1] += blocksPerLevel1[l];
-    }
-
-    std::vector<int> TotalblocksPerLevel (numberOfLevels);
-    std::vector<int> TotalblocksPerLevel1(numberOfLevels);
-    MPI_Allreduce(blocksPerLevel.data(), TotalblocksPerLevel.data(), numberOfLevels, MPI_INT, MPI_SUM,comm);
-    MPI_Allreduce(blocksPerLevel1.data(), TotalblocksPerLevel1.data(), numberOfLevels, MPI_INT, MPI_SUM,comm);
-
-    std::vector<int> BaseblocksPerLevel(numberOfLevels);  
-    std::vector<int> BaseblocksPerLevel1(numberOfLevels);  
-    MPI_Exscan(blocksPerLevel.data(), BaseblocksPerLevel.data(), numberOfLevels, MPI_INT,  MPI_SUM , comm);
-    MPI_Exscan(blocksPerLevel1.data(), BaseblocksPerLevel1.data(), numberOfLevels, MPI_INT,  MPI_SUM , comm);
-
-    std::vector<int> CountblocksPerLevel(numberOfLevels,0);  
-
-    vtkNonOverlappingAMR* amrGrid = vtkNonOverlappingAMR::New();
-    amrGrid->Initialize(numberOfLevels, TotalblocksPerLevel.data());
-
     const int nGhosts = 2;
     const StencilInfoWrapper p(nGhosts > 0 ? nGhosts : 1);
     cubism::SynchronizerMPI_AMR<Real,TGrid>& Synch = *grid.sync(p);
     LabMPI lab;
     lab.prepare(grid, Synch);
-    std::vector<cubism::BlockInfo*> avail0 = Synch.avail_inner();
-    std::vector<cubism::BlockInfo*> avail1 = Synch.avail_halo();
 
-    const double globalOrigin [3] ={0,0,0};
-    for (unsigned int m = 0; m < MyGroups.size(); m++)
+    int mycells = 0;
+    for (size_t groupID = 0 ; groupID < MyGroups.size() ; groupID ++)
     {
-        BlockGroup & info = MyGroups[m];
-        
-        const double spacing[3] ={info.h,info.h,info.h};
-        double spacing1[3]      ={info.h,info.h,info.h};
-        const int dimensions[3] ={info.NXX+2*nGhosts,info.NYY+2*nGhosts,info.NZZ+2*nGhosts};
-        
-        double origin [3] = {info.origin[0]-nGhosts*info.h,
-                             info.origin[1]-nGhosts*info.h,
-                             info.origin[2]-nGhosts*info.h}; 
-
-        const vtkAMRBox myBox(origin,dimensions,spacing,globalOrigin);
-
-        vtkUniformGrid* g = vtkUniformGrid::New();
-        if (nGhosts == 0)
-           g->Initialize(&myBox,origin,spacing1);
-        else
-           g->Initialize(&myBox,origin,spacing1,nGhosts);
-
-        vtkSmartPointer<vtkFloatArray> xyz = vtkSmartPointer<vtkFloatArray>::New();
-        xyz->SetName("data");
-        //xyz->SetNumberOfComponents(NCHANNELS);
-        xyz->SetNumberOfComponents(1);
-        xyz->SetNumberOfTuples(g->GetNumberOfCells());
-
-        const unsigned int nX_max = info.NXX-1;
-        const unsigned int nY_max = info.NYY-1;
-        for (int kB = info.i_min[2]; kB <= info.i_max[2]; kB++)
-        for (int jB = info.i_min[1]; jB <= info.i_max[1]; jB++)
-        for (int iB = info.i_min[0]; iB <= info.i_max[0]; iB++)
-        {
-            int Z = BlockInfo::forward(info.level,iB,jB,kB);
-            const cubism::BlockInfo& I = grid.getBlockInfoAll(info.level,Z);
-            lab.load(I, 0);
-            for (int iz = 0 - nGhosts; iz < nZ + nGhosts; iz++)
-            for (int iy = 0 - nGhosts; iy < nY + nGhosts; iy++)
-            for (int ix = 0 - nGhosts; ix < nX + nGhosts; ix++)
-            {
-                float output[NCHANNELS];
-                TStreamer::operate(lab,ix,iy,iz,output);
-                const int base = ( ((kB-info.i_min[2])*nZ + iz)*((nX_max+2*nGhosts)*(nY_max+2*nGhosts)) + 
-                                   ((jB-info.i_min[1])*nY + iy)*((nX_max+2*nGhosts)) + 
-                                   ((iB-info.i_min[0])*nX + ix) )
-                                   +nGhosts*(nX_max+2*nGhosts)*(nY_max+2*nGhosts)
-                                   +nGhosts*(nX_max+2*nGhosts)
-                                   +nGhosts*1;
-                if (NCHANNELS > 1)
-                    output[0] = sqrt(output[0]*output[0]+output[1]*output[1]+output[2]*output[2]);
-                xyz->SetTuple(base, output);
-            }
-        }
-        g->GetCellData()->AddArray(xyz);
-        amrGrid->SetDataSet(info.level, BaseblocksPerLevel[info.level] + CountblocksPerLevel[info.level], g);
-        CountblocksPerLevel[info.level]++;
-        g->Delete();
+        const BlockGroup & group = MyGroups[groupID];
+        const int nXX = group.NXX;
+        const int nYY = group.NYY;
+        const int nZZ = group.NZZ;
+        int dd = (nZZ - 1 + 2*nGhosts )*(nYY - 1 + 2*nGhosts)*(nXX - 1 + 2*nGhosts);//*NCHANNELS;
+        mycells += dd;
     }
+    hsize_t base_tmp[1] = {0};
+    MPI_Exscan(&mycells, &base_tmp[0], 1, MPI_INT,  MPI_SUM , comm);
 
-    //Write data
-    std::string FNAME = (fullpath.str() + ".vthb").c_str();
-    auto writer = vtkSmartPointer<vtkXMLPUniformGridAMRWriter>::New();
-    writer->SetFileName(FNAME.c_str());
-    writer->SetInputData(amrGrid);
-    //writer->SetWriteMetaFile(false);
-    writer->Write();
-
-    //Overlapping AMR 
+    int start = 0;
+    // Write grid meta-data
     {
-        std::vector<int> CountblocksPerLevel1(numberOfLevels,0);
-        std::vector<int> CountblocksPerLevel_new(numberOfLevels,0);
+        std::ostringstream myfilename;
+        myfilename << filename.str();
+        //myfilename <<  std::setfill('0') << std::setw(10) << rank;
         std::stringstream s;
         if (rank == 0)
         {
-            s << "<?xml version=\"1.0\"?>\n";
-            s << "<VTKFile type=\"vtkOverlappingAMR\" version=\"1.1\" byte_order=\"LittleEndian\" header_type=\"UInt32\" compressor=\"vtkZLibDataCompressor\">\n";
-            s << "  <vtkOverlappingAMR origin=\"0 0 0\" grid_description=\"XYZ\"> " << "\n";
+            s << "<?xml version=\"1.0\" ?>\n";
+            s << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
+            s << "<Xdmf Version=\"2.0\">\n";
+            s << "<Domain>\n";
+            s << " <Grid Name=\"OctTree\" GridType=\"Collection\">\n";
             s << "  <Time Value=\"" << std::scientific << absTime << "\"/>\n\n";
-        }
-        for (unsigned int m = 0; m < MyGroups.size(); m++)
-        {
-            BlockGroup & I = MyGroups[m];
-
-            //Add box from current level
-            int nID = BaseblocksPerLevel[I.level] + CountblocksPerLevel1[I.level];
-            int nID_new = BaseblocksPerLevel1[I.level] + CountblocksPerLevel_new[I.level];
-            CountblocksPerLevel1[I.level]++;
-            CountblocksPerLevel_new[I.level]++;
-            for (int l = 0 ; l < I.level ; l++)
-            {
-                nID += TotalblocksPerLevel[l];
-            }
-            int s0 = (I.origin[0] + 0.5*I.h)/I.h;
-            int s1 = (I.origin[1] + 0.5*I.h)/I.h;
-            int s2 = (I.origin[2] + 0.5*I.h)/I.h;
-            int e0 = s0 + I.NXX - 1 -1;
-            int e1 = s1 + I.NYY - 1 -1;
-            int e2 = s2 + I.NZZ - 1 -1;
-            s <<"     <Block level=\"" + std::to_string(I.level) +  "\" spacing=\"" << std::scientific << I.h << " " << I.h << " " << I.h << "\" > \n";
-            s <<"       <DataSet index=\""+ std::to_string(nID_new) + 
-                "\" amr_box=\"" << s0 << " " << e0 <<  " " << s1 << " " << e1 << " " << s2 << " " << e2 << "\" file=\"" + filename.str() + "/" +filename.str() + "_" + std::to_string(nID)+ ".vti\"/>\n";
-            s <<"     </Block>\n";
-
-            //Add boxes from lower levels
-            int aux = 1 << I.level;
-            for (int l = 0 ; l <= I.level - 1; l++)
-            {
-                nID_new = BaseblocksPerLevel1[l] + CountblocksPerLevel_new[l];
-                CountblocksPerLevel_new[l]++;
-                s0 = ( (I.origin[0] + 0.5*I.h)/I.h ) / aux;
-                s1 = ( (I.origin[1] + 0.5*I.h)/I.h ) / aux;
-                s2 = ( (I.origin[2] + 0.5*I.h)/I.h ) / aux;
-                e0 = s0 + (I.NXX-1)/aux - 1;
-                e1 = s1 + (I.NYY-1)/aux - 1;
-                e2 = s2 + (I.NZZ-1)/aux - 1;
-                s <<"     <Block level=\"" + std::to_string(l) +  "\" spacing=\"" << std::scientific << I.h*aux << " " << I.h*aux << " " << I.h*aux << "\" > \n";
-                s <<"       <DataSet index=\""+ std::to_string(nID_new) + "\" amr_box=\"" << s0 << " " << e0 <<  " " << s1 << " " << e1 << " " << s2 << " " << e2 << "\" />\n";
-                s <<"     </Block>\n";
-                aux /=2;
-            }
-        }
-        if (rank == size - 1)
-        {
-           s << "   </vtkOverlappingAMR>\n";
-           s << " </VTKFile>\n";
-        }
-        std::string st    = s.str();
-        MPI_Offset offset = 0;
-        MPI_Offset len    = st.size() * sizeof(char);
-        MPI_File xmf;
-        MPI_File_delete((fullpath.str() + "_over.vthb").c_str(), MPI_INFO_NULL);// delete the xmf file is it exists; no worries if it doesn't
-        MPI_File_open(comm, (fullpath.str() + "_over.vthb").c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE,MPI_INFO_NULL, &xmf);
-        MPI_Exscan(&len, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
-        MPI_File_write_at_all(xmf, offset, st.data(), st.size(), MPI_CHAR, MPI_STATUS_IGNORE);
-        MPI_File_close(&xmf);
-    }
-    //Non-overlapping AMR
-    {
-        std::vector<int> CountblocksPerLevel2(numberOfLevels,0);
-        std::stringstream s;
-        if (rank == 0)
-        {
-            s << "<?xml version=\"1.0\"?>\n";
-            s << "<VTKFile type=\"vtkNonOverlappingAMR\" version=\"1.1\" byte_order=\"LittleEndian\" header_type=\"UInt32\" compressor=\"vtkZLibDataCompressor\">\n";
-            s << "  <vtkNonOverlappingAMR>\n";
-            s << "  <Time Value=\"" << std::scientific << absTime << "\"/>\n\n";
-        }
-        for (unsigned int m = 0; m < MyGroups.size(); m++)
-        {
-            BlockGroup & I = MyGroups[m];
-            int nID = BaseblocksPerLevel[I.level] + CountblocksPerLevel2[I.level];
-            CountblocksPerLevel2[I.level]++;
-            for (int l = 0 ; l < I.level ; l++)
-            {
-                nID += TotalblocksPerLevel[l];
-            }
-            s <<"     <Block level=\"" + std::to_string(I.level) + "\"> \n";
-            s <<"       <DataSet index=\""+ std::to_string(nID) + "\" file=\"" + filename.str() + "/" +filename.str() + "_" + std::to_string(nID)+ ".vti\"/>\n";
-            s <<"     </Block>\n";
-        }
-        if (rank == size - 1)
-        {
-           s << "   </vtkNonOverlappingAMR>\n";
-           s << " </VTKFile>\n";
-        }
-        std::string st    = s.str();
-        MPI_Offset offset = 0;
-        MPI_Offset len    = st.size() * sizeof(char);
-        MPI_File xmf;
-        MPI_File_delete((fullpath.str() + ".vthb").c_str(), MPI_INFO_NULL);// delete the xmf file is it exists; no worries if it doesn't
-        MPI_File_open(comm, (fullpath.str() + ".vthb").c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE,MPI_INFO_NULL, &xmf);
-        MPI_Exscan(&len, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
-        MPI_File_write_at_all(xmf, offset, st.data(), st.size(), MPI_CHAR, MPI_STATUS_IGNORE);
-        MPI_File_close(&xmf);
-    }
-    //Save mesh
-    {
-        std::stringstream s;
-        if (rank == 0)
-        {
-           s << "<?xml version=\"1.0\" ?>\n";
-           s << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
-           s << "<Xdmf Version=\"2.0\">\n";
-           s << "<Domain>\n";
-           s << " <Grid Name=\"OctTree\" GridType=\"Collection\">\n";
-           //s << "  <Time Value=\"" << std::scientific << absTime << "\"/>\n\n";
-        }
-        for (unsigned int m = 0; m < MyGroups.size(); m++)
-        {
-           BlockGroup & I = MyGroups[m];
-           s << "  <Grid GridType=\"Uniform\">\n";
-           s << "   <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " << (I.NZZ-1)/nZ + 1 << " " << (I.NYY-1)/nY + 1 << " " << (I.NXX-1)/nX + 1<< "\"/>\n";
-           s << "   <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
-           s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
-           s << "    " << std::scientific << I.origin[2] << " " << I.origin[1] << " " << I.origin[0] << "\n";
-           s << "   </DataItem>\n";
-           s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
-           s << "    " << std::scientific << I.h*nZ << " " << I.h*nY << " " << I.h*nX << "\n";
-           s << "   </DataItem>\n";
-           s << "   </Geometry>\n";
-           s << "  </Grid>\n\n";
-        }
-        if (rank == size - 1)
-        {
-           s << " </Grid>\n";
-           s << "</Domain>\n";
-           s << "</Xdmf>\n";
-        }
-  
-        std::string st    = s.str();
-        MPI_Offset offset = 0;
-        MPI_Offset len    = st.size() * sizeof(char);
-  
-        MPI_File xmf;
-        // delete the xmf file is it exists; no worries if it doesn't
-        MPI_File_delete((fullpath.str() + "_grid.xmf").c_str(), MPI_INFO_NULL);
-        MPI_File_open(comm, (fullpath.str() + "_grid.xmf").c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &xmf);
-        MPI_Exscan(&len, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
-        MPI_File_write_at_all(xmf, offset, st.data(), st.size(), MPI_CHAR, MPI_STATUS_IGNORE);
-        MPI_File_close(&xmf);
-    }
-
-#else //HDF5
-
-    const int nGhosts = 2;
-    const StencilInfoWrapper p(nGhosts > 0 ? nGhosts : 1);
-    cubism::SynchronizerMPI_AMR<Real,TGrid>& Synch = *grid.sync(p);
-    LabMPI lab;
-    lab.prepare(grid, Synch);
-    std::vector<cubism::BlockInfo*> avail0 = Synch.avail_inner();
-    std::vector<cubism::BlockInfo*> avail1 = Synch.avail_halo();
-
-    // 2. Write grid meta-data
-    {
-        std::stringstream s;
-        if (rank == 0)
-        {
-          s << "<?xml version=\"1.0\" ?>\n";
-          s << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
-          s << "<Xdmf Version=\"2.0\">\n";
-          s << "<Domain>\n";
-          s << " <Grid Name=\"OctTree\" GridType=\"Collection\">\n";
-          s << "  <Time Value=\"" << std::scientific << absTime << "\"/>\n\n";
         }
         for (size_t groupID = 0 ; groupID < MyGroups.size() ; groupID ++)
         {
-          std::stringstream name;
-          name << "dset" << std::setfill('0') << std::setw(10) << rank;
-          name << "_"    << std::setfill('0') << std::setw(10) << groupID;
-          const BlockGroup & group = MyGroups[groupID];
-          const int nXX = group.NXX;
-          const int nYY = group.NYY;
-          const int nZZ = group.NZZ;
-          s << "  <Grid GridType=\"Uniform\">\n";
-          s << "   <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " << nZZ + 2*nGhosts << " " << nYY + 2*nGhosts << " " << nXX + 2*nGhosts << "\"/>\n";
-          s << "   <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
-          s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
-          /*ViSit*/
-          //s << "    " << std::scientific << group.origin[0] << " " << group.origin[1] << " " << group.origin[2] << "\n";
-          /*Paraview*/
-          s << "    " << std::scientific << group.origin[2] - nGhosts*group.h << " " << group.origin[1] - nGhosts*group.h << " " << group.origin[0] - nGhosts*group.h << "\n";
-          s << "   </DataItem>\n";
-          s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
-          s << "    " << std::scientific << group.h << " " << group.h << " " << group.h << "\n";
-          s << "   </DataItem>\n";
-          s << "   </Geometry>\n";
-
-          ////////////////////////////////////
-          s << "   <Attribute Name=\"data\" AttributeType=\"" << TStreamer::getAttributeName() << "\" Center=\"Cell\">\n";
-          s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << nZZ - 1 + 2*nGhosts<< " " << nYY - 1 + 2*nGhosts << " " << nXX - 1 + 2*nGhosts << " " << NCHANNELS <<  "\" Type=\"HyperSlab\"> \n";
-          s << "<DataItem Dimensions=\"3 4\" Format=\"XML\">\n";
-          s << 0       << " " << 0        << " " << 0       << " " <<  0         << "\n";
-          s << 1       << " " << 1        << " " << 1       << " " <<  1         << "\n";
-          s << nZZ -1 + 2*nGhosts << " " << nYY - 1 + 2*nGhosts << " " << nXX - 1 + 2*nGhosts<< " " <<  NCHANNELS << "\n";
-          s << "</DataItem>\n";
-          s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << nZZ - 1 + 2*nGhosts << " " << nYY - 1 + 2*nGhosts << " " << nXX - 1 + 2*nGhosts << " " << NCHANNELS << " " << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real) << "\" Format=\"HDF\">\n";
-          
-          s << "    " << (filename.str() + ".h5").c_str() << ":/" << name.str() << "\n";
-          s << "   </DataItem>\n";
-          s << "   </DataItem>\n";
-          s << "   </Attribute>\n";
-          //////////////////////////////////
-
-          ////////////////////////////////////
-          s << "   <Attribute Name=\"vtkGhostType\" AttributeType=\"" << "unsigned char" << "\" Center=\"Cell\">\n";
-          s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << nZZ - 1 + 2*nGhosts << " " << nYY - 1 + 2*nGhosts << " " << nXX - 1 + 2*nGhosts << " " << 1 <<  "\" Type=\"HyperSlab\"> \n";
-          s << "<DataItem Dimensions=\"3 4\" Format=\"XML\">\n";
-          s << 0       << " " << 0        << " " << 0       << " " <<  0         << "\n";
-          s << 1       << " " << 1        << " " << 1       << " " <<  1         << "\n";
-          s << nZZ -1 + 2*nGhosts << " " << nYY - 1 + 2*nGhosts << " " << nXX - 1 + 2*nGhosts << " " <<  1 << "\n";
-          s << "</DataItem>\n";
-          s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << nZZ - 1 + 2*nGhosts << " " << nYY - 1 + 2*nGhosts << " " << nXX - 1 + 2*nGhosts<< " " << 1 << " " << "\" NumberType=\"UChar\" Format=\"HDF\">\n";
-          
-          s << "    " << (filename.str() + "_a.h5").c_str() << ":/" << name.str() << "\n";
-          s << "   </DataItem>\n";
-          s << "   </DataItem>\n";
-          s << "   </Attribute>\n";
-          //////////////////////////////////
-
-          s << "  </Grid>\n\n";
-      }
-      if (rank == size - 1)
-      {
-        s << " </Grid>\n";
-        s << "</Domain>\n";
-        s << "</Xdmf>\n";
-      }
-      std::string st    = s.str();
-      MPI_Offset offset = 0;
-      MPI_Offset len    = st.size() * sizeof(char);
-      MPI_File xmf;
-      MPI_File_delete((fullpath.str() + ".xmf").c_str(), MPI_INFO_NULL); // delete the xmf file is it exists
-      MPI_File_open(comm, (fullpath.str() + ".xmf").c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &xmf);
-      MPI_Exscan(&len, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
-      MPI_File_write_at_all(xmf, offset, st.data(), st.size(), MPI_CHAR, MPI_STATUS_IGNORE);
-      MPI_File_close(&xmf);
+            const BlockGroup & group = MyGroups[groupID];
+            const int nXX = group.NXX;
+            const int nYY = group.NYY;
+            const int nZZ = group.NZZ;
+            s << "  <Grid GridType=\"Uniform\">\n";
+            s << "   <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " << nZZ + 2*nGhosts << " " << nYY + 2*nGhosts << " " << nXX + 2*nGhosts << "\"/>\n";
+            s << "   <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
+            s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
+            s << "    " << std::scientific << group.origin[2] - nGhosts*group.h << " " << group.origin[1] - nGhosts*group.h << " " << group.origin[0] - nGhosts*group.h << "\n";
+            s << "   </DataItem>\n";
+            s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
+            s << "    " << std::scientific << group.h << " " << group.h << " " << group.h << "\n";
+            s << "   </DataItem>\n";
+            s << "   </Geometry>\n";
+  
+            int dd = (nZZ - 1 + 2*nGhosts )*(nYY - 1 + 2*nGhosts)*(nXX - 1 + 2*nGhosts);//*NCHANNELS;
+            ////////////////////////////////////
+            s << "   <Attribute Name=\"data\" AttributeType=\"" << TStreamer::getAttributeName() << "\" Center=\"Cell\">\n";
+            s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << 1 << " " << 1 << " " << dd <<  "\" Type=\"HyperSlab\"> \n";
+            s << "<DataItem Dimensions=\"3 1\" Format=\"XML\">\n";
+            s << base_tmp[0] + start <<"\n";
+            s << 1     <<"\n";
+            s << dd    <<"\n";
+            s << "</DataItem>\n";
+            s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << dd << " " << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real) << "\" Format=\"HDF\">\n";
+            
+            s << "    " << (myfilename.str() + ".h5").c_str() << ":/" << "dset" << "\n";
+            s << "   </DataItem>\n";
+            s << "   </DataItem>\n";
+            s << "   </Attribute>\n";
+            //////////////////////////////////
+  
+            ////////////////////////////////////
+            s << "   <Attribute Name=\"vtkGhostType\" AttributeType=\"" << "unsigned char" << "\" Center=\"Cell\">\n";
+            s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << 1 << " " << 1 << " " << dd <<  "\" Type=\"HyperSlab\"> \n";
+            s << "<DataItem Dimensions=\"3 1\" Format=\"XML\">\n";
+            s << base_tmp[0] + start <<"\n";
+            s << 1     <<"\n";
+            s << dd    <<"\n";
+            s << "</DataItem>\n";
+            s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << dd << " " << "\" NumberType=\"UChar\"  Format=\"HDF\">\n";         
+            s << "    " << (myfilename.str() + ".h5").c_str() << ":/" << "dset_ghost" << "\n";
+            s << "   </DataItem>\n";
+            s << "   </DataItem>\n";
+            s << "   </Attribute>\n";
+            //////////////////////////////////
+            start += dd;
+  
+            s << "  </Grid>\n\n";
+        }
+        if (rank == size - 1)
+        {
+            s << " </Grid>\n";
+            s << "</Domain>\n";
+            s << "</Xdmf>\n";
+        }
+        std::string st    = s.str();
+        MPI_Offset offset = 0;
+        MPI_Offset len    = st.size() * sizeof(char);
+        MPI_File xmf;
+        MPI_File_delete((fullpath.str() + ".xmf").c_str(), MPI_INFO_NULL); // delete the xmf file is it exists
+        MPI_File_open(comm, (fullpath.str() + ".xmf").c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &xmf);
+        MPI_Exscan(&len, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
+        MPI_File_write_at_all(xmf, offset, st.data(), st.size(), MPI_CHAR, MPI_STATUS_IGNORE);
+        MPI_File_close(&xmf);
     }
+    
+    //fullpath <<  std::setfill('0') << std::setw(10) << rank; //mike
 
-    //3. Dump data
+    //Dump data
+    hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
+    hid_t dataset_id_ghost, fspace_id_ghost;
+    
     H5open();
-    hid_t file_id, dataset_id, fspace_id, plist_id;
-    hid_t file_id_a, dataset_id_a, fspace_id_a, plist_id_a;
 
-    // 3a.Set up file access property list with parallel I/O access
-    plist_id = H5Pcreate(H5P_FILE_ACCESS);
-    H5Pset_fapl_mpio(plist_id, comm, MPI_INFO_NULL);
-    plist_id_a = H5Pcreate(H5P_FILE_ACCESS);
-    H5Pset_fapl_mpio(plist_id_a, comm, MPI_INFO_NULL);
+    //1.Set up file access property list with parallel I/O access
+    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL);
 
-    // 3b.Create a new file collectively and release property list identifier.
-    file_id = H5Fcreate((fullpath.str() + ".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
-    H5Pclose(plist_id);
-    file_id_a = H5Fcreate((fullpath.str() + "_a.h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist_id_a);
-    H5Pclose(plist_id_a);
+    //2.Create a new file collectively and release property list identifier.
+    file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);        
+    H5Pclose(fapl_id);
 
-    // 3c.All ranks need to create datasets dset*
-    std::vector<unsigned int> & Groups_per_rank = grid.Groups_per_rank;
-    std::vector<unsigned int> & allN            = grid.allN           ;
+    //3.Create dataset
+    fapl_id = H5Pcreate(H5P_DATASET_XFER);
+    H5Pset_dxpl_mpio(fapl_id, H5FD_MPIO_COLLECTIVE);
+    int total;
+    MPI_Allreduce(&start, &total, 1, MPI_INT, MPI_SUM, comm);
+    hsize_t dims[1]  = {total};
+    fspace_id        = H5Screate_simple(1, dims, NULL);
+    fspace_id_ghost  = H5Screate_simple(1, dims, NULL);
+    dataset_id       = H5Dcreate (file_id, "dset"      , get_hdf5_type<hdf5Real>(), fspace_id      , H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id_ghost = H5Dcreate (file_id, "dset_ghost", H5T_NATIVE_UCHAR         , fspace_id_ghost, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
-    int Npos = 0;
-    for (int r = 0; r < size; r++)
-    for (size_t groupID = 0 ; groupID < Groups_per_rank[r] ; groupID ++)
-    {
-        //hsize_t cdims[4] = {8,8,8,1};
-        //hid_t plist_id1 = H5Pcreate(H5P_DATASET_CREATE);
-        //H5Pset_chunk(plist_id1, 4, cdims);        
-        hsize_t dims1[4] = {allN[Npos+2] - 1 + 2*nGhosts, allN[Npos+1] - 1+ 2*nGhosts, allN[Npos] - 1+ 2*nGhosts, NCHANNELS};
-        hsize_t dims2[4] = {allN[Npos+2] - 1 + 2*nGhosts, allN[Npos+1] - 1+ 2*nGhosts, allN[Npos] - 1+ 2*nGhosts, 1};
-        Npos += 3;
-        fspace_id        = H5Screate_simple(4, dims1, NULL);
-        std::stringstream name;
-        name << "dset" << std::setfill('0') << std::setw(10) << r;
-        name << "_"    << std::setfill('0') << std::setw(10) << groupID;
-        //dataset_id = H5Dcreate(file_id, (name.str()).c_str(), get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, plist_id1, H5P_DEFAULT);
-        dataset_id = H5Dcreate(file_id, (name.str()).c_str(), get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        H5Dclose(dataset_id);
-        H5Sclose(fspace_id);
-        //H5Pclose(plist_id1);
-
-        fspace_id_a        = H5Screate_simple(4, dims2, NULL);
-        dataset_id_a = H5Dcreate(file_id_a, (name.str()).c_str(), H5T_NATIVE_UCHAR, fspace_id_a, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        H5Dclose(dataset_id_a);
-        H5Sclose(fspace_id_a);
-    }
-
-    // 3d.Each rank now dumps its own blocks to the corresponding dset
-    //#pragma omp parallel for
+    //4.Dump
+    int start1 = 0;
+    std::vector<hdf5Real> bigArray(start);
+    std::vector<unsigned char> bigArray_ghost(start);
+    std::vector<cubism::BlockInfo*> avail0 = Synch.avail_inner();
+    std::vector<cubism::BlockInfo*> avail1 = Synch.avail_halo();
     for (size_t groupID = 0 ; groupID < MyGroups.size() ; groupID ++)
     {
-        std::stringstream name;
-        name << "dset" << std::setfill('0') << std::setw(10) << rank;
-        name << "_"    << std::setfill('0') << std::setw(10) << groupID;
         const BlockGroup & group = MyGroups[groupID];
         const int nX_max = group.NXX-1;
         const int nY_max = group.NYY-1;
         const int nZ_max = group.NZZ-1;
-        std::vector<hdf5Real> array_block( (nX_max+2*nGhosts) * (nY_max+2*nGhosts) * (nZ_max+2*nGhosts) * NCHANNELS, 0.0);
-        std::vector<unsigned char> array_block_a((nX_max+2*nGhosts) * (nY_max+2*nGhosts) * (nZ_max+2*nGhosts), 0.0);
+        int dd1 = (nX_max+2*nGhosts) * (nY_max+2*nGhosts) * (nZ_max+2*nGhosts);// * NCHANNELS;
+        std::vector<hdf5Real> array_block( dd1, 0.0);
+        std::vector<unsigned char> array_block_ghost( dd1, 0);
         for (int kB = group.i_min[2]; kB <= group.i_max[2]; kB++)
         for (int jB = group.i_min[1]; jB <= group.i_max[1]; jB++)
         for (int iB = group.i_min[0]; iB <= group.i_max[0]; iB++)
@@ -518,29 +249,43 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
                 const int iz_b = (kB-group.i_min[2])*nZ + iz + nGhosts;
                 const int iy_b = (jB-group.i_min[1])*nY + iy + nGhosts;
                 const int ix_b = (iB-group.i_min[0])*nX + ix + nGhosts;
-                const int base = iz_b *((nX_max+2*nGhosts)*(nY_max+2*nGhosts)) + iy_b *((nX_max+2*nGhosts)) + ix_b;
-                for (int j = 0; j < NCHANNELS; ++j) array_block[NCHANNELS*base+j] = output[j];
-                array_block_a[base] = 0;
+                const int base = iz_b *((nX_max+2*nGhosts)*(nY_max+2*nGhosts)) + iy_b *((nX_max+2*nGhosts)) + ix_b;               
+                //for (int j = 0; j < NCHANNELS; ++j) array_block[NCHANNELS*base+j] = output[j];
+                if (NCHANNELS > 1) output[0] = output[0]*output[0] + output[1]*output[1] + output[2]*output[2];
+                array_block[base] = sqrt(output[0]);
                 if (iz_b <  nGhosts || iy_b <  nGhosts || ix_b <  nGhosts
                     || iz_b >= nZ_max + nGhosts 
                     || iy_b >= nY_max + nGhosts
                     || ix_b >= nX_max + nGhosts) 
-                    array_block_a[base] = 1;
+                    array_block_ghost[base] = 1;
             }
         }
-        hid_t dataset_id_tmp = H5Dopen(file_id, (name.str()).c_str(), H5P_DEFAULT);
-        H5Dwrite(dataset_id_tmp, get_hdf5_type<hdf5Real>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block.data());
-        H5Dclose(dataset_id_tmp);
-
-        hid_t dataset_id_a_tmp = H5Dopen(file_id_a, (name.str()).c_str(), H5P_DEFAULT);
-        H5Dwrite(dataset_id_a_tmp, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, array_block_a.data());
-        H5Dclose(dataset_id_a_tmp);
+        for (int j = 0 ; j < dd1 ; j ++)
+        {
+            bigArray      [start1 + j] = array_block[j];
+            bigArray_ghost[start1 + j] = array_block_ghost[j];
+        }
+        start1 += dd1;
     }
-    // 4.Close hdf5 file
+    hsize_t count[1] = {bigArray.size()};
+
+    fspace_id = H5Dget_space(dataset_id);
+    H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, base_tmp, NULL, count, NULL);
+    mspace_id = H5Screate_simple(1, count, NULL);
+    H5Dwrite(dataset_id, get_hdf5_type<hdf5Real>(), mspace_id, fspace_id, fapl_id, bigArray.data());
+
+    fspace_id_ghost = H5Dget_space(dataset_id_ghost);
+    H5Sselect_hyperslab(fspace_id_ghost, H5S_SELECT_SET, base_tmp, NULL, count, NULL);
+    H5Dwrite(dataset_id_ghost, H5T_NATIVE_UCHAR         , mspace_id, fspace_id_ghost, fapl_id, bigArray_ghost.data());
+
+    H5Sclose(mspace_id);
+    H5Sclose(fspace_id);
+    H5Dclose(dataset_id);
+    H5Sclose(fspace_id_ghost);
+    H5Dclose(dataset_id_ghost);
+    H5Pclose(fapl_id);
     H5Fclose(file_id);
-    H5Fclose(file_id_a);
     H5close();
-#endif
 }
 
 template <typename TStreamer, typename hdf5Real, typename TGrid>

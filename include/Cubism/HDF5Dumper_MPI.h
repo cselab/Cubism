@@ -212,7 +212,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     H5Pset_dxpl_mpio(fapl_id, H5FD_MPIO_COLLECTIVE);
     int total;
     MPI_Allreduce(&start, &total, 1, MPI_INT, MPI_SUM, comm);
-    hsize_t dims[1]  = {total};
+    hsize_t dims[1]  = {(hsize_t) total};
     fspace_id        = H5Screate_simple(1, dims, NULL);
     fspace_id_ghost  = H5Screate_simple(1, dims, NULL);
     dataset_id       = H5Dcreate (file_id, "dset"      , get_hdf5_type<hdf5Real>(), fspace_id      , H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);

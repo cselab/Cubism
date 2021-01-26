@@ -22,22 +22,6 @@
 #include "GridMPI.h"
 #include "StencilInfo.h"
 
-#ifdef USE_VTK
- #include <vtkCell.h>
- #include <vtkCellData.h>
- #include <vtkDataArray.h>
- #include <vtkDoubleArray.h>
- #include <vtkNonOverlappingAMR.h>
- #include <vtkUniformGrid.h>
- #include <vtkXMLUniformGridAMRWriter.h>
- #include <vtkXMLPUniformGridAMRWriter.h>
- #include <vtkFloatArray.h>
- #include <vtkUnsignedCharArray.h>
- #include <vtkIntArray.h>
- #include <vtkAMRBox.h>
- #include <vtkOverlappingAMR.h>
-#endif
-
 CUBISM_NAMESPACE_BEGIN
 
 struct StencilInfoWrapper
@@ -140,32 +124,33 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
             s << "   </Geometry>\n";
   
             int dd = (nZZ - 1 + 2*nGhosts )*(nYY - 1 + 2*nGhosts)*(nXX - 1 + 2*nGhosts);//*NCHANNELS;
+            //Ghosts not saved as reading them by Paraview is very slow
             ////////////////////////////////////
-            s << "   <Attribute Name=\"data\" AttributeType=\"" << TStreamer::getAttributeName() << "\" Center=\"Cell\">\n";
+            //s << "   <Attribute Name=\"vtkGhostType\" AttributeType=\"" << "unsigned char" << "\" Center=\"Cell\">\n";
+            //s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << 1 << " " << 1 << " " << dd <<  "\" Type=\"HyperSlab\"> \n";
+            //s << "<DataItem Dimensions=\"3 1\" Format=\"XML\">\n";
+            //s << base_tmp[0] + start <<"\n";
+            //s << 1     <<"\n";
+            //s << dd    <<"\n";
+            //s << "</DataItem>\n";
+            //s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << dd << " " << "\" NumberType=\"UChar\"  Format=\"HDF\">\n";
+            ////s << "    " << (myfilename.str() + ".h5").c_str() << ":/" << "dset_ghost" << "\n";
+            //s << "    " << (myfilename.str() + ".h5").c_str() << ":/" << "dset" << "\n";
+            //s << "   </DataItem>\n";
+            //s << "   </DataItem>\n";
+            //s << "   </Attribute>\n";
+            //////////////////////////////////
+            ////////////////////////////////////
+            //s << "   <Attribute Name=\"data\" AttributeType=\"" << TStreamer::getAttributeName() << "\" Center=\"Cell\">\n";
+            s << "   <Attribute Name=\"data\" AttributeType=\"" << "Scalar"<< "\" Center=\"Cell\">\n";
             s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << 1 << " " << 1 << " " << dd <<  "\" Type=\"HyperSlab\"> \n";
             s << "<DataItem Dimensions=\"3 1\" Format=\"XML\">\n";
-            s << base_tmp[0] + start <<"\n";
+            s << base_tmp[0] + start<<"\n";
             s << 1     <<"\n";
             s << dd    <<"\n";
             s << "</DataItem>\n";
             s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << dd << " " << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real) << "\" Format=\"HDF\">\n";
-            
             s << "    " << (myfilename.str() + ".h5").c_str() << ":/" << "dset" << "\n";
-            s << "   </DataItem>\n";
-            s << "   </DataItem>\n";
-            s << "   </Attribute>\n";
-            //////////////////////////////////
-  
-            ////////////////////////////////////
-            s << "   <Attribute Name=\"vtkGhostType\" AttributeType=\"" << "unsigned char" << "\" Center=\"Cell\">\n";
-            s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << 1 << " " << 1 << " " << dd <<  "\" Type=\"HyperSlab\"> \n";
-            s << "<DataItem Dimensions=\"3 1\" Format=\"XML\">\n";
-            s << base_tmp[0] + start <<"\n";
-            s << 1     <<"\n";
-            s << dd    <<"\n";
-            s << "</DataItem>\n";
-            s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << dd << " " << "\" NumberType=\"UChar\"  Format=\"HDF\">\n";         
-            s << "    " << (myfilename.str() + ".h5").c_str() << ":/" << "dset_ghost" << "\n";
             s << "   </DataItem>\n";
             s << "   </DataItem>\n";
             s << "   </Attribute>\n";
@@ -192,10 +177,9 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     }
     
     //fullpath <<  std::setfill('0') << std::setw(10) << rank; //mike
-
     //Dump data
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
-    hid_t dataset_id_ghost, fspace_id_ghost;
+    //hid_t dataset_id_ghost, fspace_id_ghost;
     
     H5open();
 
@@ -212,16 +196,17 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     H5Pset_dxpl_mpio(fapl_id, H5FD_MPIO_COLLECTIVE);
     int total;
     MPI_Allreduce(&start, &total, 1, MPI_INT, MPI_SUM, comm);
+    //total = start;
     hsize_t dims[1]  = {(hsize_t) total};
     fspace_id        = H5Screate_simple(1, dims, NULL);
-    fspace_id_ghost  = H5Screate_simple(1, dims, NULL);
+    //fspace_id_ghost  = H5Screate_simple(1, dims, NULL);
     dataset_id       = H5Dcreate (file_id, "dset"      , get_hdf5_type<hdf5Real>(), fspace_id      , H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    dataset_id_ghost = H5Dcreate (file_id, "dset_ghost", H5T_NATIVE_UCHAR         , fspace_id_ghost, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    //dataset_id_ghost = H5Dcreate (file_id, "dset_ghost", H5T_NATIVE_UCHAR         , fspace_id_ghost, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
     //4.Dump
     int start1 = 0;
     std::vector<hdf5Real> bigArray(start);
-    std::vector<unsigned char> bigArray_ghost(start);
+    //std::vector<unsigned char> bigArray_ghost(start);
     std::vector<cubism::BlockInfo*> avail0 = Synch.avail_inner();
     std::vector<cubism::BlockInfo*> avail1 = Synch.avail_halo();
     for (size_t groupID = 0 ; groupID < MyGroups.size() ; groupID ++)
@@ -231,8 +216,9 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         const int nY_max = group.NYY-1;
         const int nZ_max = group.NZZ-1;
         int dd1 = (nX_max+2*nGhosts) * (nY_max+2*nGhosts) * (nZ_max+2*nGhosts);// * NCHANNELS;
+        //int dd1 = 2 * (nX_max+2*nGhosts) * (nY_max+2*nGhosts) * (nZ_max+2*nGhosts);// * NCHANNELS;
         std::vector<hdf5Real> array_block( dd1, 0.0);
-        std::vector<unsigned char> array_block_ghost( dd1, 0);
+        //std::vector<unsigned char> array_block_ghost( dd1, 0);
         for (int kB = group.i_min[2]; kB <= group.i_max[2]; kB++)
         for (int jB = group.i_min[1]; jB <= group.i_max[1]; jB++)
         for (int iB = group.i_min[0]; iB <= group.i_max[0]; iB++)
@@ -251,38 +237,45 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
                 const int ix_b = (iB-group.i_min[0])*nX + ix + nGhosts;
                 const int base = iz_b *((nX_max+2*nGhosts)*(nY_max+2*nGhosts)) + iy_b *((nX_max+2*nGhosts)) + ix_b;               
                 //for (int j = 0; j < NCHANNELS; ++j) array_block[NCHANNELS*base+j] = output[j];
-                if (NCHANNELS > 1) output[0] = output[0]*output[0] + output[1]*output[1] + output[2]*output[2];
-                array_block[base] = sqrt(output[0]);
-                if (iz_b <  nGhosts || iy_b <  nGhosts || ix_b <  nGhosts
-                    || iz_b >= nZ_max + nGhosts 
-                    || iy_b >= nY_max + nGhosts
-                    || ix_b >= nX_max + nGhosts) 
-                    array_block_ghost[base] = 1;
+                if (NCHANNELS > 1)
+                {
+                  output[0] = output[0]*output[0] + output[1]*output[1] + output[2]*output[2];
+                  array_block[base] = sqrt(output[0]);
+                }
+                else
+                {
+                  array_block[base] = output[0];
+                }
+                //if (iz_b <  nGhosts || iy_b <  nGhosts || ix_b <  nGhosts
+                //    || iz_b >= nZ_max + nGhosts
+                //    || iy_b >= nY_max + nGhosts
+                //    || ix_b >= nX_max + nGhosts)
+                //    //array_block_ghost[base] = 1;
+                //    array_block[base] = 1;
             }
         }
         for (int j = 0 ; j < dd1 ; j ++)
         {
             bigArray      [start1 + j] = array_block[j];
-            bigArray_ghost[start1 + j] = array_block_ghost[j];
+            //bigArray_ghost[start1 + j] = array_block_ghost[j];
         }
         start1 += dd1;
     }
     hsize_t count[1] = {bigArray.size()};
 
-    fspace_id = H5Dget_space(dataset_id);
-    H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, base_tmp, NULL, count, NULL);
+    fspace_id       = H5Dget_space(dataset_id);
+    //fspace_id_ghost = H5Dget_space(dataset_id_ghost);
+    H5Sselect_hyperslab(fspace_id      , H5S_SELECT_SET, base_tmp, NULL, count, NULL);
+    //H5Sselect_hyperslab(fspace_id_ghost, H5S_SELECT_SET, base_tmp, NULL, count, NULL);
     mspace_id = H5Screate_simple(1, count, NULL);
-    H5Dwrite(dataset_id, get_hdf5_type<hdf5Real>(), mspace_id, fspace_id, fapl_id, bigArray.data());
-
-    fspace_id_ghost = H5Dget_space(dataset_id_ghost);
-    H5Sselect_hyperslab(fspace_id_ghost, H5S_SELECT_SET, base_tmp, NULL, count, NULL);
-    H5Dwrite(dataset_id_ghost, H5T_NATIVE_UCHAR         , mspace_id, fspace_id_ghost, fapl_id, bigArray_ghost.data());
+    H5Dwrite(dataset_id, get_hdf5_type<hdf5Real>(), mspace_id, fspace_id      , fapl_id, bigArray.data());
+    //H5Dwrite(dataset_id_ghost, H5T_NATIVE_UCHAR   , mspace_id, fspace_id_ghost, fapl_id, bigArray_ghost.data());
 
     H5Sclose(mspace_id);
     H5Sclose(fspace_id);
     H5Dclose(dataset_id);
-    H5Sclose(fspace_id_ghost);
-    H5Dclose(dataset_id_ghost);
+    //H5Sclose(fspace_id_ghost);
+    //H5Dclose(dataset_id_ghost);
     H5Pclose(fapl_id);
     H5Fclose(file_id);
     H5close();

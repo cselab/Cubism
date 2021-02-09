@@ -1147,23 +1147,19 @@ class BlockLab
          const int bytes = (e[0] - s[0]) * sizeof(ElementType);
          if (!bytes) continue;
 
-         for (int iz = s[2]; iz < e[2]; iz += 1)
-         {
 #if DIMENSION == 3
+         ElementType retval[8];
+         for (int iz = s[2]; iz < e[2]; iz += 2)
+         {
             int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2];
-#endif
-            // /*comment to silence warnings*/const int my_izx =
-            // (iz-m_stencilStart[2])*m_nElemsPerSlice
-            // + my_ix;
-            for (int iy = s[1]; iy < e[1]; iy += 1)
+            for (int iy = s[1]; iy < e[1]; iy += 2)
             {
                int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
 
-               for (int ix = s[0]; ix < e[0]; ix += 1)
+               for (int ix = s[0]; ix < e[0]; ix += 2)
                {
                   int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
 
-#if DIMENSION == 3
                   ElementType *Test[3][3][3];
                   for (int i = 0; i < 3; i++)
                      for (int j = 0; j < 3; j++)
@@ -1171,27 +1167,57 @@ class BlockLab
                            Test[i][j][k] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
                                                                      YY - 1 + j - offset[1],
                                                                      ZZ - 1 + k - offset[2]);
+                  const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                  const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
+                  const int z = abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2;
+                  TestInterp(Test,retval,x,y,z,selcomponents);
 
-                  TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],iz - m_stencilStart[2]),
-                             abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
-                             abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,
-                             abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2, selcomponents);
-#else
-                  ElementType *Test[3][3];
-                  for (int i = 0; i < 3; i++)
-                     for (int j = 0; j < 3; j++)
-                           Test[i][j] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
-                                                                  YY - 1 + j - offset[1],0);
-                  TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0),
-                             abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
-                             abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,selcomponents);
-#endif
+                  const int ixp = (abs(ix) % 2 == 1) ?  -1 : 1;
+                  const int iyp = (abs(iy) % 2 == 1) ?  -1 : 1;
+                  const int izp = (abs(iz) % 2 == 1) ?  -1 : 1;
+                  const int rxp = (ixp == 1) ? 1:0;
+                  const int ryp = (iyp == 1) ? 1:0;
+                  const int rzp = (izp == 1) ? 1:0;
+                  const int rx  = (ixp == 1) ? 0:1;
+                  const int ry  = (iyp == 1) ? 0:1;
+                  const int rz  = (izp == 1) ? 0:1;
+                  if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
+                    m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rz ];
+                  if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
+                    m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rz ];
+                  if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
+                    m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rz ];
+                  if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
+                    m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rz ];
+                  if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                    m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rzp];
+                  if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                    m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rzp];
+                  if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                    m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rzp];
+                  if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                    m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rzp];
                }
             }
          }
-
-
-
+#else
+        for (int iy = s[1]; iy < e[1]; iy += 2)
+        {
+           int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
+           for (int ix = s[0]; ix < e[0]; ix += 2)
+           {
+              int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
+              ElementType *Test[3][3];
+              for (int i = 0; i < 3; i++)
+                 for (int j = 0; j < 3; j++)
+                       Test[i][j] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
+                                                              YY - 1 + j - offset[1],0);
+              TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0),
+                         abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
+                         abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,selcomponents);
+           }
+        }
+#endif
       }
    }
 
@@ -1223,12 +1249,13 @@ class BlockLab
    }
 
 #if DIMENSION == 3
-   virtual void TestInterp(ElementType *C[3][3][3], ElementType &R, int x, int y, int z, const std::vector<int> & selcomponents)
+   virtual void TestInterp(ElementType *C[3][3][3], ElementType *R, int x, int y, int z, const std::vector<int> & selcomponents)
    {
       //ElementType dudx = SlopeElement( *C[0][1][1] , *C[1][1][1] , *C[2][1][1], selcomponents); 
       //ElementType dudy = SlopeElement( *C[1][0][1] , *C[1][1][1] , *C[1][2][1], selcomponents); 
       //ElementType dudz = SlopeElement( *C[1][1][0] , *C[1][1][1] , *C[1][1][2], selcomponents); 
       //R                = *C[1][1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy + (2 * z - 1) * 0.25 * dudz;
+      //return;
 
       const int Nweno = 3;
       ElementType Lines[Nweno][Nweno][2];
@@ -1241,30 +1268,38 @@ class BlockLab
                   *C[1][i1 + Nweno / 2][i2 + Nweno / 2],
                   *C[2][i1 + Nweno / 2][i2 + Nweno / 2],
                   Lines[i1 + Nweno / 2][i2 + Nweno / 2][0],
-                  Lines[i1 + Nweno / 2][i2 + Nweno / 2][1]);
+                  Lines[i1 + Nweno / 2][i2 + Nweno / 2][1],selcomponents);
   
       for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
       {
         Kernel_1D(Lines[0][i2 + Nweno / 2][0], Lines[1][i2 + Nweno / 2][0],
                   Lines[2][i2 + Nweno / 2][0], Planes[i2 + Nweno / 2][0],
-                  Planes[i2 + Nweno / 2][1]);
+                  Planes[i2 + Nweno / 2][1],selcomponents);
         Kernel_1D(Lines[0][i2 + Nweno / 2][1], Lines[1][i2 + Nweno / 2][1],
                   Lines[2][i2 + Nweno / 2][1], Planes[i2 + Nweno / 2][2],
-                  Planes[i2 + Nweno / 2][3]);
+                  Planes[i2 + Nweno / 2][3],selcomponents);
       }
-      Kernel_1D(Planes[0][0], Planes[1][0], Planes[2][0], Ref[0], Ref[1]);
-      Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], Ref[2], Ref[3]);
-      Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], Ref[4], Ref[5]);
-      Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], Ref[6], Ref[7]);
+      Kernel_1D(Planes[0][0], Planes[1][0], Planes[2][0], Ref[0], Ref[1],selcomponents);
+      Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], Ref[2], Ref[3],selcomponents);
+      Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], Ref[4], Ref[5],selcomponents);
+      Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], Ref[6], Ref[7],selcomponents);
 
-      if (x==0 && y==0 && z==0){R = Ref[0]; return;}
-      if (x==0 && y==0 && z==1){R = Ref[1]; return;}
-      if (x==0 && y==1 && z==0){R = Ref[2]; return;}
-      if (x==0 && y==1 && z==1){R = Ref[3]; return;}
-      if (x==1 && y==0 && z==0){R = Ref[4]; return;}
-      if (x==1 && y==0 && z==1){R = Ref[5]; return;}
-      if (x==1 && y==1 && z==0){R = Ref[6]; return;}
-      if (x==1 && y==1 && z==1){R = Ref[7]; return;}
+      R[0] = Ref[0];
+      R[1] = Ref[4];
+      R[2] = Ref[2];
+      R[3] = Ref[6];
+      R[4] = Ref[1];
+      R[5] = Ref[5];
+      R[6] = Ref[3];
+      R[7] = Ref[7];
+      //if (x==0 && y==0 && z==0){R = Ref[0]; return;}
+      //if (x==0 && y==0 && z==1){R = Ref[1]; return;}
+      //if (x==0 && y==1 && z==0){R = Ref[2]; return;}
+      //if (x==0 && y==1 && z==1){R = Ref[3]; return;}
+      //if (x==1 && y==0 && z==0){R = Ref[4]; return;}
+      //if (x==1 && y==0 && z==1){R = Ref[5]; return;}
+      //if (x==1 && y==1 && z==0){R = Ref[6]; return;}
+      //if (x==1 && y==1 && z==1){R = Ref[7]; return;}
    }
 
    virtual void WENOWavelets3(double cm, double c, double cp, double &left, double &right)
@@ -1285,9 +1320,9 @@ class BlockLab
       right = g1 * w1 + g2 * w2;
    }
 
-   virtual void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType &left, ElementType &right)
+   virtual void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType &left, ElementType &right,const std::vector<int> & selcomponents)
    {
-      for (int i = 0 ; i < ElementType::DIM; i++)
+      for (auto & i : selcomponents)
         WENOWavelets3(E0.member(i), E1.member(i), E2.member(i), left.member(i), right.member(i));
    }
 

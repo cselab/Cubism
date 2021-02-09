@@ -1260,7 +1260,6 @@ class BlockLab
       const int Nweno = 3;
       ElementType Lines[Nweno][Nweno][2];
       ElementType Planes[Nweno][4];
-      ElementType Ref[8];
 
       for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
       for (int i1 = -Nweno / 2; i1 <= Nweno / 2; i1++)
@@ -1279,36 +1278,19 @@ class BlockLab
                   Lines[2][i2 + Nweno / 2][1], Planes[i2 + Nweno / 2][2],
                   Planes[i2 + Nweno / 2][3],selcomponents);
       }
-      Kernel_1D(Planes[0][0], Planes[1][0], Planes[2][0], Ref[0], Ref[1],selcomponents);
-      Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], Ref[2], Ref[3],selcomponents);
-      Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], Ref[4], Ref[5],selcomponents);
-      Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], Ref[6], Ref[7],selcomponents);
-
-      R[0] = Ref[0];
-      R[1] = Ref[4];
-      R[2] = Ref[2];
-      R[3] = Ref[6];
-      R[4] = Ref[1];
-      R[5] = Ref[5];
-      R[6] = Ref[3];
-      R[7] = Ref[7];
-      //if (x==0 && y==0 && z==0){R = Ref[0]; return;}
-      //if (x==0 && y==0 && z==1){R = Ref[1]; return;}
-      //if (x==0 && y==1 && z==0){R = Ref[2]; return;}
-      //if (x==0 && y==1 && z==1){R = Ref[3]; return;}
-      //if (x==1 && y==0 && z==0){R = Ref[4]; return;}
-      //if (x==1 && y==0 && z==1){R = Ref[5]; return;}
-      //if (x==1 && y==1 && z==0){R = Ref[6]; return;}
-      //if (x==1 && y==1 && z==1){R = Ref[7]; return;}
+      Kernel_1D(Planes[0][0], Planes[1][0], Planes[2][0], R[0], R[4],selcomponents);
+      Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], R[2], R[6],selcomponents);
+      Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], R[1], R[5],selcomponents);
+      Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], R[3], R[7],selcomponents);
    }
 
-   virtual void WENOWavelets3(double cm, double c, double cp, double &left, double &right)
+   virtual void WENOWavelets3(const double cm, const double c, const double cp, double &left, double &right)
    {
-      double b1  = (c - cm) * (c - cm);
-      double b2  = (c - cp) * (c - cp);
+      const double b1  = (c - cm) * (c - cm);
+      const double b2  = (c - cp) * (c - cp);
       double w1  = (1e-6 + b2) * (1e-6 + b2); // yes, 2 goes to 1 and 1 goes to 2
       double w2  = (1e-6 + b1) * (1e-6 + b1);
-      double aux = 1.0 / (w1 + w2);
+      const double aux = 1.0 / (w1 + w2);
       w1 *= aux;
       w2 *= aux;
       double g1, g2;

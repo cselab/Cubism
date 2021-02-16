@@ -91,7 +91,7 @@ class SpaceFillingCurve2D
 
    SpaceFillingCurve2D(int a_BX, int a_BY, int lmax) : BX(a_BX), BY(a_BY), levelMax(lmax)
    {
-      std::cout << "Constructing Hilbert curve for " << BX << "x" << BY <<  " quadree with " << lmax << " levels..." << std::endl;
+      // std::cout << "[CUP2D] - Constructing Hilbert curve for " << BX << "x" << BY <<  " quadree with " << lmax << " levels..." << std::endl;
       i_inverse.resize(lmax);
       j_inverse.resize(lmax);
       Zsave.resize(lmax);
@@ -140,7 +140,7 @@ class SpaceFillingCurve2D
         }      
       }
 
-      std::cout << "Hilbert curve ready." << std::endl;
+      // std::cout << "Hilbert curve ready." << std::endl;
   }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)

@@ -75,7 +75,7 @@ void DumpHDF5(const TGrid &grid,
    const unsigned int Ngrids    = MyBlocks.size();
    const unsigned int NCHANNELS = TStreamer::NCHANNELS;
 
-   std::cout << " ---> Rank " << rank << " is dumping " << Ngrids << " Blocks.\n";
+   // std::cout << " ---> Rank " << rank << " is dumping " << Ngrids << " Blocks.\n";
 
    hid_t file_id, dataset_id, fspace_id, plist_id;
 

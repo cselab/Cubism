@@ -673,12 +673,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
       }
       int result[2] = {r,c};
       if (verbose)
-      {
-      std::cout << "==============================================================\n";
-      std::cout << " refined:" << result[0] << "   compressed:" << result[1] << std::endl;
-      std::cout << "==============================================================\n";
-      std::cout << std::endl;
-      }
+        std::cout << "[CUP2D] refined:" << result[0] << "   compressed:" << result[1] << std::endl;
       m_refGrid->FillPos();     
       delete[] labs;
       if (!CallValidStates)

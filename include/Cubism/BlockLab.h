@@ -1201,10 +1201,10 @@ class BlockLab
             }
          }
 #else
-        for (int iy = s[1]; iy < e[1]; iy += 2)
+        for (int iy = s[1]; iy < e[1]; iy += 1)
         {
            int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
-           for (int ix = s[0]; ix < e[0]; ix += 2)
+           for (int ix = s[0]; ix < e[0]; ix += 1)
            {
               int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
               ElementType *Test[3][3];

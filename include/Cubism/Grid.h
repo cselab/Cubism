@@ -63,8 +63,15 @@ class Grid
         auto retval = Octree.find(aux);
         if (retval == Octree.end())
         {
-          TreePosition dum;
-          Octree[aux] = dum;
+          #pragma omp critical
+          {
+            auto retval1 = Octree.find(aux);
+            if (retval1 == Octree.end())
+            {
+              TreePosition dum;
+              Octree[aux] = dum;
+            }
+          }
           return Tree(m,n);
         }
         else

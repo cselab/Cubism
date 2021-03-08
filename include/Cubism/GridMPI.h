@@ -67,33 +67,33 @@ class GridMPI : public TGrid
       MPI_Comm_rank(worldcomm, &myrank);
       cartcomm     = worldcomm;
 
-      int total_blocks = nX * nY * nZ * pow(pow(2, a_levelStart), 3);
-      int my_blocks = total_blocks / world_size;
-      if (myrank < total_blocks % world_size) my_blocks++;
-      int n_start = myrank * (total_blocks / world_size);
+      size_t total_blocks = nX * nY * nZ * pow(pow(2, a_levelStart), 3);
+      size_t my_blocks = total_blocks / world_size;
+      if ((size_t) myrank < total_blocks % world_size) my_blocks++;
+      size_t n_start = myrank * (total_blocks / world_size);
       if (total_blocks % world_size > 0)
       {
-         if (myrank < total_blocks % world_size) n_start += myrank;
+         if ((size_t)myrank < total_blocks % world_size) n_start += myrank;
          else n_start += total_blocks % world_size;
       }
-      for (int n = n_start; n < n_start + my_blocks; n++) _alloc(a_levelStart, n);
+      for (size_t n = n_start; n < n_start + my_blocks; n++) _alloc(a_levelStart, n);
 
-      for (int m = 0 ; m < a_levelMax ; m ++)
+      for (size_t m = 0 ; m < (size_t) a_levelMax ; m ++)
       {
-        int nmax = nX * nY * nZ * pow(pow(2, m), 3);
-        if (m == a_levelStart-1)
-            for (int n = 0 ; n < nmax ; n ++) TGrid::Tree(m,n).setCheckFiner(); 
-        else if (m == a_levelStart+1)
-            for (int n = 0 ; n < nmax ; n ++) TGrid::Tree(m,n).setCheckCoarser();
-        else if (m == TGrid::levelStart)
-            for (int n = 0 ; n < nmax ; n ++)
+        size_t nmax = nX * nY * nZ * pow(pow(2, m), 3);
+        if (m +1 == (size_t) a_levelStart)
+            for (size_t n = 0 ; n < nmax ; n ++) TGrid::Tree(m,n).setCheckFiner(); 
+        else if (m == (size_t) a_levelStart+1)
+            for (size_t n = 0 ; n < nmax ; n ++) TGrid::Tree(m,n).setCheckCoarser();
+        else if (m == (size_t) TGrid::levelStart)
+            for (size_t n = 0 ; n < nmax ; n ++)
             {
-                int r;
+                size_t r;
                 if (total_blocks % world_size > 0)
                 {
                     if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
                     {
-                        int aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
+                        size_t aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
                         r = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
                     }
                     else
@@ -108,8 +108,11 @@ class GridMPI : public TGrid
                 TGrid::Tree(m,n).setrank(r);
             }
       }
-      if (myrank == 0) std::cout << "Total blocks = " << total_blocks << "\n";
-      std::cout << "rank " << myrank << " gets " << my_blocks << " \n";
+      if (myrank == 0)
+      {
+        std::cout << "Total blocks = " << total_blocks << "\n";
+        std::cout << "Each rank gets " << my_blocks << " \n";
+      }
 
       FillPos(true);
 

@@ -139,7 +139,7 @@ class GridMPI : public TGrid
 
       TGrid::m_blocks.push_back((Block *)TGrid::getBlockInfoAll(m,n).ptrBlock);
       
-      TGrid::m_vInfo.push_back(*TGrid::BlockInfoAll[m][n]);
+      TGrid::m_vInfo.push_back((TGrid::getBlockInfoAll(m,n)));
 
       TGrid::Tree(m,n).setrank(myrank);
    }
@@ -555,11 +555,7 @@ class GridMPI : public TGrid
                 else if (d==1||d==4)     n = TGrid::getZforward(I.level,i2,i0,i1);
                 else /*if (d==2||d==5)*/ n = TGrid::getZforward(I.level,i1,i2,i0);  
                 
-                int blockrank = -1;               
-                if (TGrid::BlockInfoAll[I.level][n] != nullptr)
-                  blockrank = TGrid::Tree(I.level,n).rank();
-                  //blockrank = TGrid::BlockInfoAll[I.level][n]->myrank;
-                //if (blockrank != myrank || TGrid::BlockInfoAll[I.level][n]->TreePos != Exists)
+                int blockrank = TGrid::Tree(I.level,n).rank();
                 if (blockrank != myrank || blockrank< 0)
                 {
                   valid = false;
@@ -616,9 +612,9 @@ class GridMPI : public TGrid
             newGroup.i_max[1] = iy_max;
             newGroup.i_max[2] = iz_max;
     
-            newGroup.origin[0] =  TGrid::BlockInfoAll[I.level][n_base]->origin[0];
-            newGroup.origin[1] =  TGrid::BlockInfoAll[I.level][n_base]->origin[1];
-            newGroup.origin[2] =  TGrid::BlockInfoAll[I.level][n_base]->origin[2];
+            newGroup.origin[0] =  TGrid::getBlockInfoAll(I.level,n_base).origin[0];
+            newGroup.origin[1] =  TGrid::getBlockInfoAll(I.level,n_base).origin[1];
+            newGroup.origin[2] =  TGrid::getBlockInfoAll(I.level,n_base).origin[2];
     
             newGroup.NXX = (newGroup.i_max[0] - newGroup.i_min[0] + 1)*nX + 1;
             newGroup.NYY = (newGroup.i_max[1] - newGroup.i_min[1] + 1)*nY + 1;

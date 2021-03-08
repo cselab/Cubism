@@ -91,8 +91,11 @@ class FluxCorrection
       blocksPerDim = (*m_refGrid).getMaxBlocks();
 
       for (int m=0;m<m_refGrid->getlevelMax();m++)
-        for (size_t n=0; n< m_refGrid->getBlockInfoAll()[m].size() ;n++)
+      {
+        const size_t nmax = blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2]*pow(1<<m,3);
+        for (size_t n=0; n< nmax ;n++)
           (*m_refGrid).getBlockInfoAll(m,n).auxiliary = nullptr;
+      }
 
       std::array<int,6> icode = {1*2 + 3*1 + 9*1, 1*0 + 3*1 + 9*1, 1*1 + 3*2 + 9*1, 1*1 + 3*0 + 9*1, 1*1 + 3*1 + 9*2, 1*1 + 3*1 + 9*0};
 

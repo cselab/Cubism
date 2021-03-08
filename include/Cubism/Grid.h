@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <omp.h>
+#include <unordered_map>
 
 #ifdef CUBISM_USE_NUMA
    #include <numa.h>
@@ -28,9 +29,13 @@ template <typename Block, template <typename X> class allocator = std::allocator
 class Grid
 {
  protected:
-   std::vector<std::vector<BlockInfo*>> BlockInfoAll;
-   std::vector<std::vector<bool>> ready;
-   std::vector<std::vector<TreePosition>> Octree;
+   #ifdef CUBISM_USE_MAP
+    std::unordered_map<size_t, BlockInfo*> BlockInfoAll;
+    std::unordered_map<size_t,TreePosition> Octree;
+   #else
+    std::vector<std::vector<BlockInfo*>> BlockInfoAll;
+    std::vector<std::vector<TreePosition>> Octree;
+   #endif
    std::vector<BlockInfo> m_vInfo; // meta-data for blocks that belong to this rank
    std::vector<Block *> m_blocks;  // pointers to blocks that belong to this rank
 
@@ -41,6 +46,8 @@ class Grid
    const int levelMax;     // Maximum refinement level allowed
    const int levelStart;   // Initial refinement level
 
+   std::vector<size_t> level_base;
+
  public:
    typedef Block BlockType;
    typedef typename Block::RealType Real; // Block MUST provide `RealType`.
@@ -49,9 +56,27 @@ class Grid
    const bool yperiodic; // grid periodicity in y-direction
    const bool zperiodic; // grid periodicity in z-direction
 
-   TreePosition & Tree(int m, int n) {return Octree[m][n];}
-   TreePosition & Tree(BlockInfo & info) {return Octree[info.level][info.Z];}
-   TreePosition & Tree(const BlockInfo & info) {return Octree[info.level][info.Z];}
+   TreePosition & Tree(int m, int n)
+   {
+      #ifdef CUBISM_USE_MAP
+        size_t aux = level_base[m]+n;
+        auto retval = Octree.find(aux);
+        if (retval == Octree.end())
+        {
+          TreePosition dum;
+          Octree[aux] = dum;
+          return Tree(m,n);
+        }
+        else
+        {
+          return retval->second;
+        }
+      #else
+        return Octree[m][n];
+      #endif
+   }
+   TreePosition & Tree(BlockInfo & info) {return Tree(info.level,info.Z);}
+   TreePosition & Tree(const BlockInfo & info) {return Tree(info.level,info.Z);}
    
    bool UpdateFluxCorrection{true};
 
@@ -84,7 +109,7 @@ class Grid
       getBlockInfoAll(m,n).changed  = true;
       getBlockInfoAll(m,n).h_gridpoint = getBlockInfoAll(m,n).h;
       m_blocks.push_back((Block *)getBlockInfoAll(m,n).ptrBlock);
-      m_vInfo.push_back(*BlockInfoAll[m][n]);
+      m_vInfo.push_back(getBlockInfoAll(m,n));
    }
 
    void _deallocAll() // called in class destructor
@@ -94,13 +119,28 @@ class Grid
       {
          int m = m_vInfo[i].level;
          int n = m_vInfo[i].Z;
-         alloc.deallocate((Block *)BlockInfoAll[m][n]->ptrBlock, 1);
+         alloc.deallocate((Block *)getBlockInfoAll(m,n).ptrBlock, 1);
       }
       for (int m = 0 ; m < levelMax; m++)
-        for (size_t n = 0 ; n < BlockInfoAll[m].size() ; n++)
+      {
+        const size_t nmax = getMaxBlocks()[0]*getMaxBlocks()[1]*getMaxBlocks()[2]*pow(1<<m,3);
+        for (size_t n = 0 ; n < nmax ; n++)
         {
-          if (BlockInfoAll[m][n] != nullptr) delete BlockInfoAll[m][n];
+          if (Tree(m,n).position != -3)
+          {
+            #ifndef CUBISM_USE_MAP
+              delete BlockInfoAll[m][n];
+            #else
+              size_t aux = level_base[m]+n;
+              auto retval = BlockInfoAll.find(aux);
+              if (retval != BlockInfoAll.end())
+              {
+                delete retval->second;
+              }
+            #endif
+          }
         }
+      }
       m_blocks.clear();
       m_vInfo.clear();
       BlockInfoAll.clear();
@@ -110,8 +150,6 @@ class Grid
    {
       allocator<Block> alloc;
       alloc.deallocate((Block *)getBlockInfoAll(m,n).ptrBlock, 1);
-      //getBlockInfoAll(m,n).myrank = -1;
-      //Tree(m,n) = -2;
       Tree(m,n).setCheckCoarser();
       for (size_t j = 0; j < m_vInfo.size(); j++)
       {
@@ -192,18 +230,28 @@ class Grid
       int nz     = 1;
      #endif      
       int lvlMax = dummy.levelMax(levelMax);
-      BlockInfoAll.resize(lvlMax);
-      Octree.resize(lvlMax);
-      ready.resize(lvlMax);
-      for (int m = 0; m < lvlMax; m++)
-      {
-        int TwoPower            = 1 << m;
-        const unsigned int Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
-        BlockInfoAll[m].resize(Ntot,nullptr);
-        ready[m].resize(Ntot,false);
-        //Octree[m].resize(Ntot,-3);
-        Octree[m].resize(Ntot);
-      }
+
+      #ifdef CUBISM_USE_MAP
+        for (int m = 0; m < lvlMax; m++)
+        {
+          int TwoPower            = 1 << m;
+          const unsigned int Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
+          if (m==0)level_base.push_back(Ntot);
+          if (m>0) level_base.push_back(level_base[m-1] + Ntot);
+        }
+      #else
+        BlockInfoAll.resize(lvlMax);
+        Octree.resize(lvlMax);
+        for (int m = 0; m < lvlMax; m++)
+        {
+          int TwoPower            = 1 << m;
+          const unsigned int Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
+          if (m==0)level_base.push_back(Ntot);
+          if (m>0) level_base.push_back(level_base[m-1] + Ntot);
+          BlockInfoAll[m].resize(Ntot,nullptr);
+          Octree[m].resize(Ntot);
+        }
+      #endif
       if (AllocateBlocks) _alloc();
    }
 
@@ -268,7 +316,43 @@ class Grid
    
    BlockInfo &getBlockInfoAll(int m, int n)
    {
-        if (ready[m][n])
+      #ifdef CUBISM_USE_MAP
+        size_t aux = level_base[m]+n;
+        auto retval = BlockInfoAll.find(aux);
+        if (retval != BlockInfoAll.end())
+        {
+          return *retval->second;
+        }
+        else
+        {
+          #pragma omp critical
+          {
+              auto retval1 = BlockInfoAll.find(aux);
+              if (retval1 == BlockInfoAll.end())
+              {
+                  BlockInfo * dumm = new BlockInfo();
+                  int TwoPower = 1 << m;
+                  double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
+                  double h = h0 / TwoPower;
+                  double origin[3];
+                  int i,j,k;
+                #if DIMENSION == 3
+                  BlockInfo::inverse(n,m,i,j,k);
+                #else
+                  BlockInfo::inverse(n,m,i,j);
+                  k = 0;
+                #endif
+                  origin[0]  = i * Block::sizeX * h;
+                  origin[1]  = j * Block::sizeY * h;
+                  origin[2]  = k * Block::sizeZ * h;
+                  dumm->setup(m, h, origin, n);
+                  BlockInfoAll[aux] = dumm;
+              }
+          }
+          return getBlockInfoAll(m,n);
+        }
+      #else
+        if (BlockInfoAll[m][n] != nullptr)
         {
             return *BlockInfoAll[m][n];
         }
@@ -276,7 +360,7 @@ class Grid
         {
             #pragma omp critical
             {
-                if (ready[m][n]==false)        
+                if (BlockInfoAll[m][n] == nullptr)
                 {
                     BlockInfoAll[m][n] = new BlockInfo();                            
                     int TwoPower = 1 << m;
@@ -294,14 +378,12 @@ class Grid
                     origin[1]  = j * Block::sizeY * h;
                     origin[2]  = k * Block::sizeZ * h;
                     BlockInfoAll[m][n]->setup(m, h, origin, n);
-                    ready[m][n] = true;
                 }
             }
             return *BlockInfoAll[m][n];
         }
+      #endif
    }
-
-   std::vector<std::vector<BlockInfo*>> &getBlockInfoAll() { return BlockInfoAll; }
 
    inline        std::vector<Block *> &GetBlocks()       { return m_blocks; }
    inline const  std::vector<Block *> &GetBlocks() const { return m_blocks; }

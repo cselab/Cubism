@@ -322,7 +322,6 @@ class SynchronizerMPI_AMR
 
   size_t myInfos_size;
   BlockInfo *myInfos;
-  std::vector<std::vector<BlockInfo*> *> BlockInfoAll;
 
   static std::vector<BlockInfo *> inner_blocks;
   static std::vector<BlockInfo *> halo_blocks;
@@ -1296,7 +1295,6 @@ class SynchronizerMPI_AMR
    std::vector<int> ss;
    void _Setup(BlockInfo *a_myInfos, 
                size_t a_myInfos_size,
-               std::vector<std::vector<BlockInfo*>> &a_BlockInfoAll, 
                const int timestamp,
                const bool a_define_neighbors = false)
    {
@@ -1305,8 +1303,6 @@ class SynchronizerMPI_AMR
 
       myInfos_size = a_myInfos_size;
       myInfos      = a_myInfos;
-      BlockInfoAll.resize(levelMax);
-      for (int m = 0; m < levelMax; m++) BlockInfoAll[m] = &a_BlockInfoAll[m];
       const int NC = stencil.selcomponents.size();
       /*------------->*/ Clock.start(12, "DefineInterfaces total time");
       DefineInterfaces();

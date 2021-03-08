@@ -79,7 +79,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       auto blockperDim     = AMR::m_refGrid->getMaxBlocks();
       StencilInfo Cstencil = stencil;
       Synch                = new SynchronizerMPIType(stencil, Cstencil, AMR::m_refGrid->getlevelMax(), TGrid::Block::sizeX,TGrid::Block::sizeY, TGrid::Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2], &grid);
-      Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(),AMR::m_refGrid->getBlockInfoAll(), timestamp, true);
+      Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), timestamp, true);
    }
 
    virtual ~MeshAdaptationMPI() { delete Synch; }
@@ -297,13 +297,13 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          AMR::m_refGrid->UpdateBlockInfoAll_States(false);
          /*------------->*/ Clock.finish(7);
 
-         Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(),AMR::m_refGrid->getBlockInfoAll(), timestamp, true);
+         Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), timestamp, true);
 
          // typename std::map<StencilInfo,SynchronizerMPIType*>::iterator
          auto it = AMR::m_refGrid->SynchronizerMPIs.begin();
          while (it != AMR::m_refGrid->SynchronizerMPIs.end())
          {
-            (*it->second)._Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(),AMR::m_refGrid->getBlockInfoAll(), timestamp);
+            (*it->second)._Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), timestamp);
             it++;
          }
       }

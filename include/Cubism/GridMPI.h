@@ -108,14 +108,13 @@ class GridMPI : public TGrid
                 TGrid::Tree(m,n).setrank(r);
             }
       }
-      if (myrank == 0)
-      {
-        std::cout << "Total blocks = " << total_blocks << "\n";
-        std::cout << "Each rank gets " << my_blocks << " \n";
-      }
 
       FillPos(true);
 
+      if (myrank == 0)
+      {
+        std::cout << "Total blocks = " << total_blocks << ", each rank gets " << my_blocks << std::endl;
+      }
       MPI_Barrier(worldcomm);
    }
 
@@ -443,8 +442,7 @@ class GridMPI : public TGrid
              Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2], this);
 
          if (myrank == 0) std::cout << "GRIDMPI IS CALLING SETUP!!!!\n";
-         queryresult->_Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(),
-                             TGrid::getBlockInfoAll(), timestamp, true);
+         queryresult->_Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(),timestamp, true);
          SynchronizerMPIs[stencil] = queryresult;
       }
       else

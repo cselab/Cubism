@@ -92,7 +92,11 @@ class FluxCorrection
 
       for (int m=0;m<m_refGrid->getlevelMax();m++)
       {
+#if DIMENSION == 3
         const size_t nmax = blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2]*pow(1<<m,3);
+#else
+        const size_t nmax = blocksPerDim[0]*blocksPerDim[1]*pow(1<<m,2);
+#endif
         for (size_t n=0; n< nmax ;n++)
           (*m_refGrid).getBlockInfoAll(m,n).auxiliary = nullptr;
       }

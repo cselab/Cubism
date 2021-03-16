@@ -86,7 +86,6 @@ class MeshAdaptation_basic
             mn_com.push_back(info.Z);
          }
       }
-
       #pragma omp parallel
       {
          #pragma omp for schedule(runtime)
@@ -126,7 +125,6 @@ class MeshAdaptation_basic
         m_refGrid->UpdateFluxCorrection = flag;
         flag                            = false;
       }
-
       /*************************************************/
    }
 
@@ -158,6 +156,8 @@ class MeshAdaptation_basic
         for (int i = 0; i < 2; i++)
         {
           int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
+          BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
+          Child.state = Leave;
           #pragma omp critical
           {
              m_refGrid->_alloc(level + 1, nc);

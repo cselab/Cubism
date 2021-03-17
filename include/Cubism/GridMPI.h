@@ -76,7 +76,7 @@ class GridMPI : public TGrid
          if ((size_t)myrank < total_blocks % world_size) n_start += myrank;
          else n_start += total_blocks % world_size;
       }
-      for (size_t n = n_start; n < n_start + my_blocks; n++) _alloc(a_levelStart, n);
+      for (size_t n = n_start; n < n_start + my_blocks; n++) TGrid::_alloc(a_levelStart, n);
 
       for (size_t m = 0 ; m < (size_t) a_levelMax ; m ++)
       {
@@ -129,21 +129,6 @@ class GridMPI : public TGrid
 
       MPI_Barrier(worldcomm);
    }
-
-   virtual void _alloc(int m, int n) override
-   {
-      allocator<Block> alloc;
-      TGrid::getBlockInfoAll(m,n).ptrBlock = alloc.allocate(1);
-      TGrid::getBlockInfoAll(m,n).changed  = true;
-      TGrid::getBlockInfoAll(m,n).h_gridpoint = TGrid::getBlockInfoAll(m,n).h;
-
-      TGrid::m_blocks.push_back((Block *)TGrid::getBlockInfoAll(m,n).ptrBlock);
-      
-      TGrid::m_vInfo.push_back((TGrid::getBlockInfoAll(m,n)));
-
-      TGrid::Tree(m,n).setrank(myrank);
-   }
-
 
    std::vector<BlockInfo> &getResidentBlocksInfo()
    { 

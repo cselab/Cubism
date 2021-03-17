@@ -109,7 +109,7 @@ class Grid
       FillPos();
    }
 
-   virtual void _alloc(int m, int n) // called whenever the grid is refined
+   void _alloc(int m, int n) // called whenever the grid is refined
    {
       allocator<Block> alloc;
       getBlockInfoAll(m,n).ptrBlock = alloc.allocate(1);
@@ -117,7 +117,7 @@ class Grid
       getBlockInfoAll(m,n).h_gridpoint = getBlockInfoAll(m,n).h;
       m_blocks.push_back((Block *)getBlockInfoAll(m,n).ptrBlock);
       m_vInfo.push_back(getBlockInfoAll(m,n));
-//Tree(m,n).setrank(0);
+      Tree(m,n).setrank(rank());
    }
 
    void _deallocAll() // called in class destructor

@@ -1,22 +1,11 @@
 #pragma once
 #include "AMR_MeshAdaptation.h"
-#include "BlockInfo.h"
-#include "BlockLab.h"
 #include "BlockLabMPI.h"
-#include "Grid.h"
 #include "GridMPI.h"
 #include "LoadBalancer.h"
-#include "Matrix3D.h"
 
-#include <algorithm>
-#include <cstring>
-#include <omp.h>
-#include <string>
 namespace cubism
 {
-
-
-#define WENOWAVELET 3
 
 template <typename TGrid, typename TLab>
 class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
@@ -601,7 +590,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       }
       /*------------->*/ Clock.finish(23);
    }
-
 
    virtual State TagLoadedBlock(TLab &Lab_, BlockInfo & info) override
    {

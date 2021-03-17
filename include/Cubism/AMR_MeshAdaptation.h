@@ -14,7 +14,7 @@ namespace cubism
 
 #define WENOWAVELET 3
 
-template <typename TGrid>
+template <typename TGrid, typename otherTGRID=TGrid>
 class MeshAdaptation_basic
 {
  public:
@@ -33,31 +33,23 @@ class MeshAdaptation_basic
 
    virtual ~MeshAdaptation_basic() {  }
 
-   template <typename otherTGRID>
-   void AdaptLikeOther(otherTGRID &OtherGrid)
+   virtual void AdaptLikeOther(otherTGRID &OtherGrid)
    {
       otherTGRID * m_OtherGrid = & OtherGrid;
 
-      vector<BlockInfo> & avail0= m_refGrid->getBlocksInfo();
+      std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
 
-      const int nthreads = omp_get_max_threads();
-
-      const int Ninner = avail0.size();
-      #pragma omp parallel num_threads(nthreads)
+      const int Ninner = I.size();
+      #pragma omp parallel for
+      for (int i = 0; i < Ninner; i++)
       {
-         #pragma omp for schedule(dynamic, 1)
-         for (int i = 0; i < Ninner; i++)
-         {
-            BlockInfo &ary0 = avail0[i];
-            BlockInfo &info = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
-
-            BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
-            else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
-            else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
-
-            info.state      = ary0.state;
-         }
+         BlockInfo &ary0 = I[i];
+         BlockInfo &info = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
+         BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
+         if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
+         else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
+         else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
+         info.state      = ary0.state;
       }
 
       ValidStates();
@@ -69,8 +61,6 @@ class MeshAdaptation_basic
 
       std::vector<int> mn_com;
       std::vector<int> mn_ref;
-
-      std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
 
       for (auto &i : I)
       {
@@ -88,7 +78,7 @@ class MeshAdaptation_basic
       }
       #pragma omp parallel
       {
-         #pragma omp for schedule(runtime)
+         #pragma omp for
          for (size_t i = 0; i < mn_ref.size() / 2; i++)
          {
             int m = mn_ref[2 * i];
@@ -97,26 +87,23 @@ class MeshAdaptation_basic
             #pragma omp atomic
             r++;
          }
-         #pragma omp for schedule(runtime)
+         #pragma omp for
          for (size_t i = 0; i < mn_ref.size() / 2; i++)
          {
             int m = mn_ref[2 * i];
             int n = mn_ref[2 * i + 1];
             refine_2(m, n);
          }
-     }
+      }
 
-      #pragma omp parallel
+      #pragma omp parallel for
+      for (size_t i = 0; i < mn_com.size() / 2; i++)
       {
-         #pragma omp for schedule(runtime)
-         for (size_t i = 0; i < mn_com.size() / 2; i++)
-         {
-            int m = mn_com[2 * i];
-            int n = mn_com[2 * i + 1];
-            compress(m, n);
-            #pragma omp atomic
-            c++;
-         }
+         int m = mn_com[2 * i];
+         int n = mn_com[2 * i + 1];
+         compress(m, n);
+         #pragma omp atomic
+         c++;
       }
 
       m_refGrid->FillPos();     
@@ -125,7 +112,6 @@ class MeshAdaptation_basic
         m_refGrid->UpdateFluxCorrection = flag;
         flag                            = false;
       }
-      /*************************************************/
    }
 
  protected:
@@ -145,6 +131,8 @@ class MeshAdaptation_basic
             for (int i = 0; i < 2; i++)
             {
                int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
+               BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
+               Child.state = Leave;
                #pragma omp critical
                {
                   m_refGrid->_alloc(level + 1, nc);
@@ -507,8 +495,8 @@ class MeshAdaptation_basic
    }
 };
 
-template <typename TGrid, typename TLab>
-class MeshAdaptation: public MeshAdaptation_basic<TGrid>
+template <typename TGrid, typename TLab, typename otherTGRID=TGrid>
+class MeshAdaptation: public MeshAdaptation_basic<TGrid,otherTGRID>
 {
 
  public:
@@ -532,7 +520,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
    bool verbose;
 
  public:
-   MeshAdaptation(TGrid &grid, double Rtol, double Ctol,bool _verbose = false):MeshAdaptation_basic<TGrid>(grid)
+   MeshAdaptation(TGrid &grid, double Rtol, double Ctol,bool _verbose = false):MeshAdaptation_basic<TGrid,otherTGRID>(grid)
    {
       bool tensorial = true;
       verbose = _verbose;
@@ -615,7 +603,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             }
          }
       }
-      if (CallValidStates) MeshAdaptation_basic<TGrid>::ValidStates();
+      if (CallValidStates) MeshAdaptation_basic<TGrid,otherTGRID>::ValidStates();
       // Refinement/compression of blocks
       /*************************************************/
       int r = 0;
@@ -673,7 +661,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
       }
       int result[2] = {r,c};
       if (verbose)
-        std::cout << "[CUP2D] refined:" << result[0] << "   compressed:" << result[1] << std::endl;
+        std::cout << "Blocks refined:" << result[0] << " blocks compressed:" << result[1] << std::endl;
       m_refGrid->FillPos();     
       delete[] labs;
       if (!CallValidStates)
@@ -683,109 +671,15 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
       }
       /*************************************************/
    }
-
-   template <typename otherTGRID>
-   void AdaptLikeOther1(otherTGRID &OtherGrid)
+   
+   virtual void AdaptLikeOther(otherTGRID &OtherGrid) override
    {
-
-      otherTGRID * m_OtherGrid = & OtherGrid;
-
-      vector<BlockInfo> & avail0= m_refGrid->getBlocksInfo();
-
       const int nthreads = omp_get_max_threads();
-
       labs = new TLab[nthreads];
       for (int i = 0; i < nthreads; i++) labs[i].prepare(*m_refGrid, s[0], e[0],s[1],e[1],s[2],e[2],true,Is[0],Ie[0],Is[1],Ie[1],Is[2],Ie[2]);
-
-      const int Ninner = avail0.size();
-      #pragma omp parallel num_threads(nthreads)
-      {
-         #pragma omp for schedule(dynamic, 1)
-         for (int i = 0; i < Ninner; i++)
-         {
-            BlockInfo &ary0 = avail0[i];
-            BlockInfo &info = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
-
-            BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
-            else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
-            else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
-
-            info.state      = ary0.state;
-         }
-      }
-
-      MeshAdaptation_basic<TGrid>::ValidStates();
-      
-      // Refinement/compression of blocks
-      /*************************************************/
-      int r = 0;
-      int c = 0;
-
-      std::vector<int> mn_com;
-      std::vector<int> mn_ref;
-
-      std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
-
-      for (auto &i : I)
-      {
-         BlockInfo &info = m_refGrid->getBlockInfoAll(i.level, i.Z);
-         if (info.state == Refine)
-         {
-            mn_ref.push_back(info.level);
-            mn_ref.push_back(info.Z);
-         }
-         else if (info.state == Compress)
-         {
-            mn_com.push_back(info.level);
-            mn_com.push_back(info.Z);
-         }
-      }
-
-      #pragma omp parallel
-      {
-         #pragma omp for schedule(runtime)
-         for (size_t i = 0; i < mn_ref.size() / 2; i++)
-         {
-            int m = mn_ref[2 * i];
-            int n = mn_ref[2 * i + 1];
-            refine_1(m, n);            
-            #pragma omp atomic
-            r++;
-         }
-         #pragma omp for schedule(runtime)
-         for (size_t i = 0; i < mn_ref.size() / 2; i++)
-         {
-            int m = mn_ref[2 * i];
-            int n = mn_ref[2 * i + 1];
-            refine_2(m, n);
-         }
-     }
-      #pragma omp parallel
-      {
-         #pragma omp for schedule(runtime)
-         for (size_t i = 0; i < mn_com.size() / 2; i++)
-         {
-            int m = mn_com[2 * i];
-            int n = mn_com[2 * i + 1];
-            compress(m, n);
-            #pragma omp atomic
-            c++;
-         }
-      }
-
-      m_refGrid->FillPos();     
+      MeshAdaptation_basic<TGrid,otherTGRID>::AdaptLikeOther(OtherGrid);
       delete[] labs;
-      if (r>0 || c>0)
-      {
-        m_refGrid->UpdateFluxCorrection = flag;
-        flag                            = false;
-      }
-
-      /*************************************************/
    }
-
-
 
  protected:
    virtual void refine_1(int level, int Z) override
@@ -826,7 +720,8 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
             Child.state = Leave;
             #pragma omp critical
             {
-               m_refGrid->_alloc(level + 1, nc);
+                m_refGrid->_alloc(level + 1, nc);
+                m_refGrid->Tree(level + 1, nc).setCheckCoarser();
             }
             Blocks[j * 2 + i] = (BlockType *)Child.ptrBlock;
          }
@@ -836,7 +731,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid>
 
    virtual void refine_2(int level, int Z) override
    {
-      MeshAdaptation_basic<TGrid>::refine_2(level,Z);
+      MeshAdaptation_basic<TGrid,otherTGRID>::refine_2(level,Z);
    }
 
 

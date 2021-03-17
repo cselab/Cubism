@@ -89,8 +89,8 @@ class Grid
 
    void _alloc() // called in class constructor
    {
-      int m        = levelStart;
-      int TwoPower = 1 << m;      
+      const int m        = levelStart;
+      const int TwoPower = 1 << m;      
       for (int n = 0; n < NX * NY * NZ * pow(TwoPower, DIMENSION); n++)
       {
          Tree(m,n).setrank(0);
@@ -125,8 +125,8 @@ class Grid
       allocator<Block> alloc;
       for (size_t i = 0 ; i < m_vInfo.size() ; i ++)
       {
-         int m = m_vInfo[i].level;
-         int n = m_vInfo[i].Z;
+         const int m = m_vInfo[i].level;
+         const int n = m_vInfo[i].Z;
          alloc.deallocate((Block *)getBlockInfoAll(m,n).ptrBlock, 1);
       }
       for (int m = 0 ; m < levelMax; m++)
@@ -195,7 +195,6 @@ class Grid
             m_vInfo[j] = getBlockInfoAll(m,n);
 
             assert(getBlockInfoAll(m,n).state == m_vInfo[j].state);
-            //assert(getBlockInfoAll(m,n).TreePos == Exists);
             assert(Tree(m,n).Exists());
 
             m_blocks[j] = (Block *)getBlockInfoAll(m,n).ptrBlock;
@@ -206,7 +205,6 @@ class Grid
             int m            = m_vInfo[j].level;
             int n            = m_vInfo[j].Z;
             m_vInfo[j].state = getBlockInfoAll(m,n).state;
-            //assert(getBlockInfoAll(m,n).TreePos == Exists);
             assert(Tree(m,n).Exists());
             m_blocks[j] = (Block *)getBlockInfoAll(m,n).ptrBlock;
          }
@@ -267,56 +265,50 @@ class Grid
 
    virtual Block *avail(int m, int n){ return (Block *)getBlockInfoAll(m,n).ptrBlock; }
 
-#if DIMENSION == 3
-   Block *avail1(int ix, int iy, int iz, int m)
-   {
-      int n = getZforward(m, ix, iy, iz);
-      return avail(m, n);
-   }
-#endif
-#if DIMENSION == 2
-   Block *avail1(int ix, int iy, int m)
-   {
-      int n = getZforward(m, ix, iy);
-      return avail(m, n);
-   }
-#endif
-
    virtual int rank() const { return 0; }
 
 #if DIMENSION == 3
    int getZforward(const int level, const int i, const int j, const int k) const
    {
-      int TwoPower = 1 << level;
-      int ix       = (i + TwoPower * NX) % (NX * TwoPower);
-      int iy       = (j + TwoPower * NY) % (NY * TwoPower);
-      int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
+      const int TwoPower = 1 << level;
+      const int ix       = (i + TwoPower * NX) % (NX * TwoPower);
+      const int iy       = (j + TwoPower * NY) % (NY * TwoPower);
+      const int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
       return BlockInfo::forward(level, ix, iy, iz);
    }
    int getZchild(int level, int i, int j, int k) { return BlockInfo::child(level, i, j, k); }
-   virtual Block &operator()(int ix, int iy, int iz, int m)
+   Block &operator()(int ix, int iy, int iz, int m)
    {
-      int n = getZforward(m, ix, iy, iz);
+      const int n = getZforward(m, ix, iy, iz);
       return *(Block *)getBlockInfoAll(m,n).ptrBlock;
    }
-#endif
-#if DIMENSION == 2
+   Block *avail1(int ix, int iy, int iz, int m)
+   {
+      int n = getZforward(m, ix, iy, iz);
+      return avail(m, n);
+   }
+#else //DIMENSION = 2
    int getZforward(const int level, const int i, const int j) const
    {
-      int TwoPower = 1 << level;
-      int ix       = (i + TwoPower * NX) % (NX * TwoPower);
-      int iy       = (j + TwoPower * NY) % (NY * TwoPower);
+      const int TwoPower = 1 << level;
+      const int ix       = (i + TwoPower * NX) % (NX * TwoPower);
+      const int iy       = (j + TwoPower * NY) % (NY * TwoPower);
       return BlockInfo::forward(level, ix, iy);
    }
    int getZchild(int level, int i, int j) { return BlockInfo::child(level, i, j); }
-   virtual Block &operator()(int ix, int iy, int m)
+   Block &operator()(int ix, int iy, int m)
    {
-      int n = getZforward(m, ix, iy);
+      const int n = getZforward(m, ix, iy);
       return *(Block *)getBlockInfoAll(m,n).ptrBlock;
+   }
+   Block *avail1(int ix, int iy, int m)
+   {
+      const int n = getZforward(m, ix, iy);
+      return avail(m, n);
    }
 #endif
 
-   virtual std::array<int, 3> getMaxBlocks() const { return {NX, NY, NZ}; }
+   std::array<int, 3> getMaxBlocks() const { return {NX, NY, NZ}; }
 
    inline int getlevelMax() { return levelMax; }
    inline int getlevelMax() const { return levelMax; }
@@ -459,7 +451,7 @@ class Grid
 //
    }
 
-   virtual int getBlocksPerDimension(int idim) const
+   int getBlocksPerDimension(int idim) const
    {
       std::cout <<"You called Grid::getBlocksPerDimension() in an AMR solver. Do you really need that?"<<std::endl;
       abort();

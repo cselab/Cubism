@@ -442,7 +442,7 @@ class GridMPI : public TGrid
       return *SynchronizerMPIs.find(p.stencil)->second;
    }
 
-   int rank() const override { return myrank; }
+   virtual int rank() const override { return myrank; }
 
    size_t getTimeStamp() const { return timestamp; }
 

@@ -109,7 +109,7 @@ class GridMPI : public TGrid
             }
       }
 
-      FillPos(true);
+      TGrid::FillPos(true);
 
       if (myrank == 0)
       {
@@ -146,12 +146,6 @@ class GridMPI : public TGrid
          return (Block *)TGrid::getBlockInfoAll(m,n).ptrBlock;
       else
          return nullptr;
-   }
-
-   virtual Block *avail1(int ix, int iy, int iz, int m) override
-   {
-      int n = TGrid::getZforward(m, ix, iy, iz);
-      return avail(m, n);
    }
 
    std::vector<BlockInfo *> boundary;
@@ -449,8 +443,6 @@ class GridMPI : public TGrid
    }
 
    int rank() const override { return myrank; }
-
-   virtual void FillPos(bool CopyInfos = true) override { TGrid::FillPos(CopyInfos); }
 
    size_t getTimeStamp() const { return timestamp; }
 

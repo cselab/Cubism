@@ -268,14 +268,14 @@ class Grid
    virtual Block *avail(int m, int n){ return (Block *)getBlockInfoAll(m,n).ptrBlock; }
 
 #if DIMENSION == 3
-   virtual Block *avail1(int ix, int iy, int iz, int m)
+   Block *avail1(int ix, int iy, int iz, int m)
    {
       int n = getZforward(m, ix, iy, iz);
       return avail(m, n);
    }
 #endif
 #if DIMENSION == 2
-   virtual Block *avail1(int ix, int iy, int m)
+   Block *avail1(int ix, int iy, int m)
    {
       int n = getZforward(m, ix, iy);
       return avail(m, n);

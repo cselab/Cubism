@@ -117,6 +117,7 @@ class Grid
       getBlockInfoAll(m,n).h_gridpoint = getBlockInfoAll(m,n).h;
       m_blocks.push_back((Block *)getBlockInfoAll(m,n).ptrBlock);
       m_vInfo.push_back(getBlockInfoAll(m,n));
+//Tree(m,n).setrank(0);
    }
 
    void _deallocAll() // called in class destructor
@@ -369,7 +370,7 @@ class Grid
             {
                 if (BlockInfoAll[m][n] == nullptr)
                 {
-                    BlockInfoAll[m][n] = new BlockInfo();                            
+                    BlockInfo * dummy = new BlockInfo();
                     int TwoPower = 1 << m;
                     double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
                     double h = h0 / TwoPower;
@@ -384,7 +385,8 @@ class Grid
                     origin[0]  = i * Block::sizeX * h;
                     origin[1]  = j * Block::sizeY * h;
                     origin[2]  = k * Block::sizeZ * h;
-                    BlockInfoAll[m][n]->setup(m, h, origin, n);
+                    dummy->setup(m, h, origin, n);
+                    BlockInfoAll[m][n] = dummy;
                 }
             }
             return *BlockInfoAll[m][n];
@@ -431,6 +433,30 @@ class Grid
       apply_permutation_in_place<Block *>(this->m_blocks,permutation);
       for (size_t i = 0 ; i< m_vInfo.size(); i++)
          m_vInfo[i].blockID = i;
+//
+//      for (size_t iii = 0 ; iii< m_vInfo.size(); iii++)
+//      {
+//         int level = m_vInfo[iii].level;
+//         int Z = m_vInfo[iii].Z;
+//         BlockInfo & dummy = getBlockInfoAll(level,Z);
+//         Tree(level,Z).setrank(0);
+//         int p[3];
+//         BlockInfo::inverse(Z,level,p[0],p[1]);
+//         if (level < levelMax - 1)
+//           for (int k = 0; k < 2; k++)
+//            for (int j = 0; j < 2; j++)
+//             for (int i = 0; i < 2; i++)
+//             {
+//                 int nc = getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
+//                 Tree(level + 1,nc).setCheckCoarser();
+//             if (level > 0)
+//             {
+//                int nf = getZforward(level - 1, p[0] / 2, p[1] / 2);
+//                Tree(level - 1,nf).setCheckFiner();
+//             }
+//             }
+//      }
+//
    }
 
    virtual int getBlocksPerDimension(int idim) const

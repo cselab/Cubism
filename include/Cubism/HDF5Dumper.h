@@ -89,8 +89,13 @@ void DumpHDF5(const TGrid &grid,
    H5Pclose(plist_id);
 
    // 3.All ranks need to create datasets dset*
+#if DIMENSION == 2
+   hsize_t dims1[3] = {nY, nX, NCHANNELS * Ngrids};
+   fspace_id        = H5Screate_simple(3, dims1, NULL);
+#else
    hsize_t dims1[4] = {nZ, nY, nX, NCHANNELS * Ngrids};
    fspace_id        = H5Screate_simple(4, dims1, NULL);
+#endif
    std::stringstream name;
    name << "dset" << std::setfill('0') << std::setw(10) << 0;
    dataset_id = H5Dcreate(file_id, (name.str()).c_str(), get_hdf5_type<hdf5Real>(), fspace_id,
@@ -147,42 +152,58 @@ void DumpHDF5(const TGrid &grid,
          BlockInfo I = MyInfos[m];
 
          s << "  <Grid GridType=\"Uniform\">\n";
-         s << "   <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\" " << nZ + 1 << " " << nY + 1
-           << " " << nX + 1 << "\"/>\n";
-         s << "   <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
-         s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" "
-              "Format=\"XML\">\n";
-
-         /*ViSit*/
-         // s << "    "<<std::scientific << I.origin[0] << " " << I.origin[1] << " " << I.origin[2]
-         // << "\n";
-         /*Paraview*/
-         s << "    " << std::scientific << I.origin[2] << " " << I.origin[1] << " " << I.origin[0]
-           << "\n";
-
+#if DIMENSION == 2
+         s << "   <Topology TopologyType=\"2DCoRectMesh\" Dimensions=\" " << nY + 1 << " " << nX + 1 << "\"/>\n";
+         s << "   <Geometry GeometryType=\"ORIGIN_DXDY\">\n";
+         s << "   <DataItem Dimensions=\"2\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
+         s << "    " << std::scientific << I.origin[1] << " " << I.origin[0] << "\n";
          s << "   </DataItem>\n";
-         s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" "
-              "Format=\"XML\">\n";
+         s << "   <DataItem Dimensions=\"2\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
+         s << "    " << std::scientific << I.h_gridpoint << " " << I.h_gridpoint << "\n";
+         s << "   </DataItem>\n";
+         s << "   </Geometry>\n";
+#else
+         s << "   <Topology TopologyType=\"2DCoRectMesh\" Dimensions=\" " << nZ + 1 << " " << nY + 1 << " " << nX + 1 << "\"/>\n";
+         s << "   <Geometry GeometryType=\"ORIGIN_DXDYDZ\">\n";
+         s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
+         s << "    " << std::scientific << I.origin[2] << " " << I.origin[1] << " " << I.origin[0] << "\n";
+         s << "   </DataItem>\n";
+         s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
          s << "    " << std::scientific << I.h_gridpoint << " " << I.h_gridpoint << " " << I.h_gridpoint << "\n";
          s << "   </DataItem>\n";
          s << "   </Geometry>\n";
+#endif
+
 
          ////////////////////////////////////
          s << "   <Attribute Name=\"data\" AttributeType=\"" << TStreamer::getAttributeName()
            << "\" Center=\"Cell\">\n";
 
+#if DIMENSION == 2
+         s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << nY << " " << nX
+           << " " << NCHANNELS << "\" Type=\"HyperSlab\"> \n";
+         s << "<DataItem Dimensions=\"3 3\" Format=\"XML\">\n";
+         s <<  0 << " " << 0  << " " << m * NCHANNELS << "\n";
+         s <<  1 << " " << 1  << " " << 1             << "\n";
+         s << nY << " " << nX << " " << NCHANNELS     << "\n";
+#else
          s << "<DataItem ItemType=\"HyperSlab\" Dimensions=\" " << nZ << " " << nY << " " << nX
            << " " << NCHANNELS << "\" Type=\"HyperSlab\"> \n";
-
-         s << "<DataItem Dimensions=\"3 4\" Format=\"XML\">\n";
-         s << 0 << " " << 0 << " " << 0 << " " << m * NCHANNELS << "\n";
-         s << 1 << " " << 1 << " " << 1 << " " << 1 << "\n";
-         s << nZ << " " << nY << " " << nX << " " << NCHANNELS << "\n";
+         s << "<DataItem Dimensions=\"3 3\" Format=\"XML\">\n";
+         s << 0 << " " <<  0 << " " << 0  << " " << m * NCHANNELS << "\n";
+         s << 1 << " " <<  1 << " " << 1  << " " << 1             << "\n";
+         s << nZ<< " " << nY << " " << nX << " " << NCHANNELS     << "\n";
+#endif
 
          s << "</DataItem>\n";
 
+#if DIMENSION == 2
+         s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << nY << " " << nX
+           << " " << Ngrids * NCHANNELS << " "
+#else
          s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << nZ << " " << nY << " " << nX
            << " " << Ngrids * NCHANNELS << " "
+#endif
            << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real)
            << "\" Format=\"HDF\">\n";
 

@@ -413,12 +413,23 @@ class LoadBalancer
       }
 
       std::vector<MPI_Request> send_request;
-      int counter = 0;
+      int counter_S = 0;
+      int counter_E = 0;
       for (int r = 0 ; r < size ; r ++) if (send_blocks[r].size() != 0)
       {
-         for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
-            send_blocks[r][i].prepare(SortedInfos[counter + i]);
-         counter += send_blocks[r].size();
+         if (r < rank)
+         {
+            for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
+               send_blocks[r][i].prepare(SortedInfos[counter_S + i]);
+            counter_S += send_blocks[r].size();
+         }
+         else
+         {
+            for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
+               send_blocks[r][i].prepare(SortedInfos[SortedInfos.size() - 1 - (counter_E + i) ]);
+            counter_E += send_blocks[r].size();           
+         }
+         
          MPI_Request req;
          send_request.push_back(req);
          MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, r +rank*size, comm, &send_request.back());
@@ -429,16 +440,30 @@ class LoadBalancer
 
       movedBlocks = true;
 
-      counter = 0;
+      counter_S = 0;
+      counter_E = 0;
       for (int r = 0 ; r < size ; r ++) if (send_blocks[r].size() != 0)
       {
-         for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
+         if (r < rank)
          {
-            BlockInfo &info = SortedInfos[counter+i];
-            m_refGrid->_dealloc(info.level, info.Z);
-            m_refGrid->Tree(info.level, info.Z).setrank(r);
+            for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
+            {
+               BlockInfo &info = SortedInfos[counter_S+i];
+               m_refGrid->_dealloc(info.level, info.Z);
+               m_refGrid->Tree(info.level, info.Z).setrank(r);
+            }
+            counter_S += send_blocks[r].size();
          }
-         counter += send_blocks[r].size();
+         else
+         {
+            for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
+            {
+               BlockInfo &info = SortedInfos[SortedInfos.size() - 1 - (counter_E + i) ];
+               m_refGrid->_dealloc(info.level, info.Z);
+               m_refGrid->Tree(info.level, info.Z).setrank(r);
+            }
+            counter_E += send_blocks[r].size();
+         }
       }
       for (int r = 0 ; r < size ; r ++) if (recv_blocks[r].size() != 0)
       {

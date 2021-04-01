@@ -161,7 +161,11 @@ void DumpHDF5_groups(TGrid &grid,
         for (int jB = group.i_min[1]; jB <= group.i_max[1]; jB++)
         for (int iB = group.i_min[0]; iB <= group.i_max[0]; iB++)
         {
-            int Z = BlockInfo::forward(group.level,iB,jB);//,kB);
+#if DIMENSION == 3
+            int Z = BlockInfo::forward(group.level,iB,jB,kB);
+#else
+            int Z = BlockInfo::forward(group.level,iB,jB);
+#endif
             const cubism::BlockInfo& I = grid.getBlockInfoAll(group.level,Z);
             //lab.load(I, 0);
             B & block = * (B*)I.ptrBlock;

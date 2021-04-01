@@ -13,6 +13,20 @@
 namespace cubism // AMR_CUBISM
 {
 
+struct BlockGroup
+{
+    int i_min[3];
+    int i_max[3];
+    int level;
+    std::vector<int> Z;
+    size_t ID;
+    double origin[3];
+    double h;
+    int NXX;
+    int NYY;
+    int NZZ;
+};
+
 struct TreePosition
 {
     int position{-3};
@@ -55,6 +69,8 @@ class Grid
    const bool xperiodic; // grid periodicity in x-direction
    const bool yperiodic; // grid periodicity in y-direction
    const bool zperiodic; // grid periodicity in z-direction
+   std::vector<BlockGroup> MyGroups; //used for dumping data
+   bool UpdateGroups{true};
 
    TreePosition & Tree(int m, int n)
    {
@@ -457,6 +473,129 @@ class Grid
       abort();
    }
    virtual int get_world_size() const {return 1;}
+
+   void UpdateMyGroups()
+   {
+      if (!UpdateGroups) return;
+      if (rank() == 0) std::cout << "Updating groups..." << std::endl;
+
+      const unsigned int nX = BlockType::sizeX;
+      const unsigned int nY = BlockType::sizeY;
+      const unsigned int nZ = BlockType::sizeZ;
+      const size_t Ngrids = getBlocksInfo().size();
+      const auto & MyInfos = getBlocksInfo();
+      UpdateGroups = false;
+      MyGroups.clear();
+      std::vector <bool> added(MyInfos.size(),false);
+
+      for (unsigned int m = 0; m < Ngrids; m++)
+      {
+        const BlockInfo & I = MyInfos[m];
+
+        if (added[I.blockID]) continue;
+        BlockGroup newGroup;
+    
+        newGroup.level = I.level;
+        newGroup.h = I.h;
+        newGroup.Z.push_back(I.Z);
+           
+        std::vector<int > base (3);
+        base[0] = I.index[0];
+        base[1] = I.index[1];
+        base[2] = I.index[2];
+        std::vector<int > i_off(6,0);
+        std::vector<bool> ready_(6,false);
+
+        int d = 0;
+        auto blk  = getMaxBlocks();
+        do
+        {
+          if (ready_[d] == false)
+          {
+            bool valid = true;    
+            i_off[d] ++;
+            const int i0 = (d<3) ? (base[d] - i_off[d]) : (base[d-3] + i_off[d]);
+            const int d0 = (d<3) ? (d  )%3 : (d-3    )%3;
+            const int d1 = (d<3) ? (d+1)%3 : (d-3 + 1)%3;
+            const int d2 = (d<3) ? (d+2)%3 : (d-3 + 2)%3;
+    
+            for (int i2 = base[d2] - i_off[d2]; i2 <= base[d2] + i_off[d2+3]; i2++)
+            for (int i1 = base[d1] - i_off[d1]; i1 <= base[d1] + i_off[d1+3]; i1++)
+            {
+              if (valid == false) break;
+
+                if (i0 < 0 || i1 < 0 || i2 < 0 || i0 >= blk[d0]*(1<<I.level) ||i1 >= blk[d1]*(1<<I.level) || i2 >= blk[d2]*(1<<I.level) )
+                {
+                    valid = false;
+                    break;
+                }
+                int n;
+                if      (d==0||d==3)     n = getZforward(I.level,i0,i1,i2);
+                else if (d==1||d==4)     n = getZforward(I.level,i2,i0,i1);
+                else /*if (d==2||d==5)*/ n = getZforward(I.level,i1,i2,i0);  
+                
+                if (Tree(I.level,n).rank() != rank())
+                {
+                  valid = false;
+                  break;
+                }
+                if (added[getBlockInfoAll(I.level,n).blockID] == true)
+                {
+                    valid = false;
+                }                                   
+            }
+
+             if (valid == false)
+             {
+                 i_off[d] --;
+                 ready_[d] = true;
+             }
+                    else
+                    {
+                        for (int i2 = base[d2] - i_off[d2]; i2 <= base[d2] + i_off[d2+3]; i2++)
+                        for (int i1 = base[d1] - i_off[d1]; i1 <= base[d1] + i_off[d1+3]; i1++)
+                        {
+                            int n;
+                            if      (d==0||d==3) n = getZforward(I.level,i0,i1,i2);
+                            else if (d==1||d==4) n = getZforward(I.level,i2,i0,i1);
+                            else /*if (d==2||d==5)*/ n = getZforward(I.level,i1,i2,i0);
+                            newGroup.Z.push_back(n);
+                            added[getBlockInfoAll(I.level,n).blockID] = true;                                   
+                        }
+                    }
+                }
+                d = (d+1)%6;         
+            }while( ready_[0] == false || ready_[1] == false || ready_[2] == false || ready_[3] == false || ready_[4] == false || ready_[5] == false);
+    
+            const int ix_min = base[0] - i_off[0];
+            const int iy_min = base[1] - i_off[1];
+            const int iz_min = base[2] - i_off[2];      
+            const int ix_max = base[0] + i_off[3];
+            const int iy_max = base[1] + i_off[4];
+            const int iz_max = base[2] + i_off[5];
+    
+            int n_base = getZforward(I.level,ix_min,iy_min,iz_min);
+    
+            newGroup.i_min[0] = ix_min;
+            newGroup.i_min[1] = iy_min;
+            newGroup.i_min[2] = iz_min;
+    
+            newGroup.i_max[0] = ix_max;
+            newGroup.i_max[1] = iy_max;
+            newGroup.i_max[2] = iz_max;
+    
+            newGroup.origin[0] =  getBlockInfoAll(I.level,n_base).origin[0];
+            newGroup.origin[1] =  getBlockInfoAll(I.level,n_base).origin[1];
+            newGroup.origin[2] =  getBlockInfoAll(I.level,n_base).origin[2];
+    
+            newGroup.NXX = (newGroup.i_max[0] - newGroup.i_min[0] + 1)*nX + 1;
+            newGroup.NYY = (newGroup.i_max[1] - newGroup.i_min[1] + 1)*nY + 1;
+            newGroup.NZZ = (newGroup.i_max[2] - newGroup.i_min[2] + 1)*nZ + 1;
+    
+            MyGroups.push_back(newGroup);
+        }
+    }
+
 };
 
 } // namespace cubism

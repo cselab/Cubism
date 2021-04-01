@@ -111,6 +111,7 @@ class MeshAdaptation_basic
       {
         m_refGrid->UpdateFluxCorrection = flag;
         flag                            = false;
+        m_refGrid->UpdateGroups = true;
       }
    }
 
@@ -666,6 +667,7 @@ class MeshAdaptation: public MeshAdaptation_basic<TGrid,otherTGRID>
       delete[] labs;
       if (!CallValidStates)
       {
+        m_refGrid->UpdateGroups = true;
         m_refGrid->UpdateFluxCorrection = flag;
         flag                            = false;
       }

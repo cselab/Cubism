@@ -200,7 +200,6 @@ void DumpHDF5_groups(TGrid &grid,
 
     dataset_id = H5Dopen(file_id, "dset", H5P_DEFAULT);
     H5Dwrite(dataset_id, get_hdf5_type<hdf5Real>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, bigArray.data());
-    H5Dclose(dataset_id);
 
     H5Sclose(fspace_id);
     H5Dclose(dataset_id);

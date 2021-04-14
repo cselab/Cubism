@@ -481,7 +481,6 @@ class Grid
 
       const unsigned int nX = BlockType::sizeX;
       const unsigned int nY = BlockType::sizeY;
-      const unsigned int nZ = BlockType::sizeZ;
       const size_t Ngrids = getBlocksInfo().size();
       const auto & MyInfos = getBlocksInfo();
       UpdateGroups = false;
@@ -489,6 +488,7 @@ class Grid
       std::vector <bool> added(MyInfos.size(),false);
 
 #if DIMENSION == 3
+      const unsigned int nZ = BlockType::sizeZ;
       for (unsigned int m = 0; m < Ngrids; m++)
       {
         const BlockInfo & I = MyInfos[m];

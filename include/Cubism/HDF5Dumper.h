@@ -146,6 +146,7 @@ void DumpHDF5_groups(TGrid &grid,
     fspace_id        = H5Screate_simple(1, dims, NULL);
     dataset_id       = H5Dcreate (file_id, "dset", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
+    H5Dclose(dataset_id);
     //4.Dump
     int start1 = 0;
     std::vector<hdf5Real> bigArray(start);

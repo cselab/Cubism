@@ -167,6 +167,7 @@ class FluxCorrection
 
       std::array<int, 6> icode = {1 * 2 + 3 * 1 + 9 * 1, 1 * 0 + 3 * 1 + 9 * 1, 1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1, 1 * 1 + 3 * 1 + 9 * 2, 1 * 1 + 3 * 1 + 9 * 0};
 
+      #pragma omp parallel for
       for (auto &info : B)
       {
         const int aux = 1 << info.level;

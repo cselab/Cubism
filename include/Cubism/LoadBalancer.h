@@ -102,18 +102,18 @@ class LoadBalancer
          BlockInfo &bCopy = m_refGrid->getBlockInfoAll(b.level, b.Z);
 
          const int baserank = m_refGrid->Tree(b.level, nBlock).rank();
-         const int brank = m_refGrid->Tree(b.level, b.Z).rank();
+         const int brank    = m_refGrid->Tree(b.level, b.Z).rank();
 
-         //assert(b.TreePos == Exists);
+         // assert(b.TreePos == Exists);
 
-         //if (base.TreePos != Exists) continue;
+         // if (base.TreePos != Exists) continue;
          if (!m_refGrid->Tree(base).Exists()) continue;
 
          if (b.Z != nBlock && base.state == Compress)
          {
             if (baserank != rank && brank == rank)
             {
-               //assert(base.TreePos == Exists);
+               // assert(base.TreePos == Exists);
                send_blocks[baserank].push_back({bCopy});
                m_refGrid->Tree(b.level, b.Z).setrank(baserank);
             }
@@ -121,22 +121,22 @@ class LoadBalancer
          else if (b.Z == nBlock && base.state == Compress)
          {
             for (int k = 0; k < 2; k++)
-            for (int j = 0; j < 2; j++)
-            for (int i = 0; i < 2; i++)
-            {
-               int n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
-               if (n == nBlock) continue;
-               BlockInfo &temp = m_refGrid->getBlockInfoAll(b.level, n);
-               const int temprank = m_refGrid->Tree(b.level, n).rank();
-               if (temprank != rank)
-               {
-                  //assert(base.TreePos == Exists);
-                  //assert(base.myrank >= 0);
-                  //assert(temp.myrank >= 0);
-                  recv_blocks[temprank].push_back({temp, false});
-                  m_refGrid->Tree(b.level, n).setrank(baserank);
-               }
-            }
+               for (int j = 0; j < 2; j++)
+                  for (int i = 0; i < 2; i++)
+                  {
+                     int n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
+                     if (n == nBlock) continue;
+                     BlockInfo &temp    = m_refGrid->getBlockInfoAll(b.level, n);
+                     const int temprank = m_refGrid->Tree(b.level, n).rank();
+                     if (temprank != rank)
+                     {
+                        // assert(base.TreePos == Exists);
+                        // assert(base.myrank >= 0);
+                        // assert(temp.myrank >= 0);
+                        recv_blocks[temprank].push_back({temp, false});
+                        m_refGrid->Tree(b.level, n).setrank(baserank);
+                     }
+                  }
          }
       }
 
@@ -192,12 +192,12 @@ class LoadBalancer
    void Balance_Diffusion()
    {
       counterg++;
-      if (counterg < 5 || (counterg % 10 ==0) )
+      if (counterg < 5 || (counterg % 10 == 0))
       {
          int b = m_refGrid->getBlocksInfo().size();
-         int max_b,min_b;
-         MPI_Allreduce(&b, &max_b, 1, MPI_INT,  MPI_MAX, comm);
-         MPI_Allreduce(&b, &min_b, 1, MPI_INT,  MPI_MIN, comm);
+         int max_b, min_b;
+         MPI_Allreduce(&b, &max_b, 1, MPI_INT, MPI_MAX, comm);
+         MPI_Allreduce(&b, &min_b, 1, MPI_INT, MPI_MIN, comm);
          const double ratio = static_cast<double>(max_b) / min_b;
          if (rank == 0) std::cout << "Load imbalance ratio = " << ratio << std::endl;
          if (ratio > 1.5)
@@ -209,25 +209,25 @@ class LoadBalancer
       }
 
       int right = (rank == size - 1) ? MPI_PROC_NULL : rank + 1;
-      int left  = (rank == 0       ) ? MPI_PROC_NULL : rank - 1;
+      int left  = (rank == 0) ? MPI_PROC_NULL : rank - 1;
 
       int my_blocks = m_refGrid->getBlocksInfo().size();
 
       int right_blocks, left_blocks;
 
       std::vector<MPI_Request> reqs(4);
-      MPI_Irecv(&left_blocks , 1, MPI_INT, left , 123, comm, &reqs[0]);
+      MPI_Irecv(&left_blocks, 1, MPI_INT, left, 123, comm, &reqs[0]);
       MPI_Irecv(&right_blocks, 1, MPI_INT, right, 456, comm, &reqs[1]);
-      MPI_Isend(&my_blocks   , 1, MPI_INT, left , 456, comm, &reqs[2]);
-      MPI_Isend(&my_blocks   , 1, MPI_INT, right, 123, comm, &reqs[3]);
+      MPI_Isend(&my_blocks, 1, MPI_INT, left, 456, comm, &reqs[2]);
+      MPI_Isend(&my_blocks, 1, MPI_INT, right, 123, comm, &reqs[3]);
 
       MPI_Waitall(4, &reqs[0], MPI_STATUSES_IGNORE);
 
       int nu         = 4;
-      int flux_left  = (my_blocks - left_blocks ) / nu;
+      int flux_left  = (my_blocks - left_blocks) / nu;
       int flux_right = (my_blocks - right_blocks) / nu;
       if (rank == size - 1) flux_right = 0;
-      if (rank == 0       ) flux_left  = 0;
+      if (rank == 0) flux_left = 0;
 
       std::vector<BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
 
@@ -301,10 +301,10 @@ class LoadBalancer
          m_refGrid->_alloc(level, Z);
          BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
          m_refGrid->Tree(info).setrank(m_refGrid->rank());
-         BlockType *b1   = (BlockType *)info.ptrBlock;
-         Real *a1        = &b1->data[0][0][0].member(0);
+         BlockType *b1 = (BlockType *)info.ptrBlock;
+         Real *a1      = &b1->data[0][0][0].member(0);
          std::memcpy(a1, recv_left[i].data, BlockBytes);
-         //assert(m_refGrid->getBlockInfoAll(level, Z).myrank == rank);
+         // assert(m_refGrid->getBlockInfoAll(level, Z).myrank == rank);
       }
 
       for (int i = 0; i < -flux_right; i++)
@@ -314,17 +314,17 @@ class LoadBalancer
          m_refGrid->_alloc(level, Z);
          BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
          m_refGrid->Tree(info).setrank(m_refGrid->rank());
-         BlockType *b1   = (BlockType *)info.ptrBlock;
+         BlockType *b1 = (BlockType *)info.ptrBlock;
          assert(b1 != NULL);
          Real *a1 = &b1->data[0][0][0].member(0);
          std::memcpy(a1, recv_right[i].data, BlockBytes);
-         //assert(m_refGrid->getBlockInfoAll(level, Z).myrank == rank);
+         // assert(m_refGrid->getBlockInfoAll(level, Z).myrank == rank);
       }
 
       int temp = movedBlocks ? 1 : 0;
       MPI_Allreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_LOR, comm);
       movedBlocks = (temp == 1);
-      #if 0
+#if 0
       if (movedBlocks == true)
       {
          int b = m_refGrid->getBlocksInfo().size();
@@ -341,9 +341,9 @@ class LoadBalancer
             std::cout << std::endl;
          }
       }
-      #endif
+#endif
       m_refGrid->FillPos();
-      //for (auto &info : m_refGrid->getBlocksInfo())
+      // for (auto &info : m_refGrid->getBlocksInfo())
       //{
       //   assert(info.TreePos == Exists);
       //   assert(info.myrank == rank);
@@ -356,142 +356,146 @@ class LoadBalancer
    void Balance_Global()
    {
       int BlockBytes = sizeof(BlockType);
-      int b = m_refGrid->getBlocksInfo().size();
+      int b          = m_refGrid->getBlocksInfo().size();
       std::vector<int> all_b(size);
       MPI_Allgather(&b, 1, MPI_INT, all_b.data(), 1, MPI_INT, comm);
 
       std::vector<BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
       std::sort(SortedInfos.begin(), SortedInfos.end());
 
-      std::vector< std::vector<MPI_Block> > send_blocks(size);
-      std::vector< std::vector<MPI_Block> > recv_blocks(size);
+      std::vector<std::vector<MPI_Block>> send_blocks(size);
+      std::vector<std::vector<MPI_Block>> recv_blocks(size);
 
       int total_load = 0;
-      for (int r = 0 ; r < size ; r++) total_load+= all_b[r];
-      int my_load =  total_load / size;
-      if (rank < (total_load % size) ) my_load += 1;
+      for (int r = 0; r < size; r++) total_load += all_b[r];
+      int my_load = total_load / size;
+      if (rank < (total_load % size)) my_load += 1;
 
       std::vector<int> index_start(size);
       index_start[0] = 0;
-      for (int r = 1 ; r < size ; r++) index_start[r] = index_start[r-1] + all_b[r-1];
+      for (int r = 1; r < size; r++) index_start[r] = index_start[r - 1] + all_b[r - 1];
 
-      int ideal_index = ( total_load / size ) * rank;
+      int ideal_index = (total_load / size) * rank;
       ideal_index += (rank < (total_load % size)) ? rank : (total_load % size);
 
-      for (int r = 0 ; r < size ; r ++) if (rank != r)
-      {
-         {  //check if I need to receive blocks
-            const int a1 = ideal_index;
-            const int a2 = ideal_index + my_load -1;
-            const int b1 = index_start[r];
-            const int b2 = index_start[r]+all_b[r]-1;
-            const int c1 = max(a1,b1);
-            const int c2 = min(a2,b2);
-            if (c2-c1 + 1>0) recv_blocks[r].resize(c2-c1+1);
+      for (int r = 0; r < size; r++)
+         if (rank != r)
+         {
+            { // check if I need to receive blocks
+               const int a1 = ideal_index;
+               const int a2 = ideal_index + my_load - 1;
+               const int b1 = index_start[r];
+               const int b2 = index_start[r] + all_b[r] - 1;
+               const int c1 = max(a1, b1);
+               const int c2 = min(a2, b2);
+               if (c2 - c1 + 1 > 0) recv_blocks[r].resize(c2 - c1 + 1);
+            }
+            { // check if I need to send blocks
+               int other_ideal_index = (total_load / size) * r;
+               other_ideal_index += (r < (total_load % size)) ? r : (total_load % size);
+               int other_load = total_load / size;
+               if (r < (total_load % size)) other_load += 1;
+               const int a1 = other_ideal_index;
+               const int a2 = other_ideal_index + other_load - 1;
+               const int b1 = index_start[rank];
+               const int b2 = index_start[rank] + all_b[rank] - 1;
+               const int c1 = max(a1, b1);
+               const int c2 = min(a2, b2);
+               if (c2 - c1 + 1 > 0) send_blocks[r].resize(c2 - c1 + 1);
+            }
          }
-         {  //check if I need to send blocks
-            int other_ideal_index = ( total_load / size ) * r;
-            other_ideal_index += (r < (total_load % size)) ? r : (total_load % size); 
-            int other_load =  total_load / size;
-            if (r < (total_load%size)) other_load += 1;
-            const int a1 = other_ideal_index;
-            const int a2 = other_ideal_index + other_load -1;
-            const int b1 = index_start[rank];
-            const int b2 = index_start[rank]+all_b[rank]-1;
-            const int c1 = max(a1,b1);
-            const int c2 = min(a2,b2);
-            if (c2-c1 + 1>0) send_blocks[r].resize(c2-c1+1);
-         }
-      }
 
       std::vector<MPI_Request> recv_request;
-      for (int r = 0 ; r < size ; r ++) if (recv_blocks[r].size() != 0)
-      {
-         MPI_Request req;
-         recv_request.push_back(req);
-         MPI_Irecv(recv_blocks[r].data(), recv_blocks[r].size(), MPI_BLOCK, r, r*size+rank, comm, &recv_request.back());
-      }
+      for (int r = 0; r < size; r++)
+         if (recv_blocks[r].size() != 0)
+         {
+            MPI_Request req;
+            recv_request.push_back(req);
+            MPI_Irecv(recv_blocks[r].data(), recv_blocks[r].size(), MPI_BLOCK, r, r * size + rank, comm, &recv_request.back());
+         }
 
       std::vector<MPI_Request> send_request;
       int counter_S = 0;
       int counter_E = 0;
-      for (int r = 0 ; r < size ; r ++) if (send_blocks[r].size() != 0)
-      {
-         if (r < rank)
+      for (int r = 0; r < size; r++)
+         if (send_blocks[r].size() != 0)
          {
-            for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
-               send_blocks[r][i].prepare(SortedInfos[counter_S + i]);
-            counter_S += send_blocks[r].size();
-         }
-         else
-         {
-            for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
-               send_blocks[r][i].prepare(SortedInfos[SortedInfos.size() - 1 - (counter_E + i) ]);
-            counter_E += send_blocks[r].size();           
-         }
-         
-         MPI_Request req;
-         send_request.push_back(req);
-         MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, r +rank*size, comm, &send_request.back());
-      }
+            if (r < rank)
+            {
+               for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[counter_S + i]);
+               counter_S += send_blocks[r].size();
+            }
+            else
+            {
+               for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[SortedInfos.size() - 1 - (counter_E + i)]);
+               counter_E += send_blocks[r].size();
+            }
 
-      MPI_Waitall(send_request.size(), send_request.data() , MPI_STATUSES_IGNORE);
-      MPI_Waitall(recv_request.size(), recv_request.data() , MPI_STATUSES_IGNORE);
+            MPI_Request req;
+            send_request.push_back(req);
+            MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, r + rank * size, comm, &send_request.back());
+         }
+
+      MPI_Waitall(send_request.size(), send_request.data(), MPI_STATUSES_IGNORE);
+      MPI_Waitall(recv_request.size(), recv_request.data(), MPI_STATUSES_IGNORE);
 
       movedBlocks = true;
 
       counter_S = 0;
       counter_E = 0;
-      for (int r = 0 ; r < size ; r ++) if (send_blocks[r].size() != 0)
-      {
-         if (r < rank)
+      for (int r = 0; r < size; r++)
+         if (send_blocks[r].size() != 0)
          {
-            for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
+            if (r < rank)
             {
-               BlockInfo &info = SortedInfos[counter_S+i];
-               m_refGrid->_dealloc(info.level, info.Z);
-               m_refGrid->Tree(info.level, info.Z).setrank(r);
+               for (size_t i = 0; i < send_blocks[r].size(); i++)
+               {
+                  BlockInfo &info = SortedInfos[counter_S + i];
+                  m_refGrid->_dealloc(info.level, info.Z);
+                  m_refGrid->Tree(info.level, info.Z).setrank(r);
+               }
+               counter_S += send_blocks[r].size();
             }
-            counter_S += send_blocks[r].size();
-         }
-         else
-         {
-            for (size_t i = 0 ; i < send_blocks[r].size() ; i ++)
+            else
             {
-               BlockInfo &info = SortedInfos[SortedInfos.size() - 1 - (counter_E + i) ];
-               m_refGrid->_dealloc(info.level, info.Z);
-               m_refGrid->Tree(info.level, info.Z).setrank(r);
+               for (size_t i = 0; i < send_blocks[r].size(); i++)
+               {
+                  BlockInfo &info = SortedInfos[SortedInfos.size() - 1 - (counter_E + i)];
+                  m_refGrid->_dealloc(info.level, info.Z);
+                  m_refGrid->Tree(info.level, info.Z).setrank(r);
+               }
+               counter_E += send_blocks[r].size();
             }
-            counter_E += send_blocks[r].size();
          }
-      }
-      for (int r = 0 ; r < size ; r ++) if (recv_blocks[r].size() != 0)
-      {
-         for (size_t i = 0 ; i < recv_blocks[r].size() ; i ++)
+      for (int r = 0; r < size; r++)
+         if (recv_blocks[r].size() != 0)
          {
-            int level = recv_blocks[r][i].mn[0];
-            int Z     = recv_blocks[r][i].mn[1];
-            m_refGrid->_alloc(level, Z);
-  
-           BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
-           //info.TreePos    = Exists;
-           m_refGrid->Tree(info).setrank(m_refGrid->rank());
-           BlockType *b1   = (BlockType *)info.ptrBlock;
-           Real *a1        = &b1->data[0][0][0].member(0);
-           std::memcpy(a1, recv_blocks[r][i].data, BlockBytes);
+            for (size_t i = 0; i < recv_blocks[r].size(); i++)
+            {
+               int level = recv_blocks[r][i].mn[0];
+               int Z     = recv_blocks[r][i].mn[1];
+               m_refGrid->_alloc(level, Z);
+
+               BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
+               // info.TreePos    = Exists;
+               m_refGrid->Tree(info).setrank(m_refGrid->rank());
+               BlockType *b1 = (BlockType *)info.ptrBlock;
+               Real *a1      = &b1->data[0][0][0].member(0);
+               std::memcpy(a1, recv_blocks[r][i].data, BlockBytes);
+            }
          }
-      }
       m_refGrid->FillPos();
-      //for (auto &info : m_refGrid->getBlocksInfo())
+      // for (auto &info : m_refGrid->getBlocksInfo())
       //{
       //   assert(info.TreePos == Exists);
       //   assert(info.myrank == rank);
       //   info.myrank = rank;
       //}
-      
-      m_refGrid->UpdateBlockInfoAll_States(true);//is this call necessary? Probably yes.
+
+      m_refGrid->UpdateBlockInfoAll_States(true); // is this call necessary? Probably yes.
    }
 };
-template <typename TGrid> int LoadBalancer<TGrid>::counterg=0;
+template <typename TGrid>
+int LoadBalancer<TGrid>::counterg = 0;
 
 } // namespace cubism

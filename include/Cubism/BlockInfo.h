@@ -41,97 +41,72 @@ struct BlockInfo
       dx[2] = h_gridpoint;
    }
 
-   static int levelMax(int l=0)
+   static int levelMax(int l = 0)
    {
       static int lmax = l;
       return lmax;
    }
 
 #if DIMENSION == 3
- #pragma GCC diagnostic push
- #pragma GCC diagnostic ignored "-Warray-bounds" //ignore weird gcc warning
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds" // ignore weird gcc warning
    static int blocks_per_dim(int i, int nx = 0, int ny = 0, int nz = 0)
    {
       static int a[3] = {nx, ny, nz};
       return a[i];
    }
- #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 
-   static SpaceFillingCurve * SFC()
+   static SpaceFillingCurve *SFC()
    {
-      static SpaceFillingCurve Zcurve(blocks_per_dim(0), blocks_per_dim(1), blocks_per_dim(2),levelMax());
+      static SpaceFillingCurve Zcurve(blocks_per_dim(0), blocks_per_dim(1), blocks_per_dim(2), levelMax());
       return &Zcurve;
    }
 
-   static int forward(int level, int ix, int iy, int iz)
-   {
-      return (*SFC()).forward(level, ix, iy, iz);
-   }
+   static int forward(int level, int ix, int iy, int iz) { return (*SFC()).forward(level, ix, iy, iz); }
 
-   static int child(int level, int ix, int iy, int iz)
-   {
-      return (*SFC()).child(level, ix, iy, iz);     
-   }
+   static int child(int level, int ix, int iy, int iz) { return (*SFC()).child(level, ix, iy, iz); }
 
-   static int Encode(int level, int Z, int index[3])
-   {
-      return (*SFC()).Encode(level, Z, index);
-   }
+   static int Encode(int level, int Z, int index[3]) { return (*SFC()).Encode(level, Z, index); }
 
-   static void inverse(int Z, int l, int &i, int &j, int &k)
-   {
-      (*SFC()).inverse(Z,l,i,j,k);   
-   }
+   static void inverse(int Z, int l, int &i, int &j, int &k) { (*SFC()).inverse(Z, l, i, j, k); }
 #endif
 
 #if DIMENSION == 2
 
- #pragma GCC diagnostic push
- #pragma GCC diagnostic ignored "-Warray-bounds" //ignore weird gcc warning
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds" // ignore weird gcc warning
    static int blocks_per_dim(int i, int nx = 0, int ny = 0)
    {
       static int a[2] = {nx, ny};
       return a[i];
    }
- #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 
-
-   static SpaceFillingCurve2D * SFC()
+   static SpaceFillingCurve2D *SFC()
    {
-      static SpaceFillingCurve2D Zcurve(blocks_per_dim(0), blocks_per_dim(1),levelMax());
+      static SpaceFillingCurve2D Zcurve(blocks_per_dim(0), blocks_per_dim(1), levelMax());
       return &Zcurve;
    }
 
-   static int forward(int level, int ix, int iy)
-   {
-      return (*SFC()).forward(level, ix, iy);
-   }
+   static int forward(int level, int ix, int iy) { return (*SFC()).forward(level, ix, iy); }
 
-   static int child(int level, int ix, int iy)
-   {
-      return (*SFC()).child(level, ix, iy);     
-   }
+   static int child(int level, int ix, int iy) { return (*SFC()).child(level, ix, iy); }
 
-   static int Encode(int level, int Z, int index[2])
-   {
-      return (*SFC()).Encode(level, Z, index);
-   }
-   static void inverse(int Z, int l, int &i, int &j)
-   {
-      (*SFC()).inverse(Z,l,i,j);   
-   }
+   static int Encode(int level, int Z, int index[2]) { return (*SFC()).Encode(level, Z, index); }
+   static void inverse(int Z, int l, int &i, int &j) { (*SFC()).inverse(Z, l, i, j); }
 #endif
 
-   long long blockID,blockID_2;
-   int index[3];         //(i,j,k) coordinates of block at given refinement level
-   void *ptrBlock;       // Pointer to data stored in user-defined Block
+   long long blockID, blockID_2;
+   int index[3];      //(i,j,k) coordinates of block at given refinement level
+   void *ptrBlock;    // Pointer to data stored in user-defined Block
    State state;       // Refine/Compress/Leave this block
-   int Z, level;      // Z-order curve index of this block and refinement level   
+   int Z, level;      // Z-order curve index of this block and refinement level
    int Znei[3][3][3]; // Z-order curve index of 26 neighboring boxes (Znei[1][1][1] = Z)
 
-   double h,h_gridpoint;          // grid spacing
-   void *auxiliary;   // Pointer to blockcase
-   double origin[3];  //(x,y,z) of block's origin
+   double h, h_gridpoint; // grid spacing
+   void *auxiliary;       // Pointer to blockcase
+   double origin[3];      //(x,y,z) of block's origin
 
    bool changed;
    bool changed2;
@@ -181,17 +156,14 @@ struct BlockInfo
 
    BlockInfo(){};
 
-   bool operator<(const BlockInfo &other) const
-   {
-      return (blockID_2 < other.blockID_2);
-   }
+   bool operator<(const BlockInfo &other) const { return (blockID_2 < other.blockID_2); }
 
    void setup(const int a_level, const double a_h, const double a_origin[3], const int a_Z)
    {
       level = a_level;
       Z     = a_Z;
-      
-      state    = Leave;
+
+      state       = Leave;
       h_gridpoint = a_h;
 
       level     = a_level;
@@ -200,25 +172,21 @@ struct BlockInfo
       origin[1] = a_origin[1];
       origin[2] = a_origin[2];
 
-      changed     = true;
-      changed2    = true;
+      changed   = true;
+      changed2  = true;
       auxiliary = nullptr;
 
       const int TwoPower = 1 << level;
 #if DIMENSION == 3
-      inverse(Z,level,index[0],index[1],index[2]);
+      inverse(Z, level, index[0], index[1], index[2]);
 
-      const int Bmax[3]  = {blocks_per_dim(0) * TwoPower, 
-                            blocks_per_dim(1) * TwoPower,
-                            blocks_per_dim(2) * TwoPower};
+      const int Bmax[3] = {blocks_per_dim(0) * TwoPower, blocks_per_dim(1) * TwoPower, blocks_per_dim(2) * TwoPower};
 
       for (int i = -1; i < 2; i++)
          for (int j = -1; j < 2; j++)
             for (int k = -1; k < 2; k++)
             {
-               Znei[i + 1][j + 1][k + 1] =
-                   forward(level, (index[0] + i + Bmax[0]) % Bmax[0],
-                           (index[1] + j + Bmax[1]) % Bmax[1], (index[2] + k + Bmax[2]) % Bmax[2]);
+               Znei[i + 1][j + 1][k + 1] = forward(level, (index[0] + i + Bmax[0]) % Bmax[0], (index[1] + j + Bmax[1]) % Bmax[1], (index[2] + k + Bmax[2]) % Bmax[2]);
             }
       if (level == 0)
       {
@@ -226,35 +194,28 @@ struct BlockInfo
       }
       else
       {
-         Zparent = forward(level - 1, (index[0] / 2 + Bmax[0]) % Bmax[0],
-                           (index[1] / 2 + Bmax[1]) % Bmax[1], (index[2] / 2 + Bmax[2]) % Bmax[2]);
+         Zparent = forward(level - 1, (index[0] / 2 + Bmax[0]) % Bmax[0], (index[1] / 2 + Bmax[1]) % Bmax[1], (index[2] / 2 + Bmax[2]) % Bmax[2]);
       }
 
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
             for (int k = 0; k < 2; k++)
             {
-               Zchild[i][j][k] =
-                   forward(level + 1, 2 * index[0] + i, 2 * index[1] + j, 2 * index[2] + k);
+               Zchild[i][j][k] = forward(level + 1, 2 * index[0] + i, 2 * index[1] + j, 2 * index[2] + k);
             }
-
 
 #endif
 #if DIMENSION == 2
 
-      inverse(Z,level,index[0],index[1]);
+      inverse(Z, level, index[0], index[1]);
       index[2] = 0;
-      
-      const int Bmax[3]  = {blocks_per_dim(0) * TwoPower, 
-                            blocks_per_dim(1) * TwoPower,
-                            blocks_per_dim(2) * TwoPower};
+
+      const int Bmax[3] = {blocks_per_dim(0) * TwoPower, blocks_per_dim(1) * TwoPower, blocks_per_dim(2) * TwoPower};
       for (int i = -1; i < 2; i++)
          for (int j = -1; j < 2; j++)
             for (int k = -1; k < 2; k++)
             {
-               Znei[i + 1][j + 1][k + 1] =
-                   forward(level, (index[0] + i + Bmax[0]) % Bmax[0],
-                                  (index[1] + j + Bmax[1]) % Bmax[1]);
+               Znei[i + 1][j + 1][k + 1] = forward(level, (index[0] + i + Bmax[0]) % Bmax[0], (index[1] + j + Bmax[1]) % Bmax[1]);
             }
       if (level == 0)
       {
@@ -262,19 +223,17 @@ struct BlockInfo
       }
       else
       {
-         Zparent = forward(level - 1, (index[0] / 2 + Bmax[0]) % Bmax[0],
-                                      (index[1] / 2 + Bmax[1]) % Bmax[1]);
+         Zparent = forward(level - 1, (index[0] / 2 + Bmax[0]) % Bmax[0], (index[1] / 2 + Bmax[1]) % Bmax[1]);
       }
 
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
          {
-            Zchild[i][j] =
-                forward(level + 1, 2 * index[0] + i, 2 * index[1] + j);
+            Zchild[i][j] = forward(level + 1, 2 * index[0] + i, 2 * index[1] + j);
          }
 #endif
       blockID_2 = Encode(level, Z, index);
-      blockID = blockID_2;
+      blockID   = blockID_2;
    }
 
    int Znei_(int i, int j, int k) const

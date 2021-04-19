@@ -27,10 +27,7 @@ struct StencilInfo
 
    StencilInfo() {}
 
-   StencilInfo(int _sx, int _sy, int _sz, int _ex, int _ey, int _ez, bool _tensorial,
-               const std::vector<int> &components)
-       : sx(_sx), sy(_sy), sz(_sz), ex(_ex), ey(_ey), ez(_ez), selcomponents(components),
-         tensorial(_tensorial)
+   StencilInfo(int _sx, int _sy, int _sz, int _ex, int _ey, int _ez, bool _tensorial, const std::vector<int> &components) : sx(_sx), sy(_sy), sz(_sz), ex(_ex), ey(_ey), ez(_ez), selcomponents(components), tensorial(_tensorial)
    {
       assert(selcomponents.size() > 0);
 
@@ -41,11 +38,7 @@ struct StencilInfo
       }
    }
 
-   StencilInfo(const StencilInfo &c)
-       : sx(c.sx), sy(c.sy), sz(c.sz), ex(c.ex), ey(c.ey), ez(c.ez), selcomponents(c.selcomponents),
-         tensorial(c.tensorial)
-   {
-   }
+   StencilInfo(const StencilInfo &c) : sx(c.sx), sy(c.sy), sz(c.sz), ex(c.ex), ey(c.ey), ez(c.ez), selcomponents(c.selcomponents), tensorial(c.tensorial) {}
 
    std::vector<int> _all() const
    {

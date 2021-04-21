@@ -10,6 +10,7 @@
 #include <cstring>
 
 #include "Common.h"
+#include "BlockLab.h"
 
 CUBISM_NAMESPACE_BEGIN
 

@@ -474,6 +474,7 @@ class Grid
       UpdateGroups          = false;
       MyGroups.clear();
       std::vector<bool> added(MyInfos.size(), false);
+      FillPos();
 
 #if DIMENSION == 3
       const unsigned int nZ = BlockType::sizeZ;
@@ -482,6 +483,7 @@ class Grid
          const BlockInfo &I = MyInfos[m];
 
          if (added[I.blockID]) continue;
+         added[I.blockID] = true;
          BlockGroup newGroup;
 
          newGroup.level = I.level;
@@ -594,6 +596,7 @@ class Grid
          const BlockInfo &I = MyInfos[m];
 
          if (added[I.blockID]) continue;
+         added[I.blockID] = true;
          BlockGroup newGroup;
 
          newGroup.level = I.level;

@@ -108,7 +108,6 @@ struct BlockInfo
    void *auxiliary;       // Pointer to blockcase
    double origin[3];      //(x,y,z) of block's origin
 
-   bool changed;
    bool changed2;
 
    int halo_block_id;
@@ -172,7 +171,6 @@ struct BlockInfo
       origin[1] = a_origin[1];
       origin[2] = a_origin[2];
 
-      changed   = true;
       changed2  = true;
       auxiliary = nullptr;
 

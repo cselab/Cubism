@@ -59,6 +59,32 @@ class LoadBalancer
       MPI_Block() {}
    };
 
+   void AddBlock(const int level, const int Z, Real * data)
+   {
+      m_refGrid->_alloc(level, Z);
+      BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
+      m_refGrid->Tree(info).setrank(m_refGrid->rank());
+      BlockType *b1 = (BlockType *)info.ptrBlock;
+      assert(b1 != NULL);
+      Real *a1 = &b1->data[0][0][0].member(0);
+      std::memcpy(a1, data, sizeof(BlockType));
+      int p[3];
+      BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
+      if (level < m_refGrid->levelMax - 1)
+         for (int k1 = 0; k1 < 2; k1++)
+         for (int j1 = 0; j1 < 2; j1++)
+         for (int i1 = 0; i1 < 2; i1++)
+         {
+            const int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1, 2 * p[2] + k1);
+            m_refGrid->Tree(level + 1, nc).setCheckCoarser();
+         }
+      if (level > 0)
+      {
+         const int nf = m_refGrid->getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
+         m_refGrid->Tree(level - 1, nf).setCheckFiner();
+      }
+   }
+
  public:
    LoadBalancer(TGrid &grid)
    {
@@ -104,16 +130,12 @@ class LoadBalancer
          const int baserank = m_refGrid->Tree(b.level, nBlock).rank();
          const int brank    = m_refGrid->Tree(b.level, b.Z).rank();
 
-         // assert(b.TreePos == Exists);
-
-         // if (base.TreePos != Exists) continue;
          if (!m_refGrid->Tree(base).Exists()) continue;
 
          if (b.Z != nBlock && base.state == Compress)
          {
             if (baserank != rank && brank == rank)
             {
-               // assert(base.TreePos == Exists);
                send_blocks[baserank].push_back({bCopy});
                m_refGrid->Tree(b.level, b.Z).setrank(baserank);
             }
@@ -130,17 +152,12 @@ class LoadBalancer
                      const int temprank = m_refGrid->Tree(b.level, n).rank();
                      if (temprank != rank)
                      {
-                        // assert(base.TreePos == Exists);
-                        // assert(base.myrank >= 0);
-                        // assert(temp.myrank >= 0);
                         recv_blocks[temprank].push_back({temp, false});
                         m_refGrid->Tree(b.level, n).setrank(baserank);
                      }
                   }
          }
       }
-
-      int BlockBytes = sizeof(BlockType);
 
       std::vector<MPI_Request> requests;
 
@@ -180,12 +197,11 @@ class LoadBalancer
             int Z     = recv_blocks[r][i].mn[1];
 
             m_refGrid->_alloc(level, Z);
-
             BlockInfo info = m_refGrid->getBlockInfoAll(level, Z);
             BlockType *b1  = (BlockType *)info.ptrBlock;
             assert(b1 != NULL);
             Real *a1 = &b1->data[0][0][0].member(0);
-            std::memcpy(a1, recv_blocks[r][i].data, BlockBytes);
+            std::memcpy(a1, recv_blocks[r][i].data, sizeof(BlockType));
          }
    }
 
@@ -238,7 +254,6 @@ class LoadBalancer
       std::vector<MPI_Block> send_right;
       std::vector<MPI_Block> recv_right;
 
-      int BlockBytes = sizeof(BlockType);
       std::vector<MPI_Request> request;
 
       if (flux_left > 0) // then I will send blocks to my left rank
@@ -295,31 +310,10 @@ class LoadBalancer
       }
 
       for (int i = 0; i < -flux_left; i++)
-      {
-         int level = recv_left[i].mn[0];
-         int Z     = recv_left[i].mn[1];
-         m_refGrid->_alloc(level, Z);
-         BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
-         m_refGrid->Tree(info).setrank(m_refGrid->rank());
-         BlockType *b1 = (BlockType *)info.ptrBlock;
-         Real *a1      = &b1->data[0][0][0].member(0);
-         std::memcpy(a1, recv_left[i].data, BlockBytes);
-         // assert(m_refGrid->getBlockInfoAll(level, Z).myrank == rank);
-      }
+         AddBlock(recv_left[i].mn[0],recv_left[i].mn[1],recv_left[i].data);
 
       for (int i = 0; i < -flux_right; i++)
-      {
-         int level = recv_right[i].mn[0];
-         int Z     = recv_right[i].mn[1];
-         m_refGrid->_alloc(level, Z);
-         BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
-         m_refGrid->Tree(info).setrank(m_refGrid->rank());
-         BlockType *b1 = (BlockType *)info.ptrBlock;
-         assert(b1 != NULL);
-         Real *a1 = &b1->data[0][0][0].member(0);
-         std::memcpy(a1, recv_right[i].data, BlockBytes);
-         // assert(m_refGrid->getBlockInfoAll(level, Z).myrank == rank);
-      }
+         AddBlock(recv_right[i].mn[0],recv_right[i].mn[1],recv_right[i].data);
 
       int temp = movedBlocks ? 1 : 0;
       MPI_Allreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_LOR, comm);
@@ -343,19 +337,12 @@ class LoadBalancer
       }
 #endif
       m_refGrid->FillPos();
-      // for (auto &info : m_refGrid->getBlocksInfo())
-      //{
-      //   assert(info.TreePos == Exists);
-      //   assert(info.myrank == rank);
-      //   info.myrank = rank;
-      //}
       flux_left_old  = flux_left;
       flux_right_old = flux_right;
    }
 
    void Balance_Global()
    {
-      int BlockBytes = sizeof(BlockType);
       int b          = m_refGrid->getBlocksInfo().size();
       std::vector<int> all_b(size);
       MPI_Allgather(&b, 1, MPI_INT, all_b.data(), 1, MPI_INT, comm);
@@ -471,28 +458,9 @@ class LoadBalancer
          if (recv_blocks[r].size() != 0)
          {
             for (size_t i = 0; i < recv_blocks[r].size(); i++)
-            {
-               int level = recv_blocks[r][i].mn[0];
-               int Z     = recv_blocks[r][i].mn[1];
-               m_refGrid->_alloc(level, Z);
-
-               BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
-               // info.TreePos    = Exists;
-               m_refGrid->Tree(info).setrank(m_refGrid->rank());
-               BlockType *b1 = (BlockType *)info.ptrBlock;
-               Real *a1      = &b1->data[0][0][0].member(0);
-               std::memcpy(a1, recv_blocks[r][i].data, BlockBytes);
-            }
+               AddBlock(recv_blocks[r][i].mn[0],recv_blocks[r][i].mn[1],recv_blocks[r][i].data);
          }
       m_refGrid->FillPos();
-      // for (auto &info : m_refGrid->getBlocksInfo())
-      //{
-      //   assert(info.TreePos == Exists);
-      //   assert(info.myrank == rank);
-      //   info.myrank = rank;
-      //}
-
-      m_refGrid->UpdateBlockInfoAll_States(true); // is this call necessary? Probably yes.
    }
 };
 template <typename TGrid>

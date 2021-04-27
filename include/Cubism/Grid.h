@@ -42,7 +42,7 @@ struct TreePosition
 template <typename Block, template <typename X> class allocator = std::allocator>
 class Grid
 {
- protected:
+ public://protected:
 #ifdef CUBISM_USE_MAP
    std::unordered_map<size_t, BlockInfo *> BlockInfoAll;
    std::unordered_map<size_t, TreePosition> Octree;
@@ -127,7 +127,6 @@ class Grid
    {
       allocator<Block> alloc;
       getBlockInfoAll(m, n).ptrBlock    = alloc.allocate(1);
-      getBlockInfoAll(m, n).changed     = true;
       getBlockInfoAll(m, n).h_gridpoint = getBlockInfoAll(m, n).h;
       m_blocks.push_back((Block *)getBlockInfoAll(m, n).ptrBlock);
       m_vInfo.push_back(getBlockInfoAll(m, n));
@@ -191,7 +190,6 @@ class Grid
          if (m == m_vInfo[j].level && n == m_vInfo[j].Z)
          {
             getBlockInfoAll(m_new, n_new).state   = Leave;
-            getBlockInfoAll(m_new, n_new).changed = true;
             m_vInfo[j]                            = getBlockInfoAll(m_new, n_new);
             m_blocks[j]                           = (Block *)getBlockInfoAll(m_new, n_new).ptrBlock;
             return;

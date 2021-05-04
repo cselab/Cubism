@@ -65,6 +65,7 @@ class FluxCorrection
    typedef typename ElementType::RealType Real;
    typedef BlockCase<BlockType> Case;
    bool TimeIntegration;
+   int rank{0};
 
  protected:
    std::map<std::array<int, 2>, Case *> MapOfCases;
@@ -74,7 +75,6 @@ class FluxCorrection
    bool yperiodic;
    bool zperiodic;
    std::array<int, 3> blocksPerDim;
-   int rank{0}, size{1};
 
  public:
    virtual void prepare(TGrid &grid)

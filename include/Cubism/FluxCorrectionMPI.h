@@ -15,6 +15,7 @@ class FluxCorrectionMPI : public TFluxCorrection
    typedef typename TFluxCorrection::Real Real;
    typedef typename TFluxCorrection::BlockType BlockType;
    typedef BlockCase<BlockType> Case;
+   int size;
  protected:
    struct face
    {
@@ -54,10 +55,10 @@ class FluxCorrectionMPI : public TFluxCorrection
       if (grid.UpdateFluxCorrection == false) return;
       grid.UpdateFluxCorrection = false;
 
-      MPI_Comm_size(grid.getWorldComm(), &TFluxCorrection::size);
-      MPI_Comm_rank(grid.getWorldComm(), &TFluxCorrection::rank);
-      int rank = TFluxCorrection::rank;
-      int size = TFluxCorrection::size;
+      int temprank;
+      MPI_Comm_size(grid.getWorldComm(), &size);
+      MPI_Comm_rank(grid.getWorldComm(), &temprank);
+      TFluxCorrection::rank = temprank;
 
 
       send_buffer.resize(size);
@@ -146,7 +147,7 @@ class FluxCorrectionMPI : public TFluxCorrection
                int nCoarse = infoNei.Zparent;
                BlockInfo &infoNeiCoarser = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level - 1, nCoarse);
                const int infoNeiCoarserrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level - 1, nCoarse).rank();
-               if (infoNeiCoarserrank != rank)
+               if (infoNeiCoarserrank != TFluxCorrection::rank)
                {
                   int code2[3] = {-code[0], -code[1], -code[2]};
                   int icode2   = (code2[0] + 1) + (code2[1] + 1) * 3 + (code2[2] + 1) * 9;
@@ -167,7 +168,7 @@ class FluxCorrectionMPI : public TFluxCorrection
                   int nFine = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
                   BlockInfo &infoNeiFiner = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine);
                   const int infoNeiFinerrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level + 1, nFine).rank();
-                  if (infoNeiFinerrank != rank)
+                  if (infoNeiFinerrank != TFluxCorrection::rank)
                   {
                      int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
                      recv_faces[infoNeiFinerrank].push_back(face(infoNeiFiner, info, icode2, icode[f]));
@@ -379,9 +380,12 @@ class FluxCorrectionMPI : public TFluxCorrection
          }
       }
 
+      const int d  = myFace / 2;
+      const int d2 = min((d + 1) % 3, (d + 2) % 3);
+      const int N2 = CoarseCase.m_vSize[d2];
       BlockType &block = *(BlockType *)info.ptrBlock;
       #if DIMENSION == 3
-      if (TimeIntegration)
+      if (TFluxCorrection::TimeIntegration)
       {
          abort();
          #if 0
@@ -391,7 +395,7 @@ class FluxCorrectionMPI : public TFluxCorrection
            // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
            if (d == 0)
            {
-              int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+              int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
               for (int i1 = 0; i1 < N1; i1 += 1)
                  for (int i2 = 0; i2 < N2; i2 += 1)
                  {
@@ -403,7 +407,7 @@ class FluxCorrectionMPI : public TFluxCorrection
            }
            else if (d == 1)
            {
-              int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+              int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
               for (int i1 = 0; i1 < N1; i1 += 1)
                  for (int i2 = 0; i2 < N2; i2 += 1)
                  {
@@ -414,7 +418,7 @@ class FluxCorrectionMPI : public TFluxCorrection
            }
            else
            {
-              int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
+              int j = (myFace % 2 == 0) ? 0 : BlockType::sizeZ - 1;
               for (int i1 = 0; i1 < N1; i1 += 1)
                  for (int i2 = 0; i2 < N2; i2 += 1)
                  {
@@ -432,7 +436,7 @@ class FluxCorrectionMPI : public TFluxCorrection
         const int N1 = CoarseCase.m_vSize[d1];
         if (d == 0)
         {
-          const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+          const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
           for (int i1 = 0; i1 < N1; i1 ++)
           for (int i2 = 0; i2 < N2; i2 ++)
           {
@@ -442,7 +446,7 @@ class FluxCorrectionMPI : public TFluxCorrection
         }
         else if (d == 1)
         {
-          const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+          const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
           for (int i1 = 0; i1 < N1; i1 ++)
           for (int i2 = 0; i2 < N2; i2 ++)
           {
@@ -452,7 +456,7 @@ class FluxCorrectionMPI : public TFluxCorrection
         }
         else
         {
-          const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
+          const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeZ - 1;
           for (int i1 = 0; i1 < N1; i1 ++)
           for (int i2 = 0; i2 < N2; i2 ++)
           {
@@ -465,7 +469,7 @@ class FluxCorrectionMPI : public TFluxCorrection
       assert(d!=2);
       if (d == 0)
       {
-        const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+        const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
         for (int i2 = 0; i2 < N2; i2 ++)
         {
           block(j,i2) += CoarseFace[i2];
@@ -474,7 +478,7 @@ class FluxCorrectionMPI : public TFluxCorrection
       }
       else //if (d == 1)
       {
-        const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+        const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
         for (int i2 = 0; i2 < N2; i2 ++)
         {
           block(i2,j) += CoarseFace[i2];

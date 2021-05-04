@@ -74,6 +74,7 @@ class FluxCorrection
    bool yperiodic;
    bool zperiodic;
    std::array<int, 3> blocksPerDim;
+   int rank{0}, size{1};
 
  public:
    virtual void prepare(TGrid &grid)
@@ -92,11 +93,11 @@ class FluxCorrection
 
       for (int m=0;m<m_refGrid->getlevelMax();m++)
       {
-#if DIMENSION == 3
-        const size_t nmax = blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2]*pow(1<<m,3);
-#else
-        const size_t nmax = blocksPerDim[0]*blocksPerDim[1]*pow(1<<m,2);
-#endif
+        #if DIMENSION == 3
+          const size_t nmax = blocksPerDim[0]*blocksPerDim[1]*blocksPerDim[2]*pow(1<<m,3);
+        #else
+          const size_t nmax = blocksPerDim[0]*blocksPerDim[1]*pow(1<<m,2);
+        #endif
         for (size_t n=0; n< nmax ;n++)
           (*m_refGrid).getBlockInfoAll(m,n).auxiliary = nullptr;
       }
@@ -186,15 +187,130 @@ class FluxCorrection
           if (!yperiodic && code[1] == yskip && yskin) continue;
           if (!zperiodic && code[2] == zskip && zskin) continue;
 
-          BlockInfo infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+          BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
-          if (m_refGrid->Tree(infoNei).CheckFiner()) FillCase(info, code);
+          if (m_refGrid->Tree(infoNei).CheckFiner())
+          {
+            FillCase(info, code);
+
+            const int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
+            std::array<int, 2> temp = {info.level, info.Z};
+            auto search             = MapOfCases.find(temp);
+            assert(search != MapOfCases.end());
+            Case &CoarseCase                     = (*search->second);
+            std::vector<ElementType> &CoarseFace = CoarseCase.m_pData[myFace];
+            const int d  = myFace / 2;
+            const int d2 = min((d + 1) % 3, (d + 2) % 3);
+            const int N2 = CoarseCase.m_vSize[d2];
+            BlockType &block = *(BlockType *)info.ptrBlock;
+
+            #if DIMENSION == 3
+              if (TimeIntegration)
+              {
+                abort();
+                #if 0
+                // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
+                const double V = 1.0 / (info.h*info.h*info.h);
+                const int d1 = max((d + 1) % 3, (d + 2) % 3);
+                const int N1 = CoarseCase.m_vSize[d1];
+                if (d == 0)
+                {
+                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+                  for (int i1 = 0; i1 < N1; i1 ++)
+                  for (int i2 = 0; i2 < N2; i2 ++)
+                  {
+                    for (int e = 0 ; e < ElementType::DIM; e++)
+                      block.tmp[i1][i2][j][e] += V*CoarseFace[i2 + i1 * N2].member(e);
+                    CoarseFace[i2 + i1 * N2].clear();
+                  }
+                }
+                else if (d == 1)
+                {
+                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+                  for (int i1 = 0; i1 < N1; i1 ++)
+                  for (int i2 = 0; i2 < N2; i2 ++)
+                  {
+                    for (int e = 0 ; e < ElementType::DIM; e++)
+                      block.tmp[i1][j][i2][e] += V*CoarseFace[i2 + i1 * N2].member(e);
+                    CoarseFace[i2 + i1 * N2].clear();
+                  }
+                }
+                else
+                {
+                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
+                  for (int i1 = 0; i1 < N1; i1 ++)
+                  for (int i2 = 0; i2 < N2; i2 ++)
+                  {
+                    for (int e = 0 ; e < ElementType::DIM; e++)
+                      block.tmp[j][i1][i2][e] += V*CoarseFace[i2 + i1 * N2].member(e);
+                    CoarseFace[i2 + i1 * N2].clear();
+                  }
+                }
+                #endif
+              }
+              else
+              {
+                // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
+                const int d1 = max((d + 1) % 3, (d + 2) % 3);
+                const int N1 = CoarseCase.m_vSize[d1];
+                if (d == 0)
+                {
+                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+                  for (int i1 = 0; i1 < N1; i1 ++)
+                  for (int i2 = 0; i2 < N2; i2 ++)
+                  {
+                    block(j,i2,i1) += CoarseFace[i2 + i1 * N2];
+                    CoarseFace[i2 + i1 * N2].clear();
+                  }
+                }
+                else if (d == 1)
+                {
+                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+                  for (int i1 = 0; i1 < N1; i1 ++)
+                  for (int i2 = 0; i2 < N2; i2 ++)
+                  {
+                    block(i2,j,i1) += CoarseFace[i2 + i1 * N2];
+                    CoarseFace[i2 + i1 * N2].clear();
+                  }
+                }
+                else
+                {
+                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
+                  for (int i1 = 0; i1 < N1; i1 ++)
+                  for (int i2 = 0; i2 < N2; i2 ++)
+                  {
+                    block(i2,i1,j) += CoarseFace[i2 + i1 * N2];
+                    CoarseFace[i2 + i1 * N2].clear();
+                  }
+                }               
+              }
+            #else
+              assert(d!=2);
+              if (d == 0)
+              {
+                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+                for (int i2 = 0; i2 < N2; i2 ++)
+                {
+                  block(j,i2) += CoarseFace[i2];
+                  CoarseFace[i2].clear();
+                }
+              }
+              else //if (d == 1)
+              {
+                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+                for (int i2 = 0; i2 < N2; i2 ++)
+                {
+                  block(i2,j) += CoarseFace[i2];
+                  CoarseFace[i2].clear();
+                }
+              }
+            #endif
+          }
         }
       }
-      Correct();
    }
 
-   virtual void FillCase(BlockInfo info, const int *const code)
+   void FillCase(BlockInfo & info, const int *const code)
    {
       const int myFace    = abs( code[0]) * max(0,  code[0]) + abs( code[1]) * (max(0,  code[1]) + 2) + abs( code[2]) * (max(0,  code[2]) + 4);
       const int otherFace = abs(-code[0]) * max(0, -code[0]) + abs(-code[1]) * (max(0, -code[1]) + 2) + abs(-code[2]) * (max(0, -code[2]) + 4);
@@ -210,222 +326,62 @@ class FluxCorrection
       assert(CoarseCase.Z == info.Z);
       assert(CoarseCase.level == info.level);
 
-     #if DIMENSION == 3
+      #if DIMENSION == 3
       for (int B = 0; B <= 3; B++) // loop over fine blocks that make up coarse face
-     #else
+      #else
       for (int B = 0; B <= 1; B++) // loop over fine blocks that make up coarse face
-     #endif
+      #endif
       {
         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-
-       #if DIMENSION == 3
-        int Z = (*m_refGrid).getZforward(info.level + 1,
-                                          2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
-                                          2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])),
-                                          2 * info.index[2] + max(code[2], 0) + code[2] +(B / 2) * max(0, 1 - abs(code[2])));
-       #else
-         int Z = (*m_refGrid).getZforward(info.level + 1,
-                                          2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
-                                          2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])));
-       #endif
-         auto search1 = MapOfCases.find({info.level + 1, Z});
-
-         Case &FineCase                     = (*search1->second);
-         std::vector<ElementType> &FineFace = FineCase.m_pData[otherFace];
-
-         int d   = myFace / 2;
-         int d1  = max((d + 1) % 3, (d + 2) % 3);
-         int d2  = min((d + 1) % 3, (d + 2) % 3);
-         int N1F = FineCase.m_vSize[d1];
-         int N2F = FineCase.m_vSize[d2];
-         int N1  = N1F;
-         int N2  = N2F;
-
-         assert(search1 != MapOfCases.end());
-         assert(N1F == (int)CoarseCase.m_vSize[d1]);
-         assert(N2F == (int)CoarseCase.m_vSize[d2]);
-
-         int base = 0;
-         if      (B == 1)  base = (N2 / 2) + (0) * N2;
-         else if (B == 2)  base = (0) + (N1 / 2) * N2;
-         else if (B == 3)  base = (N2 / 2) + (N1 / 2) * N2;
-
-         assert(FineFace.size() == CoarseFace.size());
-
         #if DIMENSION == 3
-         for (int i1 = 0; i1 < N1; i1 += 2)
-         for (int i2 = 0; i2 < N2; i2 += 2)
-         {
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] += FineFace[i2     + i1       * N2] +
-                                                           FineFace[i2 + 1 + i1       * N2] +
-                                                           FineFace[i2     + (i1 + 1) * N2] +
-                                                           FineFace[i2 + 1 + (i1 + 1) * N2];
+        const int Z = (*m_refGrid).getZforward(info.level + 1,
+                  2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
+                  2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])),
+                  2 * info.index[2] + max(code[2], 0) + code[2] +(B / 2) * max(0, 1 - abs(code[2])));
+        #else
+        const int Z = (*m_refGrid).getZforward(info.level + 1,
+                  2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
+                  2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])));
+        #endif
+        if (m_refGrid->Tree(info.level + 1, Z).rank() != rank) continue;
+        auto search1 = MapOfCases.find({info.level + 1, Z});
+
+        Case &FineCase                     = (*search1->second);
+        std::vector<ElementType> &FineFace = FineCase.m_pData[otherFace];
+        const int d   = myFace / 2;
+        const int d1  = max((d + 1) % 3, (d + 2) % 3);
+        const int d2  = min((d + 1) % 3, (d + 2) % 3);
+        const int N1F = FineCase.m_vSize[d1];
+        const int N2F = FineCase.m_vSize[d2];
+        const int N1  = N1F;
+        const int N2  = N2F;
+        int base = 0;
+        if      (B == 1)  base = (N2 / 2) + (0) * N2;
+        else if (B == 2)  base = (0) + (N1 / 2) * N2;
+        else if (B == 3)  base = (N2 / 2) + (N1 / 2) * N2;
+        assert(search1 != MapOfCases.end());
+        assert(N1F == (int)CoarseCase.m_vSize[d1]);
+        assert(N2F == (int)CoarseCase.m_vSize[d2]);
+        assert(FineFace.size() == CoarseFace.size());
+        #if DIMENSION == 3
+          for (int i1 = 0; i1 < N1; i1 += 2)
+          for (int i2 = 0; i2 < N2; i2 += 2)
+          {
+            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2] += FineFace[i2 +  i1    * N2] + FineFace[i2+1 +  i1    * N2] +
+                                                           FineFace[i2 + (i1+1) * N2] + FineFace[i2+1 + (i1+1) * N2];
             FineFace[i2     +  i1      * N2].clear();
             FineFace[i2 + 1 +  i1      * N2].clear();
             FineFace[i2     + (i1 + 1) * N2].clear();
             FineFace[i2 + 1 + (i1 + 1) * N2].clear();
-        }
-       #else
-        for (int i2 = 0; i2 < N2; i2 += 2)
-        {
-          CoarseFace[base + i2/2] += FineFace[i2] + FineFace[i2 + 1];
-          FineFace[i2    ].clear();
-          FineFace[i2 + 1].clear();
-        }
-       #endif
-      }
-   }
-
-   virtual void Correct()
-   {
-      // This assumes that the BlockCases have been filled by the user somehow...
-      std::vector<BlockInfo> B = (*m_refGrid).getBlocksInfo();
-
-      std::array<int, 6> icode = {1 * 2 + 3 * 1 + 9 * 1, 1 * 0 + 3 * 1 + 9 * 1,
-                                  1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1,
-                                  1 * 1 + 3 * 1 + 9 * 2, 1 * 1 + 3 * 1 + 9 * 0};
-
-      #pragma omp parallel for schedule(runtime)
-      for (size_t k = 0; k < B.size(); k++)
-      {
-         BlockInfo &info = B[k];
-         const int aux    = 1 << info.level;
-         const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
-         const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
-         const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
-         const int xskip  = info.index[0] == 0 ? -1 : 1;
-         const int yskip  = info.index[1] == 0 ? -1 : 1;
-         const int zskip  = info.index[2] == 0 ? -1 : 1;
-
-         for (int f = 0; f < 6; f++)
-         {
-            const int code[3] = {icode[f] % 3 - 1, (icode[f] / 3) % 3 - 1, (icode[f] / 9) % 3 - 1};
-            if (!xperiodic && code[0] == xskip && xskin) continue;
-            if (!yperiodic && code[1] == yskip && yskin) continue;
-            if (!zperiodic && code[2] == zskip && zskin) continue;
-
-            BlockInfo infoNei = (*m_refGrid).getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-
-            if (m_refGrid->Tree(infoNei).CheckFiner())
-            {
-               int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
-               std::array<int, 2> temp = {info.level, info.Z};
-               auto search             = MapOfCases.find(temp);
-               assert(search != MapOfCases.end());
-               Case &CoarseCase                     = (*search->second);
-               std::vector<ElementType> &CoarseFace = CoarseCase.m_pData[myFace];
-
-               int d  = myFace / 2;
-               int d2 = min((d + 1) % 3, (d + 2) % 3);
-               int N2 = CoarseCase.m_vSize[d2];
-
-               BlockType &block = *(BlockType *)info.ptrBlock;
-
-
-               #if DIMENSION == 3
-               if (TimeIntegration)
-               {
-                  abort();
-                #if 0
-                  const double V = 1.0 / (info.h*info.h*info.h);
-                  int d1 = max((d + 1) % 3, (d + 2) % 3);
-                  int N1 = CoarseCase.m_vSize[d1];
-                  // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
-                  if (d == 0)
-                  {
-                     int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
-                     for (int i1 = 0; i1 < N1; i1 += 1)
-                        for (int i2 = 0; i2 < N2; i2 += 1)
-                        {
-                          for (int e = 0 ; e < ElementType::DIM; e++)
-                            block.tmp[i1][i2][j][e] += V*CoarseFace[i2 + i1 * N2].member(e);
-                          
-                          CoarseFace[i2 + i1 * N2].clear();
-                        }
-                  }
-                  else if (d == 1)
-                  {
-                     int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
-                     for (int i1 = 0; i1 < N1; i1 += 1)
-                        for (int i2 = 0; i2 < N2; i2 += 1)
-                        {
-                          for (int e = 0 ; e < ElementType::DIM; e++)
-                            block.tmp[i1][j][i2][e] += V*CoarseFace[i2 + i1 * N2].member(e);
-                          CoarseFace[i2 + i1 * N2].clear();
-                        }
-                  }
-                  else
-                  {
-                     int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
-                     for (int i1 = 0; i1 < N1; i1 += 1)
-                        for (int i2 = 0; i2 < N2; i2 += 1)
-                        {
-                          for (int e = 0 ; e < ElementType::DIM; e++)
-                            block.tmp[j][i1][i2][e] += V*CoarseFace[i2 + i1 * N2].member(e);
-                          CoarseFace[i2 + i1 * N2].clear();
-                        }
-                  }
-                 #endif
-                }
-              else
-              {
-                int d1 = max((d + 1) % 3, (d + 2) % 3);
-                int N1 = CoarseCase.m_vSize[d1];
-                // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
-                if (d == 0)
-                {
-                   int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
-                   for (int i1 = 0; i1 < N1; i1 += 1)
-                      for (int i2 = 0; i2 < N2; i2 += 1)
-                      {
-                        block(j,i2,i1) += CoarseFace[i2 + i1 * N2];
-                        CoarseFace[i2 + i1 * N2].clear();
-                      }
-                }
-                else if (d == 1)
-                {
-                   int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
-                   for (int i1 = 0; i1 < N1; i1 += 1)
-                      for (int i2 = 0; i2 < N2; i2 += 1)
-                      {
-                        block(i2,j,i1) += CoarseFace[i2 + i1 * N2];
-                        CoarseFace[i2 + i1 * N2].clear();
-                      }
-                }
-                else
-                {
-                   int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
-                   for (int i1 = 0; i1 < N1; i1 += 1)
-                      for (int i2 = 0; i2 < N2; i2 += 1)
-                      {
-                        block(i2,i1,j) += CoarseFace[i2 + i1 * N2];
-                        CoarseFace[i2 + i1 * N2].clear();
-                      }
-                }               
-              }
-#else
-               assert(d!=2);
-               if (d == 0)
-               {
-                  int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
-                  for (int i2 = 0; i2 < N2; i2 += 1)
-                  {
-                    block(j,i2) += CoarseFace[i2];
-                    CoarseFace[i2].clear();
-                  }
-               }
-               else if (d == 1)
-               {
-                  int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
-                  for (int i2 = 0; i2 < N2; i2 += 1)
-                  {
-                     block(i2,j) += CoarseFace[i2];
-                     CoarseFace[i2].clear();
-                  }
-               }
-#endif
-            }
-         }// f = 0,...,5
+          }
+        #else
+          for (int i2 = 0; i2 < N2; i2 += 2)
+          {
+            CoarseFace[base + i2/2] += FineFace[i2] + FineFace[i2 + 1];
+            FineFace[i2    ].clear();
+            FineFace[i2 + 1].clear();
+          }
+        #endif
       }
    }
 };

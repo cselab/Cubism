@@ -1311,7 +1311,7 @@ class BlockLab
 
 #else
 
-   void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y, const std::vector<int> & selcomponents)
+   virtual void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y, const std::vector<int> & selcomponents)
    {
 #if 1
       ElementType dudx = SlopeElement( *C[0][1], *C[1][1], *C[2][1], selcomponents); 

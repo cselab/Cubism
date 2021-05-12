@@ -171,7 +171,6 @@ class Grid
    {
       allocator<Block> alloc;
       alloc.deallocate((Block *)getBlockInfoAll(m, n).ptrBlock, 1);
-      Tree(m, n).setCheckCoarser();
       for (size_t j = 0; j < m_vInfo.size(); j++)
       {
          if (m_vInfo[j].level == m && m_vInfo[j].Z == n)

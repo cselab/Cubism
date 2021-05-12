@@ -219,7 +219,7 @@ class LoadBalancer
          if (ratio > 1.5)
          {
             Balance_Global();
-            counterg = 11;
+            if (counterg > 11) counterg = 11;
             return;
          }
       }
@@ -392,13 +392,14 @@ class LoadBalancer
             }
          }
 
+      int tag = counterg;
       std::vector<MPI_Request> recv_request;
       for (int r = 0; r < size; r++)
          if (recv_blocks[r].size() != 0)
          {
             MPI_Request req;
             recv_request.push_back(req);
-            MPI_Irecv(recv_blocks[r].data(), recv_blocks[r].size(), MPI_BLOCK, r, r * size + rank, comm, &recv_request.back());
+            MPI_Irecv(recv_blocks[r].data(), recv_blocks[r].size(), MPI_BLOCK, r, tag, comm, &recv_request.back());
          }
 
       std::vector<MPI_Request> send_request;
@@ -420,7 +421,7 @@ class LoadBalancer
 
             MPI_Request req;
             send_request.push_back(req);
-            MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, r + rank * size, comm, &send_request.back());
+            MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &send_request.back());
          }
 
       MPI_Waitall(send_request.size(), send_request.data(), MPI_STATUSES_IGNORE);

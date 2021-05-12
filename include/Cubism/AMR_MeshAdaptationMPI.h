@@ -249,7 +249,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          {
             int m = mn_com[2 * i];
             int n = mn_com[2 * i + 1];
-            compress(m, n);
+            AMR::compress(m, n);
             #pragma omp atomic
             c++;
          }
@@ -306,80 +306,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
    }
 
  protected:
-
-   virtual void compress(int level, int Z) override
-   {
-        int rank;
-        MPI_Comm_rank(AMR::m_refGrid->getWorldComm(), &rank);
-        assert(level > 0);
-
-        BlockInfo &info = AMR::m_refGrid->getBlockInfoAll(level, Z);
-
-        assert(info.state == Compress);
-        //assert(info.myrank == rank);
-
-
-        BlockType *Blocks[8];
-        for (int K = 0; K < 2; K++)
-        for (int J = 0; J < 2; J++)
-        for (int I = 0; I < 2; I++)
-        {
-            int blk = K * 4 + J * 2 + I;
-            int n   = AMR::m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J,info.index[2] + K);
-            Blocks[blk] = (BlockType *)(AMR::m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
-        }
-
-        const int nx   = BlockType::sizeX;
-        const int ny   = BlockType::sizeY;
-        const int nz   = BlockType::sizeZ;
-        int offsetX[2] = {0, nx / 2};
-        int offsetY[2] = {0, ny / 2};
-        int offsetZ[2] = {0, nz / 2};
-        for (int K = 0; K < 2; K++)
-        for (int J = 0; J < 2; J++)
-        for (int I = 0; I < 2; I++)
-        {
-            BlockType &b = *Blocks[K * 4 + J * 2 + I];
-            for (int k = 0; k < nz; k += 2)
-            for (int j = 0; j < ny; j += 2)
-            for (int i = 0; i < nx; i += 2)
-            {
-                ElementType average =  0.125 * (b(i, j    , k    ) + b(i + 1, j    , k    ) + 
-                                                b(i, j + 1, k    ) + b(i + 1, j + 1, k    ) + 
-                                                b(i, j    , k + 1) + b(i + 1, j    , k + 1) +
-                                                b(i, j + 1, k + 1) + b(i + 1, j + 1, k + 1));
-                (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) = average;
-            }
-        }
-
-        int np             = AMR::m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
-        BlockInfo &parent  = AMR::m_refGrid->getBlockInfoAll(level - 1, np);
-        AMR::m_refGrid->Tree(parent.level,parent.Z).setrank(AMR::m_refGrid->rank());
-        parent.ptrBlock    = info.ptrBlock;
-        parent.h_gridpoint = parent.h;
-        parent.state       = Leave;
-
-      if (level-2>=0) AMR::m_refGrid->Tree(level-2,parent.Zparent).setCheckFiner();
-        #pragma omp critical
-        {
-            for (int K = 0; K < 2; K++)
-            for (int J = 0; J < 2; J++)
-            for (int I = 0; I < 2; I++)
-            {
-                int n = AMR::m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J,info.index[2] + K);
-                if (I + J + K == 0)
-                {
-                   AMR::m_refGrid->FindBlockInfo(level, n, level - 1, np);
-                }
-                else
-                {
-                   AMR::m_refGrid->_dealloc(level, n);
-                }
-                AMR::m_refGrid->Tree(level,n).setCheckCoarser();
-                AMR::m_refGrid->getBlockInfoAll(level, n).state   = Leave;
-            }
-        }
-   }
 
    virtual void ValidStates() override
    {

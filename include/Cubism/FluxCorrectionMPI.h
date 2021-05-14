@@ -144,7 +144,7 @@ class FluxCorrectionMPI : public TFluxCorrection
 
             if ( (*TFluxCorrection::m_refGrid).Tree(infoNei).CheckCoarser())
             {
-               int nCoarse = infoNei.Zparent;
+               const long long nCoarse = infoNei.Zparent;
                BlockInfo &infoNeiCoarser = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level - 1, nCoarse);
                const int infoNeiCoarserrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level - 1, nCoarse).rank();
                if (infoNeiCoarserrank != TFluxCorrection::rank)
@@ -161,11 +161,11 @@ class FluxCorrectionMPI : public TFluxCorrection
                for (int B = 0; B <= 3; B += Bstep) // loop over blocks that make up face
                {
                   const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                  int nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
+                  const long long nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
                                              [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
                                              [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
 
-                  int nFine = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
+                  const long long nFine = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
                   BlockInfo &infoNeiFiner = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine);
                   const int infoNeiFinerrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level + 1, nFine).rank();
                   if (infoNeiFinerrank != TFluxCorrection::rank)
@@ -187,7 +187,7 @@ class FluxCorrectionMPI : public TFluxCorrection
 
       for (size_t i = 0; i < TFluxCorrection::Cases.size(); i++)
       {
-         TFluxCorrection::MapOfCases.insert(std::pair<std::array<int, 2>, Case *>(
+         TFluxCorrection::MapOfCases.insert(std::pair<std::array<long long, 2>, Case *>(
              {TFluxCorrection::Cases[i].level, TFluxCorrection::Cases[i].Z},
              &TFluxCorrection::Cases[i]));
          (*TFluxCorrection::m_refGrid).getBlockInfoAll(TFluxCorrection::Cases[i].level, TFluxCorrection::Cases[i].Z).auxiliary 
@@ -245,7 +245,7 @@ class FluxCorrectionMPI : public TFluxCorrection
 
             BlockInfo &info = *(f.infos[0]);
 
-            auto search = TFluxCorrection::MapOfCases.find({info.level, info.Z});
+            auto search = TFluxCorrection::MapOfCases.find({(long long)info.level, info.Z});
             assert(search != TFluxCorrection::MapOfCases.end());
 
             Case &FineCase = (*search->second);
@@ -329,7 +329,7 @@ class FluxCorrectionMPI : public TFluxCorrection
       const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
 
       const int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
-      std::array<int, 2> temp = {info.level, info.Z};
+      std::array<long long, 2> temp = {(long long)info.level, info.Z};
       auto search             = TFluxCorrection::MapOfCases.find(temp);
       assert(search != TFluxCorrection::MapOfCases.end());
       Case &CoarseCase                     = (*search->second);
@@ -339,7 +339,7 @@ class FluxCorrectionMPI : public TFluxCorrection
       {
          const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-         const int Z = (*TFluxCorrection::m_refGrid).getZforward(info.level + 1,
+         const long long Z = (*TFluxCorrection::m_refGrid).getZforward(info.level + 1,
                                   2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
                                   2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])),
                                   2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2])));

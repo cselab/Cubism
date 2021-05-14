@@ -138,7 +138,7 @@ class BlockLab
          for (int i1 = imin[1]; i1 <= imax[1]; i1++)
             for (int i0 = imin[0]; i0 <= imax[0]; i0++)
             {
-               int n = a.Znei_(i0, i1, i2);
+               const long long n = a.Znei_(i0, i1, i2);
                if ((m_refGrid->Tree(a.level, n)).CheckCoarser())
                {
                   retval = true;

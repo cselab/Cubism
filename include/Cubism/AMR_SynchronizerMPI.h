@@ -83,7 +83,7 @@ struct UnPackInfo
   int CoarseVersionsrcystart;
   int CoarseVersionsrczstart;
   int level;
-  int Z;
+  long long Z;
   int icode;
   long long IDreceiver;
 };
@@ -359,6 +359,7 @@ class SynchronizerMPI_AMR
         array_of_types[i] = MPI_INT;
       }
       array_of_blocklengths[18] = 1;
+      array_of_types[16] = MPI_LONG_LONG_INT;//for Z
       array_of_types[18] = MPI_LONG_LONG_INT;
 
       MPI_Aint array_of_displacements[19];
@@ -877,7 +878,7 @@ class SynchronizerMPI_AMR
     for (int i1 = imin[1]; i1 <= imax[1]; i1++)
     for (int i0 = imin[0]; i0 <= imax[0]; i0++)
     {
-      int n = a.Znei_(i0, i1, i2);
+      const long long n = a.Znei_(i0, i1, i2);
       if ((grid->Tree(a.level, n)).CheckCoarser())
       {
         retval = true;
@@ -1039,7 +1040,7 @@ class SynchronizerMPI_AMR
          {
             Coarsened = true;
             // int nCoarse = infoNei.Z /8; // this does not work for Hilbert
-            int nCoarse = infoNei.Zparent;
+            const long long nCoarse = infoNei.Zparent;
             BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, nCoarse);
             const int infoNeiCoarserrank = grid->Tree(info.level-1,nCoarse).rank();
             if (infoNeiCoarserrank != rank)
@@ -1074,11 +1075,11 @@ class SynchronizerMPI_AMR
             {
               const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-              const int nFine1 =
+              const long long nFine1 =
                          infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
                                        [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
                                        [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
-              const int nFine = grid->getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
+              const long long nFine = grid->getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
               BlockInfo &infoNeiFiner = grid->getBlockInfoAll(infoNei.level + 1, nFine);
               const int infoNeiFinerrank = grid->Tree(info.level+1,nFine).rank();
               if (infoNeiFinerrank != rank)

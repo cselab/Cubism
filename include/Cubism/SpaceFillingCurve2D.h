@@ -17,7 +17,7 @@ class SpaceFillingCurve2D
 
 
    //convert (x,y) to d
-   int AxestoTranspose(const int *X_in, int b) const
+   long long AxestoTranspose(const int *X_in, int b) const
    {
       int x = X_in[0];
       int y = X_in[1];
@@ -34,11 +34,11 @@ class SpaceFillingCurve2D
    }
 
    //convert d to (x,y)
-   void TransposetoAxes(int index, int *X, int b) const 
+   void TransposetoAxes(long long index, int *X, int b) const 
    {
        // position, #bits, dimension
        int n = 1 << b;
-       int rx, ry, s, t=index;
+       long long rx, ry, s, t=index;
        X[0] = 0;
        X[1] = 0;
        for (s=1; s<n; s*=2) {
@@ -52,7 +52,7 @@ class SpaceFillingCurve2D
    }
 
    //rotate/flip a quadrant appropriately
-   void rot(int n, int *x, int *y, int rx, int ry) const 
+   void rot(long long n, int *x, int *y, long long rx, long long ry) const
    {
        if (ry == 0) {
            if (rx == 1) {
@@ -77,7 +77,7 @@ class SpaceFillingCurve2D
 
    std::vector< std::vector<int> > i_inverse;
    std::vector< std::vector<int> > j_inverse;
-   std::vector < std::vector <int> > Zsave;
+   std::vector < std::vector <long long> > Zsave;
 
    SpaceFillingCurve2D(){};
 
@@ -115,10 +115,10 @@ class SpaceFillingCurve2D
       {
         const int c[2] = {i,j};
           
-        int index = AxestoTranspose( c, base_level);
+        long long index = AxestoTranspose( c, base_level);
     
-        int substract = 0;
-        for (int h=0; h<index; h++)
+        long long substract = 0;
+        for (long long h=0; h<index; h++)
         {
           int X[2] = {0,0};
           TransposetoAxes(h, X, base_level);
@@ -134,7 +134,7 @@ class SpaceFillingCurve2D
         for (int j=0;j<BY*aux;j++)
         for (int i=0;i<BX*aux;i++)
         {
-          int retval = forward(l,i,j);
+          long long retval = forward(l,i,j);
           i_inverse[l][retval]=i;
           j_inverse[l][retval]=j;
         }      
@@ -144,7 +144,7 @@ class SpaceFillingCurve2D
   }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)
-   int forward(const int l, const int i, const int j) //const
+   long long forward(const int l, const int i, const int j) //const
    {
       const int aux = 1 << l;
 
@@ -157,15 +157,15 @@ class SpaceFillingCurve2D
       if (I >= BX || J >= BY) return 0;
 
       const int c2_a[2] = {i, j};
-      int s                      = SUBSTRACT[J * BX + I]  * aux * aux;
+      long long s                      = SUBSTRACT[J * BX + I]  * aux * aux;
 
-      int retval = AxestoTranspose(c2_a, l + base_level) - s;
+      long long retval = AxestoTranspose(c2_a, l + base_level) - s;
 
       Zsave[l][  j*aux*BX + i ] = retval;
       return retval;
    }
 
-   void inverse(int Z, int l, int &i, int &j)
+   void inverse(long long Z, int l, int &i, int &j)
    {
       i = i_inverse[l][Z];
       j = j_inverse[l][Z];
@@ -174,18 +174,18 @@ class SpaceFillingCurve2D
    }
 
    // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)
-   int child(int l, int i, int j) { return forward(l + 1, 2 * i, 2 * j); }
+   long long child(int l, int i, int j) { return forward(l + 1, 2 * i, 2 * j); }
 
-   int Encode(int level, int Z, int index[2])
+   long long Encode(int level, long long Z, int index[2])
    {
       int lmax   = levelMax;
-      int retval = 0;
+      long long retval = 0;
 
       int ix = index[0];
       int iy = index[1];
       for (int l = level; l >= 0; l--)
       {
-         int Zp = forward(l, ix, iy);
+         long long Zp = forward(l, ix, iy);
          retval += Zp;
          ix /= 2;
          iy /= 2;
@@ -195,7 +195,7 @@ class SpaceFillingCurve2D
       iy = 2 * index[1];
       for (int l = level + 1; l < lmax; l++)
       {
-         int Zc = forward(l, ix, iy);
+         long long Zc = forward(l, ix, iy);
 
          Zc -= Zc % 4;
          retval += Zc;

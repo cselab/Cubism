@@ -17,12 +17,12 @@ class SpaceFillingCurve
    int BX, BY, BZ;
    bool isRegular;
    int base_level;
-   std::vector < std::vector <int> > Zsave;
+   std::vector < std::vector <long long> > Zsave;
    std::vector< std::vector<int> > i_inverse;
    std::vector< std::vector<int> > j_inverse;
    std::vector< std::vector<int> > k_inverse;
 
-   int AxestoTranspose(const int *X_in, int b) const // position, #bits, dimension
+   long long AxestoTranspose(const int *X_in, int b) const // position, #bits, dimension
    {
       if (b == 0)
       {
@@ -61,7 +61,7 @@ class SpaceFillingCurve
          if (X[n - 1] & Q) t ^= Q - 1;
       for (i = 0; i < n; i++) X[i] ^= t;
 
-      int retval = 0;
+      long long retval = 0;
       int a      = 0;
       for (int level = 0; level < b; level++)
       {
@@ -73,7 +73,7 @@ class SpaceFillingCurve
       return retval;
    }
 
-   void TransposetoAxes(int index, int *X, int b) const // position, #bits, dimension
+   void TransposetoAxes(long long index, long long *X, int b) const // position, #bits, dimension
    {
       const int n = 3;
 
@@ -84,11 +84,11 @@ class SpaceFillingCurve
       int aa = 0;
       for (int i = 0; index > 0; i++)
       {
-         int x2 = index % 2;
+         long long x2 = index % 2;
          index  = index / 2;
-         int x1 = index % 2;
+         long long x1 = index % 2;
          index  = index / 2;
-         int x0 = index % 2;
+         long long x0 = index % 2;
          index  = index / 2;
 
          X[0] += x0 * (1 << aa);
@@ -157,11 +157,11 @@ class SpaceFillingCurve
       for (int i=0;i<BX;i++)
       {
         const int c[3] = {i,j,k};       
-        int index = AxestoTranspose( c, base_level);
-        int substract = 0;
+        long long index = AxestoTranspose( c, base_level);
+        long long substract = 0;
         for (int h=0; h<index; h++)
         {
-          int X[3] = {0,0,0};
+          long long X[3] = {0,0,0};
           TransposetoAxes(h, X, base_level);
           if (X[0] >= BX || X[1] >= BY || X[2] >= BZ) substract++;
         }
@@ -175,7 +175,7 @@ class SpaceFillingCurve
    }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)
-   int forward(const int l, const int i, const int j, const int k)
+   long long forward(const int l, const int i, const int j, const int k)
    {
       const int aux = 1 << l;
 
@@ -183,7 +183,7 @@ class SpaceFillingCurve
       #ifndef CUBISM_USE_MAP
         if (Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ] != -1) return Zsave[l][  k*aux*aux*BX*BY + j*aux*BX + i ];
       #endif
-      int retval;
+      long long retval;
       if (!isRegular)
       {
         const int I   = i / aux;
@@ -208,7 +208,7 @@ class SpaceFillingCurve
       return retval;
    }
 
-   void inverse(int Z, int l, int &i, int &j, int &k)
+   void inverse(long long Z, int l, int &i, int &j, int &k)
    {
       #ifndef CUBISM_USE_MAP
         if (i_inverse[l][Z] != -1)
@@ -222,7 +222,7 @@ class SpaceFillingCurve
       #endif
       if (isRegular)
       {
-        int X[3] = {0, 0, 0};
+        long long X[3] = {0, 0, 0};
         TransposetoAxes(Z, X, l + base_level);
         i = X[0];
         j = X[1];
@@ -238,10 +238,10 @@ class SpaceFillingCurve
       else
       {
         int aux   = 1 << l;
-        int Zloc  = Z % (aux*aux*aux);
-        int X[3] = {0, 0, 0};
+        long long Zloc  = Z % (aux*aux*aux);
+        long long X[3] = {0, 0, 0};
         TransposetoAxes(Zloc, X, l);
-        int index = Z / (aux*aux*aux);
+        long long index = Z / (aux*aux*aux);
         int I,J,K;
         index_to_IJK(index,I,J,K);
         i = X[0] + I*aux;
@@ -257,14 +257,14 @@ class SpaceFillingCurve
       return;
    }
 
-   int IJK_to_index(int I, int J, int K)
+   long long IJK_to_index(int I, int J, int K)
    {
      //int index = (J + K * BY) * BX + I;
-     int index = Zsave[0][(J + K * BY) * BX + I];
+     long long index = Zsave[0][(J + K * BY) * BX + I];
      return index;
    }
 
-   void index_to_IJK(int index, int & I, int & J, int & K)
+   void index_to_IJK(long long index, int & I, int & J, int & K)
    {
       //K = index / (BX*BY);
       //J = (index - K*(BX*BY) ) / BX;
@@ -276,19 +276,19 @@ class SpaceFillingCurve
    }
 
    // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)
-   int child(int l, int i, int j, int k) { return forward(l + 1, 2 * i, 2 * j, 2 * k); }
+   long long child(int l, int i, int j, int k) { return forward(l + 1, 2 * i, 2 * j, 2 * k); }
 
-   int Encode(int level, int Z, int index[3])
+   long long Encode(int level, long long Z, int index[3])
    {
       int lmax   = levelMax;
-      int retval = 0;
+      long long retval = 0;
 
       int ix = index[0];
       int iy = index[1];
       int iz = index[2];
       for (int l = level; l >= 0; l--)
       {
-         int Zp = forward(l, ix, iy, iz);
+         long long Zp = forward(l, ix, iy, iz);
          retval += Zp;
          ix /= 2;
          iy /= 2;
@@ -300,7 +300,7 @@ class SpaceFillingCurve
       iz = 2 * index[2];
       for (int l = level + 1; l < lmax; l++)
       {
-         int Zc = forward(l, ix, iy, iz);
+         long long Zc = forward(l, ix, iy, iz);
 
          Zc -= Zc % 8;
          retval += Zc;

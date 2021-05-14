@@ -93,7 +93,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
       bool CallValidStates = false;
 
-      /*------------->*/ Clock.start(1, "MeshAdaptation: inner blocks tagging");
       avail0           = Synch->avail_inner();
       const int Ninner = avail0.size();
       bool Reduction = false;
@@ -132,14 +131,9 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             }
          }
       }
-      /*------------->*/ Clock.finish(1);
-
-      /*------------->*/ Clock.start(2, "MeshAdaptation: waiting for inner blocks");
       avail1 = Synch->avail_halo();
-      /*------------->*/ Clock.finish(2);
 
-      /*------------->*/ Clock.start(3, "MeshAdaptation: outer block tagging");
-      const int Nhalo = avail1.size();
+      const long long Nhalo = avail1.size();
       #pragma omp parallel num_threads(nthreads)
       {
          int tid     = omp_get_thread_num();
@@ -175,7 +169,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       }
       /*------------->*/ Clock.finish(3);
 
-      /*------------->*/ Clock.start(24, "MeshAdaptation: MPI_LOR");
       if (!Reduction) 
       {
         tmp = CallValidStates ? 1 : 0;
@@ -187,7 +180,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       MPI_Wait(&Reduction_req,MPI_STATUS_IGNORE);
       CallValidStates     = (tmp > 0);
       AMR::m_refGrid->boundary = avail1;
-      /*------------->*/ Clock.finish(24);
 
       /*------------->*/ Clock.start(4, "MeshAdaptation: ValidStates");
       if (CallValidStates) ValidStates();
@@ -195,12 +187,13 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
       // Refinement/compression of blocks
       /*************************************************/
-      /*------------->*/ Clock.start(6, "MeshAdaptation: refinement and compression");
       int r = 0;
       int c = 0;
 
-      std::vector<int> mn_com;
-      std::vector<int> mn_ref;
+      std::vector<int> m_com;
+      std::vector<int> m_ref;
+      std::vector<long long> n_com;
+      std::vector<long long> n_ref;
 
       std::vector<BlockInfo> &I = AMR::m_refGrid->getBlocksInfo();
 
@@ -208,52 +201,42 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       {
          if (info.state == Refine)
          {
-            mn_ref.push_back(info.level);
-            mn_ref.push_back(info.Z);
+            m_ref.push_back(info.level);
+            n_ref.push_back(info.Z);
          }
          else if (info.state == Compress)
          {
-            mn_com.push_back(info.level);
-            mn_com.push_back(info.Z);
+            m_com.push_back(info.level);
+            n_com.push_back(info.Z);
          }
       }
 
       #pragma omp parallel
       {
-         #pragma omp for schedule(runtime)
-         for (size_t i = 0; i < mn_ref.size() / 2; i++)
+         #pragma omp for
+         for (size_t i = 0; i < m_ref.size(); i++)
          {
-            int m = mn_ref[2 * i];
-            int n = mn_ref[2 * i + 1];
-            AMR::refine_1(m, n);
+            AMR::refine_1(m_ref[i], n_ref[i]);
             #pragma omp atomic
             r++;
          }
-         #pragma omp for schedule(runtime)
-         for (size_t i = 0; i < mn_ref.size() / 2; i++)
+         #pragma omp for
+         for (size_t i = 0; i < m_ref.size(); i++)
          {
-            int m = mn_ref[2 * i];
-            int n = mn_ref[2 * i + 1];
-            AMR::refine_2(m, n);
+            AMR::refine_2(m_ref[i], n_ref[i]);
          }
      }
 
-      /*------------->*/ Clock.start(5, "MeshAdaptation: PrepareCompression");
       Balancer.PrepareCompression();
-      /*------------->*/ Clock.finish(5);
 
-      #pragma omp parallel
-      {
-         #pragma omp for schedule(runtime)
-         for (size_t i = 0; i < mn_com.size() / 2; i++)
-         {
-            int m = mn_com[2 * i];
-            int n = mn_com[2 * i + 1];
-            AMR::compress(m, n);
-            #pragma omp atomic
-            c++;
-         }
-      }
+    #pragma omp parallel for
+    for (size_t i = 0; i < m_com.size(); i++)
+    {
+       AMR::compress(m_com[i], n_com[i]);
+       #pragma omp atomic
+       c++;
+    }
+
       #if 1
       int temp[2] = {r, c};
       int result[2];
@@ -267,12 +250,9 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          std::cout << "==============================================================\n";
       }
       #endif
-      /*************************************************/
-      /*------------->*/ Clock.finish(6);
-      /*------------->*/ Clock.start(8, "MeshAdaptation : Balance_Diffusion");
+
       AMR::m_refGrid->FillPos();     
       Balancer.Balance_Diffusion();
-      /*------------->*/ Clock.finish(8);
 
       delete[] AMR::labs;
 
@@ -323,7 +303,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          BlockInfo &info = I[j];
          if (info.state != Leave)
          {
-            info.changed2                                             = true;
+            info.changed2 = true;
             (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).changed2 = info.changed2;
          }
       }
@@ -334,19 +314,15 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       for (int m = levelMax - 1; m >= levelMin; m--)
       {
          // 1.
-         /*------------->*/ Clock.start(20, "MeshAdaptation: step 1");
          for (size_t j = 0; j < I.size(); j++)
          {
             BlockInfo &info = I[j];
             if (info.level == m && info.state != Refine && info.level != levelMax - 1)
             {
-               int TwoPower = 1 << info.level;
-               const bool xskin =
-                   info.index[0] == 0 || info.index[0] == blocksPerDim[0] * TwoPower - 1;
-               const bool yskin =
-                   info.index[1] == 0 || info.index[1] == blocksPerDim[1] * TwoPower - 1;
-               const bool zskin =
-                   info.index[2] == 0 || info.index[2] == blocksPerDim[2] * TwoPower - 1;
+               const int TwoPower = 1 << info.level;
+               const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * TwoPower - 1;
+               const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * TwoPower - 1;
+               const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * TwoPower - 1;
                const int xskip = info.index[0] == 0 ? -1 : 1;
                const int yskip = info.index[1] == 0 ? -1 : 1;
                const int zskip = info.index[2] == 0 ? -1 : 1;
@@ -359,41 +335,34 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
                   if (!yperiodic && code[1] == yskip && yskin) continue;
                   if (!zperiodic && code[2] == zskip && zskin) continue;
 
-                  BlockInfo &infoNei =
-                      AMR::m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+                  BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
                   if (AMR::m_refGrid->Tree(infoNei).CheckFiner())
                   {
                      if (info.state == Compress)
                      {
-                        info.state                                             = Leave;
+                        info.state = Leave;
                         (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
                      }
                      // if (info.level == levelMax - 1) break;
 
                      int Bstep = 1;                                                    // face
                      if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge
-                     else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3))
-                        Bstep = 4; // corner
+                     else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3)) Bstep = 4; // corner
 
-                     for (int B = 0; B <= 3;
-                          B += Bstep) // loop over blocks that make up face/edge/corner
-                                      // (respectively 4,2 or 1 blocks)
+                     for (int B = 0; B <= 3; B += Bstep) // loop over blocks that make up face/edge/corner (respectively 4,2 or 1 blocks)
                      {
                         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                        int iNei      = 2 * info.index[0] + max(code[0], 0) + code[0] +
-                                   (B % 2) * max(0, 1 - abs(code[0]));
-                        int jNei = 2 * info.index[1] + max(code[1], 0) + code[1] +
-                                   aux * max(0, 1 - abs(code[1]));
-                        int kNei = 2 * info.index[2] + max(code[2], 0) + code[2] +
-                                   (B / 2) * max(0, 1 - abs(code[2]));
-                        int zzz             = AMR::m_refGrid->getZforward(m + 1, iNei, jNei, kNei);
+                        const int iNei = 2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0]));
+                        const int jNei = 2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1]));
+                        const int kNei = 2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2]));
+                        const long long zzz = AMR::m_refGrid->getZforward(m + 1, iNei, jNei, kNei);
                         BlockInfo &FinerNei = AMR::m_refGrid->getBlockInfoAll(m + 1, zzz);
                         State NeiState      = FinerNei.state;
                         if (NeiState == Refine)
                         {
-                           info.state                                                = Refine;
-                           (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state    = Refine;
-                           info.changed2                                             = true;
+                           info.state = Refine;
+                           (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Refine;
+                           info.changed2 = true;
                            (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).changed2 = true;
                            break;
                         }
@@ -402,22 +371,17 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
                }
             }
          }
-         /*------------->*/ Clock.finish(20);
 
-
-         /*------------->*/ Clock.start(0, "MeshAdaptation: UpdateBoundary");
          AMR::m_refGrid->UpdateBoundary();
-         /*------------->*/ Clock.finish(0);
 
          if (m == levelMin) break;
          // 2.
-         /*------------->*/ Clock.start(21, "MeshAdaptation: step 2");
          for (size_t j = 0; j < I.size(); j++)
          {
             BlockInfo &info = I[j];
             if (info.level == m && info.state == Compress)
             {
-               int aux          = 1 << info.level;
+               const int aux = 1 << info.level;
                const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
                const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
                const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
@@ -433,88 +397,76 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
                   if (!yperiodic && code[1] == yskip && yskin) continue;
                   if (!zperiodic && code[2] == zskip && zskin) continue;
 
-                  BlockInfo &infoNei =
-                      AMR::m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+                  BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
                   if (AMR::m_refGrid->Tree(infoNei).Exists()&& infoNei.state == Refine)
                   {
-                     info.state                                             = Leave;
+                     info.state = Leave;
                      (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
                      break;
                   }
                }
             }
          }
-         /*------------->*/ Clock.finish(21);
       } // m
 
-      /*------------->*/ Clock.start(22, "MeshAdaptation: step 3");
       // 3.
       for (size_t jjj = 0; jjj < I.size(); jjj++)
       {
          BlockInfo &info = I[jjj];
-         int m = info.level;
+         const int m = info.level;
          bool found = false;
          for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
-            for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
-               for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
-               {
-                  int n              = AMR::m_refGrid->getZforward(m, i, j, k);
-                  BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);
-                  if (AMR::m_refGrid->Tree(infoNei).Exists() == false|| infoNei.state != Compress)
-                  {
-                     found = true;
-                     if (info.state == Compress)
-                     {
-                        info.state                                             = Leave;
-                        (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
-                     }
-                     break;
-                  }
-               }
-         if (found)      
-         for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
-            for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
-               for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
-               {
-                  int n              = AMR::m_refGrid->getZforward(m, i, j, k);
-                  BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);
-                  if (AMR::m_refGrid->Tree(infoNei).Exists() && infoNei.state == Compress)
-                  {
-                     infoNei.state = Leave;
-                  }
-               }
+         for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
+         for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
+         {
+            const long long n = AMR::m_refGrid->getZforward(m, i, j, k);
+            BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);
+            if (AMR::m_refGrid->Tree(infoNei).Exists() == false|| infoNei.state != Compress)
+            {
+                found = true;
+                if (info.state == Compress)
+                {
+                    info.state                                             = Leave;
+                    (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+                }
+                break;
+            }
+        }
+        if (found)      
+        for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
+        for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
+        for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
+        {
+            const long long n = AMR::m_refGrid->getZforward(m, i, j, k);
+            BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);
+            if (AMR::m_refGrid->Tree(infoNei).Exists() && infoNei.state == Compress) infoNei.state = Leave;
+        }
       }
-       /*------------->*/ Clock.finish(22);
 
-       /*------------->*/ Clock.start(23, "MeshAdaptation: step 4");
       // 4.
       for (size_t jjj = 0; jjj < I.size(); jjj++)
       {
-         BlockInfo &info = I[jjj];
-         if (info.state == Compress)
-         {
-            int m = info.level;
-            bool first = true;
-            for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
-               for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
-                  for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
-                  {
-                     int n              = AMR::m_refGrid->getZforward(m, i, j, k);
-                     BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);                   
-                     if (!first)
-                     {
-                        infoNei.state = Leave;
-                     }
-                     first = false;
-                  }
-            if (info.index[0] % 2 == 1 || info.index[1] % 2 == 1 || info.index[2] % 2 == 1)
-            {
-               info.state                                             = Leave;
-               (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
-            }
-         }
+        BlockInfo &info = I[jjj];
+        if (info.state == Compress)
+        {
+           const int m = info.level;
+           bool first = true;
+           for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
+           for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
+           for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
+           {
+               const long long n = AMR::m_refGrid->getZforward(m, i, j, k);
+               BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);                   
+               if (!first) infoNei.state = Leave;
+               first = false;
+           }
+           if (info.index[0] % 2 == 1 || info.index[1] % 2 == 1 || info.index[2] % 2 == 1)
+           {
+              info.state = Leave;
+              (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+           }
+        }
       }
-      /*------------->*/ Clock.finish(23);
    }
 
    virtual State TagLoadedBlock(TLab &Lab_, BlockInfo & info) override

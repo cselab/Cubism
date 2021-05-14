@@ -77,7 +77,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     LabMPI lab;
     lab.prepare(grid, Synch);
 
-    int mycells = 0;
+    long long mycells = 0;
     for (size_t groupID = 0 ; groupID < MyGroups.size() ; groupID ++)
     {
         const BlockGroup & group = MyGroups[groupID];
@@ -88,9 +88,9 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         mycells += dd;
     }
     hsize_t base_tmp[1] = {0};
-    MPI_Exscan(&mycells, &base_tmp[0], 1, MPI_INT,  MPI_SUM , comm);
+    MPI_Exscan(&mycells, &base_tmp[0], 1, MPI_LONG_LONG,  MPI_SUM , comm);
 
-    int start = 0;
+    long long start = 0;
     // Write grid meta-data
     {
         std::ostringstream myfilename;
@@ -194,8 +194,8 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     //3.Create dataset
     fapl_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(fapl_id, H5FD_MPIO_COLLECTIVE);
-    int total;
-    MPI_Allreduce(&start, &total, 1, MPI_INT, MPI_SUM, comm);
+    long long total;
+    MPI_Allreduce(&start, &total, 1, MPI_LONG_LONG, MPI_SUM, comm);
     //total = start;
     hsize_t dims[1]  = {(hsize_t) total};
     fspace_id        = H5Screate_simple(1, dims, NULL);
@@ -204,7 +204,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     //dataset_id_ghost = H5Dcreate (file_id, "dset_ghost", H5T_NATIVE_UCHAR         , fspace_id_ghost, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
     //4.Dump
-    int start1 = 0;
+    long long start1 = 0;
     std::vector<hdf5Real> bigArray(start);
     //std::vector<unsigned char> bigArray_ghost(start);
     std::vector<cubism::BlockInfo*> avail0 = Synch.avail_inner();
@@ -223,7 +223,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         for (int jB = group.i_min[1]; jB <= group.i_max[1]; jB++)
         for (int iB = group.i_min[0]; iB <= group.i_max[0]; iB++)
         {
-            int Z = BlockInfo::forward(group.level,iB,jB,kB);
+            const long long Z = BlockInfo::forward(group.level,iB,jB,kB);
             const cubism::BlockInfo& I = grid.getBlockInfoAll(group.level,Z);
             lab.load(I, 0);
             for (int iz = 0 - nGhosts; iz < nZ + nGhosts; iz++)

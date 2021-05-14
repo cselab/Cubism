@@ -44,8 +44,8 @@ class Grid
 {
  public://protected:
 #ifdef CUBISM_USE_MAP
-   std::unordered_map<size_t, BlockInfo *> BlockInfoAll;
-   std::unordered_map<size_t, TreePosition> Octree;
+   std::unordered_map<long long, BlockInfo *> BlockInfoAll;
+   std::unordered_map<long long, TreePosition> Octree;
 #else
    std::vector<std::vector<BlockInfo *>> BlockInfoAll;
    std::vector<std::vector<TreePosition>> Octree;
@@ -60,7 +60,7 @@ class Grid
    const int levelMax;     // Maximum refinement level allowed
    const int levelStart;   // Initial refinement level
 
-   std::vector<size_t> level_base;
+   std::vector<long long> level_base;
 
  public:
    typedef Block BlockType;
@@ -72,10 +72,10 @@ class Grid
    std::vector<BlockGroup> MyGroups; // used for dumping data
    bool UpdateGroups{true};
 
-   TreePosition &Tree(int m, int n)
+   TreePosition &Tree(int m, long long n)
    {
 #ifdef CUBISM_USE_MAP
-      size_t aux  = level_base[m] + n;
+      long long aux  = level_base[m] + n;
       auto retval = Octree.find(aux);
       if (retval == Octree.end())
       {
@@ -105,25 +105,25 @@ class Grid
 
    void _alloc() // called in class constructor
    {
-      const int m        = levelStart;
+      const int m = levelStart;
       const int TwoPower = 1 << m;
-      for (int n = 0; n < NX * NY * NZ * pow(TwoPower, DIMENSION); n++)
+      for (long long n = 0; n < NX * NY * NZ * pow(TwoPower, DIMENSION); n++)
       {
          Tree(m, n).setrank(0);
          _alloc(m, n);
       }
       if (m - 1 >= 0)
       {
-         for (int n = 0; n < NX * NY * NZ * pow((1 << (m - 1)), DIMENSION); n++) Tree(m - 1, n).setCheckFiner();
+         for (long long n = 0; n < NX * NY * NZ * pow((1 << (m - 1)), DIMENSION); n++) Tree(m - 1, n).setCheckFiner();
       }
       if (m + 1 < levelMax)
       {
-         for (int n = 0; n < NX * NY * NZ * pow((1 << (m + 1)), DIMENSION); n++) Tree(m + 1, n).setCheckCoarser();
+         for (long long n = 0; n < NX * NY * NZ * pow((1 << (m + 1)), DIMENSION); n++) Tree(m + 1, n).setCheckCoarser();
       }
       FillPos();
    }
 
-   void _alloc(int m, int n) // called whenever the grid is refined
+   void _alloc(int m, long long n) // called whenever the grid is refined
    {
       allocator<Block> alloc;
       getBlockInfoAll(m, n).ptrBlock    = alloc.allocate(1);
@@ -139,13 +139,13 @@ class Grid
       for (size_t i = 0; i < m_vInfo.size(); i++)
       {
          const int m = m_vInfo[i].level;
-         const int n = m_vInfo[i].Z;
+         const long long n = m_vInfo[i].Z;
          alloc.deallocate((Block *)getBlockInfoAll(m, n).ptrBlock, 1);
       }
       for (int m = 0; m < levelMax; m++)
       {
-         const size_t nmax = getMaxBlocks()[0] * getMaxBlocks()[1] * getMaxBlocks()[2] * pow(1 << m, 3);
-         for (size_t n = 0; n < nmax; n++)
+         const long long nmax = getMaxBlocks()[0] * getMaxBlocks()[1] * getMaxBlocks()[2] * pow(1 << m, 3);
+         for (long long n = 0; n < nmax; n++)
          {
             if (Tree(m, n).position != -3)
             {
@@ -167,7 +167,7 @@ class Grid
       BlockInfoAll.clear();
    }
 
-   void _dealloc(int m, int n) // called whenever the grid is compressed
+   void _dealloc(int m, long long n) // called whenever the grid is compressed
    {
       allocator<Block> alloc;
       alloc.deallocate((Block *)getBlockInfoAll(m, n).ptrBlock, 1);
@@ -182,7 +182,7 @@ class Grid
       }
    }
 
-   void FindBlockInfo(int m, int n, int m_new, int n_new)
+   void FindBlockInfo(int m, long long n, int m_new, long long n_new)
    {
       for (size_t j = 0; j < m_vInfo.size(); j++)
       {
@@ -202,7 +202,7 @@ class Grid
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {
             int m      = m_vInfo[j].level;
-            int n      = m_vInfo[j].Z;
+            long long n = m_vInfo[j].Z;
             m_vInfo[j] = getBlockInfoAll(m, n);
 
             assert(getBlockInfoAll(m, n).state == m_vInfo[j].state);
@@ -214,7 +214,7 @@ class Grid
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {
             int m            = m_vInfo[j].level;
-            int n            = m_vInfo[j].Z;
+            long long n      = m_vInfo[j].Z;
             m_vInfo[j].state = getBlockInfoAll(m, n).state;
             assert(Tree(m, n).Exists());
             m_blocks[j] = (Block *)getBlockInfoAll(m, n).ptrBlock;
@@ -222,7 +222,7 @@ class Grid
       for (size_t j = 0; j < m_vInfo.size(); j++)
       {
          int m                         = m_vInfo[j].level;
-         int n                         = m_vInfo[j].Z;
+         long long n                   = m_vInfo[j].Z;
          m_vInfo[j].blockID            = j;
          getBlockInfoAll(m, n).blockID = j;
       }
@@ -245,8 +245,8 @@ class Grid
 #ifdef CUBISM_USE_MAP
       for (int m = 0; m < lvlMax; m++)
       {
-         int TwoPower            = 1 << m;
-         const unsigned int Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
+         const int TwoPower = 1 << m;
+         const long long Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
          if (m == 0) level_base.push_back(Ntot);
          if (m > 0) level_base.push_back(level_base[m - 1] + Ntot);
       }
@@ -255,8 +255,8 @@ class Grid
       Octree.resize(lvlMax);
       for (int m = 0; m < lvlMax; m++)
       {
-         int TwoPower            = 1 << m;
-         const unsigned int Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
+         const int TwoPower = 1 << m;
+         const long long Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
          if (m == 0) level_base.push_back(Ntot);
          if (m > 0) level_base.push_back(level_base[m - 1] + Ntot);
          BlockInfoAll[m].resize(Ntot, nullptr);
@@ -318,10 +318,10 @@ class Grid
    inline int getlevelMax() { return levelMax; }
    inline int getlevelMax() const { return levelMax; }
 
-   BlockInfo &getBlockInfoAll(int m, int n)
+   BlockInfo &getBlockInfoAll(int m, long long n)
    {
 #ifdef CUBISM_USE_MAP
-      size_t aux  = level_base[m] + n;
+      long long aux  = level_base[m] + n;
       auto retval = BlockInfoAll.find(aux);
       if (retval != BlockInfoAll.end())
       {
@@ -517,7 +517,7 @@ class Grid
                         valid = false;
                         break;
                      }
-                     int n;
+                     long long n;
                      if (d == 0 || d == 3) n = getZforward(I.level, i0, i1, i2);
                      else if (d == 1 || d == 4)
                         n = getZforward(I.level, i2, i0, i1);
@@ -545,7 +545,7 @@ class Grid
                   for (int i2 = base[d2] - i_off[d2]; i2 <= base[d2] + i_off[d2 + 3]; i2++)
                      for (int i1 = base[d1] - i_off[d1]; i1 <= base[d1] + i_off[d1 + 3]; i1++)
                      {
-                        int n;
+                        long long n;
                         if (d == 0 || d == 3) n = getZforward(I.level, i0, i1, i2);
                         else if (d == 1 || d == 4)
                            n = getZforward(I.level, i2, i0, i1);
@@ -566,7 +566,7 @@ class Grid
          const int iy_max = base[1] + i_off[4];
          const int iz_max = base[2] + i_off[5];
 
-         int n_base = getZforward(I.level, ix_min, iy_min, iz_min);
+         long long n_base = getZforward(I.level, ix_min, iy_min, iz_min);
 
          newGroup.i_min[0] = ix_min;
          newGroup.i_min[1] = iy_min;
@@ -628,7 +628,7 @@ class Grid
                      valid = false;
                      break;
                   }
-                  int n = (d == 0 || d == 2) ? getZforward(I.level, i0, i1) : getZforward(I.level, i1, i0);
+                  long long n = (d == 0 || d == 2) ? getZforward(I.level, i0, i1) : getZforward(I.level, i1, i0);
 
                   if (Tree(I.level, n).rank() != rank())
                   {
@@ -650,7 +650,7 @@ class Grid
                {
                   for (int i1 = base[d1] - i_off[d1]; i1 <= base[d1] + i_off[d1 + 2]; i1++)
                   {
-                     int n = (d == 0 || d == 2) ? getZforward(I.level, i0, i1) : getZforward(I.level, i1, i0);
+                     long long n = (d == 0 || d == 2) ? getZforward(I.level, i0, i1) : getZforward(I.level, i1, i0);
                      newGroup.Z.push_back(n);
                      added[getBlockInfoAll(I.level, n).blockID] = true;
                   }
@@ -666,7 +666,7 @@ class Grid
          const int iy_max = base[1] + i_off[3];
          const int iz_max = 0; // base[2] + i_off[5];
 
-         int n_base = getZforward(I.level, ix_min, iy_min);
+         long long n_base = getZforward(I.level, ix_min, iy_min);
 
          newGroup.i_min[0] = ix_min;
          newGroup.i_min[1] = iy_min;

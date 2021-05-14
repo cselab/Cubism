@@ -16,7 +16,8 @@ struct BlockCase
    std::vector<std::vector<ElementType>> m_pData;
    unsigned int m_vSize[3];
    bool storedFace[6];
-   int level, Z;
+   int level;
+   long long Z;
 
    BlockCase(bool a_storedFace[6], unsigned int nSizeX, unsigned int nSizeY, unsigned int nSizeZ)
    {
@@ -44,14 +45,11 @@ struct BlockCase
       }
    }
 
-   void SetupMetaData(int m, int n)
+   void SetupMetaData(int m, long long n)
    {
       level = m;
       Z     = n;
    }
-
-   int GetLevel() { return level; }
-   int GetZ() { return Z; }
 
    ~BlockCase() {}
 };
@@ -68,7 +66,7 @@ class FluxCorrection
    int rank{0};
 
  protected:
-   std::map<std::array<int, 2>, Case *> MapOfCases;
+   std::map<std::array<long long, 2>, Case *> MapOfCases;
    TGrid *m_refGrid;
    std::vector<Case> Cases;
    bool xperiodic;
@@ -139,15 +137,15 @@ class FluxCorrection
       }
       for (size_t i = 0; i < Cases.size() ; i ++ )
       {
-        MapOfCases.insert(  std::pair<std::array <int,2>,Case *> ({Cases[i].level,Cases[i].Z}, &Cases[i]) );
+        MapOfCases.insert(  std::pair<std::array <long long,2>,Case *> ({(long long)Cases[i].level,Cases[i].Z}, &Cases[i]) );
         m_refGrid->getBlockInfoAll(Cases[i].level,Cases[i].Z).auxiliary = &Cases[i];
       }
       m_refGrid->FillPos();
    }
 
-   Case *GetCase(int level, int Z)
+   Case *GetCase(int level, long long Z)
    {
-      std::array<int, 2> tmp = {level, Z};
+      std::array<long long, 2> tmp = {(long long)level, Z};
 
       auto search = MapOfCases.find(tmp);
 
@@ -195,7 +193,7 @@ class FluxCorrection
             FillCase(info, code);
 
             const int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
-            std::array<int, 2> temp = {info.level, info.Z};
+            std::array<long long, 2> temp = {(long long)info.level, info.Z};
             auto search             = MapOfCases.find(temp);
             assert(search != MapOfCases.end());
             Case &CoarseCase                     = (*search->second);
@@ -316,7 +314,7 @@ class FluxCorrection
       const int myFace    = abs( code[0]) * max(0,  code[0]) + abs( code[1]) * (max(0,  code[1]) + 2) + abs( code[2]) * (max(0,  code[2]) + 4);
       const int otherFace = abs(-code[0]) * max(0, -code[0]) + abs(-code[1]) * (max(0, -code[1]) + 2) + abs(-code[2]) * (max(0, -code[2]) + 4);
 
-      std::array<int, 2> temp = {info.level, info.Z};
+      std::array<long long, 2> temp = {(long long)info.level, info.Z};
       auto search             = MapOfCases.find(temp);
 
       Case &CoarseCase = (*search->second);
@@ -335,12 +333,12 @@ class FluxCorrection
       {
         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
         #if DIMENSION == 3
-        const int Z = (*m_refGrid).getZforward(info.level + 1,
+        const long long Z = (*m_refGrid).getZforward(info.level + 1,
                   2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
                   2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])),
                   2 * info.index[2] + max(code[2], 0) + code[2] +(B / 2) * max(0, 1 - abs(code[2])));
         #else
-        const int Z = (*m_refGrid).getZforward(info.level + 1,
+        const long long Z = (*m_refGrid).getZforward(info.level + 1,
                   2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
                   2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])));
         #endif

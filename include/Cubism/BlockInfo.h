@@ -63,13 +63,13 @@ struct BlockInfo
       return &Zcurve;
    }
 
-   static int forward(int level, int ix, int iy, int iz) { return (*SFC()).forward(level, ix, iy, iz); }
+   static long long forward(int level, int ix, int iy, int iz) { return (*SFC()).forward(level, ix, iy, iz); }
 
-   static int child(int level, int ix, int iy, int iz) { return (*SFC()).child(level, ix, iy, iz); }
+   static long long child(int level, int ix, int iy, int iz) { return (*SFC()).child(level, ix, iy, iz); }
 
-   static int Encode(int level, int Z, int index[3]) { return (*SFC()).Encode(level, Z, index); }
+   static long long Encode(int level, long long Z, int index[3]) { return (*SFC()).Encode(level, Z, index); }
 
-   static void inverse(int Z, int l, int &i, int &j, int &k) { (*SFC()).inverse(Z, l, i, j, k); }
+   static void inverse(long long Z, int l, int &i, int &j, int &k) { (*SFC()).inverse(Z, l, i, j, k); }
 #endif
 
 #if DIMENSION == 2
@@ -89,20 +89,21 @@ struct BlockInfo
       return &Zcurve;
    }
 
-   static int forward(int level, int ix, int iy) { return (*SFC()).forward(level, ix, iy); }
+   static long long forward(int level, int ix, int iy) { return (*SFC()).forward(level, ix, iy); }
 
-   static int child(int level, int ix, int iy) { return (*SFC()).child(level, ix, iy); }
+   static long long child(int level, int ix, int iy) { return (*SFC()).child(level, ix, iy); }
 
-   static int Encode(int level, int Z, int index[2]) { return (*SFC()).Encode(level, Z, index); }
-   static void inverse(int Z, int l, int &i, int &j) { (*SFC()).inverse(Z, l, i, j); }
+   static long long Encode(int level, long long Z, int index[2]) { return (*SFC()).Encode(level, Z, index); }
+   static void inverse(long long Z, int l, int &i, int &j) { (*SFC()).inverse(Z, l, i, j); }
 #endif
 
    long long blockID, blockID_2;
    int index[3];      //(i,j,k) coordinates of block at given refinement level
    void *ptrBlock;    // Pointer to data stored in user-defined Block
    State state;       // Refine/Compress/Leave this block
-   int Z, level;      // Z-order curve index of this block and refinement level
-   int Znei[3][3][3]; // Z-order curve index of 26 neighboring boxes (Znei[1][1][1] = Z)
+   long long Z;       // Z-order curve index of this block
+   int level;         // refinement level
+   long long Znei[3][3][3]; // Z-order curve index of 26 neighboring boxes (Znei[1][1][1] = Z)
 
    double h, h_gridpoint; // grid spacing
    void *auxiliary;       // Pointer to blockcase
@@ -110,14 +111,14 @@ struct BlockInfo
 
    bool changed2;
 
-   int halo_block_id;
-   int Zparent;
+   long long halo_block_id;
+   long long Zparent;
 
 #if DIMENSION == 3
-   int Zchild[2][2][2];
+   long long Zchild[2][2][2];
 #endif
 #if DIMENSION == 2
-   int Zchild[2][2];
+   long long Zchild[2][2];
 #endif
 
 #if DIMENSION == 3

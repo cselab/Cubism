@@ -163,9 +163,9 @@ void DumpHDF5_groups(TGrid &grid,
         for (int iB = group.i_min[0]; iB <= group.i_max[0]; iB++)
         {
 #if DIMENSION == 3
-            int Z = BlockInfo::forward(group.level,iB,jB,kB);
+            const long long Z = BlockInfo::forward(group.level,iB,jB,kB);
 #else
-            int Z = BlockInfo::forward(group.level,iB,jB);
+            const long long Z = BlockInfo::forward(group.level,iB,jB);
 #endif
             const cubism::BlockInfo& I = grid.getBlockInfoAll(group.level,Z);
             //lab.load(I, 0);

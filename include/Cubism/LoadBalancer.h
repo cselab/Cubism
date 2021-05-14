@@ -32,7 +32,7 @@ class LoadBalancer
    MPI_Datatype MPI_BLOCK;
    struct MPI_Block
    {
-      int mn[2];
+      long long mn[2];
       Real data[sizeof(BlockType) / sizeof(Real)];
       MPI_Block(BlockInfo &info, bool Fillptr = true)
       {
@@ -59,7 +59,7 @@ class LoadBalancer
       MPI_Block() {}
    };
 
-   void AddBlock(const int level, const int Z, Real * data)
+   void AddBlock(const int level, const long long Z, Real * data)
    {
       m_refGrid->_alloc(level, Z);
       BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
@@ -75,12 +75,12 @@ class LoadBalancer
          for (int j1 = 0; j1 < 2; j1++)
          for (int i1 = 0; i1 < 2; i1++)
          {
-            const int nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1, 2 * p[2] + k1);
+            const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1, 2 * p[2] + k1);
             m_refGrid->Tree(level + 1, nc).setCheckCoarser();
          }
       if (level > 0)
       {
-         const int nf = m_refGrid->getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
+         const long long nf = m_refGrid->getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
          m_refGrid->Tree(level - 1, nf).setCheckFiner();
       }
    }
@@ -95,8 +95,8 @@ class LoadBalancer
       movedBlocks = false;
       MPI_Block dummy;
       int array_of_blocklengths[2]       = {2, sizeof(BlockType) / sizeof(Real)};
-      MPI_Aint array_of_displacements[2] = {0, 2 * sizeof(int)};
-      MPI_Datatype array_of_types[2]     = {MPI_INT, MPI_DOUBLE};
+      MPI_Aint array_of_displacements[2] = {0, 2 * sizeof(long long)};
+      MPI_Datatype array_of_types[2]     = {MPI_LONG_LONG, MPI_DOUBLE};
       MPI_Type_create_struct(2, array_of_blocklengths, array_of_displacements, array_of_types, &MPI_BLOCK);
       MPI_Type_commit(&MPI_BLOCK);
       flux_left_old  = 0;
@@ -119,7 +119,7 @@ class LoadBalancer
          assert(b.index[1] >= 0);
          assert(b.index[2] >= 0);
 
-         int nBlock = m_refGrid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2), 2 * (b.index[2] / 2));
+         const long long nBlock = m_refGrid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2), 2 * (b.index[2] / 2));
 
          assert(nBlock >= 0);
          assert(b.Z >= 0);
@@ -146,7 +146,7 @@ class LoadBalancer
                for (int j = 0; j < 2; j++)
                   for (int i = 0; i < 2; i++)
                   {
-                     int n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
+                     const long long n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
                      if (n == nBlock) continue;
                      BlockInfo &temp    = m_refGrid->getBlockInfoAll(b.level, n);
                      const int temprank = m_refGrid->Tree(b.level, n).rank();
@@ -193,8 +193,8 @@ class LoadBalancer
       for (int r = 0; r < size; r++)
          for (int i = 0; i < (int)recv_blocks[r].size(); i++)
          {
-            int level = recv_blocks[r][i].mn[0];
-            int Z     = recv_blocks[r][i].mn[1];
+            const int level = (int) recv_blocks[r][i].mn[0];
+            const long long Z = recv_blocks[r][i].mn[1];
 
             m_refGrid->_alloc(level, Z);
             BlockInfo info = m_refGrid->getBlockInfoAll(level, Z);
@@ -210,10 +210,10 @@ class LoadBalancer
       counterg++;
       if (counterg < 5 || (counterg % 10 == 0))
       {
-         int b = m_refGrid->getBlocksInfo().size();
-         int max_b, min_b;
-         MPI_Allreduce(&b, &max_b, 1, MPI_INT, MPI_MAX, comm);
-         MPI_Allreduce(&b, &min_b, 1, MPI_INT, MPI_MIN, comm);
+         long long b = m_refGrid->getBlocksInfo().size();
+         long long max_b, min_b;
+         MPI_Allreduce(&b, &max_b, 1, MPI_LONG_LONG, MPI_MAX, comm);
+         MPI_Allreduce(&b, &min_b, 1, MPI_LONG_LONG, MPI_MIN, comm);
          const double ratio = static_cast<double>(max_b) / min_b;
          if (rank == 0) std::cout << "Load imbalance ratio = " << ratio << std::endl;
          if (ratio > 1.5)
@@ -343,9 +343,9 @@ class LoadBalancer
 
    void Balance_Global()
    {
-      int b          = m_refGrid->getBlocksInfo().size();
-      std::vector<int> all_b(size);
-      MPI_Allgather(&b, 1, MPI_INT, all_b.data(), 1, MPI_INT, comm);
+      long long b = m_refGrid->getBlocksInfo().size();
+      std::vector<long long> all_b(size);
+      MPI_Allgather(&b, 1, MPI_LONG_LONG, all_b.data(), 1, MPI_LONG_LONG, comm);
 
       std::vector<BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
       std::sort(SortedInfos.begin(), SortedInfos.end());
@@ -353,41 +353,41 @@ class LoadBalancer
       std::vector<std::vector<MPI_Block>> send_blocks(size);
       std::vector<std::vector<MPI_Block>> recv_blocks(size);
 
-      int total_load = 0;
+      long long total_load = 0;
       for (int r = 0; r < size; r++) total_load += all_b[r];
-      int my_load = total_load / size;
+      long long my_load = total_load / size;
       if (rank < (total_load % size)) my_load += 1;
 
-      std::vector<int> index_start(size);
+      std::vector<long long> index_start(size);
       index_start[0] = 0;
       for (int r = 1; r < size; r++) index_start[r] = index_start[r - 1] + all_b[r - 1];
 
-      int ideal_index = (total_load / size) * rank;
+      long long ideal_index = (total_load / size) * rank;
       ideal_index += (rank < (total_load % size)) ? rank : (total_load % size);
 
       for (int r = 0; r < size; r++)
          if (rank != r)
          {
             { // check if I need to receive blocks
-               const int a1 = ideal_index;
-               const int a2 = ideal_index + my_load - 1;
-               const int b1 = index_start[r];
-               const int b2 = index_start[r] + all_b[r] - 1;
-               const int c1 = max(a1, b1);
-               const int c2 = min(a2, b2);
+               const long long a1 = ideal_index;
+               const long long a2 = ideal_index + my_load - 1;
+               const long long b1 = index_start[r];
+               const long long b2 = index_start[r] + all_b[r] - 1;
+               const long long c1 = max(a1, b1);
+               const long long c2 = min(a2, b2);
                if (c2 - c1 + 1 > 0) recv_blocks[r].resize(c2 - c1 + 1);
             }
             { // check if I need to send blocks
-               int other_ideal_index = (total_load / size) * r;
+               long long other_ideal_index = (total_load / size) * r;
                other_ideal_index += (r < (total_load % size)) ? r : (total_load % size);
-               int other_load = total_load / size;
+               long long other_load = total_load / size;
                if (r < (total_load % size)) other_load += 1;
-               const int a1 = other_ideal_index;
-               const int a2 = other_ideal_index + other_load - 1;
-               const int b1 = index_start[rank];
-               const int b2 = index_start[rank] + all_b[rank] - 1;
-               const int c1 = max(a1, b1);
-               const int c2 = min(a2, b2);
+               const long long a1 = other_ideal_index;
+               const long long a2 = other_ideal_index + other_load - 1;
+               const long long b1 = index_start[rank];
+               const long long b2 = index_start[rank] + all_b[rank] - 1;
+               const long long c1 = max(a1, b1);
+               const long long c2 = min(a2, b2);
                if (c2 - c1 + 1 > 0) send_blocks[r].resize(c2 - c1 + 1);
             }
          }
@@ -403,8 +403,8 @@ class LoadBalancer
          }
 
       std::vector<MPI_Request> send_request;
-      int counter_S = 0;
-      int counter_E = 0;
+      long long counter_S = 0;
+      long long counter_E = 0;
       for (int r = 0; r < size; r++)
          if (send_blocks[r].size() != 0)
          {

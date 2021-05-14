@@ -23,38 +23,33 @@ class GridMPI : public TGrid
 {
  public:
    typedef typename TGrid::Real Real;
-   int myrank,world_size;
+   int myrank, world_size;
+
  private:
    size_t timestamp;
 
  protected:
-   typedef SynchronizerMPI_AMR<Real, GridMPI<TGrid> > SynchronizerMPIType;
-   MPI_Comm worldcomm,cartcomm;
+   typedef SynchronizerMPI_AMR<Real, GridMPI<TGrid>> SynchronizerMPIType;
+   MPI_Comm worldcomm, cartcomm;
 
  public:
    typedef typename TGrid::BlockType Block;
    typedef typename TGrid::BlockType BlockType;
    std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs;
 
-   GridMPI(const int npeX, const int npeY, const int npeZ, 
-           const int nX,
-           const int nY = 1,
-           const int nZ = 1,
-           const double _maxextent = 1,
-           const int a_levelStart = 0,
-           const int a_levelMax = 1,
-           const MPI_Comm comm = MPI_COMM_WORLD,
-           const bool a_xperiodic = true,
-           const bool a_yperiodic = true,
+   GridMPI(const int npeX, const int npeY, const int npeZ, const int nX, const int nY = 1, const int nZ = 1,
+           const double _maxextent = 1, const int a_levelStart = 0, const int a_levelMax = 1,
+           const MPI_Comm comm = MPI_COMM_WORLD, const bool a_xperiodic = true, const bool a_yperiodic = true,
            const bool a_zperiodic = true)
-       : TGrid(nX, nY, nZ, _maxextent, a_levelStart, a_levelMax, false, a_xperiodic, a_yperiodic, a_zperiodic), timestamp(0), worldcomm(comm)
+       : TGrid(nX, nY, nZ, _maxextent, a_levelStart, a_levelMax, false, a_xperiodic, a_yperiodic, a_zperiodic),
+         timestamp(0), worldcomm(comm)
    {
       MPI_Comm_size(worldcomm, &world_size);
       MPI_Comm_rank(worldcomm, &myrank);
       cartcomm = worldcomm;
 
       const long long total_blocks = nX * nY * nZ * pow(pow(2, a_levelStart), 3);
-      long long my_blocks    = total_blocks / world_size;
+      long long my_blocks          = total_blocks / world_size;
       if ((long long)myrank < total_blocks % world_size) my_blocks++;
       long long n_start = myrank * (total_blocks / world_size);
       if (total_blocks % world_size > 0)
@@ -65,7 +60,7 @@ class GridMPI : public TGrid
       }
       for (long long n = n_start; n < n_start + my_blocks; n++) TGrid::_alloc(a_levelStart, n);
 
-      const int m = TGrid::levelStart;
+      const int m          = TGrid::levelStart;
       const long long nmax = nX * nY * nZ * pow(pow(2, m), 3);
       for (long long n = 0; n < nmax; n++)
       {
@@ -75,7 +70,7 @@ class GridMPI : public TGrid
             if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
             {
                long long aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
-               r          = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
+               r             = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
             }
             else
             {
@@ -90,7 +85,7 @@ class GridMPI : public TGrid
          if (r == (long long)myrank)
          {
             int p[3];
-            const int level = m;
+            const int level   = m;
             const long long Z = n;
             BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
             if (level < TGrid::levelMax - 1)
@@ -115,7 +110,7 @@ class GridMPI : public TGrid
       {
          std::cout << "Total blocks = " << total_blocks << ", each rank gets " << my_blocks << std::endl;
       }
-      MPI_Barrier(worldcomm);//MPI_Abort(worldcomm,666);
+      MPI_Barrier(worldcomm);
    }
 
    virtual ~GridMPI() override
@@ -207,11 +202,12 @@ class GridMPI : public TGrid
                for (int B = 0; B <= 3; B += Bstep) // loop over blocks that make up face/edge/corner
                                                    // (respectively 4,2 or 1 blocks)
                {
-                  const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                  const long long nFine1     = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
-                                             [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
-                                             [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
-                  const long long nFine = TGrid::getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
+                  const int temp         = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
+                  const long long nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
+                                                         [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
+                                                         [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
+                  const long long nFine =
+                      TGrid::getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
 
                   BlockInfo &infoNeiFiner    = TGrid::getBlockInfoAll(infoNei.level + 1, nFine);
                   const int infoNeiFinerrank = TGrid::Tree(infoNei.level + 1, nFine).rank();
@@ -325,7 +321,7 @@ class GridMPI : public TGrid
             }
             else if (infoNeiTree.CheckCoarser())
             {
-               long long nCoarse                  = infoNei.Zparent;
+               long long nCoarse            = infoNei.Zparent;
                const int infoNeiCoarserrank = TGrid::Tree(infoNei.level - 1, nCoarse).rank();
                if (infoNeiCoarserrank != myrank)
                {
@@ -343,11 +339,12 @@ class GridMPI : public TGrid
                for (int B = 0; B <= 3; B += Bstep) // loop over blocks that make up face/edge/corner
                                                    // (respectively 4,2 or 1 blocks)
                {
-                  const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                  long long nFine1     = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
-                                             [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
-                                             [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
-                  long long nFine = TGrid::getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
+                  const int temp   = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
+                  long long nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
+                                                   [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
+                                                   [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
+                  long long nFine =
+                      TGrid::getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
                   const int infoNeiFinerrank = TGrid::Tree(infoNei.level + 1, nFine).rank();
                   if (infoNeiFinerrank != myrank)
                   {
@@ -370,7 +367,6 @@ class GridMPI : public TGrid
          }
       }
 
-
       std::vector<std::vector<long long>> recv_buffer(myNeighbors.size());
       std::vector<std::vector<long long>> send_buffer(myNeighbors.size());
       std::vector<int> recv_size(myNeighbors.size());
@@ -387,9 +383,8 @@ class GridMPI : public TGrid
       MPI_Waitall(recv_size_requests.size(), recv_size_requests.data(), MPI_STATUSES_IGNORE);
       MPI_Waitall(send_size_requests.size(), send_size_requests.data(), MPI_STATUSES_IGNORE);
 
-
       kk = 0;
-      for (size_t j = 0 ; j < myNeighbors.size() ; j++)
+      for (size_t j = 0; j < myNeighbors.size(); j++)
       {
          recv_buffer[kk].resize(recv_size[kk]);
          send_buffer[kk].resize(myData.size());
@@ -415,7 +410,7 @@ class GridMPI : public TGrid
          kk++;
          for (size_t index__ = 0; index__ < recv_buffer[kk].size(); index__ += 2)
          {
-            int level = (int)recv_buffer[kk][index__];
+            int level   = (int)recv_buffer[kk][index__];
             long long Z = recv_buffer[kk][index__ + 1];
             TGrid::Tree(level, Z).setrank(r);
             int p[3];
@@ -456,34 +451,36 @@ class GridMPI : public TGrid
          p_high[0] += h;
          p_high[1] += h;
          p_high[2] += h;
-         low[0]  = std::min(low [0], p_low [0]);
-         low[1]  = std::min(low [1], p_low [1]);
-         low[2]  = std::min(low [2], p_low [2]);
+         low[0]  = std::min(low[0], p_low[0]);
+         low[1]  = std::min(low[1], p_low[1]);
+         low[2]  = std::min(low[2], p_low[2]);
          high[0] = std::max(high[0], p_high[0]);
          high[1] = std::max(high[1], p_high[1]);
          high[2] = std::max(high[2], p_high[2]);
       }
       std::vector<double> all_boxes(world_size * 6);
       std::vector<double> my_box(6);
-      my_box[0] = low [0];
-      my_box[1] = low [1];
-      my_box[2] = low [2];
+      my_box[0] = low[0];
+      my_box[1] = low[1];
+      my_box[2] = low[2];
       my_box[3] = high[0];
       my_box[4] = high[1];
       my_box[5] = high[2];
       MPI_Allgather(my_box.data(), my_box.size(), MPI_DOUBLE, all_boxes.data(), 6, MPI_DOUBLE, worldcomm);
       for (int i = 0; i < world_size; i++)
       {
-         if (Intersect(low.data(), high.data(), &all_boxes[i * 6], &all_boxes[i * 6 + 3]))
-            myNeighbors.push_back(i);
+         if (Intersect(low.data(), high.data(), &all_boxes[i * 6], &all_boxes[i * 6 + 3])) myNeighbors.push_back(i);
       }
       return myNeighbors;
    }
 
    bool Intersect(double *l1, double *h1, double *l2, double *h2)
    {
-      static const double h0 = (TGrid::maxextent / std::max(TGrid::NX * Block::sizeX, std::max(TGrid::NY * Block::sizeY, TGrid::NZ * Block::sizeZ)));
-      static const double extent [3] = {TGrid::NX * Block::sizeX * h0, TGrid::NY * Block::sizeY * h0, TGrid::NZ * Block::sizeZ * h0};
+      static const double h0 =
+          (TGrid::maxextent /
+           std::max(TGrid::NX * Block::sizeX, std::max(TGrid::NY * Block::sizeY, TGrid::NZ * Block::sizeZ)));
+      static const double extent[3] = {TGrid::NX * Block::sizeX * h0, TGrid::NY * Block::sizeY * h0,
+                                       TGrid::NZ * Block::sizeZ * h0};
 
       const Real intersect[3][2] = {{std::max(l1[0], l2[0]), std::min(h1[0], h2[0])},
                                     {std::max(l1[1], l2[1]), std::min(h1[1], h2[1])},
@@ -494,33 +491,39 @@ class GridMPI : public TGrid
       const bool normal_intersection_z = intersect[2][1] - intersect[2][0] > 0.0;
 
       if (normal_intersection_x && normal_intersection_y && normal_intersection_z) return true;
-   
+
       bool periodic_intersection_x = false;
       bool periodic_intersection_y = false;
       bool periodic_intersection_z = false;
       if (TGrid::xperiodic)
       {
-        if (h2[0] > extent[0] && (h2[0]-extent[0] > l1[0]) && (h2[0]-extent[0] < h1[0])) periodic_intersection_x = true;  
-        if (h1[0] > extent[0] && (h1[0]-extent[0] > l2[0]) && (h1[0]-extent[0] < h2[0])) periodic_intersection_x = true;  
+         if (h2[0] > extent[0] && (h2[0] - extent[0] > l1[0]) && (h2[0] - extent[0] < h1[0]))
+            periodic_intersection_x = true;
+         if (h1[0] > extent[0] && (h1[0] - extent[0] > l2[0]) && (h1[0] - extent[0] < h2[0]))
+            periodic_intersection_x = true;
       }
       if (TGrid::yperiodic)
       {
-        if (h2[1] > extent[1] && (h2[1]-extent[1] > l1[1]) && (h2[1]-extent[1] < h1[1])) periodic_intersection_y = true;  
-        if (h1[1] > extent[1] && (h1[1]-extent[1] > l2[1]) && (h1[1]-extent[1] < h2[1])) periodic_intersection_y = true;  
+         if (h2[1] > extent[1] && (h2[1] - extent[1] > l1[1]) && (h2[1] - extent[1] < h1[1]))
+            periodic_intersection_y = true;
+         if (h1[1] > extent[1] && (h1[1] - extent[1] > l2[1]) && (h1[1] - extent[1] < h2[1]))
+            periodic_intersection_y = true;
       }
       if (TGrid::zperiodic)
       {
-        if (h2[2] > extent[2] && (h2[2]-extent[2] > l1[2]) && (h2[2]-extent[2] < h1[2])) periodic_intersection_z = true;  
-        if (h1[2] > extent[2] && (h1[2]-extent[2] > l2[2]) && (h1[2]-extent[2] < h2[2])) periodic_intersection_z = true;  
+         if (h2[2] > extent[2] && (h2[2] - extent[2] > l1[2]) && (h2[2] - extent[2] < h1[2]))
+            periodic_intersection_z = true;
+         if (h1[2] > extent[2] && (h1[2] - extent[2] > l2[2]) && (h1[2] - extent[2] < h2[2]))
+            periodic_intersection_z = true;
       }
 
-      if (  normal_intersection_x &&   normal_intersection_y && periodic_intersection_z) return true;
-      if (  normal_intersection_x && periodic_intersection_y &&   normal_intersection_z) return true;
-      if (periodic_intersection_x &&   normal_intersection_y &&   normal_intersection_z) return true;
+      if (normal_intersection_x && normal_intersection_y && periodic_intersection_z) return true;
+      if (normal_intersection_x && periodic_intersection_y && normal_intersection_z) return true;
+      if (periodic_intersection_x && normal_intersection_y && normal_intersection_z) return true;
 
-      if (  normal_intersection_x && periodic_intersection_y && periodic_intersection_z) return true;
-      if (periodic_intersection_x &&   normal_intersection_y && periodic_intersection_z) return true;
-      if (periodic_intersection_x && periodic_intersection_y &&   normal_intersection_z) return true;
+      if (normal_intersection_x && periodic_intersection_y && periodic_intersection_z) return true;
+      if (periodic_intersection_x && normal_intersection_y && periodic_intersection_z) return true;
+      if (periodic_intersection_x && periodic_intersection_y && normal_intersection_z) return true;
 
       if (periodic_intersection_x && periodic_intersection_y && periodic_intersection_z) return true;
 

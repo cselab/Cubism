@@ -42,7 +42,7 @@ struct TreePosition
 template <typename Block, template <typename X> class allocator = std::allocator>
 class Grid
 {
- public://protected:
+ public: // protected:
 #ifdef CUBISM_USE_MAP
    std::unordered_map<long long, BlockInfo *> BlockInfoAll;
    std::unordered_map<long long, TreePosition> Octree;
@@ -75,8 +75,8 @@ class Grid
    TreePosition &Tree(int m, long long n)
    {
 #ifdef CUBISM_USE_MAP
-      long long aux  = level_base[m] + n;
-      auto retval = Octree.find(aux);
+      long long aux = level_base[m] + n;
+      auto retval   = Octree.find(aux);
       if (retval == Octree.end())
       {
 #pragma omp critical
@@ -105,7 +105,7 @@ class Grid
 
    void _alloc() // called in class constructor
    {
-      const int m = levelStart;
+      const int m        = levelStart;
       const int TwoPower = 1 << m;
       for (long long n = 0; n < NX * NY * NZ * pow(TwoPower, DIMENSION); n++)
       {
@@ -138,7 +138,7 @@ class Grid
       allocator<Block> alloc;
       for (size_t i = 0; i < m_vInfo.size(); i++)
       {
-         const int m = m_vInfo[i].level;
+         const int m       = m_vInfo[i].level;
          const long long n = m_vInfo[i].Z;
          alloc.deallocate((Block *)getBlockInfoAll(m, n).ptrBlock, 1);
       }
@@ -188,9 +188,9 @@ class Grid
       {
          if (m == m_vInfo[j].level && n == m_vInfo[j].Z)
          {
-            getBlockInfoAll(m_new, n_new).state   = Leave;
-            m_vInfo[j]                            = getBlockInfoAll(m_new, n_new);
-            m_blocks[j]                           = (Block *)getBlockInfoAll(m_new, n_new).ptrBlock;
+            getBlockInfoAll(m_new, n_new).state = Leave;
+            m_vInfo[j]                          = getBlockInfoAll(m_new, n_new);
+            m_blocks[j]                         = (Block *)getBlockInfoAll(m_new, n_new).ptrBlock;
             return;
          }
       }
@@ -201,9 +201,9 @@ class Grid
       if (CopyInfos)
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {
-            int m      = m_vInfo[j].level;
+            int m       = m_vInfo[j].level;
             long long n = m_vInfo[j].Z;
-            m_vInfo[j] = getBlockInfoAll(m, n);
+            m_vInfo[j]  = getBlockInfoAll(m, n);
 
             assert(getBlockInfoAll(m, n).state == m_vInfo[j].state);
             assert(Tree(m, n).Exists());
@@ -228,7 +228,11 @@ class Grid
       }
    }
 
-   Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1, const double _maxextent = 1, const unsigned int _levelStart = 0, const unsigned int _levelMax = 1, const bool AllocateBlocks = true, const bool a_xperiodic = true, const bool a_yperiodic = true, const bool a_zperiodic = true) : NX(_NX), NY(_NY), NZ(_NZ), maxextent(_maxextent), levelMax(_levelMax), levelStart(_levelStart), xperiodic(a_xperiodic), yperiodic(a_yperiodic), zperiodic(a_zperiodic)
+   Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1, const double _maxextent = 1,
+        const unsigned int _levelStart = 0, const unsigned int _levelMax = 1, const bool AllocateBlocks = true,
+        const bool a_xperiodic = true, const bool a_yperiodic = true, const bool a_zperiodic = true)
+       : NX(_NX), NY(_NY), NZ(_NZ), maxextent(_maxextent), levelMax(_levelMax), levelStart(_levelStart),
+         xperiodic(a_xperiodic), yperiodic(a_yperiodic), zperiodic(a_zperiodic)
    {
       BlockInfo dummy;
 #if DIMENSION == 3
@@ -245,7 +249,7 @@ class Grid
 #ifdef CUBISM_USE_MAP
       for (int m = 0; m < lvlMax; m++)
       {
-         const int TwoPower = 1 << m;
+         const int TwoPower   = 1 << m;
          const long long Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
          if (m == 0) level_base.push_back(Ntot);
          if (m > 0) level_base.push_back(level_base[m - 1] + Ntot);
@@ -255,7 +259,7 @@ class Grid
       Octree.resize(lvlMax);
       for (int m = 0; m < lvlMax; m++)
       {
-         const int TwoPower = 1 << m;
+         const int TwoPower   = 1 << m;
          const long long Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
          if (m == 0) level_base.push_back(Ntot);
          if (m > 0) level_base.push_back(level_base[m - 1] + Ntot);
@@ -321,8 +325,8 @@ class Grid
    BlockInfo &getBlockInfoAll(int m, long long n)
    {
 #ifdef CUBISM_USE_MAP
-      long long aux  = level_base[m] + n;
-      auto retval = BlockInfoAll.find(aux);
+      long long aux = level_base[m] + n;
+      auto retval   = BlockInfoAll.find(aux);
       if (retval != BlockInfoAll.end())
       {
          return *retval->second;
@@ -336,8 +340,8 @@ class Grid
             {
                BlockInfo *dumm = new BlockInfo();
                int TwoPower    = 1 << m;
-               double h0       = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
-               double h        = h0 / TwoPower;
+               double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
+               double h  = h0 / TwoPower;
                double origin[3];
                int i, j, k;
 #if DIMENSION == 3
@@ -368,8 +372,8 @@ class Grid
             {
                BlockInfo *dummy = new BlockInfo();
                int TwoPower     = 1 << m;
-               double h0        = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
-               double h         = h0 / TwoPower;
+               double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
+               double h  = h0 / TwoPower;
                double origin[3];
                int i, j, k;
 #if DIMENSION == 3
@@ -512,7 +516,8 @@ class Grid
                   {
                      if (valid == false) break;
 
-                     if (i0 < 0 || i1 < 0 || i2 < 0 || i0 >= blk[d0] * (1 << I.level) || i1 >= blk[d1] * (1 << I.level) || i2 >= blk[d2] * (1 << I.level))
+                     if (i0 < 0 || i1 < 0 || i2 < 0 || i0 >= blk[d0] * (1 << I.level) ||
+                         i1 >= blk[d1] * (1 << I.level) || i2 >= blk[d2] * (1 << I.level))
                      {
                         valid = false;
                         break;
@@ -557,7 +562,8 @@ class Grid
                }
             }
             d = (d + 1) % 6;
-         } while (ready_[0] == false || ready_[1] == false || ready_[2] == false || ready_[3] == false || ready_[4] == false || ready_[5] == false);
+         } while (ready_[0] == false || ready_[1] == false || ready_[2] == false || ready_[3] == false ||
+                  ready_[4] == false || ready_[5] == false);
 
          const int ix_min = base[0] - i_off[0];
          const int iy_min = base[1] - i_off[1];

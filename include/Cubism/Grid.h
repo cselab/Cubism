@@ -277,7 +277,7 @@ class Grid
    virtual int rank() const { return 0; }
 
 #if DIMENSION == 3
-   int getZforward(const int level, const int i, const int j, const int k) const
+   long long getZforward(const int level, const int i, const int j, const int k) const
    {
       const int TwoPower = 1 << level;
       const int ix       = (i + TwoPower * NX) % (NX * TwoPower);
@@ -285,34 +285,34 @@ class Grid
       const int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
       return BlockInfo::forward(level, ix, iy, iz);
    }
-   int getZchild(int level, int i, int j, int k) { return BlockInfo::child(level, i, j, k); }
+   long long getZchild(int level, int i, int j, int k) { return BlockInfo::child(level, i, j, k); }
    Block &operator()(int ix, int iy, int iz, int m)
    {
-      const int n = getZforward(m, ix, iy, iz);
+      const long long n = getZforward(m, ix, iy, iz);
       return *(Block *)getBlockInfoAll(m, n).ptrBlock;
    }
    Block *avail1(int ix, int iy, int iz, int m)
    {
-      int n = getZforward(m, ix, iy, iz);
+      const long long n = getZforward(m, ix, iy, iz);
       return avail(m, n);
    }
 #else // DIMENSION = 2
-   int getZforward(const int level, const int i, const int j) const
+   long long getZforward(const int level, const int i, const int j) const
    {
       const int TwoPower = 1 << level;
       const int ix       = (i + TwoPower * NX) % (NX * TwoPower);
       const int iy       = (j + TwoPower * NY) % (NY * TwoPower);
       return BlockInfo::forward(level, ix, iy);
    }
-   int getZchild(int level, int i, int j) { return BlockInfo::child(level, i, j); }
+   long long getZchild(int level, int i, int j) { return BlockInfo::child(level, i, j); }
    Block &operator()(int ix, int iy, int m)
    {
-      const int n = getZforward(m, ix, iy);
+      const long long n = getZforward(m, ix, iy);
       return *(Block *)getBlockInfoAll(m, n).ptrBlock;
    }
    Block *avail1(int ix, int iy, int m)
    {
-      const int n = getZforward(m, ix, iy);
+      const long long n = getZforward(m, ix, iy);
       return avail(m, n);
    }
 #endif

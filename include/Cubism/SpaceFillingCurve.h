@@ -61,13 +61,17 @@ class SpaceFillingCurve
          if (X[n - 1] & Q) t ^= Q - 1;
       for (i = 0; i < n; i++) X[i] ^= t;
 
-      long long retval = 0;
-      int a      = 0;
-      for (int level = 0; level < b; level++)
+      long long retval    = 0;
+      long long a         = 0;
+      const long long one = 1;
+      const long long two = 2;
+      for (long long level = 0; level < b; level++)
       {
-         retval += ((1 << (a)) * (X[2] >> level & 1)) + ((1 << (a + 1)) * (X[1] >> level & 1)) +
-                   ((1 << (a + 2)) * (X[0] >> level & 1));
-         a += 3;
+        const long long a0= ((one) << (a    )) * ((long long)X[2] >> level & one);
+        const long long a1= ((one) << (a+one)) * ((long long)X[1] >> level & one);
+        const long long a2= ((one) << (a+two)) * ((long long)X[0] >> level & one);
+        retval += a0 + a1 + a2;
+        a += 3;
       }
 
       return retval;
@@ -81,19 +85,21 @@ class SpaceFillingCurve
       X[1] = 0;
       X[2] = 0;
 
-      int aa = 0;
-      for (int i = 0; index > 0; i++)
+      long long aa = 0;
+      const long long one = 1;
+      const long long two = 2;
+      for (long long i = 0; index > 0; i++)
       {
-         long long x2 = index % 2;
-         index  = index / 2;
-         long long x1 = index % 2;
-         index  = index / 2;
-         long long x0 = index % 2;
-         index  = index / 2;
+         long long x2 = index % two;
+         index  = index / two;
+         long long x1 = index % two;
+         index  = index / two;
+         long long x0 = index % two;
+         index  = index / two;
 
-         X[0] += x0 * (1 << aa);
-         X[1] += x1 * (1 << aa);
-         X[2] += x2 * (1 << aa);
+         X[0] += x0 * (one << aa);
+         X[1] += x1 * (one << aa);
+         X[2] += x2 * (one << aa);
 
          aa += 1;
       }
@@ -159,7 +165,7 @@ class SpaceFillingCurve
         const int c[3] = {i,j,k};       
         long long index = AxestoTranspose( c, base_level);
         long long substract = 0;
-        for (int h=0; h<index; h++)
+        for (long long h=0; h<index; h++)
         {
           long long X[3] = {0,0,0};
           TransposetoAxes(h, X, base_level);

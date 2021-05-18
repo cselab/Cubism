@@ -158,7 +158,7 @@ struct BlockInfo
 
    bool operator<(const BlockInfo &other) const { return (blockID_2 < other.blockID_2); }
 
-   void setup(const int a_level, const double a_h, const double a_origin[3], const int a_Z)
+   void setup(const int a_level, const double a_h, const double a_origin[3], const long long a_Z)
    {
       level = a_level;
       Z     = a_Z;
@@ -235,7 +235,7 @@ struct BlockInfo
       blockID   = blockID_2;
    }
 
-   int Znei_(int i, int j, int k) const
+   long long Znei_(int i, int j, int k) const
    {
       assert(abs(i) <= 1);
       assert(abs(j) <= 1);

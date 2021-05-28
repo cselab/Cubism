@@ -48,14 +48,6 @@ class BlockLab
    typedef TBlock BlockType;
    typedef typename BlockType::ElementType ElementTypeBlock;
 
-   enum eBlockLab_State
-   {
-      eMRAGBlockLab_Prepared,
-      eMRAGBlockLab_Loaded,
-      eMRAGBlockLab_Uninitialized
-   };
-   eBlockLab_State m_state;
-
    Matrix3D<ElementType, true, allocator> *m_cacheBlock; // This is filled by the Blocklab
    int m_stencilStart[3], m_stencilEnd[3];
    bool istensorial;
@@ -83,9 +75,7 @@ class BlockLab
    }
 
  public:
-   BlockLab()
-       : m_state(eMRAGBlockLab_Uninitialized), m_cacheBlock(nullptr), m_refGrid(nullptr),
-         m_CoarsenedBlock(nullptr)
+   BlockLab(): m_cacheBlock(nullptr), m_refGrid(nullptr),m_CoarsenedBlock(nullptr)
    {
       m_stencilStart[0] = m_stencilStart[1] = m_stencilStart[2] = 0;
       m_stencilEnd[0] = m_stencilEnd[1] = m_stencilEnd[2] = 0;
@@ -249,7 +239,6 @@ class BlockLab
                                   CoarseBlockSize[2] + e[2] - s[2] - 1);
       }
 
-      m_state = eMRAGBlockLab_Prepared;
    }
 
    void load(BlockInfo info, const Real t = 0, const bool applybc = true)
@@ -264,84 +253,76 @@ class BlockLab
 
       static std::array<int, 3> blocksPerDim = grid.getMaxBlocks();
 
-      int aux = 1 << info.level;
+      const int aux = 1 << info.level;
       NX      = blocksPerDim[0] * aux; // needed for apply_bc
       NY      = blocksPerDim[1] * aux; // needed for apply_bc
       NZ      = blocksPerDim[2] * aux; // needed for apply_bc
 
-// 0.couple of checks
-#ifndef NDEBUG
-      assert(m_state == eMRAGBlockLab_Prepared || m_state == eMRAGBlockLab_Loaded);
       assert(m_cacheBlock != NULL);
-#endif
 
-      
       // 1.load the block into the cache
       {
          BlockType &block            = *(BlockType *)info.ptrBlock;
          ElementTypeBlock *ptrSource = &block(0);
 
-#if 0 // original
-          for(int iz=0; iz<nZ; iz++)
-          for(int iy=0; iy<nY; iy++)
-          {
-            ElementType * ptrDestination = &m_cacheBlock->Access(0-m_stencilStart[0], iy-m_stencilStart[1], iz-m_stencilStart[2]);
-    
-            //for(int ix=0; ix<nX; ix++, ptrSource++, ptrDestination++)
-            //  *ptrDestination = (ElementType)*ptrSource;
-            memcpy2((char *)ptrDestination, (char *)ptrSource, sizeof(ElementType)*nX);
-            ptrSource+= nX;
-          }
-#else
-         const int nbytes = sizeof(ElementType) * nX;
-#if 1 // not bad
-         const int _iz0   = -m_stencilStart[2];
-         const int _iz1   = _iz0 + nZ;
-         const int _iy0   = -m_stencilStart[1];
-         const int _iy1   = _iy0 + nY;
-
-         const int m_vSize0 = m_cacheBlock->getSize(0);
-         const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
-         const int my_ix = -m_stencilStart[0];
-
-         for (int iz = _iz0; iz < _iz1; iz++)
-         {
-            const int my_izx = iz * m_nElemsPerSlice + my_ix;
-            for (int iy = _iy0; iy < _iy1; iy += 4)
+         #if 0 // original
+            for(int iz=0; iz<nZ; iz++)
+            for(int iy=0; iy<nY; iy++)
             {
-               ElementType *ptrDestination0 = &m_cacheBlock->LinAccess(my_izx + (iy    )*m_vSize0);
-               ElementType *ptrDestination1 = &m_cacheBlock->LinAccess(my_izx + (iy + 1)*m_vSize0);
-               ElementType *ptrDestination2 = &m_cacheBlock->LinAccess(my_izx + (iy + 2)*m_vSize0);
-               ElementType *ptrDestination3 = &m_cacheBlock->LinAccess(my_izx + (iy + 3)*m_vSize0);
-               memcpy2((char *)ptrDestination0, (char *)(ptrSource         ), nbytes);
-               memcpy2((char *)ptrDestination1, (char *)(ptrSource +     nX), nbytes);
-               memcpy2((char *)ptrDestination2, (char *)(ptrSource + 2 * nX), nbytes);
-               memcpy2((char *)ptrDestination3, (char *)(ptrSource + 3 * nX), nbytes);
-               ptrSource += 4 * nX;
+              ElementType * ptrDestination = &m_cacheBlock->Access(0-m_stencilStart[0], iy-m_stencilStart[1], iz-m_stencilStart[2]);
+              //for(int ix=0; ix<nX; ix++, ptrSource++, ptrDestination++)
+              //  *ptrDestination = (ElementType)*ptrSource;
+              memcpy2((char *)ptrDestination, (char *)ptrSource, sizeof(ElementType)*nX);
+              ptrSource+= nX;
             }
-         }
-#else
-#if 1 // not bad either
-         const int _iz0 = -m_stencilStart[2];
-         const int _iz1 = _iz0 + nZ;
-         const int _iy0 = -m_stencilStart[1];
-         const int _iy1 = _iy0 + nY;
-         for (int iz = _iz0; iz < _iz1; iz++)
-            for (int iy = _iy0; iy < _iy1; iy++)
-#else
-         for (int iz = -m_stencilStart[2]; iz < nZ - m_stencilStart[2]; iz++)
-            for (int iy = -m_stencilStart[1]; iy < nY - m_stencilStart[1]; iy++)
-#endif
-            {
-               ElementType *ptrDestination = &m_cacheBlock->Access(0 - m_stencilStart[0], iy, iz);
-               // for(int ix=0; ix<nX; ix++, ptrSource++, ptrDestination++)
-               // *ptrDestination = (ElementType)*ptrSource;
-               memcpy2((char *)ptrDestination, (char *)ptrSource, nbytes);
-               // for (int ix = 0; ix < nX; ix++)  ptrDestination[ix] = ptrSource[ix];
-               ptrSource += nX;
-            }
-#endif
-#endif
+         #else
+            const int nbytes = sizeof(ElementType) * nX;
+            #if 1 // not bad
+               const int _iz0   = -m_stencilStart[2];
+               const int _iz1   = _iz0 + nZ;
+               const int _iy0   = -m_stencilStart[1];
+               const int _iy1   = _iy0 + nY;
+               const int m_vSize0 = m_cacheBlock->getSize(0);
+               const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
+               const int my_ix = -m_stencilStart[0];
+               for (int iz = _iz0; iz < _iz1; iz++)
+               {
+                  const int my_izx = iz * m_nElemsPerSlice + my_ix;
+                  for (int iy = _iy0; iy < _iy1; iy += 4)
+                  {
+                     ElementType *ptrDestination0 = &m_cacheBlock->LinAccess(my_izx + (iy    )*m_vSize0);
+                     ElementType *ptrDestination1 = &m_cacheBlock->LinAccess(my_izx + (iy + 1)*m_vSize0);
+                     ElementType *ptrDestination2 = &m_cacheBlock->LinAccess(my_izx + (iy + 2)*m_vSize0);
+                     ElementType *ptrDestination3 = &m_cacheBlock->LinAccess(my_izx + (iy + 3)*m_vSize0);
+                     memcpy2((char *)ptrDestination0, (char *)(ptrSource         ), nbytes);
+                     memcpy2((char *)ptrDestination1, (char *)(ptrSource +     nX), nbytes);
+                     memcpy2((char *)ptrDestination2, (char *)(ptrSource + 2 * nX), nbytes);
+                     memcpy2((char *)ptrDestination3, (char *)(ptrSource + 3 * nX), nbytes);
+                     ptrSource += 4 * nX;
+                  }
+               }
+            #else
+               #if 1 // not bad either
+                  const int _iz0 = -m_stencilStart[2];
+                  const int _iz1 = _iz0 + nZ;
+                  const int _iy0 = -m_stencilStart[1];
+                  const int _iy1 = _iy0 + nY;
+                  for (int iz = _iz0; iz < _iz1; iz++)
+                     for (int iy = _iy0; iy < _iy1; iy++)
+               #else
+                  for (int iz = -m_stencilStart[2]; iz < nZ - m_stencilStart[2]; iz++)
+                     for (int iy = -m_stencilStart[1]; iy < nY - m_stencilStart[1]; iy++)
+               #endif
+                    {
+                       ElementType *ptrDestination = &m_cacheBlock->Access(0 - m_stencilStart[0], iy, iz);
+                       // for(int ix=0; ix<nX; ix++, ptrSource++, ptrDestination++)
+                       // *ptrDestination = (ElementType)*ptrSource;
+                       memcpy2((char *)ptrDestination, (char *)ptrSource, nbytes);
+                       // for (int ix = 0; ix < nX; ix++)  ptrDestination[ix] = ptrSource[ix];
+                       ptrSource += nX;
+                    }
+            #endif
+         #endif
       }
 
       // 2. put the ghosts into the cache
@@ -367,8 +348,7 @@ class BlockLab
             if (!zperiodic && code[2] == zskip && zskin) continue;
 
             //get neighbor on same level of resolution
-            const BlockInfo &infoNei =
-                grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+            const BlockInfo &infoNei = grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
             if (grid.Tree(infoNei).Exists())
             {
@@ -391,9 +371,8 @@ class BlockLab
                               code[1] < 1 ? (code[1] < 0 ? 0 : nY) : nY + m_stencilEnd[1] - 1,
                               code[2] < 1 ? (code[2] < 0 ? 0 : nZ) : nZ + m_stencilEnd[2] - 1};
 
-            if (grid.Tree(infoNei).Exists()) SameLevelExchange(info, code, s, e);
-            else if (grid.Tree(infoNei).CheckFiner())
-               FineToCoarseExchange(info, code, s, e);
+            if      (grid.Tree(infoNei).Exists()    ) SameLevelExchange   (info, code, s, e);
+            else if (grid.Tree(infoNei).CheckFiner()) FineToCoarseExchange(info, code, s, e);
          } // icode = 0,...,26
 
          if (coarsened)
@@ -407,87 +386,73 @@ class BlockLab
          {
             std::vector <int> selcomponents1;
             for (int i=0;i<ElementType::DIM;i++)
-                selcomponents1.push_back(i);
+               selcomponents1.push_back(i);
             const std::vector <int> selcomponents=selcomponents1;
             post_load(info, selcomponents,t, applybc);
          }
-
-         m_state = eMRAGBlockLab_Loaded;
-
-      } // 2.
+      }
    }
 
    void post_load(const BlockInfo &info, const std::vector<int> & selcomponents, const Real t = 0, bool applybc = true)
    {
-    #if DIMENSION == 3
-      static const int nX = BlockType::sizeX;
-      static const int nY = BlockType::sizeY;
-      static const int nZ = BlockType::sizeZ;
-
-      if (coarsened)
-      {
-         const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
-                                (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
-                                (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
-
-         for (int k = 0; k < nZ / 2; k++)
+      #if DIMENSION == 3
+         static const int nX = BlockType::sizeX;
+         static const int nY = BlockType::sizeY;
+         static const int nZ = BlockType::sizeZ;
+         if (coarsened)
+         {
+            const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
+                                   (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
+                                   (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
+            for (int k = 0; k < nZ / 2; k++)
             for (int j = 0; j < nY / 2; j++)
-               for (int i = 0; i < nX / 2; i++)
-               {
-                  if (i > -m_InterpStencilStart[0] && i < nX / 2 - m_InterpStencilEnd[0] &&
-                      j > -m_InterpStencilStart[1] && j < nY / 2 - m_InterpStencilEnd[1] &&
-                      k > -m_InterpStencilStart[2] && k < nZ / 2 - m_InterpStencilEnd[2])
-                     continue;
-
-                  const int ix = 2 * i - m_stencilStart[0];
-                  const int iy = 2 * j - m_stencilStart[1];
-                  const int iz = 2 * k - m_stencilStart[2];
-                  ElementType &coarseElement =
-                      m_CoarsenedBlock->Access(i - offset[0], j - offset[1], k - offset[2]);
-                  coarseElement = AverageDown(
-                      m_cacheBlock->Read(ix, iy, iz), m_cacheBlock->Read(ix + 1, iy, iz),
-                      m_cacheBlock->Read(ix, iy + 1, iz), m_cacheBlock->Read(ix + 1, iy + 1, iz),
-                      m_cacheBlock->Read(ix, iy, iz + 1), m_cacheBlock->Read(ix + 1, iy, iz + 1),
-                      m_cacheBlock->Read(ix, iy + 1, iz + 1),
-                      m_cacheBlock->Read(ix + 1, iy + 1, iz + 1));
-               }
-
-         if (applybc) _apply_bc(info, t, true); // apply BC to coarse block
-         CoarseFineInterpolation(info,selcomponents);
-      }
-      if (applybc) _apply_bc(info, t);
-    #else
-      static const int nX = BlockType::sizeX;
-      static const int nY = BlockType::sizeY;
-
-      if (coarsened)
-      {
-         const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
-                                (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1]};
-         for (int j = 0; j < nY / 2; j++)
-               for (int i = 0; i < nX / 2; i++)
-               {
-                  if (i > -m_InterpStencilStart[0] && i < nX / 2 - m_InterpStencilEnd[0] &&
-                      j > -m_InterpStencilStart[1] && j < nY / 2 - m_InterpStencilEnd[1])
-                     continue;
-                  const int ix = 2 * i - m_stencilStart[0];
-                  const int iy = 2 * j - m_stencilStart[1];
-                  ElementType &coarseElement = m_CoarsenedBlock->Access(i - offset[0], j - offset[1],0);
-                  coarseElement = 0.25*
-                                 ( m_cacheBlock->Read(ix, iy    ,0) + m_cacheBlock->Read(ix + 1, iy    ,0)
-                                  +m_cacheBlock->Read(ix, iy + 1,0) + m_cacheBlock->Read(ix + 1, iy + 1,0));              
-                  assert(!std::isnan(coarseElement.magnitude()));
-               }
-         if (applybc) _apply_bc(info, t, true); // apply BC to coarse block
-         CoarseFineInterpolation(info,selcomponents);
-      }
+            for (int i = 0; i < nX / 2; i++)
+            {
+               if (i > -m_InterpStencilStart[0] && i < nX / 2 - m_InterpStencilEnd[0] &&
+                   j > -m_InterpStencilStart[1] && j < nY / 2 - m_InterpStencilEnd[1] &&
+                   k > -m_InterpStencilStart[2] && k < nZ / 2 - m_InterpStencilEnd[2]) continue;
+               const int ix = 2 * i - m_stencilStart[0];
+               const int iy = 2 * j - m_stencilStart[1];
+               const int iz = 2 * k - m_stencilStart[2];
+               ElementType &coarseElement = m_CoarsenedBlock->Access(i - offset[0], j - offset[1], k - offset[2]);
+               coarseElement = AverageDown( m_cacheBlock->Read(ix  ,iy  ,iz  ), 
+                                            m_cacheBlock->Read(ix+1,iy  ,iz  ),
+                                            m_cacheBlock->Read(ix  ,iy+1,iz  ),
+                                            m_cacheBlock->Read(ix+1,iy+1,iz  ),
+                                            m_cacheBlock->Read(ix  ,iy  ,iz+1),
+                                            m_cacheBlock->Read(ix+1,iy  ,iz+1),
+                                            m_cacheBlock->Read(ix  ,iy+1,iz+1),
+                                            m_cacheBlock->Read(ix+1,iy+1,iz+1));
+            }
+         }
+      #else
+         static const int nX = BlockType::sizeX;
+         static const int nY = BlockType::sizeY;
+         if (coarsened)
+         {
+            const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
+                                   (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1]};
+            for (int j = 0; j < nY / 2; j++)
+            for (int i = 0; i < nX / 2; i++)
+            {
+               if (i > -m_InterpStencilStart[0] && i < nX / 2 - m_InterpStencilEnd[0] &&
+                   j > -m_InterpStencilStart[1] && j < nY / 2 - m_InterpStencilEnd[1]) continue;
+               const int ix = 2 * i - m_stencilStart[0];
+               const int iy = 2 * j - m_stencilStart[1];
+               ElementType &coarseElement = m_CoarsenedBlock->Access(i - offset[0], j - offset[1],0);
+               coarseElement = AverageDown( m_cacheBlock->Read(ix  ,iy  ,0),
+                                            m_cacheBlock->Read(ix+1,iy  ,0),
+                                            m_cacheBlock->Read(ix  ,iy+1,0),
+                                            m_cacheBlock->Read(ix+1,iy+1,0));              
+            }
+         }
+      #endif
+      if (applybc) _apply_bc(info, t, true); // apply BC to coarse block
+      CoarseFineInterpolation(info,selcomponents);
       if (applybc) _apply_bc(info, t); 
-
-    #endif
    }
 
-   void SameLevelExchange(const BlockInfo &info, const int *const code, const int *const s,
-                          const int *const e)
+   void SameLevelExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
       static const int nX = BlockType::sizeX;
       static const int nY = BlockType::sizeY;
@@ -499,129 +464,114 @@ class BlockLab
       if (b_ptr == nullptr) return;
       BlockType &b = *b_ptr;
 
-#if 1
-      const int bytes = (e[0] - s[0]) * sizeof(ElementType);
-      if (!bytes) return;
+      #if 1
+         const int bytes = (e[0] - s[0]) * sizeof(ElementType);
+         if (!bytes) return;
+         const int m_vSize0         = m_cacheBlock->getSize(0);
+         const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
+         const int my_ix            = s[0] - m_stencilStart[0];
 
-      const int m_vSize0         = m_cacheBlock->getSize(0);
-      const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
-      const int my_ix            = s[0] - m_stencilStart[0];
+         for (int iz = s[2]; iz < e[2]; iz++)
+         {
+            const int my_izx = (iz - m_stencilStart[2]) * m_nElemsPerSlice + my_ix;
+            #if 0
+               for(int iy=s[1]; iy<e[1]; iy++)
+               {
+                  #if 1 // ...
+                     // char * ptrDest = (char*)&m_cacheBlock->Access(s[0]-m_stencilStart[0], iy-m_stencilStart[1],
+                     // iz-m_stencilStart[2]);
+                     char * ptrDest = (char*)&m_cacheBlock->LinAccess(my_izx + (iy-m_stencilStart[1])*m_vSize0);
+                     const char * ptrSrc = (const char*)&b(s[0] - code[0]*BlockType::sizeX, iy - code[1]*BlockType::sizeY, iz - code[2]*BlockType::sizeZ);
+                     memcpy2((char *)ptrDest, (char *)ptrSrc, bytes);
+                  #else
+                     for(int ix=s[0]; ix<e[0]; ix++)
+                       m_cacheBlock->Access(ix-m_stencilStart[0], iy-m_stencilStart[1], iz-m_stencilStart[2]) = (ElementType)b(ix - code[0]*BlockType::sizeX, iy - code[1]*BlockType::sizeY, iz - code[2]*BlockType::sizeZ);
+                  #endif
+               }
+            #else
+               if ((e[1] - s[1]) % 4 != 0)
+               {
+                  for (int iy = s[1]; iy < e[1]; iy++)
+                  {
+                     char *ptrDest = (char *)&m_cacheBlock->LinAccess(my_izx + (iy - m_stencilStart[1]) * m_vSize0);
+                     const char *ptrSrc = (const char *)&b(s[0] - code[0] * nX, iy - code[1] * nY, iz - code[2] * nZ);
+                     const int cpybytes = (e[0] - s[0]) * sizeof(ElementType);
+                     memcpy2((char *)ptrDest, (char *)ptrSrc, cpybytes);
+                  }
+               }
+               else
+               {
+                  for (int iy = s[1]; iy < e[1]; iy += 4)
+                  {
+                     char *ptrDest0 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 0 - m_stencilStart[1]) * m_vSize0);
+                     char *ptrDest1 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 1 - m_stencilStart[1]) * m_vSize0);
+                     char *ptrDest2 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 2 - m_stencilStart[1]) * m_vSize0);
+                     char *ptrDest3 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 3 - m_stencilStart[1]) * m_vSize0);
+                     const char *ptrSrc0 = (const char *)&b(s[0] - code[0] * nX, iy + 0 - code[1] * nY, iz - code[2] * nZ);
+                     const char *ptrSrc1 = (const char *)&b(s[0] - code[0] * nX, iy + 1 - code[1] * nY, iz - code[2] * nZ);
+                     const char *ptrSrc2 = (const char *)&b(s[0] - code[0] * nX, iy + 2 - code[1] * nY, iz - code[2] * nZ);
+                     const char *ptrSrc3 = (const char *)&b(s[0] - code[0] * nX, iy + 3 - code[1] * nY, iz - code[2] * nZ);
+                     memcpy2((char *)ptrDest0, (char *)ptrSrc0, bytes);
+                     memcpy2((char *)ptrDest1, (char *)ptrSrc1, bytes);
+                     memcpy2((char *)ptrDest2, (char *)ptrSrc2, bytes);
+                     memcpy2((char *)ptrDest3, (char *)ptrSrc3, bytes);
+                  }
+               }
+            #endif
+         }
+      #else
+         const int off_x = -code[0] * nX + m_stencilStart[0];
+         const int off_y = -code[1] * nY + m_stencilStart[1];
+         const int off_z = -code[2] * nZ + m_stencilStart[2];
+         const int nbytes = (e[0] - s[0]) * sizeof(ElementType);
+         #if 1
+            const int _iz0 = s[2] - m_stencilStart[2];
+            const int _iz1 = e[2] - m_stencilStart[2];
+            const int _iy0 = s[1] - m_stencilStart[1];
+            const int _iy1 = e[1] - m_stencilStart[1];
+            for (int iz = _iz0; iz < _iz1; iz++)
+               for (int iy = _iy0; iy < _iy1; iy++)
+         #else
+            for (int iz = s[2] - m_stencilStart[2]; iz < e[2] - m_stencilStart[2]; iz++)
+               for (int iy = s[1] - m_stencilStart[1]; iy < e[1] - m_stencilStart[1]; iy++)
+         #endif
+         {
+            #if 1
+               char *ptrDest = (char *)&m_cacheBlock->Access(s[0] - m_stencilStart[0], iy, iz);
+               const char *ptrSrc = (const char *)&b(0 + off_x, iy + off_y, iz + off_z);
+               memcpy2(ptrDest, ptrSrc, nbytes);
+            #else
+               for (int ix = s[0] - m_stencilStart[0]; ix < e[0] - m_stencilStart[0]; ix++)
+                  m_cacheBlock->Access(ix, iy, iz) =
+                      (ElementType)b(ix + off_x, iy + off_y, iz + off_z);
+            #endif
+         }
+      #endif
+   }
 
-      for (int iz = s[2]; iz < e[2]; iz++)
+   #if DIMENSION == 3
+      ElementType AverageDown(const ElementType &e0, const ElementType &e1, 
+                              const ElementType &e2, const ElementType &e3,
+                              const ElementType &e4, const ElementType &e5,
+                              const ElementType &e6, const ElementType &e7)
       {
-         const int my_izx = (iz - m_stencilStart[2]) * m_nElemsPerSlice + my_ix;
-#if 0
-                    for(int iy=s[1]; iy<e[1]; iy++)
-                    {
-#if 1 // ...
-      // char * ptrDest = (char*)&m_cacheBlock->Access(s[0]-m_stencilStart[0], iy-m_stencilStart[1],
-      // iz-m_stencilStart[2]);
-                        char * ptrDest = (char*)&m_cacheBlock->LinAccess(my_izx + (iy-m_stencilStart[1])*m_vSize0);
-                        const char * ptrSrc = (const char*)&b(s[0] - code[0]*BlockType::sizeX, iy - code[1]*BlockType::sizeY, iz - code[2]*BlockType::sizeZ);
-                        memcpy2((char *)ptrDest, (char *)ptrSrc, bytes);
-#else
-                        for(int ix=s[0]; ix<e[0]; ix++)
-                          m_cacheBlock->Access(ix-m_stencilStart[0], iy-m_stencilStart[1], iz-m_stencilStart[2]) = (ElementType)b(ix - code[0]*BlockType::sizeX, iy - code[1]*BlockType::sizeY, iz - code[2]*BlockType::sizeZ);
-#endif
-                    }
-#else
-         if ((e[1] - s[1]) % 4 != 0)
-         {
-            for (int iy = s[1]; iy < e[1]; iy++)
-            {
-               char *ptrDest =
-                   (char *)&m_cacheBlock->LinAccess(my_izx + (iy - m_stencilStart[1]) * m_vSize0);
-               const char *ptrSrc =
-                   (const char *)&b(s[0] - code[0] * nX, iy - code[1] * nY, iz - code[2] * nZ);
-               const int cpybytes = (e[0] - s[0]) * sizeof(ElementType);
-               memcpy2((char *)ptrDest, (char *)ptrSrc, cpybytes);
-            }
-         }
-         else
-         {
-            for (int iy = s[1]; iy < e[1]; iy += 4)
-            {
-               char *ptrDest0 = (char *)&m_cacheBlock->LinAccess(
-                   my_izx + (iy + 0 - m_stencilStart[1]) * m_vSize0);
-               char *ptrDest1 = (char *)&m_cacheBlock->LinAccess(
-                   my_izx + (iy + 1 - m_stencilStart[1]) * m_vSize0);
-               char *ptrDest2 = (char *)&m_cacheBlock->LinAccess(
-                   my_izx + (iy + 2 - m_stencilStart[1]) * m_vSize0);
-               char *ptrDest3 = (char *)&m_cacheBlock->LinAccess(
-                   my_izx + (iy + 3 - m_stencilStart[1]) * m_vSize0);
-               const char *ptrSrc0 =
-                   (const char *)&b(s[0] - code[0] * nX, iy + 0 - code[1] * nY, iz - code[2] * nZ);
-               const char *ptrSrc1 =
-                   (const char *)&b(s[0] - code[0] * nX, iy + 1 - code[1] * nY, iz - code[2] * nZ);
-               const char *ptrSrc2 =
-                   (const char *)&b(s[0] - code[0] * nX, iy + 2 - code[1] * nY, iz - code[2] * nZ);
-               const char *ptrSrc3 =
-                   (const char *)&b(s[0] - code[0] * nX, iy + 3 - code[1] * nY, iz - code[2] * nZ);
-               memcpy2((char *)ptrDest0, (char *)ptrSrc0, bytes);
-               memcpy2((char *)ptrDest1, (char *)ptrSrc1, bytes);
-               memcpy2((char *)ptrDest2, (char *)ptrSrc2, bytes);
-               memcpy2((char *)ptrDest3, (char *)ptrSrc3, bytes);
-            }
-         }
-#endif
+         return 0.125 * (e0 + e1 + e2 + e3 + e4 + e5 + e6 + e7);
       }
-#else
-      const int off_x = -code[0] * nX + m_stencilStart[0];
-      const int off_y = -code[1] * nY + m_stencilStart[1];
-      const int off_z = -code[2] * nZ + m_stencilStart[2];
-      const int nbytes = (e[0] - s[0]) * sizeof(ElementType);
-#if 1
-      const int _iz0 = s[2] - m_stencilStart[2];
-      const int _iz1 = e[2] - m_stencilStart[2];
-      const int _iy0 = s[1] - m_stencilStart[1];
-      const int _iy1 = e[1] - m_stencilStart[1];
-      for (int iz = _iz0; iz < _iz1; iz++)
-         for (int iy = _iy0; iy < _iy1; iy++)
-#else
-      for (int iz = s[2] - m_stencilStart[2]; iz < e[2] - m_stencilStart[2]; iz++)
-         for (int iy = s[1] - m_stencilStart[1]; iy < e[1] - m_stencilStart[1]; iy++)
-#endif
-         {
-#if 1
-            char *ptrDest = (char *)&m_cacheBlock->Access(s[0] - m_stencilStart[0], iy, iz);
-            const char *ptrSrc = (const char *)&b(0 + off_x, iy + off_y, iz + off_z);
-            memcpy2(ptrDest, ptrSrc, nbytes);
-#else
-            for (int ix = s[0] - m_stencilStart[0]; ix < e[0] - m_stencilStart[0]; ix++)
-               m_cacheBlock->Access(ix, iy, iz) =
-                   (ElementType)b(ix + off_x, iy + off_y, iz + off_z);
-#endif
-         }
-#endif
-   }
+   #else
+      ElementType AverageDown(const ElementType &e0, const ElementType &e1,
+                              const ElementType &e2, const ElementType &e3)
+      {
+         return 0.25 * (e0 + e1 + e2 + e3);
+      }  
+   #endif
 
-#if DIMENSION == 3
-   ElementType AverageDown(const ElementType &e0, const ElementType &e1, const ElementType &e2,
-                           const ElementType &e3, const ElementType &e4, const ElementType &e5,
-                           const ElementType &e6, const ElementType &e7)
-   {
-      ElementType retval = 0.125 * (e0 + e1 + e2 + e3 + e4 + e5 + e6 + e7);
-      return retval;
-   }
-#else
-   ElementType AverageDown(const ElementType &e0, const ElementType &e1, const ElementType &e2,
-                           const ElementType &e3)
-   {
-      ElementType retval = 0.25 * (e0 + e1 + e2 + e3);
-      return retval;
-   }  
-#endif
-
-   void FineToCoarseExchange(const BlockInfo &info, const int *const code, const int *const s,
-                             const int *const e)
+   void FineToCoarseExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
       Grid<BlockType, allocator> &grid = *m_refGrid;
-      static const int nX                    = BlockType::sizeX;
-      static const int nY                    = BlockType::sizeY;
-      static const int nZ                    = BlockType::sizeZ;
-
-      const int bytes = (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)) *
-                        sizeof(ElementType);
+      static const int nX = BlockType::sizeX;
+      static const int nY = BlockType::sizeY;
+      static const int nZ = BlockType::sizeZ;
+      const int bytes = (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)) * sizeof(ElementType);
       if (!bytes) return;
 
       const int m_vSize0         = m_cacheBlock->getSize(0);
@@ -631,8 +581,7 @@ class BlockLab
 
       int Bstep = 1;                                                    // face
       if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge
-      else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3))
-         Bstep = 4; // corner
+      else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3)) Bstep = 4; // corner
 
       /*
         A corner has one finer block.
@@ -654,213 +603,181 @@ class BlockLab
         |________|________|------------->y
 
       */
-
-      for (int B = 0; B <= 3;
-           B +=
-           Bstep) // loop over blocks that make up face/edge/corner (respectively 4,2 or 1 blocks)
+      // loop over blocks that make up face/edge/corner (respectively 4,2 or 1 blocks)
+      for (int B = 0; B <= 3; B += Bstep)
       {
          const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-#if DIMENSION == 3
-         BlockType *b_ptr = grid.avail1(
-             2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
-             2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])),
-             2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2])),
-             info.level + 1);
-#else
-         BlockType *b_ptr = grid.avail1(
-             2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
-             2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])),
-             info.level + 1);
-#endif
+         #if DIMENSION == 3
+            BlockType *b_ptr = grid.avail1(2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
+                                           2 * info.index[1] + max(code[1], 0) + code[1] + aux     * max(0, 1 - abs(code[1])),
+                                           2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2])),
+                                           info.level + 1);
+         #else
+            BlockType *b_ptr = grid.avail1(2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
+                                           2 * info.index[1] + max(code[1], 0) + code[1] + aux     * max(0, 1 - abs(code[1])),
+                                           info.level + 1);
+         #endif
          if (b_ptr == nullptr) continue;
          BlockType &b = *b_ptr;
 
-         const int my_ix =
-             abs(code[0]) * (s[0] - m_stencilStart[0]) +
-             (1 - abs(code[0])) * (s[0] - m_stencilStart[0] + (B % 2) * (e[0] - s[0]) / 2);
+         const int my_ix = abs(code[0]) * (s[0] - m_stencilStart[0]) + (1 - abs(code[0])) * (s[0] - m_stencilStart[0] + (B % 2) * (e[0] - s[0]) / 2);
          const int XX = s[0] - code[0] * nX + min(0, code[0]) * (e[0] - s[0]);
 
          for (int iz = s[2]; iz < e[2]; iz += zStep)
          {
-            const int ZZ =
-                (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
-            const int my_izx =
-                (abs(code[2]) * (iz - m_stencilStart[2]) +
-                 (1 - abs(code[2])) * (iz / 2 - m_stencilStart[2] + (B / 2) * (e[2] - s[2]) / 2)) *
-                    m_nElemsPerSlice +
-                my_ix;
+            const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
+            const int my_izx = (abs(code[2]) * (iz - m_stencilStart[2]) +
+                               (1 - abs(code[2])) * (iz / 2 - m_stencilStart[2] + (B / 2) * (e[2] - s[2]) / 2)) * m_nElemsPerSlice + my_ix;
 
-#if 0
-                for(int iy=s[1]; iy<e[1]; iy+=yStep)
-                {
-                    char * ptrDest = (char*)&m_cacheBlock->LinAccess(my_izx + ( abs(code[1])*(iy-m_stencilStart[1]) + (1-abs(code[1]) )*(iy/2-m_stencilStart[1] + aux*(e[1]-s[1])/2)  )*m_vSize0);
-    
-                    const int YY = (abs(code[1]) == 1) ? 2*(iy- code[1]*nY) + min(0,code[1])*nY : iy ;
-    
-                    const ElementType * ptrSrc_0 = (const ElementType *)&b( XX, YY  , ZZ   );
-                    const ElementType * ptrSrc_1 = (const ElementType *)&b( XX, YY  , ZZ +1);
-                    const ElementType * ptrSrc_2 = (const ElementType *)&b( XX, YY+1, ZZ   );
-                    const ElementType * ptrSrc_3 = (const ElementType *)&b( XX, YY+1, ZZ +1);
-     
-                    //average down elements of block b to send to coarser neighbor
-                    ElementType * ptrSend = new ElementType[bytes / sizeof (ElementType)];                                   
-                    for (int ee=0; ee< ( abs(code[0])*(e[0]-s[0]) + (1-abs(code[0]))*((e[0]-s[0])/2) ); ee++)
-                    {
-                      ptrSend[ee] = AverageDown(* (ptrSrc_0 + 2*ee   ),* (ptrSrc_1 + 2*ee   ),* (ptrSrc_2 + 2*ee   ),* (ptrSrc_3 + 2*ee   ),* (ptrSrc_0 + 2*ee +1),* (ptrSrc_1 + 2*ee +1),* (ptrSrc_2 + 2*ee +1),* (ptrSrc_3 + 2*ee +1));
-                    } 
-                    memcpy2((char *)ptrDest, (char *)ptrSend, bytes);
-                    delete [] ptrSend;                                   
-                }
-#else //"vectorized"
-            if (((e[1] - s[1]) / yStep) % 4 != 0)
-            {
-               for (int iy = s[1]; iy < e[1]; iy += yStep)
+            #if 0
+               for(int iy=s[1]; iy<e[1]; iy+=yStep)
                {
-                  ElementType *ptrDest = (ElementType *)&m_cacheBlock->LinAccess(
-                      my_izx + (abs(code[1]) * (iy - m_stencilStart[1]) +
-                                (1 - abs(code[1])) *
-                                    (iy / 2 - m_stencilStart[1] + aux * (e[1] - s[1]) / 2)) *
-                                   m_vSize0);
-
-                  const int YY =
-                      (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
-#if DIMENSION == 3
-                  const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
-                  const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY, ZZ + 1);
-                  const ElementType *ptrSrc_2 = (const ElementType *)&b(XX, YY + 1, ZZ);
-                  const ElementType *ptrSrc_3 = (const ElementType *)&b(XX, YY + 1, ZZ + 1);
-                  // average down elements of block b to send to coarser neighbor
-                  for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
+                  char * ptrDest = (char*)&m_cacheBlock->LinAccess(my_izx + ( abs(code[1])*(iy-m_stencilStart[1]) + (1-abs(code[1]) )*(iy/2-m_stencilStart[1] + aux*(e[1]-s[1])/2)  )*m_vSize0); 
+                  const int YY = (abs(code[1]) == 1) ? 2*(iy- code[1]*nY) + min(0,code[1])*nY : iy ;
+                  const ElementType * ptrSrc_0 = (const ElementType *)&b( XX, YY  , ZZ   );
+                  const ElementType * ptrSrc_1 = (const ElementType *)&b( XX, YY  , ZZ +1);
+                  const ElementType * ptrSrc_2 = (const ElementType *)&b( XX, YY+1, ZZ   );
+                  const ElementType * ptrSrc_3 = (const ElementType *)&b( XX, YY+1, ZZ +1);
+                  //average down elements of block b to send to coarser neighbor
+                  ElementType * ptrSend = new ElementType[bytes / sizeof (ElementType)];                                   
+                  for (int ee=0; ee< ( abs(code[0])*(e[0]-s[0]) + (1-abs(code[0]))*((e[0]-s[0])/2) ); ee++)
                   {
-                     ptrDest[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), *(ptrSrc_1 + 2 * ee),
-                                               *(ptrSrc_2 + 2 * ee), *(ptrSrc_3 + 2 * ee),
-                                               *(ptrSrc_0 + 2 * ee + 1), *(ptrSrc_1 + 2 * ee + 1),
-                                               *(ptrSrc_2 + 2 * ee + 1), *(ptrSrc_3 + 2 * ee + 1));
-                  }
-#else
-                  const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY    , ZZ);
-                  const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY + 1, ZZ);
-                  // average down elements of block b to send to coarser neighbor
-                  for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
-                  {
-                     ptrDest[ee] = AverageDown(*(ptrSrc_0 + 2 * ee    ), *(ptrSrc_1 + 2 * ee    ),
-                                               *(ptrSrc_0 + 2 * ee + 1), *(ptrSrc_1 + 2 * ee + 1));
-
-                  }
-#endif
+                    ptrSend[ee] = AverageDown(* (ptrSrc_0 + 2*ee   ),* (ptrSrc_1 + 2*ee   ),* (ptrSrc_2 + 2*ee   ),* (ptrSrc_3 + 2*ee   ),* (ptrSrc_0 + 2*ee +1),* (ptrSrc_1 + 2*ee +1),* (ptrSrc_2 + 2*ee +1),* (ptrSrc_3 + 2*ee +1));
+                  } 
+                  memcpy2((char *)ptrDest, (char *)ptrSend, bytes);
+                  delete [] ptrSend;                                   
                }
-            }
-            else
-            {
-               for (int iy = s[1]; iy < e[1]; iy += 4 * yStep)
+            #else //"vectorized"
+               if (((e[1] - s[1]) / yStep) % 4 != 0)
                {
-                  ElementType *ptrDest0 = (ElementType *)&m_cacheBlock->LinAccess(
-                      my_izx + (abs(code[1]) * (iy + 0 * yStep - m_stencilStart[1]) +
-                                (1 - abs(code[1])) * ((iy + 0 * yStep) / 2 - m_stencilStart[1] +
-                                                      aux * (e[1] - s[1]) / 2)) *
-                                   m_vSize0);
-                  ElementType *ptrDest1 = (ElementType *)&m_cacheBlock->LinAccess(
-                      my_izx + (abs(code[1]) * (iy + 1 * yStep - m_stencilStart[1]) +
-                                (1 - abs(code[1])) * ((iy + 1 * yStep) / 2 - m_stencilStart[1] +
-                                                      aux * (e[1] - s[1]) / 2)) *
-                                   m_vSize0);
-                  ElementType *ptrDest2 = (ElementType *)&m_cacheBlock->LinAccess(
-                      my_izx + (abs(code[1]) * (iy + 2 * yStep - m_stencilStart[1]) +
-                                (1 - abs(code[1])) * ((iy + 2 * yStep) / 2 - m_stencilStart[1] +
-                                                      aux * (e[1] - s[1]) / 2)) *
-                                   m_vSize0);
-                  ElementType *ptrDest3 = (ElementType *)&m_cacheBlock->LinAccess(
-                      my_izx + (abs(code[1]) * (iy + 3 * yStep - m_stencilStart[1]) +
-                                (1 - abs(code[1])) * ((iy + 3 * yStep) / 2 - m_stencilStart[1] +
-                                                      aux * (e[1] - s[1]) / 2)) *
-                                   m_vSize0);
-
-                  const int YY0 = (abs(code[1]) == 1)
-                                      ? 2 * (iy + 0 * yStep - code[1] * nY) + min(0, code[1]) * nY
-                                      : iy + 0 * yStep;
-                  const int YY1 = (abs(code[1]) == 1)
-                                      ? 2 * (iy + 1 * yStep - code[1] * nY) + min(0, code[1]) * nY
-                                      : iy + 1 * yStep;
-                  const int YY2 = (abs(code[1]) == 1)
-                                      ? 2 * (iy + 2 * yStep - code[1] * nY) + min(0, code[1]) * nY
-                                      : iy + 2 * yStep;
-                  const int YY3 = (abs(code[1]) == 1)
-                                      ? 2 * (iy + 3 * yStep - code[1] * nY) + min(0, code[1]) * nY
-                                      : iy + 3 * yStep;
-#if DIMENSION == 3
-                  const ElementType *ptrSrc_00 = (const ElementType *)&b(XX, YY0, ZZ);
-                  const ElementType *ptrSrc_10 = (const ElementType *)&b(XX, YY0, ZZ + 1);
-                  const ElementType *ptrSrc_20 = (const ElementType *)&b(XX, YY0 + 1, ZZ);
-                  const ElementType *ptrSrc_30 = (const ElementType *)&b(XX, YY0 + 1, ZZ + 1);
-
-                  const ElementType *ptrSrc_01 = (const ElementType *)&b(XX, YY1, ZZ);
-                  const ElementType *ptrSrc_11 = (const ElementType *)&b(XX, YY1, ZZ + 1);
-                  const ElementType *ptrSrc_21 = (const ElementType *)&b(XX, YY1 + 1, ZZ);
-                  const ElementType *ptrSrc_31 = (const ElementType *)&b(XX, YY1 + 1, ZZ + 1);
-
-                  const ElementType *ptrSrc_02 = (const ElementType *)&b(XX, YY2, ZZ);
-                  const ElementType *ptrSrc_12 = (const ElementType *)&b(XX, YY2, ZZ + 1);
-                  const ElementType *ptrSrc_22 = (const ElementType *)&b(XX, YY2 + 1, ZZ);
-                  const ElementType *ptrSrc_32 = (const ElementType *)&b(XX, YY2 + 1, ZZ + 1);
-
-                  const ElementType *ptrSrc_03 = (const ElementType *)&b(XX, YY3, ZZ);
-                  const ElementType *ptrSrc_13 = (const ElementType *)&b(XX, YY3, ZZ + 1);
-                  const ElementType *ptrSrc_23 = (const ElementType *)&b(XX, YY3 + 1, ZZ);
-                  const ElementType *ptrSrc_33 = (const ElementType *)&b(XX, YY3 + 1, ZZ + 1);
-
-                  for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) +
-                                         (1 - abs(code[0])) * ((e[0] - s[0]) / 2));
-                       ee++)
+                  for (int iy = s[1]; iy < e[1]; iy += yStep)
                   {
-                     ptrDest0[ee] =
-                         AverageDown(*(ptrSrc_00 + 2 * ee), *(ptrSrc_10 + 2 * ee),
-                                     *(ptrSrc_20 + 2 * ee), *(ptrSrc_30 + 2 * ee),
-                                     *(ptrSrc_00 + 2 * ee + 1), *(ptrSrc_10 + 2 * ee + 1),
-                                     *(ptrSrc_20 + 2 * ee + 1), *(ptrSrc_30 + 2 * ee + 1));
-                     ptrDest1[ee] =
-                         AverageDown(*(ptrSrc_01 + 2 * ee), *(ptrSrc_11 + 2 * ee),
-                                     *(ptrSrc_21 + 2 * ee), *(ptrSrc_31 + 2 * ee),
-                                     *(ptrSrc_01 + 2 * ee + 1), *(ptrSrc_11 + 2 * ee + 1),
-                                     *(ptrSrc_21 + 2 * ee + 1), *(ptrSrc_31 + 2 * ee + 1));
-                     ptrDest2[ee] =
-                         AverageDown(*(ptrSrc_02 + 2 * ee), *(ptrSrc_12 + 2 * ee),
-                                     *(ptrSrc_22 + 2 * ee), *(ptrSrc_32 + 2 * ee),
-                                     *(ptrSrc_02 + 2 * ee + 1), *(ptrSrc_12 + 2 * ee + 1),
-                                     *(ptrSrc_22 + 2 * ee + 1), *(ptrSrc_32 + 2 * ee + 1));
-                     ptrDest3[ee] =
-                         AverageDown(*(ptrSrc_03 + 2 * ee), *(ptrSrc_13 + 2 * ee),
-                                     *(ptrSrc_23 + 2 * ee), *(ptrSrc_33 + 2 * ee),
-                                     *(ptrSrc_03 + 2 * ee + 1), *(ptrSrc_13 + 2 * ee + 1),
-                                     *(ptrSrc_23 + 2 * ee + 1), *(ptrSrc_33 + 2 * ee + 1));
-#else
-                  const ElementType *ptrSrc_00 = (const ElementType *)&b(XX, YY0  , ZZ);
-                  const ElementType *ptrSrc_10 = (const ElementType *)&b(XX, YY0+1, ZZ);
-
-                  const ElementType *ptrSrc_01 = (const ElementType *)&b(XX, YY1  , ZZ);
-                  const ElementType *ptrSrc_11 = (const ElementType *)&b(XX, YY1+1, ZZ);
-
-                  const ElementType *ptrSrc_02 = (const ElementType *)&b(XX, YY2  ,ZZ);
-                  const ElementType *ptrSrc_12 = (const ElementType *)&b(XX, YY2+1,ZZ);
-
-                  const ElementType *ptrSrc_03 = (const ElementType *)&b(XX, YY3  ,ZZ);
-                  const ElementType *ptrSrc_13 = (const ElementType *)&b(XX, YY3+1,ZZ);
-
-                  for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
-                  {
-                     ptrDest0[ee] = AverageDown(*(ptrSrc_00 + 2 * ee    ), *(ptrSrc_10 + 2 * ee    ),
-                                                *(ptrSrc_00 + 2 * ee + 1), *(ptrSrc_10 + 2 * ee + 1));
-                     ptrDest1[ee] = AverageDown(*(ptrSrc_01 + 2 * ee    ), *(ptrSrc_11 + 2 * ee    ),
-                                                *(ptrSrc_01 + 2 * ee + 1), *(ptrSrc_11 + 2 * ee + 1));
-                     ptrDest2[ee] = AverageDown(*(ptrSrc_02 + 2 * ee), *(ptrSrc_12 + 2 * ee),
-                                                *(ptrSrc_02 + 2 * ee + 1), *(ptrSrc_12 + 2 * ee + 1));
-                     ptrDest3[ee] = AverageDown(*(ptrSrc_03 + 2 * ee), *(ptrSrc_13 + 2 * ee),
-                                                *(ptrSrc_03 + 2 * ee + 1), *(ptrSrc_13 + 2 * ee + 1));
-#endif
+                     ElementType *ptrDest = (ElementType *)&m_cacheBlock->LinAccess(
+                                   my_izx + (abs(code[1]) * (iy - m_stencilStart[1]) +
+                                   (1 - abs(code[1])) *(iy / 2 - m_stencilStart[1] + aux * (e[1] - s[1]) / 2)) * m_vSize0);
+                     const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
+                     #if DIMENSION == 3
+                        const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
+                        const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY, ZZ + 1);
+                        const ElementType *ptrSrc_2 = (const ElementType *)&b(XX, YY + 1, ZZ);
+                        const ElementType *ptrSrc_3 = (const ElementType *)&b(XX, YY + 1, ZZ + 1);
+                        // average down elements of block b to send to coarser neighbor
+                        for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
+                        {
+                           ptrDest[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), *(ptrSrc_1 + 2 * ee),
+                                                     *(ptrSrc_2 + 2 * ee), *(ptrSrc_3 + 2 * ee),
+                                                     *(ptrSrc_0 + 2 * ee + 1), *(ptrSrc_1 + 2 * ee + 1),
+                                                     *(ptrSrc_2 + 2 * ee + 1), *(ptrSrc_3 + 2 * ee + 1));
+                        }
+                     #else
+                        const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY    , ZZ);
+                        const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY + 1, ZZ);
+                        // average down elements of block b to send to coarser neighbor
+                        for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
+                        {
+                           ptrDest[ee] = AverageDown(*(ptrSrc_0 + 2 * ee    ), *(ptrSrc_1 + 2 * ee    ),
+                                                     *(ptrSrc_0 + 2 * ee + 1), *(ptrSrc_1 + 2 * ee + 1));
+                        }
+                     #endif
                   }
                }
-            }
-#endif
+               else
+               {
+                  for (int iy = s[1]; iy < e[1]; iy += 4 * yStep)
+                  {
+                     ElementType *ptrDest0 = (ElementType *)&m_cacheBlock->LinAccess(
+                         my_izx + (abs(code[1]) * (iy + 0 * yStep - m_stencilStart[1]) +
+                                   (1 - abs(code[1])) * ((iy + 0 * yStep) / 2 - m_stencilStart[1] +
+                                                         aux * (e[1] - s[1]) / 2)) * m_vSize0);
+                     ElementType *ptrDest1 = (ElementType *)&m_cacheBlock->LinAccess(
+                         my_izx + (abs(code[1]) * (iy + 1 * yStep - m_stencilStart[1]) +
+                                   (1 - abs(code[1])) * ((iy + 1 * yStep) / 2 - m_stencilStart[1] +
+                                                         aux * (e[1] - s[1]) / 2)) * m_vSize0);
+                     ElementType *ptrDest2 = (ElementType *)&m_cacheBlock->LinAccess(
+                         my_izx + (abs(code[1]) * (iy + 2 * yStep - m_stencilStart[1]) +
+                                   (1 - abs(code[1])) * ((iy + 2 * yStep) / 2 - m_stencilStart[1] +
+                                                         aux * (e[1] - s[1]) / 2)) * m_vSize0);
+                     ElementType *ptrDest3 = (ElementType *)&m_cacheBlock->LinAccess(
+                         my_izx + (abs(code[1]) * (iy + 3 * yStep - m_stencilStart[1]) +
+                                   (1 - abs(code[1])) * ((iy + 3 * yStep) / 2 - m_stencilStart[1] +
+                                                         aux * (e[1] - s[1]) / 2)) * m_vSize0);
+                     const int YY0 = (abs(code[1]) == 1) ? 2 * (iy + 0 * yStep - code[1] * nY) + min(0, code[1]) * nY : iy + 0 * yStep;
+                     const int YY1 = (abs(code[1]) == 1) ? 2 * (iy + 1 * yStep - code[1] * nY) + min(0, code[1]) * nY : iy + 1 * yStep;
+                     const int YY2 = (abs(code[1]) == 1) ? 2 * (iy + 2 * yStep - code[1] * nY) + min(0, code[1]) * nY : iy + 2 * yStep;
+                     const int YY3 = (abs(code[1]) == 1) ? 2 * (iy + 3 * yStep - code[1] * nY) + min(0, code[1]) * nY : iy + 3 * yStep;
+
+                     #if DIMENSION == 3
+                        const ElementType *ptrSrc_00 = (const ElementType *)&b(XX, YY0, ZZ);
+                        const ElementType *ptrSrc_10 = (const ElementType *)&b(XX, YY0, ZZ + 1);
+                        const ElementType *ptrSrc_20 = (const ElementType *)&b(XX, YY0 + 1, ZZ);
+                        const ElementType *ptrSrc_30 = (const ElementType *)&b(XX, YY0 + 1, ZZ + 1);
+
+                        const ElementType *ptrSrc_01 = (const ElementType *)&b(XX, YY1, ZZ);
+                        const ElementType *ptrSrc_11 = (const ElementType *)&b(XX, YY1, ZZ + 1);
+                        const ElementType *ptrSrc_21 = (const ElementType *)&b(XX, YY1 + 1, ZZ);
+                        const ElementType *ptrSrc_31 = (const ElementType *)&b(XX, YY1 + 1, ZZ + 1);
+
+                        const ElementType *ptrSrc_02 = (const ElementType *)&b(XX, YY2, ZZ);
+                        const ElementType *ptrSrc_12 = (const ElementType *)&b(XX, YY2, ZZ + 1);
+                        const ElementType *ptrSrc_22 = (const ElementType *)&b(XX, YY2 + 1, ZZ);
+                        const ElementType *ptrSrc_32 = (const ElementType *)&b(XX, YY2 + 1, ZZ + 1);
+
+                        const ElementType *ptrSrc_03 = (const ElementType *)&b(XX, YY3, ZZ);
+                        const ElementType *ptrSrc_13 = (const ElementType *)&b(XX, YY3, ZZ + 1);
+                        const ElementType *ptrSrc_23 = (const ElementType *)&b(XX, YY3 + 1, ZZ);
+                        const ElementType *ptrSrc_33 = (const ElementType *)&b(XX, YY3 + 1, ZZ + 1);
+       
+                        for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
+                        {
+                           ptrDest0[ee] =
+                               AverageDown(*(ptrSrc_00 + 2 * ee), *(ptrSrc_10 + 2 * ee),
+                                           *(ptrSrc_20 + 2 * ee), *(ptrSrc_30 + 2 * ee),
+                                           *(ptrSrc_00 + 2 * ee + 1), *(ptrSrc_10 + 2 * ee + 1),
+                                           *(ptrSrc_20 + 2 * ee + 1), *(ptrSrc_30 + 2 * ee + 1));
+                           ptrDest1[ee] =
+                               AverageDown(*(ptrSrc_01 + 2 * ee), *(ptrSrc_11 + 2 * ee),
+                                           *(ptrSrc_21 + 2 * ee), *(ptrSrc_31 + 2 * ee),
+                                           *(ptrSrc_01 + 2 * ee + 1), *(ptrSrc_11 + 2 * ee + 1),
+                                           *(ptrSrc_21 + 2 * ee + 1), *(ptrSrc_31 + 2 * ee + 1));
+                           ptrDest2[ee] =
+                               AverageDown(*(ptrSrc_02 + 2 * ee), *(ptrSrc_12 + 2 * ee),
+                                           *(ptrSrc_22 + 2 * ee), *(ptrSrc_32 + 2 * ee),
+                                           *(ptrSrc_02 + 2 * ee + 1), *(ptrSrc_12 + 2 * ee + 1),
+                                           *(ptrSrc_22 + 2 * ee + 1), *(ptrSrc_32 + 2 * ee + 1));
+                           ptrDest3[ee] =
+                               AverageDown(*(ptrSrc_03 + 2 * ee), *(ptrSrc_13 + 2 * ee),
+                                           *(ptrSrc_23 + 2 * ee), *(ptrSrc_33 + 2 * ee),
+                                           *(ptrSrc_03 + 2 * ee + 1), *(ptrSrc_13 + 2 * ee + 1),
+                                           *(ptrSrc_23 + 2 * ee + 1), *(ptrSrc_33 + 2 * ee + 1));
+                        }
+                     #else
+                       const ElementType *ptrSrc_00 = (const ElementType *)&b(XX, YY0  , ZZ);
+                       const ElementType *ptrSrc_10 = (const ElementType *)&b(XX, YY0+1, ZZ);
+
+                       const ElementType *ptrSrc_01 = (const ElementType *)&b(XX, YY1  , ZZ);
+                       const ElementType *ptrSrc_11 = (const ElementType *)&b(XX, YY1+1, ZZ);
+
+                       const ElementType *ptrSrc_02 = (const ElementType *)&b(XX, YY2  ,ZZ);
+                       const ElementType *ptrSrc_12 = (const ElementType *)&b(XX, YY2+1,ZZ);
+
+                       const ElementType *ptrSrc_03 = (const ElementType *)&b(XX, YY3  ,ZZ);
+                       const ElementType *ptrSrc_13 = (const ElementType *)&b(XX, YY3+1,ZZ);    
+                       for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
+                       {
+                          ptrDest0[ee] = AverageDown(*(ptrSrc_00 + 2 * ee    ), *(ptrSrc_10 + 2 * ee    ),
+                                                     *(ptrSrc_00 + 2 * ee + 1), *(ptrSrc_10 + 2 * ee + 1));
+                          ptrDest1[ee] = AverageDown(*(ptrSrc_01 + 2 * ee    ), *(ptrSrc_11 + 2 * ee    ),
+                                                     *(ptrSrc_01 + 2 * ee + 1), *(ptrSrc_11 + 2 * ee + 1));
+                          ptrDest2[ee] = AverageDown(*(ptrSrc_02 + 2 * ee), *(ptrSrc_12 + 2 * ee),
+                                                     *(ptrSrc_02 + 2 * ee + 1), *(ptrSrc_12 + 2 * ee + 1));
+                          ptrDest3[ee] = AverageDown(*(ptrSrc_03 + 2 * ee), *(ptrSrc_13 + 2 * ee),
+                                                     *(ptrSrc_03 + 2 * ee + 1), *(ptrSrc_13 + 2 * ee + 1));
+                        }
+                     #endif
+                  }
+               }
+            #endif
          }
       } // B
    }
@@ -870,19 +787,19 @@ class BlockLab
       // Coarse neighbors send their cells. Those are stored in m_CoarsenedBlock and are later used
       // in function CoarseFineInterpolation to interpolate fine values.
       Grid<BlockType, allocator> &grid = *m_refGrid;
-      static const int nX                    = BlockType::sizeX;
-      static const int nY                    = BlockType::sizeY;
-      static const int nZ                    = BlockType::sizeZ;
+      static const int nX = BlockType::sizeX;
+      static const int nY = BlockType::sizeY;
+      static const int nZ = BlockType::sizeZ;
 
-      const BlockInfo &infoNei =
-          grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-#if DIMENSION == 3
-      BlockType *b_ptr = grid.avail1((infoNei.index[0]) / 2, (infoNei.index[1]) / 2,
-                                     (infoNei.index[2]) / 2, info.level - 1);
-#else
-      BlockType *b_ptr = grid.avail1((infoNei.index[0]) / 2, (infoNei.index[1]) / 2,
-                                      info.level - 1);
-#endif
+      const BlockInfo &infoNei = grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+      #if DIMENSION == 3
+         BlockType *b_ptr = grid.avail1((infoNei.index[0]) / 2,
+                                        (infoNei.index[1]) / 2,
+                                        (infoNei.index[2]) / 2, info.level - 1);
+      #else
+         BlockType *b_ptr = grid.avail1((infoNei.index[0]) / 2,
+                                        (infoNei.index[1]) / 2, info.level - 1);
+      #endif
       if (b_ptr == nullptr) return;
       BlockType &b = *b_ptr;
 
@@ -937,53 +854,43 @@ class BlockLab
       for (int iz = s[2]; iz < e[2]; iz++)
       {
          const int my_izx = (iz - offset[2]) * m_nElemsPerSlice + my_ix;
-#if 0
-                for(int iy=s[1]; iy<e[1]; iy++)
-                {
-                    char * ptrDest = (char*)&m_CoarsenedBlock->LinAccess(my_izx + (iy-offset[1])*m_vSize0);                              
-                    const char * ptrSrc = (const char*)&b(s[0] + start[0], iy + start[1], iz + start[2]);
-                    memcpy2((char *)ptrDest, (char *)ptrSrc, bytes);
-                }
-#else
-         if ((e[1] - s[1]) % 4 != 0)
-         {
-            for (int iy = s[1]; iy < e[1]; iy++)
+         #if 0
+            for(int iy=s[1]; iy<e[1]; iy++)
             {
-               char *ptrDest =
-                   (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy - offset[1]) * m_vSize0);
-               const char *ptrSrc = (const char *)&b(s[0] + start[0], iy + start[1], iz + start[2]);
+               char * ptrDest = (char*)&m_CoarsenedBlock->LinAccess(my_izx + (iy-offset[1])*m_vSize0);                              
+               const char * ptrSrc = (const char*)&b(s[0] + start[0], iy + start[1], iz + start[2]);
                memcpy2((char *)ptrDest, (char *)ptrSrc, bytes);
             }
-         }
-         else
-         {
-            for (int iy = s[1]; iy < e[1]; iy += 4)
+         #else
+            if ((e[1] - s[1]) % 4 != 0)
             {
-               char *ptrDest0 =
-                   (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy - offset[1]) * m_vSize0);
-               char *ptrDest1 =
-                   (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy + 1 - offset[1]) * m_vSize0);
-               char *ptrDest2 =
-                   (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy + 2 - offset[1]) * m_vSize0);
-               char *ptrDest3 =
-                   (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy + 3 - offset[1]) * m_vSize0);
-
-               const char *ptrSrc0 =
-                   (const char *)&b(s[0] + start[0], iy + start[1], iz + start[2]);
-               const char *ptrSrc1 =
-                   (const char *)&b(s[0] + start[0], iy + 1 + start[1], iz + start[2]);
-               const char *ptrSrc2 =
-                   (const char *)&b(s[0] + start[0], iy + 2 + start[1], iz + start[2]);
-               const char *ptrSrc3 =
-                   (const char *)&b(s[0] + start[0], iy + 3 + start[1], iz + start[2]);
-
-               memcpy2((char *)ptrDest0, (char *)ptrSrc0, bytes);
-               memcpy2((char *)ptrDest1, (char *)ptrSrc1, bytes);
-               memcpy2((char *)ptrDest2, (char *)ptrSrc2, bytes);
-               memcpy2((char *)ptrDest3, (char *)ptrSrc3, bytes);
+               for (int iy = s[1]; iy < e[1]; iy++)
+               {
+                  char *ptrDest =
+                      (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy - offset[1]) * m_vSize0);
+                  const char *ptrSrc = (const char *)&b(s[0] + start[0], iy + start[1], iz + start[2]);
+                  memcpy2((char *)ptrDest, (char *)ptrSrc, bytes);
+               }
             }
-         }
-#endif
+            else
+            {
+               for (int iy = s[1]; iy < e[1]; iy += 4)
+               {
+                  char *ptrDest0 = (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy - offset[1]) * m_vSize0);
+                  char *ptrDest1 = (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy + 1 - offset[1]) * m_vSize0);
+                  char *ptrDest2 = (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy + 2 - offset[1]) * m_vSize0);
+                  char *ptrDest3 = (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy + 3 - offset[1]) * m_vSize0);
+                  const char *ptrSrc0 = (const char *)&b(s[0] + start[0], iy + start[1], iz + start[2]);
+                  const char *ptrSrc1 = (const char *)&b(s[0] + start[0], iy + 1 + start[1], iz + start[2]);
+                  const char *ptrSrc2 = (const char *)&b(s[0] + start[0], iy + 2 + start[1], iz + start[2]);
+                  const char *ptrSrc3 = (const char *)&b(s[0] + start[0], iy + 3 + start[1], iz + start[2]);
+                  memcpy2((char *)ptrDest0, (char *)ptrSrc0, bytes);
+                  memcpy2((char *)ptrDest1, (char *)ptrSrc1, bytes);
+                  memcpy2((char *)ptrDest2, (char *)ptrSrc2, bytes);
+                  memcpy2((char *)ptrDest3, (char *)ptrSrc3, bytes);
+               }
+            }
+         #endif
       }
    }
 
@@ -1047,38 +954,35 @@ class BlockLab
             ElementType *ptrDest1 = &m_CoarsenedBlock->LinAccess(my_izx + (iy - sC[1]) * m_vSize0);
 
             const int YY = 2 * (iy - s[1]) + start[1];
-#if DIMENSION == 3
-            const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
-            const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY, ZZ + 1);
-            const ElementType *ptrSrc_2 = (const ElementType *)&b(XX, YY + 1, ZZ);
-            const ElementType *ptrSrc_3 = (const ElementType *)&b(XX, YY + 1, ZZ + 1);
-
-            // average down elements of block b to send to coarser neighbor
-            for (int ee = 0; ee < e[0] - s[0]; ee++)
-            {
-               ptrDest1[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), 
-                                          *(ptrSrc_1 + 2 * ee),
-                                          *(ptrSrc_2 + 2 * ee), 
-                                          *(ptrSrc_3 + 2 * ee),
-                                          *(ptrSrc_0 + 2 * ee + 1), 
-                                          *(ptrSrc_1 + 2 * ee + 1),
-                                          *(ptrSrc_2 + 2 * ee + 1), 
-                                          *(ptrSrc_3 + 2 * ee + 1));
-            }
-#else
-            const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
-            const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY + 1, ZZ);
-            
-            // average down elements of block b to send to coarser neighbor
-            for (int ee = 0; ee < e[0] - s[0]; ee++)
-            {
-               ptrDest1[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), 
-                                          *(ptrSrc_1 + 2 * ee),
-                                          *(ptrSrc_0 + 2 * ee + 1), 
-                                          *(ptrSrc_1 + 2 * ee + 1));
-            }
-#endif
-
+            #if DIMENSION == 3
+               const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
+               const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY, ZZ + 1);
+               const ElementType *ptrSrc_2 = (const ElementType *)&b(XX, YY + 1, ZZ);
+               const ElementType *ptrSrc_3 = (const ElementType *)&b(XX, YY + 1, ZZ + 1);
+               // average down elements of block b to send to coarser neighbor
+               for (int ee = 0; ee < e[0] - s[0]; ee++)
+               {
+                  ptrDest1[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), 
+                                             *(ptrSrc_1 + 2 * ee),
+                                             *(ptrSrc_2 + 2 * ee), 
+                                             *(ptrSrc_3 + 2 * ee),
+                                             *(ptrSrc_0 + 2 * ee + 1), 
+                                             *(ptrSrc_1 + 2 * ee + 1),
+                                             *(ptrSrc_2 + 2 * ee + 1), 
+                                             *(ptrSrc_3 + 2 * ee + 1));
+               }
+            #else
+               const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
+               const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY + 1, ZZ);
+               // average down elements of block b to send to coarser neighbor
+               for (int ee = 0; ee < e[0] - s[0]; ee++)
+               {
+                  ptrDest1[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), 
+                                             *(ptrSrc_1 + 2 * ee),
+                                             *(ptrSrc_0 + 2 * ee + 1), 
+                                             *(ptrSrc_1 + 2 * ee + 1));
+               }
+            #endif
          }
       }
    }
@@ -1086,16 +990,14 @@ class BlockLab
    void CoarseFineInterpolation(const BlockInfo &info,const std::vector<int> & selcomponents)
    {
       Grid<BlockType, allocator> &grid = *m_refGrid;
-
-      static const int nX                    = BlockType::sizeX;
-      static const int nY                    = BlockType::sizeY;
-      static const int nZ                    = BlockType::sizeZ;
-      static const bool xperiodic            = is_xperiodic();
-      static const bool yperiodic            = is_yperiodic();
-      static const bool zperiodic            = is_zperiodic();
+      static const int nX         = BlockType::sizeX;
+      static const int nY         = BlockType::sizeY;
+      static const int nZ         = BlockType::sizeZ;
+      static const bool xperiodic = is_xperiodic();
+      static const bool yperiodic = is_yperiodic();
+      static const bool zperiodic = is_zperiodic();
       static std::array<int, 3> blocksPerDim = grid.getMaxBlocks();
-
-      int aux          = 1 << info.level;
+      const int aux    = 1 << info.level;
       const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
       const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
       const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
@@ -1148,77 +1050,77 @@ class BlockLab
          const int bytes = (e[0] - s[0]) * sizeof(ElementType);
          if (!bytes) continue;
 
-#if DIMENSION == 3
-         ElementType retval[8];
-         for (int iz = s[2]; iz < e[2]; iz += 2)
-         {
-            int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2];
-            for (int iy = s[1]; iy < e[1]; iy += 2)
+         #if DIMENSION == 3
+            ElementType retval[8];
+            for (int iz = s[2]; iz < e[2]; iz += 2)
             {
-               int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
-
-               for (int ix = s[0]; ix < e[0]; ix += 2)
+               const int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2];
+               for (int iy = s[1]; iy < e[1]; iy += 2)
                {
-                  int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
-
-                  ElementType *Test[3][3][3];
-                  for (int i = 0; i < 3; i++)
-                     for (int j = 0; j < 3; j++)
-                        for (int k = 0; k < 3; k++)
-                           Test[i][j][k] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
-                                                                     YY - 1 + j - offset[1],
-                                                                     ZZ - 1 + k - offset[2]);
-                  const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
-                  const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
-                  const int z = abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2;
-                  TestInterp(Test,retval,x,y,z,selcomponents);
-
-                  const int ixp = (abs(ix) % 2 == 1) ?  -1 : 1;
-                  const int iyp = (abs(iy) % 2 == 1) ?  -1 : 1;
-                  const int izp = (abs(iz) % 2 == 1) ?  -1 : 1;
-                  const int rxp = (ixp == 1) ? 1:0;
-                  const int ryp = (iyp == 1) ? 1:0;
-                  const int rzp = (izp == 1) ? 1:0;
-                  const int rx  = (ixp == 1) ? 0:1;
-                  const int ry  = (iyp == 1) ? 0:1;
-                  const int rz  = (izp == 1) ? 0:1;
-                  if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
-                    m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rz ];
-                  if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
-                    m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rz ];
-                  if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
-                    m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rz ];
-                  if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
-                    m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rz ];
-                  if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
-                    m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rzp];
-                  if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
-                    m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rzp];
-                  if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
-                    m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rzp];
-                  if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
-                    m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rzp];
+                  const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
+   
+                  for (int ix = s[0]; ix < e[0]; ix += 2)
+                  {
+                     const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
+   
+                     ElementType *Test[3][3][3];
+                     for (int i = 0; i < 3; i++)
+                        for (int j = 0; j < 3; j++)
+                           for (int k = 0; k < 3; k++)
+                              Test[i][j][k] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
+                                                                        YY - 1 + j - offset[1],
+                                                                        ZZ - 1 + k - offset[2]);
+                     const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                     const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
+                     const int z = abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2;
+                     TestInterp(Test,retval,x,y,z,selcomponents);
+   
+                     const int ixp = (abs(ix) % 2 == 1) ?  -1 : 1;
+                     const int iyp = (abs(iy) % 2 == 1) ?  -1 : 1;
+                     const int izp = (abs(iz) % 2 == 1) ?  -1 : 1;
+                     const int rxp = (ixp == 1) ? 1:0;
+                     const int ryp = (iyp == 1) ? 1:0;
+                     const int rzp = (izp == 1) ? 1:0;
+                     const int rx  = (ixp == 1) ? 0:1;
+                     const int ry  = (iyp == 1) ? 0:1;
+                     const int rz  = (izp == 1) ? 0:1;
+                     if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
+                       m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rz ];
+                     if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
+                       m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rz ];
+                     if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
+                       m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rz ];
+                     if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
+                       m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rz ];
+                     if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                       m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rzp];
+                     if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                       m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rzp];
+                     if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                       m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rzp];
+                     if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                       m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rzp];
+                  }
                }
             }
-         }
-#else
-        for (int iy = s[1]; iy < e[1]; iy += 1)
-        {
-           int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
-           for (int ix = s[0]; ix < e[0]; ix += 1)
-           {
-              int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
-              ElementType *Test[3][3];
-              for (int i = 0; i < 3; i++)
-                 for (int j = 0; j < 3; j++)
-                       Test[i][j] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
-                                                              YY - 1 + j - offset[1],0);
-              TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0),
-                         abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
-                         abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,selcomponents);
-           }
-        }
-#endif
+         #else
+            for (int iy = s[1]; iy < e[1]; iy += 1)
+            {
+               const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
+               for (int ix = s[0]; ix < e[0]; ix += 1)
+               {
+                  const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
+                  ElementType *Test[3][3];
+                  for (int i = 0; i < 3; i++)
+                     for (int j = 0; j < 3; j++)
+                           Test[i][j] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
+                                                                  YY - 1 + j - offset[1],0);
+                  TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0),
+                             abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
+                             abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,selcomponents);
+               }
+            }
+         #endif
       }
    }
 
@@ -1310,30 +1212,16 @@ class BlockLab
    }
 
 #else
-
    virtual void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y, const std::vector<int> & selcomponents)
    {
-#if 1
-      ElementType dudx = SlopeElement( *C[0][1], *C[1][1], *C[2][1], selcomponents); 
-      ElementType dudy = SlopeElement( *C[1][0], *C[1][1], *C[1][2], selcomponents); 
-      R                = *C[1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy;
-#else
-      ElementType TEMP [3][2];
-      for (int i2 = -1; i2 <= 1; i2++)
-        Kernel_1D(*C[0][i2 + 1],
-                  *C[1][i2 + 1],
-                  *C[2][i2 + 1],
-                  TEMP[i2 + 1][0],
-                  TEMP[i2 + 1][1]);
-
-      ElementType a00,a01,a10,a11;
-      Kernel_1D(TEMP[0][0], TEMP[1][0], TEMP[2][0], a00, a01);
-      Kernel_1D(TEMP[0][1], TEMP[1][1], TEMP[2][1], a10, a11);
-      if (x==0 && y==0) R = a00;
-      if (x==1 && y==0) R = a10;
-      if (x==0 && y==1) R = a01;
-      if (x==1 && y==1) R = a11;
-#endif
+      const double dx = 0.25*(2*x-1);
+      const double dy = 0.25*(2*y-1);
+      ElementType dudx   = 0.5*( (*C[2][1]) + (-1.0)*(*C[0][1]) );
+      ElementType dudy   = 0.5*( (*C[1][2]) + (-1.0)*(*C[1][0]) );
+      ElementType dudxdy = 0.5*((*C[0][0]) + (*C[2][2]) - (*C[2][0]) - (*C[0][2]));
+      ElementType dudx2  = (*C[0][1]) + (-2.0)*(*C[1][1]) + (*C[2][1]);
+      ElementType dudy2  = (*C[1][0]) + (-2.0)*(*C[1][1]) + (*C[1][2]);
+      R = *C[1][1] + dx*dudx + dy*dudy + (0.5*dx*dx)*dudx2+(0.5*dy*dy)*dudy2+(dx*dy)*dudxdy;
    }
 #endif
 
@@ -1350,37 +1238,19 @@ class BlockLab
     */
    ElementType &operator()(int ix, int iy = 0, int iz = 0)
    {
-#ifndef NDEBUG
-      assert(m_state == eMRAGBlockLab_Loaded);
-
-      const int nX = m_cacheBlock->getSize()[0];
-      const int nY = m_cacheBlock->getSize()[1];
-      const int nZ = m_cacheBlock->getSize()[2];
-
-      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < nX);
-      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < nY);
-      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < nZ);
-#endif
-      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],
-                                  iz - m_stencilStart[2]);
+      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < m_cacheBlock->getSize()[0]);
+      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < m_cacheBlock->getSize()[1]);
+      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < m_cacheBlock->getSize()[2]);
+      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
    }
 
    /** Just as BlockLab::operator() but returning a const. */
    const ElementType &read(int ix, int iy = 0, int iz = 0) const
    {
-#ifndef NDEBUG
-      assert(m_state == eMRAGBlockLab_Loaded);
-
-      const int nX = m_cacheBlock->getSize()[0];
-      const int nY = m_cacheBlock->getSize()[1];
-      const int nZ = m_cacheBlock->getSize()[2];
-
-      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < nX);
-      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < nY);
-      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < nZ);
-#endif
-      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],
-                                  iz - m_stencilStart[2]);
+      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < m_cacheBlock->getSize()[0]);
+      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < m_cacheBlock->getSize()[1]);
+      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < m_cacheBlock->getSize()[2]);
+      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
    }
 
    void release()

@@ -71,6 +71,8 @@ class Grid
    const bool zperiodic;             // grid periodicity in z-direction
    std::vector<BlockGroup> MyGroups; // used for dumping data
    bool UpdateGroups{true};
+   bool FiniteDifferences{true};     // used by BlockLab, to determine what kind of coarse-fine interface interpolation to make.
+                                     // true means that biased stencils will be used to get an O(h^3) approximation
 
    TreePosition &Tree(int m, long long n)
    {

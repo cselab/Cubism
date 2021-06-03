@@ -987,6 +987,19 @@ class BlockLab
       }
    }
 
+   void LI(ElementType & a, ElementType b, ElementType c)
+   {
+      auto kappa = (4.0/15.0)*a+(6.0/15.0)*c+(-10.0/15.0)*b;
+      auto lambda = b - c - kappa;
+      a = 4.0*kappa+2.0*lambda+c;
+   }
+   void LE(ElementType & a, ElementType b, ElementType c)
+   {
+      auto kappa = (4.0/15.0)*a+(6.0/15.0)*c+(-10.0/15.0)*b;
+      auto lambda = b - c - kappa;
+      a = 9.0*kappa+3.0*lambda+c;
+   }
+
    void CoarseFineInterpolation(const BlockInfo &info,const std::vector<int> & selcomponents)
    {
       Grid<BlockType, allocator> &grid = *m_refGrid;
@@ -1008,7 +1021,15 @@ class BlockLab
       const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
                              (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
                              (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
-
+      #if DIMENSION == 3
+         const bool use_averages = (grid.FiniteDifferences == false || istensorial 
+                                  || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 || m_stencilStart[2] < -2 
+                                  || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3 || m_stencilEnd  [2] >  3);
+      #else
+         const bool use_averages = (grid.FiniteDifferences == false || istensorial 
+                                  || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 
+                                  || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3);
+      #endif
       for (int icode = 0; icode < 27; icode++)
       {
          if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;
@@ -1104,20 +1125,141 @@ class BlockLab
                }
             }
          #else
-            for (int iy = s[1]; iy < e[1]; iy += 1)
+
+            if (use_averages)
             {
-               const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
+               for (int iy = s[1]; iy < e[1]; iy += 1)
+               {
+                  const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
+                  for (int ix = s[0]; ix < e[0]; ix += 1)
+                  {
+                     const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
+                     ElementType *Test[3][3];
+                     for (int i = 0; i < 3; i++)
+                        for (int j = 0; j < 3; j++)
+                              Test[i][j] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
+                                                                     YY - 1 + j - offset[1],0);
+                     TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0),
+                                abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
+                                abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,selcomponents);
+                  }
+               }
+            }
+            if (grid.FiniteDifferences && abs(code[0]) + abs(code[1]) == 1) //Correct stencil points +-1 and +-2 at faces
+            {
+               for (int iy = s[1]; iy < e[1]; iy += 1)
                for (int ix = s[0]; ix < e[0]; ix += 1)
                {
-                  const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
-                  ElementType *Test[3][3];
-                  for (int i = 0; i < 3; i++)
-                     for (int j = 0; j < 3; j++)
-                           Test[i][j] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
-                                                                  YY - 1 + j - offset[1],0);
-                  TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0),
-                             abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
-                             abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,selcomponents);
+                  const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1] - offset[1];
+                  const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0] - offset[0];
+                  const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                  const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
+                  const double dx = 0.25*(2*x-1);
+                  const double dy = 0.25*(2*y-1);
+
+                  auto & a = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0);
+   
+                  if (code[0] != 0)
+                  {
+                     ElementType dudy,dudy2;
+                     if (YY-offset[1] == 0)
+                     {
+                        dudy  = m_CoarsenedBlock->Access(XX,YY+1,0)-m_CoarsenedBlock->Access(XX,YY,0);
+                        dudy2 = m_CoarsenedBlock->Access(XX,YY+2,0)-2.0*m_CoarsenedBlock->Access(XX,YY+1,0)+m_CoarsenedBlock->Access(XX,YY,0);
+                     }
+                     else if (YY-offset[1] == CoarseBlockSize[1] - 1)
+                     {
+                        dudy  = m_CoarsenedBlock->Access(XX,YY,0)-m_CoarsenedBlock->Access(XX,YY-1,0);
+                        dudy2 = m_CoarsenedBlock->Access(XX,YY-2,0)-2.0*m_CoarsenedBlock->Access(XX,YY-1,0)+m_CoarsenedBlock->Access(XX,YY,0);
+                     }
+                     else
+                     {
+                        dudy  = 0.5*(m_CoarsenedBlock->Access(XX,YY+1,0)-m_CoarsenedBlock->Access(XX,YY-1,0));
+                        dudy2 = m_CoarsenedBlock->Access(XX,YY+1,0)-2.0*m_CoarsenedBlock->Access(XX,YY,0)+m_CoarsenedBlock->Access(XX,YY-1,0);                       
+                     }
+                     a = m_CoarsenedBlock->Access(XX,YY,0) + dy*dudy + (0.5*dy*dy)*dudy2; 
+                  }
+                  else //if (code[1] != 0)
+                  {
+                     ElementType dudx,dudx2;
+                     if (XX-offset[0] == 0)
+                     {
+                        dudx  = m_CoarsenedBlock->Access(XX+1,YY,0)-m_CoarsenedBlock->Access(XX,YY,0);
+                        dudx2 = m_CoarsenedBlock->Access(XX+2,YY,0)-2.0*m_CoarsenedBlock->Access(XX+1,YY,0)+m_CoarsenedBlock->Access(XX,YY,0);
+                     }
+                     else if (XX-offset[0] == CoarseBlockSize[0] - 1)
+                     {
+                        dudx  = m_CoarsenedBlock->Access(XX,YY,0)-m_CoarsenedBlock->Access(XX-1,YY,0);
+                        dudx2 = m_CoarsenedBlock->Access(XX-2,YY,0)-2.0*m_CoarsenedBlock->Access(XX-1,YY,0)+m_CoarsenedBlock->Access(XX,YY,0);
+                     }
+                     else
+                     {
+                        dudx  = 0.5*(m_CoarsenedBlock->Access(XX+1,YY,0)-m_CoarsenedBlock->Access(XX-1,YY,0));
+                        dudx2 = m_CoarsenedBlock->Access(XX+1,YY,0)-2.0*m_CoarsenedBlock->Access(XX,YY,0)+m_CoarsenedBlock->Access(XX-1,YY,0);                       
+                     }
+                     a = m_CoarsenedBlock->Access(XX,YY,0) + dx*dudx + (0.5*dx*dx)*dudx2; 
+                  }
+
+                  if (code[0] == 0 && code[1] == 1)
+                  {
+                     if (y==0) //interpolation
+                     {
+                        auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] - 1,0);
+                        auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] - 2,0);
+                        LI(a,b,c);
+                     }
+                     else if (y==1) //extrapolation
+                     {
+                        auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] - 2,0);
+                        auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] - 3,0);
+                        LE(a,b,c);
+                     }
+                  }
+                  else if (code[0] == 0 && code[1] == -1)
+                  {
+                     if (y==1) //interpolation
+                     {
+                        auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] + 1,0);
+                        auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] + 2,0);
+                        LI(a,b,c);
+                     }
+                     else if (y==0) //extrapolation
+                     {
+                        auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] + 2,0);
+                        auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] + 3,0);
+                        LE(a,b,c);
+                     }
+                  }
+                  else if (code[1] == 0 && code[0] == 1)
+                  {
+                     if (x==0) //interpolation
+                     {
+                        auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] - 1, iy - m_stencilStart[1],0);
+                        auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] - 2, iy - m_stencilStart[1],0);
+                        LI(a,b,c);
+                     }
+                     else if (x==1) //extrapolation
+                     {
+                        auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] - 2, iy - m_stencilStart[1],0);
+                        auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] - 3, iy - m_stencilStart[1],0);
+                        LE(a,b,c);
+                     }
+                  }
+                  else if (code[1] == 0 && code[0] == -1)
+                  {
+                     if (x==1) //interpolation
+                     {
+                        auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] + 1, iy - m_stencilStart[1],0);
+                        auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] + 2, iy - m_stencilStart[1],0);
+                        LI(a,b,c);
+                     }
+                     else if (x==0) //extrapolation
+                     {
+                        auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] + 2, iy - m_stencilStart[1],0);
+                        auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] + 3, iy - m_stencilStart[1],0);
+                        LE(a,b,c);
+                     }
+                  }
                }
             }
          #endif
@@ -1149,6 +1291,30 @@ class BlockLab
         retval.member(i) = Slope(Al.member(i),Ac.member(i),Ar.member(i));
      }
      return retval;
+   }
+
+   void WENOWavelets3(const double cm, const double c, const double cp, double &left, double &right)
+   {
+      const double b1  = (c - cm) * (c - cm);
+      const double b2  = (c - cp) * (c - cp);
+      double w1  = (1e-6 + b2) * (1e-6 + b2); // yes, 2 goes to 1 and 1 goes to 2
+      double w2  = (1e-6 + b1) * (1e-6 + b1);
+      const double aux = 1.0 / (w1 + w2);
+      w1 *= aux;
+      w2 *= aux;
+      double g1, g2;
+      g1    = 0.75 * c + 0.25 * cm;
+      g2    = 1.25 * c - 0.25 * cp;
+      left  = g1 * w1 + g2 * w2;
+      g1    = 1.25 * c - 0.25 * cm;
+      g2    = 0.75 * c + 0.25 * cp;
+      right = g1 * w1 + g2 * w2;
+   }
+
+   void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType &left, ElementType &right,const std::vector<int> & selcomponents)
+   {
+      for (auto & i : selcomponents)
+        WENOWavelets3(E0.member(i), E1.member(i), E2.member(i), left.member(i), right.member(i));
    }
 
 #if DIMENSION == 3
@@ -1187,30 +1353,6 @@ class BlockLab
       Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], R[3], R[7],selcomponents);
    }
 
-   virtual void WENOWavelets3(const double cm, const double c, const double cp, double &left, double &right)
-   {
-      const double b1  = (c - cm) * (c - cm);
-      const double b2  = (c - cp) * (c - cp);
-      double w1  = (1e-6 + b2) * (1e-6 + b2); // yes, 2 goes to 1 and 1 goes to 2
-      double w2  = (1e-6 + b1) * (1e-6 + b1);
-      const double aux = 1.0 / (w1 + w2);
-      w1 *= aux;
-      w2 *= aux;
-      double g1, g2;
-      g1    = 0.75 * c + 0.25 * cm;
-      g2    = 1.25 * c - 0.25 * cp;
-      left  = g1 * w1 + g2 * w2;
-      g1    = 1.25 * c - 0.25 * cm;
-      g2    = 0.75 * c + 0.25 * cp;
-      right = g1 * w1 + g2 * w2;
-   }
-
-   virtual void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType &left, ElementType &right,const std::vector<int> & selcomponents)
-   {
-      for (auto & i : selcomponents)
-        WENOWavelets3(E0.member(i), E1.member(i), E2.member(i), left.member(i), right.member(i));
-   }
-
 #else
    virtual void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y, const std::vector<int> & selcomponents)
    {
@@ -1222,19 +1364,28 @@ class BlockLab
       ElementType dudx2  = (*C[0][1]) + (-2.0)*(*C[1][1]) + (*C[2][1]);
       ElementType dudy2  = (*C[1][0]) + (-2.0)*(*C[1][1]) + (*C[1][2]);
       R = *C[1][1] + dx*dudx + dy*dudy + (0.5*dx*dx)*dudx2+(0.5*dy*dy)*dudy2+(dx*dy)*dudxdy;
+      #if 0 //WENO3
+      //ElementType Line[2][3];
+      //Kernel_1D(*C[0][0], *C[1][0], *C[2][0], Line[0][0], Line[1][0], selcomponents);
+      //Kernel_1D(*C[0][1], *C[1][1], *C[2][1], Line[0][1], Line[1][1], selcomponents);
+      //Kernel_1D(*C[0][2], *C[1][2], *C[2][2], Line[0][2], Line[1][2], selcomponents);
+      //ElementType a00,a01,a10,a11;
+      //Kernel_1D(Line[0][0], Line[0][1], Line[0][2], a00, a01, selcomponents);
+      //Kernel_1D(Line[1][0], Line[1][1], Line[1][2], a10, a11, selcomponents);
+      //if (x==0&&y==0) R=a00;
+      //if (x==1&&y==0) R=a10;
+      //if (x==0&&y==1) R=a01;
+      //if (x==1&&y==1) R=a11;
+      #endif 
    }
 #endif
 
    /**
     * Get a single element from the block.
     * stencil_start and stencil_end refer to the values passed in BlockLab::prepare().
-    *
-    * @param ix    Index in x-direction (stencil_start[0] <= ix < BlockType::sizeX + stencil_end[0]
-    * - 1).
-    * @param iy    Index in y-direction (stencil_start[1] <= iy < BlockType::sizeY + stencil_end[1]
-    * - 1).
-    * @param iz    Index in z-direction (stencil_start[2] <= iz < BlockType::sizeZ + stencil_end[2]
-    * - 1).
+    * ix: Index in x-direction (stencil_start[0] <= ix < BlockType::sizeX + stencil_end[0] - 1).
+    * iy: Index in y-direction (stencil_start[1] <= iy < BlockType::sizeY + stencil_end[1] - 1).
+    * iz: Index in z-direction (stencil_start[2] <= iz < BlockType::sizeZ + stencil_end[2] - 1).
     */
    ElementType &operator()(int ix, int iy = 0, int iz = 0)
    {

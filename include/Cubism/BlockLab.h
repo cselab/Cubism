@@ -1030,6 +1030,7 @@ class BlockLab
                                   || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 
                                   || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3);
       #endif
+      (void)use_averages;  // Maybe unused.
       for (int icode = 0; icode < 27; icode++)
       {
          if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;

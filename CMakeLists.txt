@@ -5,7 +5,8 @@ set(ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 set(SRC_DIR  "${ROOT_DIR}/src")
 
 set(COMMON_SOURCES
-    "${SRC_DIR}/ArgumentParser.cpp")
+    "${SRC_DIR}/ArgumentParser.cpp"
+    "${SRC_DIR}/MyClock.cpp")
 
 add_library(Cubism STATIC ${COMMON_SOURCES})
 add_library(Cubism::Cubism ALIAS Cubism)

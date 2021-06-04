@@ -1,15 +1,20 @@
 #pragma once
 
+#include "Common.h"
+
 #include <fstream>
 #include <iostream>
 #include <mpi.h>
 #include <string>
+
+CUBISM_NAMESPACE_BEGIN
+
 struct MyClock
 {
    int N;
    double t[100];
    double s[100];
-   string name[100];
+   std::string name[100];
 
    double total_s;
    double total_f;
@@ -25,11 +30,11 @@ struct MyClock
       N = 0;
       for (int i = 0; i < 100; i++) t[i] = 0;
    }
-   void start(int i, string _name)
+   void start(int i, std::string _name)
    {
-      name[i] = _name;
+      name[i] = std::move(_name);
       s[i]    = MPI_Wtime();
-      N       = max(N, i);
+      N       = N > i ? N : i;
    }
    void finish(int i) { t[i] += MPI_Wtime() - s[i]; }
 
@@ -72,3 +77,5 @@ struct MyClock
    }
 };
 extern MyClock Clock;
+
+CUBISM_NAMESPACE_END

@@ -244,14 +244,14 @@ class BlockLab
    void load(BlockInfo info, const Real t = 0, const bool applybc = true)
    {
       Grid<BlockType, allocator> &grid = *m_refGrid;
-      static const int nX                    = BlockType::sizeX;
-      static const int nY                    = BlockType::sizeY;
-      static const int nZ                    = BlockType::sizeZ;
-      static const bool xperiodic            = is_xperiodic();
-      static const bool yperiodic            = is_yperiodic();
-      static const bool zperiodic            = is_zperiodic();
+      const int nX                    = BlockType::sizeX;
+      const int nY                    = BlockType::sizeY;
+      const int nZ                    = BlockType::sizeZ;
+      const bool xperiodic            = is_xperiodic();
+      const bool yperiodic            = is_yperiodic();
+      const bool zperiodic            = is_zperiodic();
 
-      static std::array<int, 3> blocksPerDim = grid.getMaxBlocks();
+      std::array<int, 3> blocksPerDim = grid.getMaxBlocks();
 
       const int aux = 1 << info.level;
       NX      = blocksPerDim[0] * aux; // needed for apply_bc
@@ -396,9 +396,9 @@ class BlockLab
    void post_load(const BlockInfo &info, const std::vector<int> & selcomponents, const Real t = 0, bool applybc = true)
    {
       #if DIMENSION == 3
-         static const int nX = BlockType::sizeX;
-         static const int nY = BlockType::sizeY;
-         static const int nZ = BlockType::sizeZ;
+         const int nX = BlockType::sizeX;
+         const int nY = BlockType::sizeY;
+         const int nZ = BlockType::sizeZ;
          if (coarsened)
          {
             const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
@@ -426,8 +426,8 @@ class BlockLab
             }
          }
       #else
-         static const int nX = BlockType::sizeX;
-         static const int nY = BlockType::sizeY;
+         const int nX = BlockType::sizeX;
+         const int nY = BlockType::sizeY;
          if (coarsened)
          {
             const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
@@ -454,9 +454,9 @@ class BlockLab
 
    void SameLevelExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
-      static const int nX = BlockType::sizeX;
-      static const int nY = BlockType::sizeY;
-      static const int nZ = BlockType::sizeZ;
+      const int nX = BlockType::sizeX;
+      const int nY = BlockType::sizeY;
+      const int nZ = BlockType::sizeZ;
 
       Grid<BlockType, allocator> &grid = *m_refGrid;
 
@@ -568,9 +568,9 @@ class BlockLab
    void FineToCoarseExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
       Grid<BlockType, allocator> &grid = *m_refGrid;
-      static const int nX = BlockType::sizeX;
-      static const int nY = BlockType::sizeY;
-      static const int nZ = BlockType::sizeZ;
+      const int nX = BlockType::sizeX;
+      const int nY = BlockType::sizeY;
+      const int nZ = BlockType::sizeZ;
       const int bytes = (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)) * sizeof(ElementType);
       if (!bytes) return;
 
@@ -787,9 +787,9 @@ class BlockLab
       // Coarse neighbors send their cells. Those are stored in m_CoarsenedBlock and are later used
       // in function CoarseFineInterpolation to interpolate fine values.
       Grid<BlockType, allocator> &grid = *m_refGrid;
-      static const int nX = BlockType::sizeX;
-      static const int nY = BlockType::sizeY;
-      static const int nZ = BlockType::sizeZ;
+      const int nX = BlockType::sizeX;
+      const int nY = BlockType::sizeY;
+      const int nZ = BlockType::sizeZ;
 
       const BlockInfo &infoNei = grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
       #if DIMENSION == 3
@@ -900,9 +900,9 @@ class BlockLab
       // use them to fill the coarsened version of this block. Those cells are needed to refine the
       // coarsened version and obtain ghosts from coarser neighbors (those cells are inside the
       // interpolation stencil for refinement).
-      static const int nX = BlockType::sizeX;
-      static const int nY = BlockType::sizeY;
-      static const int nZ = BlockType::sizeZ;
+      const int nX = BlockType::sizeX;
+      const int nY = BlockType::sizeY;
+      const int nZ = BlockType::sizeZ;
 
       Grid<BlockType, allocator> &grid = *m_refGrid;
 
@@ -1003,13 +1003,13 @@ class BlockLab
    void CoarseFineInterpolation(const BlockInfo &info,const std::vector<int> & selcomponents)
    {
       Grid<BlockType, allocator> &grid = *m_refGrid;
-      static const int nX         = BlockType::sizeX;
-      static const int nY         = BlockType::sizeY;
-      static const int nZ         = BlockType::sizeZ;
-      static const bool xperiodic = is_xperiodic();
-      static const bool yperiodic = is_yperiodic();
-      static const bool zperiodic = is_zperiodic();
-      static std::array<int, 3> blocksPerDim = grid.getMaxBlocks();
+      const int nX         = BlockType::sizeX;
+      const int nY         = BlockType::sizeY;
+      const int nZ         = BlockType::sizeZ;
+      const bool xperiodic = is_xperiodic();
+      const bool yperiodic = is_yperiodic();
+      const bool zperiodic = is_zperiodic();
+      const std::array<int, 3> blocksPerDim = grid.getMaxBlocks();
       const int aux    = 1 << info.level;
       const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
       const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
@@ -1390,18 +1390,18 @@ class BlockLab
     */
    ElementType &operator()(int ix, int iy = 0, int iz = 0)
    {
-      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < m_cacheBlock->getSize()[0]);
-      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < m_cacheBlock->getSize()[1]);
-      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < m_cacheBlock->getSize()[2]);
+      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
+      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < (int)m_cacheBlock->getSize()[1]);
+      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < (int)m_cacheBlock->getSize()[2]);
       return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
    }
 
    /** Just as BlockLab::operator() but returning a const. */
    const ElementType &read(int ix, int iy = 0, int iz = 0) const
    {
-      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < m_cacheBlock->getSize()[0]);
-      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < m_cacheBlock->getSize()[1]);
-      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < m_cacheBlock->getSize()[2]);
+      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
+      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < (int)m_cacheBlock->getSize()[1]);
+      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < (int)m_cacheBlock->getSize()[2]);
       return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
    }
 

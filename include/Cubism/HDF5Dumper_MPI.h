@@ -55,9 +55,9 @@ template <typename TStreamer, typename hdf5Real, typename TGrid, typename LabMPI
 void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
 {
     typedef typename TGrid::BlockType B;
-    static const int nX = B::sizeX;
-    static const int nY = B::sizeY;
-    static const int nZ = B::sizeZ;
+    const int nX = B::sizeX;
+    const int nY = B::sizeY;
+    const int nZ = B::sizeZ;
 
     MPI_Comm comm = grid.getWorldComm();
     const int rank = grid.myrank;

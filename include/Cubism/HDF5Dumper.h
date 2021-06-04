@@ -47,9 +47,9 @@ void DumpHDF5_uniform(const TGrid &grid, const typename TGrid::Real absTime, con
   //only for 2D!
 
   typedef typename TGrid::BlockType B;
-  static const unsigned int nX = B::sizeX;
-  static const unsigned int nY = B::sizeY;
-  //static const unsigned int nZ = B::sizeZ;
+  const unsigned int nX = B::sizeX;
+  const unsigned int nY = B::sizeY;
+  // const unsigned int nZ = B::sizeZ;
 
   // fname is the base filepath without file type extension
   std::ostringstream filename;
@@ -213,9 +213,9 @@ void DumpHDF5_groups(TGrid &grid,
                      const bool bXMF = true)
 {
     typedef typename TGrid::BlockType B;
-    static const int nX = B::sizeX;
-    static const int nY = B::sizeY;
-    static const int nZ = B::sizeZ;
+    const int nX = B::sizeX;
+    const int nY = B::sizeY;
+    const int nZ = B::sizeZ;
 
     const int NCHANNELS = TStreamer::NCHANNELS;
     std::ostringstream filename;
@@ -390,9 +390,9 @@ void DumpHDF5(const TGrid &grid,
    int size = 1;
 
    typedef typename TGrid::BlockType B;
-   static const unsigned int nX = B::sizeX;
-   static const unsigned int nY = B::sizeY;
-   static const unsigned int nZ = B::sizeZ;
+   const unsigned int nX = B::sizeX;
+   const unsigned int nY = B::sizeY;
+   const unsigned int nZ = B::sizeZ;
 
    // fname is the base filepath without file type extension
    std::ostringstream filename;

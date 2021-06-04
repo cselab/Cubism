@@ -75,8 +75,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
    virtual void AdaptTheMesh(double t = 0) override
    {
-      static const int levelMax = AMR::m_refGrid->getlevelMax();
-      static const int levelMin = 0;
+      const int levelMax = AMR::m_refGrid->getlevelMax();
+      const int levelMin = 0;
       AMR::time = t;
       /*------------->*/ Clock.start(10, "sync");
       Synch->sync(sizeof(typename Block::element_type) / sizeof(Real),sizeof(Real) > 4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
@@ -289,12 +289,12 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
    virtual void ValidStates() override
    {
-      static std::array<int, 3> blocksPerDim = AMR::m_refGrid->getMaxBlocks();
-      static const int levelMin              = 0;
-      static const int levelMax              = AMR::m_refGrid->getlevelMax();
-      static const bool xperiodic            = AMR::labs[0].is_xperiodic();
-      static const bool yperiodic            = AMR::labs[0].is_yperiodic();
-      static const bool zperiodic            = AMR::labs[0].is_zperiodic();
+      const std::array<int, 3> blocksPerDim = AMR::m_refGrid->getMaxBlocks();
+      const int levelMin              = 0;
+      const int levelMax              = AMR::m_refGrid->getlevelMax();
+      const bool xperiodic            = AMR::labs[0].is_xperiodic();
+      const bool yperiodic            = AMR::labs[0].is_yperiodic();
+      const bool zperiodic            = AMR::labs[0].is_zperiodic();
 
       std::vector<BlockInfo> &I = AMR::m_refGrid->getBlocksInfo();
 

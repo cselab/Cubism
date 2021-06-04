@@ -138,7 +138,7 @@ class GridMPI : public TGrid
    std::vector<BlockInfo *> boundary;
    void UpdateBoundary()
    {
-      static auto blocksPerDim = TGrid::getMaxBlocks();
+      const auto blocksPerDim = TGrid::getMaxBlocks();
 
       int rank, size;
       MPI_Comm_rank(worldcomm, &rank);
@@ -288,7 +288,7 @@ class GridMPI : public TGrid
    {
       std::vector<int> myNeighbors = FindMyNeighbors();
 
-      static auto blocksPerDim = TGrid::getMaxBlocks();
+      const auto blocksPerDim = TGrid::getMaxBlocks();
       std::vector<int> myData;
       for (auto &info : TGrid::m_vInfo)
       {
@@ -476,11 +476,11 @@ class GridMPI : public TGrid
 
    bool Intersect(double *l1, double *h1, double *l2, double *h2)
    {
-      static const double h0 =
+      const double h0 =
           (TGrid::maxextent /
            std::max(TGrid::NX * Block::sizeX, std::max(TGrid::NY * Block::sizeY, TGrid::NZ * Block::sizeZ)));
-      static const double extent[3] = {TGrid::NX * Block::sizeX * h0, TGrid::NY * Block::sizeY * h0,
-                                       TGrid::NZ * Block::sizeZ * h0};
+      const double extent[3] = {TGrid::NX * Block::sizeX * h0, TGrid::NY * Block::sizeY * h0,
+                                TGrid::NZ * Block::sizeZ * h0};
 
       const Real intersect[3][2] = {{std::max(l1[0], l2[0]), std::min(h1[0], h2[0])},
                                     {std::max(l1[1], l2[1]), std::min(h1[1], h2[1])},

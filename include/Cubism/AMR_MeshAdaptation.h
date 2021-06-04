@@ -266,12 +266,12 @@ class MeshAdaptation_basic
 
    virtual void ValidStates()
    {
-      static std::array<int, 3> blocksPerDim = m_refGrid->getMaxBlocks();
-      static const int levelMin              = 0;
-      static const int levelMax              = m_refGrid->getlevelMax();
-      static const bool xperiodic            = m_refGrid->xperiodic;
-      static const bool yperiodic            = m_refGrid->yperiodic;
-      static const bool zperiodic            = m_refGrid->zperiodic;
+      const std::array<int, 3> blocksPerDim = m_refGrid->getMaxBlocks();
+      const int levelMin              = 0;
+      const int levelMax              = m_refGrid->getlevelMax();
+      const bool xperiodic            = m_refGrid->xperiodic;
+      const bool yperiodic            = m_refGrid->yperiodic;
+      const bool zperiodic            = m_refGrid->zperiodic;
 
       std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
 
@@ -931,12 +931,12 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
 
    virtual State TagLoadedBlock(TLab &Lab_, BlockInfo &info)
    {
-      static const int nx = BlockType::sizeX;
-      static const int ny = BlockType::sizeY;
+      const int nx = BlockType::sizeX;
+      const int ny = BlockType::sizeY;
 
       double Linf = 0.0;
 #if DIMENSION == 3
-      static const int nz = BlockType::sizeZ;
+      const int nz = BlockType::sizeZ;
       for (int k = 0; k < nz; k++)
          for (int j = 0; j < ny; j++)
             for (int i = 0; i < nx; i++)

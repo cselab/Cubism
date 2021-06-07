@@ -1268,33 +1268,7 @@ class BlockLab
       }
    }
 
-
-   virtual Real Slope(Real al, Real ac, Real ar)
-   {
-      return 0.5*(ar-al);
-      assert(!std::isnan(al));
-      assert(!std::isnan(ac));
-      assert(!std::isnan(ar));
-      if ( (al-ac)*(ac-ar) <= 0 )
-      {
-          return 0.0;
-      } 
-      else
-      {
-          int sign = (ar>al) ? 1:-1;
-          return sign * std::min(  std::min(abs(al-ac),abs(ac-ar)), 0.5*abs(al-ar));
-      }
-   }
-   ElementType SlopeElement(ElementType Al, ElementType Ac, ElementType Ar, const std::vector<int> & selcomponents)
-   {
-     ElementType retval;
-     for (auto & i : selcomponents)
-     {
-        retval.member(i) = Slope(Al.member(i),Ac.member(i),Ar.member(i));
-     }
-     return retval;
-   }
-
+   #if 0
    void WENOWavelets3(const double cm, const double c, const double cp, double &left, double &right)
    {
       const double b1  = (c - cm) * (c - cm);
@@ -1318,16 +1292,30 @@ class BlockLab
       for (auto & i : selcomponents)
         WENOWavelets3(E0.member(i), E1.member(i), E2.member(i), left.member(i), right.member(i));
    }
+   #endif
 
 #if DIMENSION == 3
    virtual void TestInterp(ElementType *C[3][3][3], ElementType *R, int x, int y, int z, const std::vector<int> & selcomponents)
    {
-      //ElementType dudx = SlopeElement( *C[0][1][1] , *C[1][1][1] , *C[2][1][1], selcomponents); 
-      //ElementType dudy = SlopeElement( *C[1][0][1] , *C[1][1][1] , *C[1][2][1], selcomponents); 
-      //ElementType dudz = SlopeElement( *C[1][1][0] , *C[1][1][1] , *C[1][1][2], selcomponents); 
-      //R                = *C[1][1][1] + (2 * x - 1) * 0.25 * dudx + (2 * y - 1) * 0.25 * dudy + (2 * z - 1) * 0.25 * dudz;
-      //return;
+      ElementType dudx   = 0.5*( (*C[2][1][1]) - (*C[0][1][1]) );
+      ElementType dudy   = 0.5*( (*C[1][2][1]) - (*C[1][0][1]) );
+      ElementType dudz   = 0.5*( (*C[1][1][2]) - (*C[1][1][0]) );
+      ElementType dudxdy = 0.25*((*C[0][0][1]) + (*C[2][2][1]) - (*C[2][0][1]) - (*C[0][2][1]));
+      ElementType dudxdz = 0.25*((*C[0][1][0]) + (*C[2][1][2]) - (*C[2][1][0]) - (*C[0][1][2]));
+      ElementType dudydz = 0.25*((*C[1][0][0]) + (*C[1][2][2]) - (*C[1][2][0]) - (*C[1][0][2]));
+      ElementType dudx2  = (*C[0][1][1]) + (-2.0)*(*C[1][1][1]) + (*C[2][1][1]);
+      ElementType dudy2  = (*C[1][0][1]) + (-2.0)*(*C[1][1][1]) + (*C[1][2][1]);
+      ElementType dudz2  = (*C[1][1][0]) + (-2.0)*(*C[1][1][1]) + (*C[1][1][2]);
+      R[0] = *C[1][1][1] - 0.25*dudx - 0.25*dudy - 0.25*dudz +0.03125*(dudx2 + dudy2 + dudz2) + 0.0625*dudxdy + 0.0625*dudxdz + 0.0625*dudydz;
+      R[1] = *C[1][1][1] + 0.25*dudx - 0.25*dudy - 0.25*dudz +0.03125*(dudx2 + dudy2 + dudz2) - 0.0625*dudxdy - 0.0625*dudxdz + 0.0625*dudydz;
+      R[2] = *C[1][1][1] - 0.25*dudx + 0.25*dudy - 0.25*dudz +0.03125*(dudx2 + dudy2 + dudz2) - 0.0625*dudxdy + 0.0625*dudxdz - 0.0625*dudydz;
+      R[3] = *C[1][1][1] + 0.25*dudx + 0.25*dudy - 0.25*dudz +0.03125*(dudx2 + dudy2 + dudz2) + 0.0625*dudxdy - 0.0625*dudxdz - 0.0625*dudydz;
+      R[4] = *C[1][1][1] - 0.25*dudx - 0.25*dudy + 0.25*dudz +0.03125*(dudx2 + dudy2 + dudz2) + 0.0625*dudxdy - 0.0625*dudxdz - 0.0625*dudydz;
+      R[5] = *C[1][1][1] + 0.25*dudx - 0.25*dudy + 0.25*dudz +0.03125*(dudx2 + dudy2 + dudz2) - 0.0625*dudxdy + 0.0625*dudxdz - 0.0625*dudydz;
+      R[6] = *C[1][1][1] - 0.25*dudx + 0.25*dudy + 0.25*dudz +0.03125*(dudx2 + dudy2 + dudz2) - 0.0625*dudxdy - 0.0625*dudxdz + 0.0625*dudydz;
+      R[7] = *C[1][1][1] + 0.25*dudx + 0.25*dudy + 0.25*dudz +0.03125*(dudx2 + dudy2 + dudz2) + 0.0625*dudxdy + 0.0625*dudxdz + 0.0625*dudydz;
 
+      #if 0 //WENO3
       const int Nweno = 3;
       ElementType Lines[Nweno][Nweno][2];
       ElementType Planes[Nweno][4];
@@ -1353,6 +1341,7 @@ class BlockLab
       Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], R[2], R[6],selcomponents);
       Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], R[1], R[5],selcomponents);
       Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], R[3], R[7],selcomponents);
+      #endif
    }
 
 #else

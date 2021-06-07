@@ -1074,54 +1074,492 @@ class BlockLab
 
          #if DIMENSION == 3
             ElementType retval[8];
-            for (int iz = s[2]; iz < e[2]; iz += 2)
-            {
-               const int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2];
-               for (int iy = s[1]; iy < e[1]; iy += 2)
+            if (use_averages)
+               for (int iz = s[2]; iz < e[2]; iz += 2)
                {
-                  const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
+                  const int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2];
+                  const int z = abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2;
+                  const int izp = (abs(iz) % 2 == 1) ?  -1 : 1;
+                  const int rzp = (izp == 1) ? 1:0;
+                  const int rz  = (izp == 1) ? 0:1;
    
-                  for (int ix = s[0]; ix < e[0]; ix += 2)
+                  for (int iy = s[1]; iy < e[1]; iy += 2)
                   {
-                     const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
-   
-                     ElementType *Test[3][3][3];
-                     for (int i = 0; i < 3; i++)
-                        for (int j = 0; j < 3; j++)
-                           for (int k = 0; k < 3; k++)
-                              Test[i][j][k] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
-                                                                        YY - 1 + j - offset[1],
-                                                                        ZZ - 1 + k - offset[2]);
-                     const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                     const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
                      const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
-                     const int z = abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2;
-                     TestInterp(Test,retval,x,y,z,selcomponents);
-   
-                     const int ixp = (abs(ix) % 2 == 1) ?  -1 : 1;
                      const int iyp = (abs(iy) % 2 == 1) ?  -1 : 1;
-                     const int izp = (abs(iz) % 2 == 1) ?  -1 : 1;
-                     const int rxp = (ixp == 1) ? 1:0;
                      const int ryp = (iyp == 1) ? 1:0;
-                     const int rzp = (izp == 1) ? 1:0;
-                     const int rx  = (ixp == 1) ? 0:1;
                      const int ry  = (iyp == 1) ? 0:1;
-                     const int rz  = (izp == 1) ? 0:1;
-                     if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
-                       m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rz ];
-                     if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
-                       m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rz ];
-                     if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
-                       m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rz ];
-                     if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
-                       m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rz ];
-                     if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
-                       m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rzp];
-                     if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
-                       m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rzp];
-                     if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
-                       m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rzp];
-                     if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
-                       m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rzp];
+      
+                     for (int ix = s[0]; ix < e[0]; ix += 2)
+                     {
+                        const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
+                        const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                        const int ixp = (abs(ix) % 2 == 1) ?  -1 : 1;
+                        const int rxp = (ixp == 1) ? 1:0;
+                        const int rx  = (ixp == 1) ? 0:1;
+   
+                        ElementType *Test[3][3][3];
+                        for (int i = 0; i < 3; i++)
+                           for (int j = 0; j < 3; j++)
+                              for (int k = 0; k < 3; k++)
+                                 Test[i][j][k] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0], YY - 1 + j - offset[1], ZZ - 1 + k - offset[2]);
+   
+                        TestInterp(Test,retval,x,y,z,selcomponents);
+      
+                        if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
+                          m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rz ];
+                        if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
+                          m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rz ];
+                        if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
+                          m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rz ];
+                        if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz       >= s[2] && iz       < e[2])
+                          m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rz ];
+                        if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                          m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rzp];
+                        if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy       >= s[1] && iy        < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                          m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy       - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ry  +4*rzp];
+                        if (ix       >= s[0] && ix        < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                          m_cacheBlock->Access(ix     - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rx  +2*ryp +4*rzp];
+                        if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1] && iz + izp >= s[2] && iz + izp < e[2])
+                          m_cacheBlock->Access(ix+ixp - m_stencilStart[0],iy + iyp - m_stencilStart[1],iz + izp - m_stencilStart[2]) = retval[ rxp +2*ryp +4*rzp];
+                     }
+                  }
+               }
+            if (grid.FiniteDifferences && abs(code[0]) + abs(code[1]) + abs(code[2]) == 1) //Correct stencil points +-1 and +-2 at faces
+            {
+               for (int iz = s[2]; iz < e[2]; iz += 1)
+               {
+                  const int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2] - offset[2];
+                  const int z = abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2;
+                  const double dz = 0.25*(2*z-1);
+
+                  for (int iy = s[1]; iy < e[1]; iy += 1)
+                  {
+                     const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1] - offset[1];
+                     const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
+                     const double dy = 0.25*(2*y-1);
+      
+                     for (int ix = s[0]; ix < e[0]; ix += 1)
+                     {
+                        const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0] - offset[0];
+                        const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                        const double dx = 0.25*(2*x-1);
+
+                        if (ix < -2 || iy < -2 || iz < -2 || ix > nX+1 || iy > nY+1 || iz > nZ+1) continue;
+ 
+                        const int xc[3]  = {XX,YY,ZZ};
+                        const double dxc[3] = {dx,dy,dz};
+                        const int d0 = (code[0] != 0) ? 0 : ( code[1] != 0 ? 1:2) ;
+                        const int d1 = (d0+1)%3;
+                        const int d2 = (d0+2)%3;
+                        int d0_coef[3];
+                        int d1_coef[3];
+                        int d2_coef[3];
+                        d0_coef[d0] = 1;
+                        d0_coef[d1] = 0;
+                        d0_coef[d2] = 0;
+
+                        d1_coef[d0] = 0;
+                        d1_coef[d1] = 1;
+                        d1_coef[d2] = 0;
+
+                        d2_coef[d0] = 0;
+                        d2_coef[d1] = 0;
+                        d2_coef[d2] = 1;
+                        ElementType dud1,dud1_2;
+                        ElementType dud2,dud2_2;
+                        ElementType dud1d2;
+                     #if 1
+                        
+                        auto & a_00  = m_CoarsenedBlock->Access(XX             , YY             , ZZ             );
+                        auto & a_p10 = m_CoarsenedBlock->Access(XX + d1_coef[0], YY + d1_coef[1], ZZ + d1_coef[2]);
+                        auto & a_p01 = m_CoarsenedBlock->Access(XX + d2_coef[0], YY + d2_coef[1], ZZ + d2_coef[2]);
+                        auto & a_m10 = m_CoarsenedBlock->Access(XX - d1_coef[0], YY - d1_coef[1], ZZ - d1_coef[2]);
+                        auto & a_m01 = m_CoarsenedBlock->Access(XX - d2_coef[0], YY - d2_coef[1], ZZ - d2_coef[2]);
+
+                        auto & a_p20 = m_CoarsenedBlock->Access(XX + 2*d1_coef[0], YY + 2*d1_coef[1], ZZ + 2*d1_coef[2]);
+                        auto & a_p02 = m_CoarsenedBlock->Access(XX + 2*d2_coef[0], YY + 2*d2_coef[1], ZZ + 2*d2_coef[2]);
+                        auto & a_m20 = m_CoarsenedBlock->Access(XX - 2*d1_coef[0], YY - 2*d1_coef[1], ZZ - 2*d1_coef[2]);
+                        auto & a_m02 = m_CoarsenedBlock->Access(XX - 2*d2_coef[0], YY - 2*d2_coef[1], ZZ - 2*d2_coef[2]);
+
+                        if (xc[d1]+offset[d1] == 0)
+                        {
+                           dud1    = -0.5*a_p20 + 2.0*a_p10 - 1.5*a_00;
+                           dud1_2  =      a_p20 - 2.0*a_p10 +     a_00;
+                        }
+                        else if (xc[d1]+offset[d1] == CoarseBlockSize[d1] - 1)
+                        {
+                           dud1    =  0.5*a_m20 - 2.0*a_m10 + 1.5*a_00;
+                           dud1_2  =      a_m20 - 2.0*a_m10 +     a_00;
+                        }
+                        else
+                        {
+                           dud1    =  0.5*(a_p10 - a_m10);
+                           dud1_2  =  a_p10 - 2.0*a_00 + a_m10;
+                        }
+                        if (xc[d2]+offset[d2] == 0)
+                        {
+                           dud2    = -0.5*a_p02 + 2.0*a_p01 - 1.5*a_00;
+                           dud2_2  =      a_p02 - 2.0*a_p01 +     a_00;
+                        }
+                        else if (xc[d2]+offset[d2] == CoarseBlockSize[d2] - 1)
+                        {
+                           dud2    =  0.5*a_m02 - 2.0*a_m01 + 1.5*a_00;
+                           dud2_2  =      a_m02 - 2.0*a_m01 +     a_00;
+                        }
+                        else
+                        {
+                           dud2    =  0.5*(a_p01 - a_m01);
+                           dud2_2  =  a_p01 - 2.0*a_00 + a_m01;
+                        }
+
+                        if      (xc[d1]+offset[d1] == 0                      && xc[d2]+offset[d2] == 0                     )
+                           dud1d2 = (m_CoarsenedBlock->Access(XX                      ,YY                      ,ZZ                      )
+                                    +m_CoarsenedBlock->Access(XX+d1_coef[0]+d2_coef[0],YY+d1_coef[1]+d2_coef[1],ZZ+d1_coef[2]+d2_coef[2])
+                                    -m_CoarsenedBlock->Access(XX+d1_coef[0]           ,YY+d1_coef[1]           ,ZZ+d1_coef[2]           )
+                                    -m_CoarsenedBlock->Access(XX           +d2_coef[0],YY           +d2_coef[1],ZZ           +d2_coef[2]));
+                        else if (xc[d1]+offset[d1] == 0                      && xc[d2]+offset[d2] == CoarseBlockSize[d2] - 1)
+                           dud1d2 = (m_CoarsenedBlock->Access(XX           -d2_coef[0],YY           -d2_coef[1],ZZ           -d2_coef[2])
+                                    +m_CoarsenedBlock->Access(XX+d1_coef[0]           ,YY+d1_coef[1]           ,ZZ+d1_coef[2]           )
+                                    -m_CoarsenedBlock->Access(XX+d1_coef[0]-d2_coef[0],YY+d1_coef[1]-d2_coef[1],ZZ+d1_coef[2]-d2_coef[2])
+                                    -m_CoarsenedBlock->Access(XX                      ,YY                      ,ZZ                      ));
+                        else if (xc[d1]+offset[d1] == CoarseBlockSize[d1] - 1 && xc[d2]+offset[d2] == 0)
+                           dud1d2 = (m_CoarsenedBlock->Access(XX-d1_coef[0]           ,YY-d1_coef[1]           ,ZZ-d1_coef[2]           )
+                                    +m_CoarsenedBlock->Access(XX           +d2_coef[0],YY           +d2_coef[1],ZZ           +d2_coef[2])
+                                    -m_CoarsenedBlock->Access(XX                      ,YY                      ,ZZ                      )
+                                    -m_CoarsenedBlock->Access(XX-d1_coef[0]+d2_coef[0],YY-d1_coef[1]+d2_coef[1],ZZ-d1_coef[2]+d2_coef[2]));
+                        else if (xc[d1]+offset[d1] == CoarseBlockSize[d1] - 1 && xc[d2]+offset[d2] == CoarseBlockSize[d2] - 1)
+                           dud1d2 = (m_CoarsenedBlock->Access(XX                      ,YY                      ,ZZ                      )
+                                    +m_CoarsenedBlock->Access(XX+d1_coef[0]+d2_coef[0],YY+d1_coef[1]+d2_coef[1],ZZ+d1_coef[2]+d2_coef[2])
+                                    -m_CoarsenedBlock->Access(XX+d1_coef[0]           ,YY+d1_coef[1]           ,ZZ+d1_coef[2]           )
+                                    -m_CoarsenedBlock->Access(XX           +d2_coef[0],YY           +d2_coef[1],ZZ           +d2_coef[2]));
+                        else if      (xc[d1]+offset[d1] == 0)
+                           dud1d2 = 0.5*(m_CoarsenedBlock->Access(XX           -d2_coef[0],YY           -d2_coef[1],ZZ           -d2_coef[2])
+                                        +m_CoarsenedBlock->Access(XX+d1_coef[0]+d2_coef[0],YY+d1_coef[1]+d2_coef[1],ZZ+d1_coef[2]+d2_coef[2])
+                                        -m_CoarsenedBlock->Access(XX+d1_coef[0]-d2_coef[0],YY+d1_coef[1]-d2_coef[1],ZZ+d1_coef[2]-d2_coef[2])
+                                        -m_CoarsenedBlock->Access(XX           +d2_coef[0],YY           +d2_coef[1],ZZ           +d2_coef[2]));
+                        else if      (xc[d2]+offset[d2] == 0)
+                           dud1d2 = 0.5*(m_CoarsenedBlock->Access(XX-d1_coef[0]           ,YY-d1_coef[1]           ,ZZ-d1_coef[2]           )
+                                        +m_CoarsenedBlock->Access(XX+d1_coef[0]+d2_coef[0],YY+d1_coef[1]+d2_coef[1],ZZ+d1_coef[2]+d2_coef[2])
+                                        -m_CoarsenedBlock->Access(XX-d1_coef[0]+d2_coef[0],YY-d1_coef[1]+d2_coef[1],ZZ-d1_coef[2]+d2_coef[2])
+                                        -m_CoarsenedBlock->Access(XX+d1_coef[0]           ,YY+d1_coef[1]           ,ZZ+d1_coef[2]           ));
+                        else if      (xc[d1]+offset[d1] == CoarseBlockSize[d1] - 1)
+                           dud1d2 = 0.5*(m_CoarsenedBlock->Access(XX-d1_coef[0]-d2_coef[0],YY-d1_coef[1]-d2_coef[1],ZZ-d1_coef[2]-d2_coef[2])
+                                        +m_CoarsenedBlock->Access(XX           +d2_coef[0],YY           +d2_coef[1],ZZ           +d2_coef[2])
+                                        -m_CoarsenedBlock->Access(XX           -d2_coef[0],YY           -d2_coef[1],ZZ           -d2_coef[2])
+                                        -m_CoarsenedBlock->Access(XX-d1_coef[0]+d2_coef[0],YY-d1_coef[1]+d2_coef[1],ZZ-d1_coef[2]+d2_coef[2]));
+                        else if      (xc[d2]+offset[d2] == CoarseBlockSize[d2] - 1)
+                           dud1d2 = 0.5*(m_CoarsenedBlock->Access(XX-d1_coef[0]-d2_coef[0],YY-d1_coef[1]-d2_coef[1],ZZ-d1_coef[2]-d2_coef[2])
+                                        +m_CoarsenedBlock->Access(XX+d1_coef[0]           ,YY+d1_coef[1]           ,ZZ+d1_coef[2]           )
+                                        -m_CoarsenedBlock->Access(XX-d1_coef[0]           ,YY-d1_coef[1]           ,ZZ-d1_coef[2]           )
+                                        -m_CoarsenedBlock->Access(XX+d1_coef[0]-d2_coef[0],YY+d1_coef[1]-d2_coef[1],ZZ+d1_coef[2]-d2_coef[2]));
+                        else
+                           dud1d2 = 0.25*(m_CoarsenedBlock->Access(XX+d1_coef[0]+d2_coef[0],YY+d1_coef[1]+d2_coef[1],ZZ+d1_coef[2]+d2_coef[2])
+                                         +m_CoarsenedBlock->Access(XX-d1_coef[0]-d2_coef[0],YY-d1_coef[1]-d2_coef[1],ZZ-d1_coef[2]-d2_coef[2])
+                                         -m_CoarsenedBlock->Access(XX+d1_coef[0]-d2_coef[0],YY+d1_coef[1]-d2_coef[1],ZZ+d1_coef[2]-d2_coef[2])
+                                         -m_CoarsenedBlock->Access(XX-d1_coef[0]+d2_coef[0],YY-d1_coef[1]+d2_coef[1],ZZ-d1_coef[2]+d2_coef[2]));
+
+                        auto & a = m_cacheBlock->Access(ix - m_stencilStart[0],iy - m_stencilStart[1],iz - m_stencilStart[2]);
+                        a = m_CoarsenedBlock->Access(XX,YY,ZZ) + dxc[d1]*dud1 + dxc[d2]*dud2+ (0.5*dxc[d1]*dxc[d1])*dud1_2  + (0.5*dxc[d2]*dxc[d2])*dud2_2 + d1*d2*dud1d2;
+                        const int xx[3]  = {x,y,z};
+                        if (code[d0] == 1)
+                        {
+                           if (xx[d0]==0) //interpolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] -   d0_coef[0], iy - m_stencilStart[1] -   d0_coef[1], iz - m_stencilStart[2] -   d0_coef[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] - 2*d0_coef[0], iy - m_stencilStart[1] - 2*d0_coef[1], iz - m_stencilStart[2] - 2*d0_coef[2]);
+                              LI(a,b,c);
+                           }
+                           else if (xx[d0]==1) //extrapolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] - 2*d0_coef[0], iy - m_stencilStart[1] - 2*d0_coef[1], iz - m_stencilStart[2] - 2*d0_coef[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] - 3*d0_coef[0], iy - m_stencilStart[1] - 3*d0_coef[1], iz - m_stencilStart[2] - 3*d0_coef[2]);
+                              LE(a,b,c);
+                           }
+                        }
+                        else if (code[d0] == -1)
+                        {
+                           if (xx[d0]==1) //interpolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] +   d0_coef[0], iy - m_stencilStart[1] +   d0_coef[1], iz - m_stencilStart[2] +   d0_coef[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] + 2*d0_coef[0], iy - m_stencilStart[1] + 2*d0_coef[1], iz - m_stencilStart[2] + 2*d0_coef[2]);
+                              LI(a,b,c);
+                           }
+                           else if (xx[d0]==0) //extrapolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] + 2*d0_coef[0], iy - m_stencilStart[1] + 2*d0_coef[1], iz - m_stencilStart[2] + 2*d0_coef[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] + 3*d0_coef[0], iy - m_stencilStart[1] + 3*d0_coef[1], iz - m_stencilStart[2] + 3*d0_coef[2]);
+                              LE(a,b,c);
+                           }
+                        }  
+                     #else
+
+                        if (code[0] != 0) //X-face
+                        {
+                           ElementType dudy,dudy2;
+                           ElementType dudz,dudz2;
+                           ElementType dudydz;
+                           if (YY+offset[1] == 0)
+                           {
+                              dudy  = -0.5*m_CoarsenedBlock->Access(XX,YY+2,ZZ)+2.0*m_CoarsenedBlock->Access(XX,YY+1,ZZ)-1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudy2 = m_CoarsenedBlock->Access(XX,YY+2,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY+1,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else if (YY+offset[1] == CoarseBlockSize[1] - 1)
+                           {
+                              dudy  = 0.5*m_CoarsenedBlock->Access(XX,YY-2,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY-1,ZZ)+1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudy2 = m_CoarsenedBlock->Access(XX,YY-2,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY-1,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else
+                           {
+                              dudy  = 0.5*(m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY-1,ZZ));
+                              dudy2 = m_CoarsenedBlock->Access(XX,YY+1,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY-1,ZZ);
+                           }
+                           if (ZZ+offset[2] == 0)
+                           {
+                              dudz  = -0.5*m_CoarsenedBlock->Access(XX,YY,ZZ+2)+2.0*m_CoarsenedBlock->Access(XX,YY,ZZ+1)-1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudz2 = m_CoarsenedBlock->Access(XX,YY,ZZ+2)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ+1)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else if (ZZ+offset[2] == CoarseBlockSize[2] - 1)
+                           {
+                              dudz  = 0.5*m_CoarsenedBlock->Access(XX,YY,ZZ-2)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ-1)+1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudz2 = m_CoarsenedBlock->Access(XX,YY,ZZ-2)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ-1)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else
+                           {
+                              dudz  = 0.5*(m_CoarsenedBlock->Access(XX,YY,ZZ+1)-m_CoarsenedBlock->Access(XX,YY,ZZ-1));
+                              dudz2 = m_CoarsenedBlock->Access(XX,YY,ZZ+1)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ-1);
+                           }
+
+                           if      (YY+offset[1] == 0                      && ZZ+offset[2] == 0                     )
+                              dudydz = (m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY+1,ZZ+1)-m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY,ZZ+1));
+                           else if (YY+offset[1] == 0                      && ZZ+offset[2] == CoarseBlockSize[2] - 1)
+                              dudydz = (m_CoarsenedBlock->Access(XX,YY,ZZ-1)+m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY+1,ZZ-1)-m_CoarsenedBlock->Access(XX,YY,ZZ));
+                           else if (YY+offset[1] == CoarseBlockSize[1] - 1 && ZZ+offset[2] == 0                     )
+                              dudydz = (m_CoarsenedBlock->Access(XX,YY-1,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ+1)-m_CoarsenedBlock->Access(XX,YY,ZZ)-m_CoarsenedBlock->Access(XX,YY-1,ZZ+1));
+                           else if (YY+offset[1] == CoarseBlockSize[1] - 1 && ZZ+offset[2] == CoarseBlockSize[2] - 1)
+                              dudydz = (m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY+1,ZZ+1)-m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY,ZZ+1));
+                           else if (YY+offset[1] == 0)
+                              dudydz = 0.5*(m_CoarsenedBlock->Access(XX,YY,ZZ-1)+m_CoarsenedBlock->Access(XX,YY+1,ZZ+1)-m_CoarsenedBlock->Access(XX,YY+1,ZZ-1)-m_CoarsenedBlock->Access(XX,YY,ZZ+1));
+                           else if (YY+offset[1] == CoarseBlockSize[1] - 1)
+                              dudydz = 0.5*(m_CoarsenedBlock->Access(XX,YY-1,ZZ-1)+m_CoarsenedBlock->Access(XX,YY,ZZ+1)-m_CoarsenedBlock->Access(XX,YY,ZZ-1)-m_CoarsenedBlock->Access(XX,YY-1,ZZ+1));
+                           else if (ZZ+offset[2] == 0)
+                              dudydz = 0.5*(m_CoarsenedBlock->Access(XX,YY-1,ZZ)+m_CoarsenedBlock->Access(XX,YY+1,ZZ+1)-m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY-1,ZZ+1));
+                           else if (ZZ+offset[2] == CoarseBlockSize[2] - 1)
+                              dudydz = 0.5*(m_CoarsenedBlock->Access(XX,YY-1,ZZ-1)+m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY+1,ZZ-1)-m_CoarsenedBlock->Access(XX,YY-1,ZZ));
+                           else
+                              dudydz = 0.25*(m_CoarsenedBlock->Access(XX,YY-1,ZZ-1)+m_CoarsenedBlock->Access(XX,YY+1,ZZ+1)-m_CoarsenedBlock->Access(XX,YY+1,ZZ-1)-m_CoarsenedBlock->Access(XX,YY-1,ZZ+1));
+
+                           a = m_CoarsenedBlock->Access(XX,YY,ZZ) + dy*dudy + (0.5*dy*dy)*dudy2 + dz*dudz + (0.5*dz*dz)*dudz2 + dy*dz*dudydz;
+                        }
+                        else if (code[1] != 0) //Y-face
+                        {
+                           ElementType dudx,dudx2;
+                           ElementType dudz,dudz2;
+                           ElementType dudxdz;
+                           if (XX+offset[0] == 0)
+                           {
+                              dudx  = -0.5*m_CoarsenedBlock->Access(XX+2,YY,ZZ)+2.0*m_CoarsenedBlock->Access(XX+1,YY,ZZ)-1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudx2 = m_CoarsenedBlock->Access(XX+2,YY,ZZ)-2.0*m_CoarsenedBlock->Access(XX+1,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else if (XX+offset[0] == CoarseBlockSize[0] - 1)
+                           {
+                              dudx  = 0.5*m_CoarsenedBlock->Access(XX-2,YY,ZZ)-2.0*m_CoarsenedBlock->Access(XX-1,YY,ZZ)+1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudx2 = m_CoarsenedBlock->Access(XX-2,YY,ZZ)-2.0*m_CoarsenedBlock->Access(XX-1,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else
+                           {
+                              dudx  = 0.5*(m_CoarsenedBlock->Access(XX+1,YY,ZZ)-m_CoarsenedBlock->Access(XX-1,YY,ZZ));
+                              dudx2 = m_CoarsenedBlock->Access(XX+1,YY,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX-1,YY,ZZ);
+                           }
+                           if (ZZ+offset[2] == 0)
+                           {
+                              dudz  = -0.5*m_CoarsenedBlock->Access(XX,YY,ZZ+2)+2.0*m_CoarsenedBlock->Access(XX,YY,ZZ+1)-1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudz2 = m_CoarsenedBlock->Access(XX,YY,ZZ+2)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ+1)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else if (ZZ+offset[2] == CoarseBlockSize[2] - 1)
+                           {
+                              dudz  = 0.5*m_CoarsenedBlock->Access(XX,YY,ZZ-2)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ-1)+1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudz2 = m_CoarsenedBlock->Access(XX,YY,ZZ-2)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ-1)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else
+                           {
+                              dudz  = 0.5*(m_CoarsenedBlock->Access(XX,YY,ZZ+1)-m_CoarsenedBlock->Access(XX,YY,ZZ-1));
+                              dudz2 = m_CoarsenedBlock->Access(XX,YY,ZZ+1)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ-1);
+                           }
+
+                           if      (XX+offset[0] == 0                      && ZZ+offset[2] == 0                     )
+                              dudxdz = (m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX+1,YY,ZZ+1)-m_CoarsenedBlock->Access(XX+1,YY,ZZ)-m_CoarsenedBlock->Access(XX,YY,ZZ+1));
+                           else if (XX+offset[0] == 0                      && ZZ+offset[2] == CoarseBlockSize[2] - 1)
+                              dudxdz = (m_CoarsenedBlock->Access(XX,YY,ZZ-1)+m_CoarsenedBlock->Access(XX+1,YY,ZZ)-m_CoarsenedBlock->Access(XX+1,YY,ZZ-1)-m_CoarsenedBlock->Access(XX,YY,ZZ));
+                           else if (XX+offset[0] == CoarseBlockSize[0] - 1 && ZZ+offset[2] == 0                     )
+                              dudxdz = (m_CoarsenedBlock->Access(XX-1,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ+1)-m_CoarsenedBlock->Access(XX,YY,ZZ)-m_CoarsenedBlock->Access(XX-1,YY,ZZ+1));
+                           else if (XX+offset[0] == CoarseBlockSize[0] - 1 && ZZ+offset[2] == CoarseBlockSize[2] - 1)
+                              dudxdz = (m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX+1,YY,ZZ+1)-m_CoarsenedBlock->Access(XX+1,YY,ZZ)-m_CoarsenedBlock->Access(XX,YY,ZZ+1));
+                           else if (XX+offset[0] == 0)
+                              dudxdz = 0.5*(m_CoarsenedBlock->Access(XX,YY,ZZ-1)+m_CoarsenedBlock->Access(XX+1,YY,ZZ+1)-m_CoarsenedBlock->Access(XX+1,YY,ZZ-1)-m_CoarsenedBlock->Access(XX,YY,ZZ+1));
+                           else if (XX+offset[0] == CoarseBlockSize[0] - 1)
+                              dudxdz = 0.5*(m_CoarsenedBlock->Access(XX-1,YY,ZZ-1)+m_CoarsenedBlock->Access(XX,YY,ZZ+1)-m_CoarsenedBlock->Access(XX,YY,ZZ-1)-m_CoarsenedBlock->Access(XX-1,YY,ZZ+1));
+                           else if (ZZ+offset[2] == 0)
+                              dudxdz = 0.5*(m_CoarsenedBlock->Access(XX-1,YY,ZZ)+m_CoarsenedBlock->Access(XX+1,YY,ZZ+1)-m_CoarsenedBlock->Access(XX+1,YY,ZZ)-m_CoarsenedBlock->Access(XX-1,YY,ZZ+1));
+                           else if (ZZ+offset[2] == CoarseBlockSize[2] - 1)
+                              dudxdz = 0.5*(m_CoarsenedBlock->Access(XX-1,YY,ZZ-1)+m_CoarsenedBlock->Access(XX+1,YY,ZZ)-m_CoarsenedBlock->Access(XX+1,YY,ZZ-1)-m_CoarsenedBlock->Access(XX-1,YY,ZZ));
+                           else
+                              dudxdz = 0.25*(m_CoarsenedBlock->Access(XX-1,YY,ZZ-1)+m_CoarsenedBlock->Access(XX+1,YY,ZZ+1)-m_CoarsenedBlock->Access(XX+1,YY,ZZ-1)-m_CoarsenedBlock->Access(XX-1,YY,ZZ+1));
+
+                           a = m_CoarsenedBlock->Access(XX,YY,ZZ) + dx*dudx + (0.5*dx*dx)*dudx2 + dz*dudz + (0.5*dz*dz)*dudz2 + dx*dz*dudxdz;
+                        }
+                        else if (code[2] != 0) //Z-face
+                        {
+                           ElementType dudy,dudy2;
+                           ElementType dudx,dudx2;
+                           ElementType dudxdy;
+                           if (YY+offset[1] == 0)
+                           {
+                              dudy  = -0.5*m_CoarsenedBlock->Access(XX,YY+2,ZZ)+2.0*m_CoarsenedBlock->Access(XX,YY+1,ZZ)-1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudy2 = m_CoarsenedBlock->Access(XX,YY+2,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY+1,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else if (YY+offset[1] == CoarseBlockSize[1] - 1)
+                           {
+                              dudy  = 0.5*m_CoarsenedBlock->Access(XX,YY-2,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY-1,ZZ)+1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudy2 = m_CoarsenedBlock->Access(XX,YY-2,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY-1,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else
+                           {
+                              dudy  = 0.5*(m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY-1,ZZ));
+                              dudy2 = m_CoarsenedBlock->Access(XX,YY+1,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY-1,ZZ);
+                           }
+                           if (XX+offset[0] == 0)
+                           {
+                              dudx  = -0.5*m_CoarsenedBlock->Access(XX+2,YY,ZZ)+2.0*m_CoarsenedBlock->Access(XX+1,YY,ZZ)-1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudx2 = m_CoarsenedBlock->Access(XX+2,YY,ZZ)-2.0*m_CoarsenedBlock->Access(XX+1,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else if (XX+offset[0] == CoarseBlockSize[0] - 1)
+                           {
+                              dudx  = 0.5*m_CoarsenedBlock->Access(XX-2,YY,ZZ)-2.0*m_CoarsenedBlock->Access(XX-1,YY,ZZ)+1.5*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              dudx2 = m_CoarsenedBlock->Access(XX-2,YY,ZZ)-2.0*m_CoarsenedBlock->Access(XX-1,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY,ZZ);
+                           }
+                           else
+                           {
+                              dudx  = 0.5*(m_CoarsenedBlock->Access(XX+1,YY,ZZ)-m_CoarsenedBlock->Access(XX-1,YY,ZZ));
+                              dudx2 = m_CoarsenedBlock->Access(XX+1,YY,ZZ)-2.0*m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX-1,YY,ZZ);
+                           }
+
+                           if      (YY+offset[1] == 0                      && XX+offset[0] == 0                     )
+                              dudxdy = (m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX+1,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX+1,YY,ZZ));
+                           else if (YY+offset[1] == 0                      && XX+offset[0] == CoarseBlockSize[0] - 1)
+                              dudxdy = (m_CoarsenedBlock->Access(XX-1,YY,ZZ)+m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX-1,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY,ZZ));
+                           else if (YY+offset[1] == CoarseBlockSize[1] - 1 && XX+offset[0] == 0                     )
+                              dudxdy = (m_CoarsenedBlock->Access(XX,YY-1,ZZ)+m_CoarsenedBlock->Access(XX+1,YY,ZZ)-m_CoarsenedBlock->Access(XX,YY,ZZ)-m_CoarsenedBlock->Access(XX+1,YY-1,ZZ));
+                           else if (YY+offset[1] == CoarseBlockSize[1] - 1 && XX+offset[0] == CoarseBlockSize[0] - 1)
+                              dudxdy = (m_CoarsenedBlock->Access(XX,YY,ZZ)+m_CoarsenedBlock->Access(XX+1,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX+1,YY,ZZ));
+                           else if (YY+offset[1] == 0)
+                              dudxdy = 0.5*(m_CoarsenedBlock->Access(XX-1,YY,ZZ)+m_CoarsenedBlock->Access(XX+1,YY+1,ZZ)-m_CoarsenedBlock->Access(XX-1,YY+1,ZZ)-m_CoarsenedBlock->Access(XX+1,YY,ZZ));
+                           else if (YY+offset[1] == CoarseBlockSize[1] - 1)
+                              dudxdy = 0.5*(m_CoarsenedBlock->Access(XX-1,YY-1,ZZ)+m_CoarsenedBlock->Access(XX+1,YY,ZZ)-m_CoarsenedBlock->Access(XX-1,YY,ZZ)-m_CoarsenedBlock->Access(XX+1,YY-1,ZZ));
+                           else if (XX+offset[0] == 0)
+                              dudxdy = 0.5*(m_CoarsenedBlock->Access(XX,YY-1,ZZ)+m_CoarsenedBlock->Access(XX+1,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX+1,YY-1,ZZ));
+                           else if (XX+offset[0] == CoarseBlockSize[0] - 1)
+                              dudxdy = 0.5*(m_CoarsenedBlock->Access(XX-1,YY-1,ZZ)+m_CoarsenedBlock->Access(XX,YY+1,ZZ)-m_CoarsenedBlock->Access(XX-1,YY+1,ZZ)-m_CoarsenedBlock->Access(XX,YY-1,ZZ));
+                           else
+                              dudxdy = 0.25*(m_CoarsenedBlock->Access(XX-1,YY-1,ZZ)+m_CoarsenedBlock->Access(XX+1,YY+1,ZZ)-m_CoarsenedBlock->Access(XX-1,YY+1,ZZ)-m_CoarsenedBlock->Access(XX+1,YY-1,ZZ));
+
+                           a = m_CoarsenedBlock->Access(XX,YY,ZZ) + dy*dudy + (0.5*dy*dy)*dudy2 + dx*dudx + (0.5*dx*dx)*dudx2 + dy*dx*dudxdy;
+                        }
+
+                        if (code[0] == 1)
+                        {
+                           if (x==0) //interpolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] - 1, iy - m_stencilStart[1], iz - m_stencilStart[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] - 2, iy - m_stencilStart[1], iz - m_stencilStart[2]);
+                              LI(a,b,c);
+                           }
+                           else if (x==1) //extrapolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] - 2, iy - m_stencilStart[1], iz - m_stencilStart[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] - 3, iy - m_stencilStart[1], iz - m_stencilStart[2]);
+                              LE(a,b,c);
+                           }
+                        }
+                        else if (code[0] == -1)
+                        {
+                           if (x==1) //interpolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] + 1, iy - m_stencilStart[1], iz - m_stencilStart[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] + 2, iy - m_stencilStart[1], iz - m_stencilStart[2]);
+                              LI(a,b,c);
+                           }
+                           else if (x==0) //extrapolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] + 2, iy - m_stencilStart[1], iz - m_stencilStart[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] + 3, iy - m_stencilStart[1], iz - m_stencilStart[2]);
+                              LE(a,b,c);
+                           }
+                        }   
+                        if (code[1] == 1)
+                        {
+                           if (y==0) //interpolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] - 1, iz - m_stencilStart[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] - 2, iz - m_stencilStart[2]);
+                              LI(a,b,c);
+                           }
+                           else if (y==1) //extrapolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] - 2, iz - m_stencilStart[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] - 3, iz - m_stencilStart[2]);
+                              LE(a,b,c);
+                           }
+                        }
+                        else if (code[1] == -1)
+                        {
+                           if (y==1) //interpolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] + 1, iz - m_stencilStart[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] + 2, iz - m_stencilStart[2]);
+                              LI(a,b,c);
+                           }
+                           else if (y==0) //extrapolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] + 2, iz - m_stencilStart[2]);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1] + 3, iz - m_stencilStart[2]);
+                              LE(a,b,c);
+                           }
+                        }
+
+                        if (code[2] == 1)
+                        {
+                           if (z==0) //interpolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2] - 1);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2] - 2);
+                              LI(a,b,c);
+                           }
+                           else if (z==1) //extrapolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2] - 2);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2] - 3);
+                              LE(a,b,c);
+                           }
+                        }
+                        else if (code[2] == -1)
+                        {
+                           if (z==1) //interpolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2] + 1);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2] + 2);
+                              LI(a,b,c);
+                           }
+                           else if (z==0) //extrapolation
+                           {
+                              auto & b = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2] + 2);
+                              auto & c = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2] + 3);
+                              LE(a,b,c);
+                           }
+                        }                      
+                     #endif
+                     }
                   }
                }
             }

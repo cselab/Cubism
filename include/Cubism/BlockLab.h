@@ -1151,6 +1151,7 @@ class BlockLab
                for (int iy = s[1]; iy < e[1]; iy += 1)
                for (int ix = s[0]; ix < e[0]; ix += 1)
                {
+                  if (ix < -2 || iy < -2 || ix > nX+1 || iy > nY+1) continue;
                   const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1] - offset[1];
                   const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0] - offset[0];
                   const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
@@ -1165,12 +1166,12 @@ class BlockLab
                      ElementType dudy,dudy2;
                      if (YY+offset[1] == 0)
                      {
-                        dudy  = m_CoarsenedBlock->Access(XX,YY+1,0)-m_CoarsenedBlock->Access(XX,YY,0);
+                        dudy  = -0.5*m_CoarsenedBlock->Access(XX,YY+2,0) + 2.0*m_CoarsenedBlock->Access(XX,YY+1,0) - 1.5*m_CoarsenedBlock->Access(XX,YY,0);
                         dudy2 = m_CoarsenedBlock->Access(XX,YY+2,0)-2.0*m_CoarsenedBlock->Access(XX,YY+1,0)+m_CoarsenedBlock->Access(XX,YY,0);
                      }
                      else if (YY+offset[1] == CoarseBlockSize[1] - 1)
                      {
-                        dudy  = m_CoarsenedBlock->Access(XX,YY,0)-m_CoarsenedBlock->Access(XX,YY-1,0);
+                        dudy  = 0.5*m_CoarsenedBlock->Access(XX,YY-2,0) - 2.0*m_CoarsenedBlock->Access(XX,YY-1,0) + 1.5*m_CoarsenedBlock->Access(XX,YY,0);
                         dudy2 = m_CoarsenedBlock->Access(XX,YY-2,0)-2.0*m_CoarsenedBlock->Access(XX,YY-1,0)+m_CoarsenedBlock->Access(XX,YY,0);
                      }
                      else
@@ -1185,12 +1186,12 @@ class BlockLab
                      ElementType dudx,dudx2;
                      if (XX+offset[0] == 0)
                      {
-                        dudx  = m_CoarsenedBlock->Access(XX+1,YY,0)-m_CoarsenedBlock->Access(XX,YY,0);
+                        dudx  = -0.5*m_CoarsenedBlock->Access(XX+2,YY,0) + 2.0*m_CoarsenedBlock->Access(XX+1,YY,0) - 1.5*m_CoarsenedBlock->Access(XX,YY,0);
                         dudx2 = m_CoarsenedBlock->Access(XX+2,YY,0)-2.0*m_CoarsenedBlock->Access(XX+1,YY,0)+m_CoarsenedBlock->Access(XX,YY,0);
                      }
                      else if (XX+offset[0] == CoarseBlockSize[0] - 1)
                      {
-                        dudx  = m_CoarsenedBlock->Access(XX,YY,0)-m_CoarsenedBlock->Access(XX-1,YY,0);
+                        dudx  = -0.5*m_CoarsenedBlock->Access(XX-2,YY,0) + 2.0*m_CoarsenedBlock->Access(XX-1,YY,0) - 1.5*m_CoarsenedBlock->Access(XX,YY,0);
                         dudx2 = m_CoarsenedBlock->Access(XX-2,YY,0)-2.0*m_CoarsenedBlock->Access(XX-1,YY,0)+m_CoarsenedBlock->Access(XX,YY,0);
                      }
                      else

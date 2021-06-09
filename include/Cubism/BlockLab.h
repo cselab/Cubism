@@ -1615,7 +1615,7 @@ class BlockLab
                      else
                      {
                         dudy  = 0.5*(m_CoarsenedBlock->Access(XX,YY+1,0)-m_CoarsenedBlock->Access(XX,YY-1,0));
-                        dudy2 = m_CoarsenedBlock->Access(XX,YY+1,0)-2.0*m_CoarsenedBlock->Access(XX,YY,0)+m_CoarsenedBlock->Access(XX,YY-1,0);                       
+                        dudy2 = m_CoarsenedBlock->Access(XX,YY+1,0)-2.0*m_CoarsenedBlock->Access(XX,YY,0)+m_CoarsenedBlock->Access(XX,YY-1,0);
                      }
                      a = m_CoarsenedBlock->Access(XX,YY,0) + dy*dudy + (0.5*dy*dy)*dudy2; 
                   }
@@ -1629,13 +1629,13 @@ class BlockLab
                      }
                      else if (XX+offset[0] == CoarseBlockSize[0] - 1)
                      {
-                        dudx  = -0.5*m_CoarsenedBlock->Access(XX-2,YY,0) + 2.0*m_CoarsenedBlock->Access(XX-1,YY,0) - 1.5*m_CoarsenedBlock->Access(XX,YY,0);
+                        dudx  = 0.5*m_CoarsenedBlock->Access(XX-2,YY,0) - 2.0*m_CoarsenedBlock->Access(XX-1,YY,0) + 1.5*m_CoarsenedBlock->Access(XX,YY,0);
                         dudx2 = m_CoarsenedBlock->Access(XX-2,YY,0)-2.0*m_CoarsenedBlock->Access(XX-1,YY,0)+m_CoarsenedBlock->Access(XX,YY,0);
                      }
                      else
                      {
                         dudx  = 0.5*(m_CoarsenedBlock->Access(XX+1,YY,0)-m_CoarsenedBlock->Access(XX-1,YY,0));
-                        dudx2 = m_CoarsenedBlock->Access(XX+1,YY,0)-2.0*m_CoarsenedBlock->Access(XX,YY,0)+m_CoarsenedBlock->Access(XX-1,YY,0);                       
+                        dudx2 = m_CoarsenedBlock->Access(XX+1,YY,0)-2.0*m_CoarsenedBlock->Access(XX,YY,0)+m_CoarsenedBlock->Access(XX-1,YY,0);
                      }
                      a = m_CoarsenedBlock->Access(XX,YY,0) + dx*dudx + (0.5*dx*dx)*dudx2; 
                   }

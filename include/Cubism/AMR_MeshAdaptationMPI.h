@@ -78,9 +78,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       const int levelMax = AMR::m_refGrid->getlevelMax();
       const int levelMin = 0;
       AMR::time = t;
-      /*------------->*/ Clock.start(10, "sync");
       Synch->sync(sizeof(typename Block::element_type) / sizeof(Real),sizeof(Real) > 4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
-      /*------------->*/ Clock.finish(10);
 
       timestamp = (timestamp + 1) % 32768;
 
@@ -167,7 +165,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             }
          }
       }
-      /*------------->*/ Clock.finish(3);
 
       if (!Reduction) 
       {
@@ -181,9 +178,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       CallValidStates     = (tmp > 0);
       AMR::m_refGrid->boundary = avail1;
 
-      /*------------->*/ Clock.start(4, "MeshAdaptation: ValidStates");
       if (CallValidStates) ValidStates();
-      /*------------->*/ Clock.finish(4);
 
       // Refinement/compression of blocks
       /*************************************************/
@@ -256,15 +251,12 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
       delete[] AMR::labs;
 
-      /*------------->*/ Clock.start(9, "MeshAdaptation : Setup");
       if ( result[0] > 0 || result[1] > 0 || Balancer.movedBlocks)
       {
          AMR::m_refGrid->UpdateFluxCorrection = true;
          AMR::m_refGrid->UpdateGroups = true;
 
-         /*------------->*/ Clock.start(7, "MeshAdaptation : UpdateBlockInfoAll_States");
          AMR::m_refGrid->UpdateBlockInfoAll_States(false);
-         /*------------->*/ Clock.finish(7);
 
          Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), timestamp, true);
 
@@ -281,7 +273,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          //AMR::m_refGrid->UpdateFluxCorrection = flag;
          //flag                            = false;
       }
-      /*------------->*/ Clock.finish(9);
       std::cout << std::flush;
    }
 

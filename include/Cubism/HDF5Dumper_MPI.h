@@ -71,7 +71,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     std::vector<BlockGroup> & MyGroups = grid.MyGroups;
     grid.UpdateMyGroups();
 
-    const int nGhosts = 2;
+    const int nGhosts = 0;
     const StencilInfoWrapper p(nGhosts > 0 ? nGhosts : 1);
     cubism::SynchronizerMPI_AMR<Real,TGrid>& Synch = *grid.sync(p);
     LabMPI lab;

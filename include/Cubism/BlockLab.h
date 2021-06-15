@@ -113,7 +113,8 @@ class BlockLab
 
    bool UseCoarseStencil(const BlockInfo &a, const BlockInfo &b)
    {
-      if (a.level != b.level || a.level == 0) return false;// || (!use_averages)) return false;
+      if (a.level != b.level || a.level == 0) return false;
+      //if (a.level != b.level || a.level == 0|| (!use_averages)) return false;
 
       int imin[3];
       int imax[3];
@@ -241,11 +242,11 @@ class BlockLab
       }
 
       #if DIMENSION == 3
-         use_averages = (grid.FiniteDifferences == false
+         use_averages = (grid.FiniteDifferences == false || istensorial
                         || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 || m_stencilStart[2] < -2 
                         || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3 || m_stencilEnd  [2] >  3);
       #else
-         use_averages = (grid.FiniteDifferences == false
+         use_averages = (grid.FiniteDifferences == false || istensorial
                         || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 
                         || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3);
       #endif

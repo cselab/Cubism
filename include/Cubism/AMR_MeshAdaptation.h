@@ -134,6 +134,7 @@ class MeshAdaptation_basic
                #pragma omp critical
                {
                   m_refGrid->_alloc(level + 1, nc);
+                  m_refGrid->Tree(level + 1, nc).setCheckCoarser();
                }
             }
 #endif
@@ -147,6 +148,7 @@ class MeshAdaptation_basic
             #pragma omp critical
             {
                m_refGrid->_alloc(level + 1, nc);
+               m_refGrid->Tree(level + 1, nc).setCheckCoarser();
             }
          }
 #endif

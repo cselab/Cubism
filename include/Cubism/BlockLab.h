@@ -51,6 +51,7 @@ class BlockLab
    Matrix3D<ElementType, true, allocator> *m_cacheBlock; // This is filled by the Blocklab
    int m_stencilStart[3], m_stencilEnd[3];
    bool istensorial;
+   bool use_averages;
 
    Grid<BlockType, allocator> *m_refGrid;
    int NX, NY, NZ;
@@ -112,7 +113,7 @@ class BlockLab
 
    bool UseCoarseStencil(const BlockInfo &a, const BlockInfo &b)
    {
-      if (a.level != b.level || a.level == 0) return false;
+      if (a.level != b.level || a.level == 0) return false;// || (!use_averages)) return false;
 
       int imin[3];
       int imax[3];
@@ -239,6 +240,15 @@ class BlockLab
                                   CoarseBlockSize[2] + e[2] - s[2] - 1);
       }
 
+      #if DIMENSION == 3
+         use_averages = (grid.FiniteDifferences == false
+                        || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 || m_stencilStart[2] < -2 
+                        || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3 || m_stencilEnd  [2] >  3);
+      #else
+         use_averages = (grid.FiniteDifferences == false
+                        || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 
+                        || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3);
+      #endif
    }
 
    void load(BlockInfo info, const Real t = 0, const bool applybc = true)
@@ -277,51 +287,29 @@ class BlockLab
             }
          #else
             const int nbytes = sizeof(ElementType) * nX;
-            #if 1 // not bad
-               const int _iz0   = -m_stencilStart[2];
-               const int _iz1   = _iz0 + nZ;
-               const int _iy0   = -m_stencilStart[1];
-               const int _iy1   = _iy0 + nY;
-               const int m_vSize0 = m_cacheBlock->getSize(0);
-               const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
-               const int my_ix = -m_stencilStart[0];
-               for (int iz = _iz0; iz < _iz1; iz++)
+            const int _iz0   = -m_stencilStart[2];
+            const int _iz1   = _iz0 + nZ;
+            const int _iy0   = -m_stencilStart[1];
+            const int _iy1   = _iy0 + nY;
+            const int m_vSize0 = m_cacheBlock->getSize(0);
+            const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
+            const int my_ix = -m_stencilStart[0];
+            for (int iz = _iz0; iz < _iz1; iz++)
+            {
+               const int my_izx = iz * m_nElemsPerSlice + my_ix;
+               for (int iy = _iy0; iy < _iy1; iy += 4)
                {
-                  const int my_izx = iz * m_nElemsPerSlice + my_ix;
-                  for (int iy = _iy0; iy < _iy1; iy += 4)
-                  {
-                     ElementType *ptrDestination0 = &m_cacheBlock->LinAccess(my_izx + (iy    )*m_vSize0);
-                     ElementType *ptrDestination1 = &m_cacheBlock->LinAccess(my_izx + (iy + 1)*m_vSize0);
-                     ElementType *ptrDestination2 = &m_cacheBlock->LinAccess(my_izx + (iy + 2)*m_vSize0);
-                     ElementType *ptrDestination3 = &m_cacheBlock->LinAccess(my_izx + (iy + 3)*m_vSize0);
-                     memcpy2((char *)ptrDestination0, (char *)(ptrSource         ), nbytes);
-                     memcpy2((char *)ptrDestination1, (char *)(ptrSource +     nX), nbytes);
-                     memcpy2((char *)ptrDestination2, (char *)(ptrSource + 2 * nX), nbytes);
-                     memcpy2((char *)ptrDestination3, (char *)(ptrSource + 3 * nX), nbytes);
-                     ptrSource += 4 * nX;
-                  }
+                  ElementType *ptrDestination0 = &m_cacheBlock->LinAccess(my_izx + (iy    )*m_vSize0);
+                  ElementType *ptrDestination1 = &m_cacheBlock->LinAccess(my_izx + (iy + 1)*m_vSize0);
+                  ElementType *ptrDestination2 = &m_cacheBlock->LinAccess(my_izx + (iy + 2)*m_vSize0);
+                  ElementType *ptrDestination3 = &m_cacheBlock->LinAccess(my_izx + (iy + 3)*m_vSize0);
+                  memcpy2((char *)ptrDestination0, (char *)(ptrSource         ), nbytes);
+                  memcpy2((char *)ptrDestination1, (char *)(ptrSource +     nX), nbytes);
+                  memcpy2((char *)ptrDestination2, (char *)(ptrSource + 2 * nX), nbytes);
+                  memcpy2((char *)ptrDestination3, (char *)(ptrSource + 3 * nX), nbytes);
+                  ptrSource += 4 * nX;
                }
-            #else
-               #if 1 // not bad either
-                  const int _iz0 = -m_stencilStart[2];
-                  const int _iz1 = _iz0 + nZ;
-                  const int _iy0 = -m_stencilStart[1];
-                  const int _iy1 = _iy0 + nY;
-                  for (int iz = _iz0; iz < _iz1; iz++)
-                     for (int iy = _iy0; iy < _iy1; iy++)
-               #else
-                  for (int iz = -m_stencilStart[2]; iz < nZ - m_stencilStart[2]; iz++)
-                     for (int iy = -m_stencilStart[1]; iy < nY - m_stencilStart[1]; iy++)
-               #endif
-                    {
-                       ElementType *ptrDestination = &m_cacheBlock->Access(0 - m_stencilStart[0], iy, iz);
-                       // for(int ix=0; ix<nX; ix++, ptrSource++, ptrDestination++)
-                       // *ptrDestination = (ElementType)*ptrSource;
-                       memcpy2((char *)ptrDestination, (char *)ptrSource, nbytes);
-                       // for (int ix = 0; ix < nX; ix++)  ptrDestination[ix] = ptrSource[ix];
-                       ptrSource += nX;
-                    }
-            #endif
+            }
          #endif
       }
 
@@ -374,7 +362,6 @@ class BlockLab
             if      (grid.Tree(infoNei).Exists()    ) SameLevelExchange   (info, code, s, e);
             else if (grid.Tree(infoNei).CheckFiner()) FineToCoarseExchange(info, code, s, e);
          } // icode = 0,...,26
-
          if (coarsened)
             for (int &icode : icodes)
             {
@@ -464,87 +451,57 @@ class BlockLab
       if (b_ptr == nullptr) return;
       BlockType &b = *b_ptr;
 
-      #if 1
-         const int bytes = (e[0] - s[0]) * sizeof(ElementType);
-         if (!bytes) return;
-         const int m_vSize0         = m_cacheBlock->getSize(0);
-         const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
-         const int my_ix            = s[0] - m_stencilStart[0];
-
+      const int bytes = (e[0] - s[0]) * sizeof(ElementType);
+      if (!bytes) return;
+      const int m_vSize0         = m_cacheBlock->getSize(0);
+      const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
+      const int my_ix            = s[0] - m_stencilStart[0];
+      #if 0
          for (int iz = s[2]; iz < e[2]; iz++)
          {
             const int my_izx = (iz - m_stencilStart[2]) * m_nElemsPerSlice + my_ix;
-            #if 0
-               for(int iy=s[1]; iy<e[1]; iy++)
-               {
-                  #if 1 // ...
-                     // char * ptrDest = (char*)&m_cacheBlock->Access(s[0]-m_stencilStart[0], iy-m_stencilStart[1],
-                     // iz-m_stencilStart[2]);
-                     char * ptrDest = (char*)&m_cacheBlock->LinAccess(my_izx + (iy-m_stencilStart[1])*m_vSize0);
-                     const char * ptrSrc = (const char*)&b(s[0] - code[0]*BlockType::sizeX, iy - code[1]*BlockType::sizeY, iz - code[2]*BlockType::sizeZ);
-                     memcpy2((char *)ptrDest, (char *)ptrSrc, bytes);
-                  #else
-                     for(int ix=s[0]; ix<e[0]; ix++)
-                       m_cacheBlock->Access(ix-m_stencilStart[0], iy-m_stencilStart[1], iz-m_stencilStart[2]) = (ElementType)b(ix - code[0]*BlockType::sizeX, iy - code[1]*BlockType::sizeY, iz - code[2]*BlockType::sizeZ);
-                  #endif
-               }
-            #else
-               if ((e[1] - s[1]) % 4 != 0)
-               {
-                  for (int iy = s[1]; iy < e[1]; iy++)
-                  {
-                     char *ptrDest = (char *)&m_cacheBlock->LinAccess(my_izx + (iy - m_stencilStart[1]) * m_vSize0);
-                     const char *ptrSrc = (const char *)&b(s[0] - code[0] * nX, iy - code[1] * nY, iz - code[2] * nZ);
-                     const int cpybytes = (e[0] - s[0]) * sizeof(ElementType);
-                     memcpy2((char *)ptrDest, (char *)ptrSrc, cpybytes);
-                  }
-               }
-               else
-               {
-                  for (int iy = s[1]; iy < e[1]; iy += 4)
-                  {
-                     char *ptrDest0 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 0 - m_stencilStart[1]) * m_vSize0);
-                     char *ptrDest1 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 1 - m_stencilStart[1]) * m_vSize0);
-                     char *ptrDest2 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 2 - m_stencilStart[1]) * m_vSize0);
-                     char *ptrDest3 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 3 - m_stencilStart[1]) * m_vSize0);
-                     const char *ptrSrc0 = (const char *)&b(s[0] - code[0] * nX, iy + 0 - code[1] * nY, iz - code[2] * nZ);
-                     const char *ptrSrc1 = (const char *)&b(s[0] - code[0] * nX, iy + 1 - code[1] * nY, iz - code[2] * nZ);
-                     const char *ptrSrc2 = (const char *)&b(s[0] - code[0] * nX, iy + 2 - code[1] * nY, iz - code[2] * nZ);
-                     const char *ptrSrc3 = (const char *)&b(s[0] - code[0] * nX, iy + 3 - code[1] * nY, iz - code[2] * nZ);
-                     memcpy2((char *)ptrDest0, (char *)ptrSrc0, bytes);
-                     memcpy2((char *)ptrDest1, (char *)ptrSrc1, bytes);
-                     memcpy2((char *)ptrDest2, (char *)ptrSrc2, bytes);
-                     memcpy2((char *)ptrDest3, (char *)ptrSrc3, bytes);
-                  }
-               }
-            #endif
+            for(int iy=s[1]; iy<e[1]; iy++)
+            {
+               char * ptrDest = (char*)&m_cacheBlock->LinAccess(my_izx + (iy-m_stencilStart[1])*m_vSize0);
+               const char * ptrSrc = (const char*)&b(s[0] - code[0]*BlockType::sizeX, iy - code[1]*BlockType::sizeY, iz - code[2]*BlockType::sizeZ);
+               memcpy2((char *)ptrDest, (char *)ptrSrc, bytes);
+            }
          }
       #else
-         const int off_x = -code[0] * nX + m_stencilStart[0];
-         const int off_y = -code[1] * nY + m_stencilStart[1];
-         const int off_z = -code[2] * nZ + m_stencilStart[2];
-         const int nbytes = (e[0] - s[0]) * sizeof(ElementType);
-         #if 1
-            const int _iz0 = s[2] - m_stencilStart[2];
-            const int _iz1 = e[2] - m_stencilStart[2];
-            const int _iy0 = s[1] - m_stencilStart[1];
-            const int _iy1 = e[1] - m_stencilStart[1];
-            for (int iz = _iz0; iz < _iz1; iz++)
-               for (int iy = _iy0; iy < _iy1; iy++)
-         #else
-            for (int iz = s[2] - m_stencilStart[2]; iz < e[2] - m_stencilStart[2]; iz++)
-               for (int iy = s[1] - m_stencilStart[1]; iy < e[1] - m_stencilStart[1]; iy++)
-         #endif
+         if ((e[1] - s[1]) % 4 != 0)
          {
-            #if 1
-               char *ptrDest = (char *)&m_cacheBlock->Access(s[0] - m_stencilStart[0], iy, iz);
-               const char *ptrSrc = (const char *)&b(0 + off_x, iy + off_y, iz + off_z);
-               memcpy2(ptrDest, ptrSrc, nbytes);
-            #else
-               for (int ix = s[0] - m_stencilStart[0]; ix < e[0] - m_stencilStart[0]; ix++)
-                  m_cacheBlock->Access(ix, iy, iz) =
-                      (ElementType)b(ix + off_x, iy + off_y, iz + off_z);
-            #endif
+            for (int iz = s[2]; iz < e[2]; iz++)
+            {
+               const int my_izx = (iz - m_stencilStart[2]) * m_nElemsPerSlice + my_ix;
+               for (int iy = s[1]; iy < e[1]; iy++)
+               {
+                  char *ptrDest = (char *)&m_cacheBlock->LinAccess(my_izx + (iy - m_stencilStart[1]) * m_vSize0);
+                  const char *ptrSrc = (const char *)&b(s[0] - code[0] * nX, iy - code[1] * nY, iz - code[2] * nZ);
+                  memcpy2((char *)ptrDest, (char *)ptrSrc, bytes);
+               }
+            }
+         }
+         else
+         {
+            for (int iz = s[2]; iz < e[2]; iz++)
+            {
+               const int my_izx = (iz - m_stencilStart[2]) * m_nElemsPerSlice + my_ix;
+               for (int iy = s[1]; iy < e[1]; iy += 4)
+               {
+                  char *ptrDest0 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy     - m_stencilStart[1]) * m_vSize0);
+                  char *ptrDest1 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 1 - m_stencilStart[1]) * m_vSize0);
+                  char *ptrDest2 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 2 - m_stencilStart[1]) * m_vSize0);
+                  char *ptrDest3 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy + 3 - m_stencilStart[1]) * m_vSize0);
+                  const char *ptrSrc0 = (const char *)&b(s[0] - code[0] * nX, iy     - code[1] * nY, iz - code[2] * nZ);
+                  const char *ptrSrc1 = (const char *)&b(s[0] - code[0] * nX, iy + 1 - code[1] * nY, iz - code[2] * nZ);
+                  const char *ptrSrc2 = (const char *)&b(s[0] - code[0] * nX, iy + 2 - code[1] * nY, iz - code[2] * nZ);
+                  const char *ptrSrc3 = (const char *)&b(s[0] - code[0] * nX, iy + 3 - code[1] * nY, iz - code[2] * nZ);
+                  memcpy2((char *)ptrDest0, (char *)ptrSrc0, bytes);
+                  memcpy2((char *)ptrDest1, (char *)ptrSrc1, bytes);
+                  memcpy2((char *)ptrDest2, (char *)ptrSrc2, bytes);
+                  memcpy2((char *)ptrDest3, (char *)ptrSrc3, bytes);
+               }
+            }
          }
       #endif
    }
@@ -1021,16 +978,6 @@ class BlockLab
       const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
                              (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
                              (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
-      #if DIMENSION == 3
-         const bool use_averages = (grid.FiniteDifferences == false || istensorial 
-                                  || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 || m_stencilStart[2] < -2 
-                                  || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3 || m_stencilEnd  [2] >  3);
-      #else
-         const bool use_averages = (grid.FiniteDifferences == false || istensorial 
-                                  || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 
-                                  || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3);
-      #endif
-      (void)use_averages;  // Maybe unused.
       for (int icode = 0; icode < 27; icode++)
       {
          if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;

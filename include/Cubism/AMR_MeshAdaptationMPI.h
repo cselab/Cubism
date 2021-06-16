@@ -292,8 +292,11 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
          if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
          else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
          else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
+         if ( (ary0.state == Compress) && (info.index[0] % 2 == 1 || info.index[1] % 2 == 1 || info.index[2] % 2 == 1) )
+         {
+            ary0.state = Leave;
+         }
          info.state = ary0.state;
-         if (ary0.state == Compress && ary0.Z % 8 !=0) ary0.state = Leave;
       }
 
       LoadBalancer<TGrid> Balancer(*AMR::m_refGrid);

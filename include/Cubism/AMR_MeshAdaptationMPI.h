@@ -7,8 +7,8 @@
 namespace cubism
 {
 
-template <typename TGrid, typename TLab>
-class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
+template <typename TGrid, typename TLab, typename otherTGRID = TGrid>
+class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
 {
 
  public:
@@ -23,10 +23,10 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
    int timestamp;
    bool flag;
 
-   using AMR = MeshAdaptation<TGrid,TLab>;
+   using AMR = MeshAdaptation<TGrid,TLab,otherTGRID>;
 
  public:
-   MeshAdaptationMPI(TGrid &grid, double Rtol, double Ctol): MeshAdaptation<TGrid,TLab>(grid,Rtol,Ctol)
+   MeshAdaptationMPI(TGrid &grid, double Rtol, double Ctol): MeshAdaptation<TGrid,TLab,otherTGRID>(grid,Rtol,Ctol)
    {
       bool tensorial = true;
 
@@ -168,9 +168,9 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
       if (!Reduction) 
       {
-        tmp = CallValidStates ? 1 : 0;
-        Reduction = true;
-        MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, AMR::m_refGrid->getWorldComm(),&Reduction_req);
+         tmp = CallValidStates ? 1 : 0;
+         Reduction = true;
+         MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, AMR::m_refGrid->getWorldComm(),&Reduction_req);
       }
       LoadBalancer<TGrid> Balancer(*AMR::m_refGrid);
 
@@ -220,17 +220,17 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          {
             AMR::refine_2(m_ref[i], n_ref[i]);
          }
-     }
+      }
 
       Balancer.PrepareCompression();
 
-    #pragma omp parallel for
-    for (size_t i = 0; i < m_com.size(); i++)
-    {
-       AMR::compress(m_com[i], n_com[i]);
-       #pragma omp atomic
-       c++;
-    }
+      #pragma omp parallel for
+      for (size_t i = 0; i < m_com.size(); i++)
+      {
+         AMR::compress(m_com[i], n_com[i]);
+         #pragma omp atomic
+         c++;
+      }
 
       #if 1
       int temp[2] = {r, c};
@@ -276,6 +276,116 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       std::cout << std::flush;
    }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+   virtual void AdaptLikeOther(otherTGRID &OtherGrid) override
+   {
+      otherTGRID *m_OtherGrid = &OtherGrid;
+
+      std::vector<BlockInfo> &I = AMR::m_refGrid->getBlocksInfo();
+
+      #pragma omp parallel for
+      for (size_t i = 0; i < I.size(); i++)
+      {
+         BlockInfo &ary0      = I[i];
+         BlockInfo &info      = AMR::m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
+         BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
+         if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
+         else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
+         else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
+         info.state = ary0.state;
+         if (ary0.state == Compress && ary0.Z % 8 !=0) ary0.state = Leave;
+      }
+
+      LoadBalancer<TGrid> Balancer(*AMR::m_refGrid);
+
+      // Refinement/compression of blocks
+      /*************************************************/
+      int r = 0;
+      int c = 0;
+
+      std::vector<int> m_com;
+      std::vector<int> m_ref;
+      std::vector<long long> n_com;
+      std::vector<long long> n_ref;
+
+
+      for (auto &info : I)
+      {
+         if (info.state == Refine)
+         {
+            m_ref.push_back(info.level);
+            n_ref.push_back(info.Z);
+         }
+         else if (info.state == Compress)
+         {
+            m_com.push_back(info.level);
+            n_com.push_back(info.Z);
+         }
+      }
+
+      #pragma omp parallel
+      {
+         #pragma omp for
+         for (size_t i = 0; i < m_ref.size(); i++)
+         {
+            MeshAdaptation_basic<TGrid,otherTGRID>::refine_1(m_ref[i], n_ref[i]);
+            #pragma omp atomic
+            r++;
+         }
+         #pragma omp for
+         for (size_t i = 0; i < m_ref.size(); i++)
+         {
+            AMR::refine_2(m_ref[i], n_ref[i]);
+         }
+      }
+
+      Balancer.PrepareCompression();
+
+      #pragma omp parallel for
+      for (size_t i = 0; i < m_com.size(); i++)
+      {
+         AMR::compress(m_com[i], n_com[i]);
+         #pragma omp atomic
+         c++;
+      }
+
+      AMR::m_refGrid->FillPos();
+      Balancer.Balance_Diffusion();
+
+      #if 1
+      int temp[2] = {r, c};
+      int result[2];
+      MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, AMR::m_refGrid->getWorldComm());
+      int rank;
+      MPI_Comm_rank(AMR::m_refGrid->getWorldComm(), &rank);
+      if (rank == 0)
+      {
+         std::cout << "==============================================================\n";
+         std::cout << " refined:" << result[0] << "   compressed:" << result[1] << std::endl;
+         std::cout << "==============================================================\n";
+      }
+      #endif
+
+      if ( result[0] > 0 || result[1] > 0 || Balancer.movedBlocks)
+      {
+         AMR::m_refGrid->UpdateFluxCorrection = true;
+         AMR::m_refGrid->UpdateGroups = true;
+         AMR::m_refGrid->UpdateBlockInfoAll_States(false);
+         auto it = AMR::m_refGrid->SynchronizerMPIs.begin();
+         while (it != AMR::m_refGrid->SynchronizerMPIs.end())
+         {
+            (*it->second)._Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), timestamp,true);
+            it++;
+         }
+      }
+      else
+      {
+         //AMR::m_refGrid->UpdateFluxCorrection = flag;
+         //flag                            = false;
+      }
+      std::cout << std::flush;
+   }
+////////////////////////////////////////////////////////////////////////////////////////////////////
  protected:
 
    virtual void ValidStates() override

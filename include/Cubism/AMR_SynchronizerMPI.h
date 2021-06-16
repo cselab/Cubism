@@ -768,7 +768,6 @@ class SynchronizerMPI_AMR
             std::vector<int> remEl;
 
             
-            /*------------->*/Clock.start(22,"SynchronizerMPI_AMR : RemoveDuplicates fill cube");
             C.clear();
             for (size_t i=0; i<positions[r].size();i++)
             {              
@@ -778,21 +777,17 @@ class SynchronizerMPI_AMR
 
                 if (!skip_needed[r]) skip_needed[r] = f[positions[r][i]].CoarseStencil;
             }
-            /*------------->*/Clock.finish(22);
 
 
-            /*------------->*/Clock.start(23,"SynchronizerMPI_AMR : RemoveDuplicates __needed");
             if (!skip_needed[r])
             {
                 C.__needed(remEl);
                 for (size_t k=0; k< remEl.size();k++)
                     fInfo[remEl[k]].ToBeKept = false;
             }
-            /*------------->*/Clock.finish(23); 
   
 
 
-            /*------------->*/Clock.start(24,"SynchronizerMPI_AMR : Gather UnPackInfos");
             for (auto & i:C.keepEl())
             {
                 int k = i->index;            
@@ -856,7 +851,6 @@ class SynchronizerMPI_AMR
                     fInfo[remEl1].dis = info.offset;
                 } 
             }
-            /*------------->*/Clock.finish(24);
         }
     };
 #endif
@@ -1011,7 +1005,6 @@ class SynchronizerMPI_AMR
       bool Coarsened = false;
 
       int l = 0;
-      /*------------->*/ Clock.start(15, "DefineInterfaces: icode loop");
       for (int icode = 0; icode < 27; icode++)
       {
          if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;
@@ -1192,7 +1185,6 @@ class SynchronizerMPI_AMR
             }
          }
       } // icode = 0,...,26
-      /*------------->*/ Clock.finish(15);
 
       if (isInner)
       {
@@ -1227,11 +1219,9 @@ class SynchronizerMPI_AMR
       {
         DM.Add(_rp.first, _rp.second);
       }
-      /*------------->*/ Clock.start(18, "DefineInterfaces: Duplicates handling");
       for (int r = 0; r < size; r++)
          DM.RemoveDuplicates(r, send_interfaces[r].v, offsets[r], send_buffer_size[r],
                              stencil.selcomponents.size(), send_interfaces_infos[r]);
-      /*------------->*/ Clock.finish(18);
     }
       
     UnpacksManager._allocate(halo_blocks.size(), lengths.data());
@@ -1305,11 +1295,8 @@ class SynchronizerMPI_AMR
       myInfos_size = a_myInfos_size;
       myInfos      = a_myInfos;
       const int NC = stencil.selcomponents.size();
-      /*------------->*/ Clock.start(12, "DefineInterfaces total time");
       DefineInterfaces();
-      /*------------->*/ Clock.finish(12);
 
-      /*------------->*/ Clock.start(13, "Synchronizer: send/recv sizes");
       for (int r = 0; r < size; r++) 
         send_buffer[r].resize(send_buffer_size[r] * NC, 666.0);
       recv_buffer_size.resize(size, 0);
@@ -1325,7 +1312,6 @@ class SynchronizerMPI_AMR
          MPI_Isend(&ss1[r], 1, MPI_INT, r, timestamp, comm, &size_requests[k + 1]);
          k += 2;
       }
-      /*------------->*/ Clock.finish(13);
 
       UnpacksManager.SendPacks(Neighbors, timestamp);
 
@@ -1374,7 +1360,6 @@ class SynchronizerMPI_AMR
       const int NC = selcomponents.size();
 
       // Pack data
-      /*------------->*/ Clock.start(25, "Synchronizer: data packing");
       for (int r = 0; r < size; r++)
       {
          if (ToBeAveragedDown[r].size() == 0 && send_buffer_size[r] == 0) continue;
@@ -1421,16 +1406,13 @@ class SynchronizerMPI_AMR
             }
          }
       }
-      /*------------->*/ Clock.finish(25);
 
-      /*------------->*/ Clock.start(13, "Synchronizer: send/recv sizes");
       MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);
       for (auto r : Neighbors)
       {
          recv_buffer_size[r] = ss[r] / NC;
          recv_buffer[r].resize(recv_buffer_size[r] * NC, 777.0);
       }
-      /*------------->*/ Clock.finish(13);
 
       send_requests.clear();
       recv_requests.clear();
@@ -1453,9 +1435,7 @@ class SynchronizerMPI_AMR
          }
       }
 
-      /*------------->*/ Clock.start(27, "Synchronizer: MapIDs");
       UnpacksManager.MapIDs();
-      /*------------->*/ Clock.finish(27);
    }
 
    StencilInfo getstencil() const { return stencil; }

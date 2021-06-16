@@ -60,18 +60,18 @@ struct MyClock
          delete[] maximum;
          return;
       }
-      std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
+      if (N>0)std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
       for (int i = 0; i < N; i++)
       {
          padTo(name[i], 40);
          mean[i] /= size;
          printf("%s    :  %8.4f (max)     %8.4f (mean) \n", name[i].c_str(), maximum[i], mean[i]);
       }
-      std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
-      std::cout << "TOTAL TIME = " << m1 << " " << m2 << "\n";
-      std::ofstream outfile;
-      outfile.open("TIMES.txt", std::ios_base::app); // append instead of overwrite
-      outfile << size << " " << m1 << " " << m2 << "\n";
+      if (N>0)std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
+      //std::cout << "TOTAL TIME = " << m1 << " " << m2 << "\n";
+      //std::ofstream outfile;
+      //outfile.open("TIMES.txt", std::ios_base::app); // append instead of overwrite
+      //outfile << size << " " << m1 << " " << m2 << "\n";
       delete[] mean;
       delete[] maximum;
    }

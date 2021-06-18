@@ -283,32 +283,50 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
 
       std::vector<BlockInfo> &I = AMR::m_refGrid->getBlocksInfo();
 
-      #pragma omp parallel for
-      for (size_t i1 = 0; i1 < I.size(); i1++)
+      #pragma omp parallel
       {
-         BlockInfo &ary0      = I[i1];
-         BlockInfo &info      = AMR::m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
-         BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
-         if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
-         else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
-         else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
-         if (ary0.state == Compress)
+         #pragma omp for
+         for (size_t i1 = 0; i1 < I.size(); i1++)
          {
+            BlockInfo &ary0      = I[i1];
+            BlockInfo &info      = AMR::m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
             for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
             for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
             for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
             {
                const long long n = AMR::m_refGrid->getZforward(info.level, i, j, k);
                BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(info.level, n);
-               infoNei.state = Compress;
+               infoNei.state = Leave;
             }
-            if (info.index[0] % 2 == 1 || info.index[1] % 2 == 1 || info.index[2] % 2 == 1)
-            {
-               ary0.state = Leave;
-               (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
-            }
+            info.state = Leave; 
+            ary0.state = Leave;
          }
-         info.state = ary0.state;
+
+         #pragma omp for
+         for (size_t i1 = 0; i1 < I.size(); i1++)
+         {
+            BlockInfo &ary0      = I[i1];
+            BlockInfo &info      = AMR::m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
+            BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
+            if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
+            else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
+            else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
+            if (ary0.state == Compress)
+            {
+               const int i = 2 * (info.index[0] / 2);
+               const int j = 2 * (info.index[1] / 2);
+               const int k = 2 * (info.index[2] / 2);
+               const long long n = AMR::m_refGrid->getZforward(info.level, i, j, k);
+               BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(info.level, n);
+               infoNei.state = Compress;
+               if (info.index[0] % 2 == 1 || info.index[1] % 2 == 1 || info.index[2] % 2 == 1)
+               {
+                  ary0.state = Leave;
+                  (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+               }
+            }
+            info.state = ary0.state;
+         }
       }
 
       LoadBalancer<TGrid> Balancer(*AMR::m_refGrid);

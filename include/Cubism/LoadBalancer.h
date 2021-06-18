@@ -188,6 +188,7 @@ class LoadBalancer
          for (int i = 0; i < (int)send_blocks[r].size(); i++)
          {
             m_refGrid->_dealloc(send_blocks[r][i].mn[0], send_blocks[r][i].mn[1]);
+            m_refGrid->Tree(send_blocks[r][i].mn[0], send_blocks[r][i].mn[1]).setCheckCoarser();
          }
 
       for (int r = 0; r < size; r++)

@@ -541,7 +541,7 @@ class GridMPI : public TGrid
       Cstencil.ex          = 2;
       Cstencil.ey          = 2;
       Cstencil.ez          = 2;
-      Cstencil.tensorial   = true;
+      Cstencil.tensorial   = false;//true;
 
       auto blockperDim          = TGrid::getMaxBlocks();
       const StencilInfo stencil = p.stencil;

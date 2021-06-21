@@ -511,7 +511,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
    MeshAdaptation(TGrid &grid, double Rtol, double Ctol, bool _verbose = false)
        : MeshAdaptation_basic<TGrid, otherTGRID>(grid)
    {
-      bool tensorial = true;
+      bool tensorial = false;//true;
       verbose        = _verbose;
 
       const int Gx = (WENOWAVELET == 3) ? 1 : 2;

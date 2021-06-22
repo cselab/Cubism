@@ -28,20 +28,13 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
  public:
    MeshAdaptationMPI(TGrid &grid, double Rtol, double Ctol): MeshAdaptation<TGrid,TLab,otherTGRID>(grid,Rtol,Ctol)
    {
-      bool tensorial = false;//true;
+      bool tensorial = false;
 
       const int Gx = (WENOWAVELET == 3) ? 1 : 2;
       const int Gy = (WENOWAVELET == 3) ? 1 : 2;
       const int Gz = (WENOWAVELET == 3) ? 1 : 2;
 
-      AMR::components.push_back(0);
-      AMR::components.push_back(1);
-      AMR::components.push_back(2);
-      AMR::components.push_back(3);
-      AMR::components.push_back(4);
-      AMR::components.push_back(5);
-      AMR::components.push_back(6);
-      AMR::components.push_back(7); //dummy (not needed!)
+      for (int i = 0 ; i < ElementType::DIM ; i++) AMR::components.push_back(i);
 
       StencilInfo stencil(-Gx, -Gy, -Gz, Gx + 1, Gy + 1, Gz + 1, tensorial, AMR::components);
 

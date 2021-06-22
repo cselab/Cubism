@@ -511,7 +511,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
    MeshAdaptation(TGrid &grid, double Rtol, double Ctol, bool _verbose = false)
        : MeshAdaptation_basic<TGrid, otherTGRID>(grid)
    {
-      bool tensorial = false;//true;
+      bool tensorial = false;
       verbose        = _verbose;
 
       const int Gx = (WENOWAVELET == 3) ? 1 : 2;
@@ -521,14 +521,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
 #else
       const int Gz = 0;
 #endif
-      components.push_back(0);
-      components.push_back(1);
-      components.push_back(2);
-      components.push_back(3);
-      components.push_back(4);
-      components.push_back(5);
-      components.push_back(6);
-      components.push_back(7);
+      for (int i = 0 ; i < ElementType::DIM ; i++) components.push_back(i);
 
       StencilInfo stencil(-Gx, -Gy, -Gz, Gx + 1, Gy + 1, Gz + 1, tensorial, components);
 

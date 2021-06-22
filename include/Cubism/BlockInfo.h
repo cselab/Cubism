@@ -18,7 +18,6 @@ using namespace std;
 #ifndef DIMENSION
 #define DIMENSION 3
 #endif
-#include "MyClock.h"
 
 namespace cubism // AMR_CUBISM
 {

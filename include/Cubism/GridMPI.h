@@ -119,8 +119,6 @@ class GridMPI : public TGrid
 
       SynchronizerMPIs.clear();
 
-      Clock.display();
-
       MPI_Barrier(worldcomm);
    }
 
@@ -541,7 +539,7 @@ class GridMPI : public TGrid
       Cstencil.ex          = 2;
       Cstencil.ey          = 2;
       Cstencil.ez          = 2;
-      Cstencil.tensorial   = false;//true;
+      Cstencil.tensorial   = true;
 
       auto blockperDim          = TGrid::getMaxBlocks();
       const StencilInfo stencil = p.stencil;

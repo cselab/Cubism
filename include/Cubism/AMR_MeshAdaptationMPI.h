@@ -378,7 +378,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
       AMR::m_refGrid->FillPos();
       Balancer.Balance_Diffusion();
 
-      #if 1
+      #if 0
       int temp[2] = {r, c};
       int result[2];
       MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, AMR::m_refGrid->getWorldComm());

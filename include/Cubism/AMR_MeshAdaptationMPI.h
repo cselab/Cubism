@@ -378,18 +378,18 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
       AMR::m_refGrid->FillPos();
       Balancer.Balance_Diffusion();
 
-      #if 0
+      #if 1
       int temp[2] = {r, c};
       int result[2];
       MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, AMR::m_refGrid->getWorldComm());
-      int rank;
-      MPI_Comm_rank(AMR::m_refGrid->getWorldComm(), &rank);
-      if (rank == 0)
-      {
-         std::cout << "==============================================================\n";
-         std::cout << " refined:" << result[0] << "   compressed:" << result[1] << std::endl;
-         std::cout << "==============================================================\n";
-      }
+      //int rank;
+      //MPI_Comm_rank(AMR::m_refGrid->getWorldComm(), &rank);
+      //if (rank == 0)
+      //{
+      //   std::cout << "==============================================================\n";
+      //   std::cout << " refined:" << result[0] << "   compressed:" << result[1] << std::endl;
+      //   std::cout << "==============================================================\n";
+      //}
       #endif
 
       if ( result[0] > 0 || result[1] > 0 || Balancer.movedBlocks)

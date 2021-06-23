@@ -859,7 +859,7 @@ class SynchronizerMPI_AMR
   {
     BlockInfo &a = *f.infos[0];
     BlockInfo &b = *f.infos[1];
-    if (a.level != b.level || a.level == 0) return false;
+    if (a.level != b.level || a.level == 0|| (!use_averages)) return false;
     int imin[3];
     int imax[3];
     for (int d = 0; d < 3; d++)
@@ -1235,6 +1235,7 @@ class SynchronizerMPI_AMR
    std::vector<std::vector<std::pair<int, int>>> interface_ranks_and_positions;
    static 
    std::vector<size_t> lengths;
+   bool use_averages;
 
    TGrid * grid;
 
@@ -1248,6 +1249,10 @@ class SynchronizerMPI_AMR
    {
 
       grid = _grid; 
+
+      use_averages = (grid->FiniteDifferences == false || stencil.tensorial
+                     || stencil.sx< -2 || stencil.sy < -2 || stencil.sz < -2
+                     || stencil.ex>  3 || stencil.ey >  3 || stencil.ez >  3);
 
       comm = grid->getWorldComm();
 

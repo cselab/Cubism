@@ -303,7 +303,7 @@ class SynchronizerMPI_AMR
   std::vector<GrowingVector<Real>> send_buffer;
   std::vector<GrowingVector<Real>> recv_buffer;
 
-  static std::vector<GrowingVector<Interface>> send_interfaces;
+  std::vector<GrowingVector<Interface>> send_interfaces;
   std::vector<std::vector<InterfaceInfo>> send_interfaces_infos;
   std::vector<GrowingVector<PackInfo>> send_packinfos;
 
@@ -975,9 +975,8 @@ class SynchronizerMPI_AMR
       halo_blocks.clear();
       interface_ranks_and_positions.clear();
       lengths.clear();
-      for (int r = 0; r < size; r++) send_interfaces[r].clear();
     }
-
+    for (int r = 0; r < size; r++) send_interfaces[r].clear();
     for (int r = 0; r < size; r++) send_interfaces_infos[r].clear();
     std::vector<int> offsets(size, 0);
     for (int r = 0; r < size; r++)
@@ -1203,6 +1202,182 @@ class SynchronizerMPI_AMR
       }
       grid->getBlockInfoAll(info.level, info.Z).halo_block_id = info.halo_block_id;
     } // i-loop
+    else
+    for (int i = 0; i < (int)myInfos_size; i++)
+    {
+      BlockInfo &info    = myInfos[i];
+      const int aux          = 1 << info.level;
+      const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
+      const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
+      const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
+      const int xskip  = info.index[0] == 0 ? -1 : 1;
+      const int yskip  = info.index[1] == 0 ? -1 : 1;
+      const int zskip  = info.index[2] == 0 ? -1 : 1;
+
+      bool isInner = true;
+
+      std::vector<int> ToBeChecked;
+      bool Coarsened = false;
+
+      for (int icode = 0; icode < 27; icode++)
+      {
+         if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;
+         const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
+         if (!xperiodic && code[0] == xskip && xskin) continue;
+         if (!yperiodic && code[1] == yskip && yskin) continue;
+         if (!zperiodic && code[2] == zskip && zskin) continue;
+         BlockInfo &infoNei = grid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+         const TreePosition & infoNeiTree = grid->Tree(info.level,info.Znei_(code[0], code[1], code[2]));
+         if (infoNeiTree.Exists() && infoNeiTree.rank() != rank)
+         {
+            isInner    = false;
+            int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
+            send_interfaces[infoNeiTree.rank()].push_back(Interface(info, infoNei, icode, icode2));
+            ToBeChecked.push_back(infoNeiTree.rank());
+            ToBeChecked.push_back((int)send_interfaces[infoNeiTree.rank()].size() - 1);
+         }
+         else if (infoNeiTree.CheckCoarser())
+         {
+            Coarsened = true;
+            // int nCoarse = infoNei.Z /8; // this does not work for Hilbert
+            const long long nCoarse = infoNei.Zparent;
+            BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, nCoarse);
+            const int infoNeiCoarserrank = grid->Tree(info.level-1,nCoarse).rank();
+            if (infoNeiCoarserrank != rank)
+            {
+               isInner         = false;
+               int code2[3]    = {-code[0], -code[1], -code[2]};
+               int icode2      = (code2[0] + 1) + (code2[1] + 1) * 3 + (code2[2] + 1) * 9;
+               BlockInfo &test = grid->getBlockInfoAll(
+                   infoNeiCoarser.level, infoNeiCoarser.Znei_(code2[0], code2[1], code2[2]));
+               if (info.index[0] / 2 == test.index[0] && info.index[1] / 2 == test.index[1] &&
+                   info.index[2] / 2 == test.index[2])
+               {
+                  send_interfaces[infoNeiCoarserrank].push_back(
+                      Interface(info, infoNeiCoarser, icode, icode2));
+               }
+            }
+         }
+         else if (infoNeiTree.CheckFiner())
+         {
+            int Bstep = 1;
+            if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge
+            else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3)) Bstep = 4; // corner
+
+            for (int B = 0; B <= 3;B += Bstep) // loop over blocks that make up face/edge/corner (4/2/1 blocks)
+            {
+              const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
+
+              const long long nFine1 =
+                         infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
+                                       [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
+                                       [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
+              const long long nFine = grid->getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
+              BlockInfo &infoNeiFiner = grid->getBlockInfoAll(infoNei.level + 1, nFine);
+              const int infoNeiFinerrank = grid->Tree(info.level+1,nFine).rank();
+              if (infoNeiFinerrank != rank)
+              {
+                isInner    = false;
+                int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
+                send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode2));
+                if (Bstep == 3) // if I'm filling an edge then I'm also filling a corner
+                {
+                   int code3[3];
+                   code3[0]   = (code[0] == 0) ? (B == 0 ? 1 : -1) : -code[0];
+                   code3[1]   = (code[1] == 0) ? (B == 0 ? 1 : -1) : -code[1];
+                   code3[2]   = (code[2] == 0) ? (B == 0 ? 1 : -1) : -code[2];
+                   int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
+                   send_interfaces[infoNeiFinerrank].push_back(
+                       Interface(info, infoNeiFiner, icode, icode3));
+                }
+                else if (Bstep == 1) // if I'm filling a face then I'm also filling two edges and a corner
+                {
+                  int code3[3];
+                  int code4[3];
+                  int code5[3];
+                  int d0, d1, d2;
+                  assert(code[0] != 0 || code[1] != 0 || code[2] != 0);
+                  assert(abs(code[0]) + abs(code[1]) + abs(code[2]) == 1);
+                  if (code[0] != 0)
+                  {
+                     d0 = 0;
+                     d1 = 1;
+                     d2 = 2;
+                  }
+                  else if (code[1] != 0)
+                  {
+                     d0 = 1;
+                     d1 = 0;
+                     d2 = 2;
+                  }
+                  else /*if (code[2]!=0)*/
+                  {
+                     d0 = 2;
+                     d1 = 0;
+                     d2 = 1;
+                  }
+                  code3[d0] = -code[d0];
+                  code4[d0] = -code[d0];
+                  code5[d0] = -code[d0];
+                  if (B == 0)
+                  {
+                    code3[d1] = 1;
+                    code3[d2] = 1;
+                    code4[d1] = 1;
+                    code4[d2] = 0;
+                    code5[d1] = 0;
+                    code5[d2] = 1;
+                  }
+                  else if (B == 1)
+                  {
+                    code3[d1] = -1;
+                    code3[d2] = 1;
+                    code4[d1] = -1;
+                    code4[d2] = 0;
+                    code5[d1] = 0;
+                    code5[d2] = 1;
+                  }
+                  else if (B == 2)
+                  {
+                    code3[d1] = 1;
+                    code3[d2] = -1;
+                    code4[d1] = 1;
+                    code4[d2] = 0;
+                    code5[d1] = 0;
+                    code5[d2] = -1;
+                  }
+                  else // if (B==3)
+                  {
+                    code3[d1] = -1;
+                    code3[d2] = -1;
+                    code4[d1] = -1;
+                    code4[d2] = 0;
+                    code5[d1] = 0;
+                    code5[d2] = -1;
+                  }
+                  int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
+                  int icode4 = (code4[0] + 1) + (code4[1] + 1) * 3 + (code4[2] + 1) * 9;
+                  int icode5 = (code5[0] + 1) + (code5[1] + 1) * 3 + (code5[2] + 1) * 9;
+                  send_interfaces[infoNeiFinerrank].push_back(
+                      Interface(info, infoNeiFiner, icode, icode3));
+                  send_interfaces[infoNeiFinerrank].push_back(
+                      Interface(info, infoNeiFiner, icode, icode4));
+                  send_interfaces[infoNeiFinerrank].push_back(
+                      Interface(info, infoNeiFiner, icode, icode5));
+                }
+              }
+            }
+         }
+      } // icode = 0,...,26
+
+      if (!isInner)
+      {
+         if (Coarsened)
+            for (size_t j = 0; j < ToBeChecked.size(); j += 2)
+               send_interfaces[ToBeChecked[j]][ToBeChecked[j + 1]].CoarseStencil =
+                   UseCoarseStencil(send_interfaces[ToBeChecked[j]][ToBeChecked[j + 1]]);
+      }
+    } // i-loop
 
     for (int r = 0; r < size; r++) send_interfaces_infos[r].resize(send_interfaces[r].size());
 
@@ -1228,13 +1403,10 @@ class SynchronizerMPI_AMR
   }
 
  public:
-   static 
-   std::set<int> Neighbors;
+   static std::set<int> Neighbors;
    bool define_neighbors;
-   static 
-   std::vector<std::vector<std::pair<int, int>>> interface_ranks_and_positions;
-   static 
-   std::vector<size_t> lengths;
+   static std::vector<std::vector<std::pair<int, int>>> interface_ranks_and_positions;
+   static std::vector<size_t> lengths;
    bool use_averages;
 
    TGrid * grid;
@@ -1616,7 +1788,6 @@ template <typename Real,typename TGrid> std::set<int> SynchronizerMPI_AMR<Real,T
 template <typename Real,typename TGrid> std::vector<BlockInfo *> SynchronizerMPI_AMR<Real,TGrid>::halo_blocks;
 template <typename Real,typename TGrid> std::vector<BlockInfo *> SynchronizerMPI_AMR<Real,TGrid>::inner_blocks;
 template <typename Real,typename TGrid> std::vector<std::vector<std::pair<int, int>>> SynchronizerMPI_AMR<Real,TGrid>::interface_ranks_and_positions;
-template <typename Real,typename TGrid> std::vector<GrowingVector<Interface>> SynchronizerMPI_AMR<Real,TGrid>::send_interfaces;
 template <typename Real,typename TGrid> std::vector<size_t> SynchronizerMPI_AMR<Real,TGrid>::lengths;
 
 }//namespace cubism

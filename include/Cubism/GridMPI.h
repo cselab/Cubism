@@ -287,7 +287,7 @@ class GridMPI : public TGrid
       std::vector<int> myNeighbors = FindMyNeighbors();
 
       const auto blocksPerDim = TGrid::getMaxBlocks();
-      std::vector<int> myData;
+      std::vector<long long> myData;
       for (auto &info : TGrid::m_vInfo)
       {
          bool myflag = false;

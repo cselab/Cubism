@@ -12,8 +12,6 @@
 namespace cubism
 {
 
-#define WENOWAVELET 3
-
 template <typename TGrid, typename otherTGRID = TGrid>
 class MeshAdaptation_basic
 {
@@ -123,7 +121,7 @@ class MeshAdaptation_basic
       assert(parent.ptrBlock != NULL);
       assert(level <= m_refGrid->getlevelMax() - 1);
 
-#if DIMENSION == 3
+      #if DIMENSION == 3
       for (int k = 0; k < 2; k++)
          for (int j = 0; j < 2; j++)
             for (int i = 0; i < 2; i++)
@@ -137,8 +135,8 @@ class MeshAdaptation_basic
                   m_refGrid->Tree(level + 1, nc).setCheckCoarser();
                }
             }
-#endif
-#if DIMENSION == 2
+      #endif
+      #if DIMENSION == 2
       for (int j = 0; j < 2; j++)
          for (int i = 0; i < 2; i++)
          {
@@ -151,7 +149,7 @@ class MeshAdaptation_basic
                m_refGrid->Tree(level + 1, nc).setCheckCoarser();
             }
          }
-#endif
+      #endif
    }
 
    virtual void refine_2(const int level, const long long Z)
@@ -166,7 +164,7 @@ class MeshAdaptation_basic
       parent.state = Leave;
 
       int p[3] = {parent.index[0], parent.index[1], parent.index[2]};
-#if DIMENSION == 3
+      #if DIMENSION == 3
       for (int k = 0; k < 2; k++)
          for (int j = 0; j < 2; j++)
             for (int i = 0; i < 2; i++)
@@ -181,8 +179,8 @@ class MeshAdaptation_basic
                         for (int i2 = 0; i2 < 2; i2++)
                            m_refGrid->Tree(level + 2, Child.Zchild[i0][i1][i2]).setCheckCoarser();
             }
-#endif
-#if DIMENSION == 2
+      #endif
+      #if DIMENSION == 2
       for (int j = 0; j < 2; j++)
          for (int i = 0; i < 2; i++)
          {
@@ -194,7 +192,7 @@ class MeshAdaptation_basic
                for (int i0 = 0; i0 < 2; i0++)
                   for (int i1 = 0; i1 < 2; i1++) m_refGrid->Tree(level + 2, Child.Zchild[i0][i1]).setCheckCoarser();
          }
-#endif
+      #endif
    }
 
    virtual void compress(const int level, const long long Z)
@@ -205,7 +203,7 @@ class MeshAdaptation_basic
 
       assert(info.state == Compress);
 
-#if DIMENSION == 3
+      #if DIMENSION == 3
       const long long np = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
       BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
       parent.ptrBlock    = info.ptrBlock;
@@ -234,8 +232,8 @@ class MeshAdaptation_basic
                   m_refGrid->Tree(level, n).setCheckCoarser();
                }
       }
-#endif
-#if DIMENSION == 2
+      #endif
+      #if DIMENSION == 2
 
       const long long np = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2);
       BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
@@ -263,7 +261,7 @@ class MeshAdaptation_basic
                m_refGrid->Tree(level, n).setCheckCoarser();
             }
       }
-#endif
+      #endif
    }
 
    virtual void ValidStates()
@@ -343,12 +341,12 @@ class MeshAdaptation_basic
                         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
                         int iNei = 2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0]));
                         int jNei = 2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1]));
-#if DIMENSION == 3
+                        #if DIMENSION == 3
                         int kNei = 2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2]));
                         long long zzz = m_refGrid->getZforward(m + 1, iNei, jNei, kNei);
-#else
+                        #else
                         long long zzz = m_refGrid->getZforward(m + 1, iNei, jNei);
-#endif
+                        #endif
                         BlockInfo &FinerNei = m_refGrid->getBlockInfoAll(m + 1, zzz);
                         State NeiState      = FinerNei.state;
                         if (NeiState == Refine)
@@ -410,12 +408,12 @@ class MeshAdaptation_basic
             for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
                for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
                {
-#if DIMENSION == 3
+                  #if DIMENSION == 3
                   const long long n = m_refGrid->getZforward(m, i, j, k);
-#else
+                  #else
                   // if (k!=0) {std::cout << "k!=0\n"; abort();}
                   const long long n = m_refGrid->getZforward(m, i, j);
-#endif
+                  #endif
                   BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
                   if (m_refGrid->Tree(infoNei).Exists() == false || infoNei.state != Compress)
                   {
@@ -433,12 +431,12 @@ class MeshAdaptation_basic
                for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
                   for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
                   {
-#if DIMENSION == 3
+                     #if DIMENSION == 3
                      const long long n = m_refGrid->getZforward(m, i, j, k);
-#else
+                     #else
                      // if (k!=0) {std::cout << "k!=0\n"; abort();}
                      const long long n = m_refGrid->getZforward(m, i, j);
-#endif
+                     #endif
                      BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
                      if (m_refGrid->Tree(infoNei).Exists() && infoNei.state == Compress)
                      {
@@ -457,14 +455,14 @@ class MeshAdaptation_basic
             bool first = true;
             for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
                for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
-#if DIMENSION == 3
+                  #if DIMENSION == 3
                   for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
                   {
                      const long long n = m_refGrid->getZforward(m, i, j, k);
-#else
+                  #else
                {
                   const long long n = m_refGrid->getZforward(m, i, j);
-#endif
+                  #endif
                      BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
                      if (!first)
                      {
@@ -514,13 +512,13 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
       bool tensorial = false;
       verbose        = _verbose;
 
-      const int Gx = (WENOWAVELET == 3) ? 1 : 2;
-      const int Gy = (WENOWAVELET == 3) ? 1 : 2;
-#if DIMENSION == 3
-      const int Gz = (WENOWAVELET == 3) ? 1 : 2;
-#else
+      const int Gx = 1;
+      const int Gy = 1;
+      #if DIMENSION == 3
+      const int Gz = 1;
+      #else
       const int Gz = 0;
-#endif
+      #endif
       for (int i = 0 ; i < ElementType::DIM ; i++) components.push_back(i);
 
       StencilInfo stencil(-Gx, -Gy, -Gz, Gx + 1, Gy + 1, Gz + 1, tensorial, components);
@@ -672,7 +670,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
 
       assert(parent.ptrBlock != NULL);
       assert(level <= m_refGrid->getlevelMax() - 1);
-#if DIMENSION == 3
+      #if DIMENSION == 3
       BlockType *Blocks[8];
       for (int k = 0; k < 2; k++)
          for (int j = 0; j < 2; j++)
@@ -688,7 +686,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
                }
                Blocks[k * 4 + j * 2 + i] = (BlockType *)Child.ptrBlock;
             }
-#else
+      #else
       BlockType *Blocks[4];
       for (int j = 0; j < 2; j++)
          for (int i = 0; i < 2; i++)
@@ -703,7 +701,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
             }
             Blocks[j * 2 + i] = (BlockType *)Child.ptrBlock;
          }
-#endif
+      #endif
       RefineBlocks(Blocks, parent);
    }
 
@@ -720,7 +718,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
 
       assert(info.state == Compress);
 
-#if DIMENSION == 3
+      #if DIMENSION == 3
       BlockType *Blocks[8];
       for (int K = 0; K < 2; K++)
          for (int J = 0; J < 2; J++)
@@ -782,8 +780,8 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
                   m_refGrid->getBlockInfoAll(level, n).state = Leave;
                }
       }
-#endif
-#if DIMENSION == 2
+      #endif
+      #if DIMENSION == 2
       BlockType *Blocks[4];
       for (int J = 0; J < 2; J++)
          for (int I = 0; I < 2; I++)
@@ -834,7 +832,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
                m_refGrid->getBlockInfoAll(level, n).state = Leave;
             }
       }
-#endif
+      #endif
    }
 
    ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -851,7 +849,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
 
       TLab &Lab = labs[tid];
 
-#if DIMENSION == 3
+      #if DIMENSION == 3
       const int nz   = BlockType::sizeZ;
       int offsetZ[2] = {0, nz / 2};
 
@@ -900,7 +898,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
                                                  (2 * ((k + 1) % 2) - 1) * 0.25 * dudz;
                      }
             }
-#else
+      #else
 
       for (int J = 0; J < 2; J++)
          for (int I = 0; I < 2; I++)
@@ -921,7 +919,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
                   b(i + 1, j + 1, 0) = Lab(i / 2 + offsetX[I], j / 2 + offsetY[J]) + 0.25 * dudx + 0.25 * dudy;
                }
          }
-#endif
+      #endif
    }
 
    virtual State TagLoadedBlock(TLab &Lab_, BlockInfo &info)
@@ -930,7 +928,7 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
       const int ny = BlockType::sizeY;
 
       double Linf = 0.0;
-#if DIMENSION == 3
+      #if DIMENSION == 3
       const int nz = BlockType::sizeZ;
       for (int k = 0; k < nz; k++)
          for (int j = 0; j < ny; j++)
@@ -939,15 +937,15 @@ class MeshAdaptation : public MeshAdaptation_basic<TGrid, otherTGRID>
                double s0 = std::fabs(Lab_(i, j, k).magnitude());
                Linf      = max(Linf, s0);
             }
-#endif
-#if DIMENSION == 2
+      #endif
+      #if DIMENSION == 2
       for (int j = 0; j < ny; j++)
          for (int i = 0; i < nx; i++)
          {
             double s0 = std::fabs(Lab_(i, j).magnitude());
             Linf      = max(Linf, s0);
          }
-#endif
+      #endif
 
       if (Linf > tolerance_for_refinement) return Refine;
       else if (Linf < tolerance_for_compression)

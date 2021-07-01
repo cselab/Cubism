@@ -30,9 +30,9 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
    {
       bool tensorial = false;
 
-      const int Gx = (WENOWAVELET == 3) ? 1 : 2;
-      const int Gy = (WENOWAVELET == 3) ? 1 : 2;
-      const int Gz = (WENOWAVELET == 3) ? 1 : 2;
+      const int Gx = 1;
+      const int Gy = 1;
+      const int Gz = 1;
 
       for (int i = 0 ; i < ElementType::DIM ; i++) AMR::components.push_back(i);
 

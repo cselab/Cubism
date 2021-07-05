@@ -274,7 +274,7 @@ class Grid
 
    virtual ~Grid() { _deallocAll(); }
 
-   virtual Block *avail(int m, int n) { return (Block *)getBlockInfoAll(m, n).ptrBlock; }
+   virtual Block *avail(int m, long long n) { return (Block *)getBlockInfoAll(m, n).ptrBlock; }
 
    virtual int rank() const { return 0; }
 

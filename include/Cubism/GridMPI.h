@@ -126,7 +126,7 @@ class GridMPI : public TGrid
 
    const std::vector<BlockInfo> &getResidentBlocksInfo() const { return TGrid::getBlocksInfo(); }
 
-   virtual Block *avail(int m, int n) override
+   virtual Block *avail(int m, long long n) override
    {
       if (TGrid::Tree(m, n).rank() == myrank) return (Block *)TGrid::getBlockInfoAll(m, n).ptrBlock;
       else
@@ -142,7 +142,7 @@ class GridMPI : public TGrid
       MPI_Comm_rank(worldcomm, &rank);
       MPI_Comm_size(worldcomm, &size);
 
-      std::vector<std::vector<int>> send_buffer(size);
+      std::vector<std::vector<long long>> send_buffer(size);
 
       std::vector<BlockInfo *> bbb = boundary;
       std::set<int> Neighbors;
@@ -180,7 +180,7 @@ class GridMPI : public TGrid
             }
             else if (infoNeiTree.CheckCoarser())
             {
-               int nCoarse                  = infoNei.Zparent;
+               const long long nCoarse                  = infoNei.Zparent;
                BlockInfo &infoNeiCoarser    = TGrid::getBlockInfoAll(infoNei.level - 1, nCoarse);
                const int infoNeiCoarserrank = TGrid::Tree(infoNei.level - 1, nCoarse).rank();
                if (infoNeiCoarserrank != rank)
@@ -244,15 +244,15 @@ class GridMPI : public TGrid
          {
             send_requests.resize(send_requests.size() + 1);
             if (send_buffer[r].size() != 0)
-               MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_INT, r, 123, worldcomm,
+               MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_LONG_LONG, r, 123, worldcomm,
                          &send_requests[send_requests.size() - 1]);
             else
             {
-               MPI_Isend(&dummy, 1, MPI_INT, r, 123, worldcomm, &send_requests[send_requests.size() - 1]);
+               MPI_Isend(&dummy, 1, MPI_LONG_LONG, r, 123, worldcomm, &send_requests[send_requests.size() - 1]);
             }
          }
 
-      std::vector<std::vector<int>> recv_buffer(size);
+      std::vector<std::vector<long long>> recv_buffer(size);
       for (int r : Neighbors)
          if (r != rank)
          {
@@ -264,7 +264,7 @@ class GridMPI : public TGrid
             {
                recv_buffer[r].resize(recv_size);
                recv_requests.resize(recv_requests.size() + 1);
-               MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_INT, r, 123, worldcomm,
+               MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_LONG_LONG, r, 123, worldcomm,
                          &recv_requests[recv_requests.size() - 1]);
             }
          }
@@ -277,7 +277,7 @@ class GridMPI : public TGrid
             for (int index = 0; index < (int)recv_buffer[r].size(); index += 3)
             {
                int level                              = recv_buffer[r][index];
-               int Z                                  = recv_buffer[r][index + 1];
+               long long Z                            = recv_buffer[r][index + 1];
                TGrid::getBlockInfoAll(level, Z).state = (recv_buffer[r][index + 2] == 1) ? Compress : Refine;
             }
    };

@@ -208,7 +208,7 @@ struct BlockInfo
       inverse(Z, level, index[0], index[1]);
       index[2] = 0;
 
-      const int Bmax[3] = {blocks_per_dim(0) * TwoPower, blocks_per_dim(1) * TwoPower, blocks_per_dim(2) * TwoPower};
+      const int Bmax[3] = {blocks_per_dim(0) * TwoPower, blocks_per_dim(1) * TwoPower, 1};
       for (int i = -1; i < 2; i++)
          for (int j = -1; j < 2; j++)
             for (int k = -1; k < 2; k++)

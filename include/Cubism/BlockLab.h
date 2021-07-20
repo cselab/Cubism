@@ -1559,7 +1559,7 @@ class BlockLab
       const double dy = 0.25*(2*y-1);
       ElementType dudx   = 0.5*( (*C[2][1]) + (-1.0)*(*C[0][1]) );
       ElementType dudy   = 0.5*( (*C[1][2]) + (-1.0)*(*C[1][0]) );
-      ElementType dudxdy = 0.5*((*C[0][0]) + (*C[2][2]) - (*C[2][0]) - (*C[0][2]));
+      ElementType dudxdy = 0.25*((*C[0][0]) + (*C[2][2]) - (*C[2][0]) - (*C[0][2]));
       ElementType dudx2  = (*C[0][1]) + (-2.0)*(*C[1][1]) + (*C[2][1]);
       ElementType dudy2  = (*C[1][0]) + (-2.0)*(*C[1][1]) + (*C[1][2]);
       R = *C[1][1] + dx*dudx + dy*dudy + (0.5*dx*dx)*dudx2+(0.5*dy*dy)*dudy2+(dx*dy)*dudxdy;

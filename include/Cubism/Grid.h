@@ -146,7 +146,7 @@ class Grid
       }
       for (int m = 0; m < levelMax; m++)
       {
-         const long long nmax = getMaxBlocks()[0] * getMaxBlocks()[1] * getMaxBlocks()[2] * pow(1 << m, 3);
+         const long long nmax = getMaxBlocks()[0] * getMaxBlocks()[1] * getMaxBlocks()[2] * pow(1 << m, DIMENSION);
          for (long long n = 0; n < nmax; n++)
          {
             if (Tree(m, n).position != -3)

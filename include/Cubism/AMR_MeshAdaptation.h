@@ -190,7 +190,7 @@ class MeshAdaptation_basic
 
             if (level + 2 < m_refGrid->getlevelMax())
                for (int i0 = 0; i0 < 2; i0++)
-                  for (int i1 = 0; i1 < 2; i1++) m_refGrid->Tree(level + 2, Child.Zchild[i0][i1]).setCheckCoarser();
+                  for (int i1 = 0; i1 < 2; i1++) m_refGrid->Tree(level + 2, Child.Zchild[i0][i1][1]).setCheckCoarser();
          }
       #endif
    }

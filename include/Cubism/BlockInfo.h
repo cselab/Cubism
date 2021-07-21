@@ -113,12 +113,7 @@ struct BlockInfo
    long long halo_block_id;
    long long Zparent;
 
-#if DIMENSION == 3
    long long Zchild[2][2][2];
-#endif
-#if DIMENSION == 2
-   long long Zchild[2][2];
-#endif
 
 #if DIMENSION == 3
    template <typename T>
@@ -135,9 +130,7 @@ struct BlockInfo
       pos(result.data(), ix, iy, iz);
       return result;
    }
-#endif
-
-#if DIMENSION == 2
+#else
    template <typename T>
    inline void pos(T p[2], int ix, int iy) const
    {
@@ -152,7 +145,6 @@ struct BlockInfo
       return result;
    }
 #endif
-
    BlockInfo(){};
 
    bool operator<(const BlockInfo &other) const { return (blockID_2 < other.blockID_2); }
@@ -226,9 +218,10 @@ struct BlockInfo
 
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
-         {
-            Zchild[i][j] = forward(level + 1, 2 * index[0] + i, 2 * index[1] + j);
-         }
+            for (int k = 0; k < 2; k++)
+            {
+               Zchild[i][j][k] = forward(level + 1, 2 * index[0] + i, 2 * index[1] + j);
+            }
 #endif
       blockID_2 = Encode(level, Z, index);
       blockID   = blockID_2;

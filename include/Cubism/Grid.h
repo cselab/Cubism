@@ -287,7 +287,6 @@ class Grid
       const int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
       return BlockInfo::forward(level, ix, iy, iz);
    }
-   long long getZchild(int level, int i, int j, int k) { return BlockInfo::child(level, i, j, k); }
    Block &operator()(int ix, int iy, int iz, int m)
    {
       const long long n = getZforward(m, ix, iy, iz);
@@ -306,7 +305,6 @@ class Grid
       const int iy       = (j + TwoPower * NY) % (NY * TwoPower);
       return BlockInfo::forward(level, ix, iy);
    }
-   long long getZchild(int level, int i, int j) { return BlockInfo::child(level, i, j); }
    Block &operator()(int ix, int iy, int m)
    {
       const long long n = getZforward(m, ix, iy);

@@ -31,18 +31,10 @@ struct StencilInfoWrapper
     {
         stencil.sx = -g;
         stencil.sy = -g;
-        stencil.sz = -g;
+        stencil.sz = DIMENSION == 3 ? -g : 0;
         stencil.ex = +g+1;
         stencil.ey = +g+1;
-        stencil.ez = +g+1;
-        stencil.selcomponents.push_back(0);
-        stencil.selcomponents.push_back(1);
-        stencil.selcomponents.push_back(2);
-        stencil.selcomponents.push_back(3);
-        stencil.selcomponents.push_back(4);
-        stencil.selcomponents.push_back(5);
-        stencil.selcomponents.push_back(6);
-        stencil.selcomponents.push_back(7);
+        stencil.ez = DIMENSION == 3 ?  +g+1 : 1;
         stencil.tensorial = true;
     }
 };
@@ -71,8 +63,16 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     std::vector<BlockGroup> & MyGroups = grid.MyGroups;
     grid.UpdateMyGroups();
 
+    #if DIMENSION==2
+        double hmin = 1e10;
+        for (size_t groupID = 0 ; groupID < MyGroups.size() ; groupID ++) hmin = std::min(hmin,MyGroups[groupID].h);
+        MPI_Allreduce(MPI_IN_PLACE, &hmin, 1, MPI_DOUBLE, MPI_MIN, comm);
+    #endif
     const int nGhosts = 0;
-    const StencilInfoWrapper p(nGhosts > 0 ? nGhosts : 1);
+    const int DIM = B::ElementType::DIM;
+    StencilInfoWrapper p(nGhosts > 0 ? nGhosts : 1);
+    for (int j = 0 ; j < DIM ; j++)
+        p.stencil.selcomponents.push_back(j);
     cubism::SynchronizerMPI_AMR<Real,TGrid>& Synch = *grid.sync(p);
     LabMPI lab;
     lab.prepare(grid, Synch);
@@ -119,7 +119,11 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
             s << "    " << std::scientific << group.origin[2] - nGhosts*group.h << " " << group.origin[1] - nGhosts*group.h << " " << group.origin[0] - nGhosts*group.h << "\n";
             s << "   </DataItem>\n";
             s << "   <DataItem Dimensions=\"3\" NumberType=\"Double\" Precision=\"8\" " "Format=\"XML\">\n";
-            s << "    " << std::scientific << group.h << " " << group.h << " " << group.h << "\n";
+            #if DIMENSION == 3
+              s << "    " << std::scientific <<group.h<<" "<<group.h <<" "<< group.h << "\n";
+            #else
+              s << "    " << std::scientific <<hmin<<" "<<group.h <<" "<< group.h << "\n";
+            #endif
             s << "   </DataItem>\n";
             s << "   </Geometry>\n";
   
@@ -223,7 +227,11 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         for (int jB = group.i_min[1]; jB <= group.i_max[1]; jB++)
         for (int iB = group.i_min[0]; iB <= group.i_max[0]; iB++)
         {
-            const long long Z = BlockInfo::forward(group.level,iB,jB,kB);
+            #if DIMENSION == 3
+              const long long Z = BlockInfo::forward(group.level,iB,jB,kB);
+            #else
+              const long long Z = BlockInfo::forward(group.level,iB,jB);
+            #endif
             const cubism::BlockInfo& I = grid.getBlockInfoAll(group.level,Z);
             lab.load(I, 0);
             for (int iz = 0 - nGhosts; iz < nZ + nGhosts; iz++)

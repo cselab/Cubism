@@ -48,7 +48,7 @@ class GridMPI : public TGrid
       MPI_Comm_rank(worldcomm, &myrank);
       cartcomm = worldcomm;
 
-      const long long total_blocks = nX * nY * nZ * pow(pow(2, a_levelStart), 3);
+      const long long total_blocks = nX * nY * nZ * pow(pow(2, a_levelStart), DIMENSION);
       long long my_blocks          = total_blocks / world_size;
       if ((long long)myrank < total_blocks % world_size) my_blocks++;
       long long n_start = myrank * (total_blocks / world_size);
@@ -61,7 +61,7 @@ class GridMPI : public TGrid
       for (long long n = n_start; n < n_start + my_blocks; n++) TGrid::_alloc(a_levelStart, n);
 
       const int m          = TGrid::levelStart;
-      const long long nmax = nX * nY * nZ * pow(pow(2, m), 3);
+      const long long nmax = nX * nY * nZ * pow(pow(2, m), DIMENSION);
       for (long long n = 0; n < nmax; n++)
       {
          long long r;
@@ -84,9 +84,10 @@ class GridMPI : public TGrid
          TGrid::Tree(m, n).setrank(r);
          if (r == (long long)myrank)
          {
-            int p[3];
             const int level   = m;
             const long long Z = n;
+           #if DIMENSION == 3
+            int p[3];
             BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
             if (level < TGrid::levelMax - 1)
                for (int k1 = 0; k1 < 2; k1++)
@@ -101,6 +102,22 @@ class GridMPI : public TGrid
                const long long nf = TGrid::getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
                TGrid::Tree(level - 1, nf).setCheckFiner();
             }
+           #else
+            int p[2];
+            BlockInfo::inverse(Z, level, p[0], p[1]);
+            if (level < TGrid::levelMax - 1)
+               for (int j1 = 0; j1 < 2; j1++)
+                  for (int i1 = 0; i1 < 2; i1++)
+                  {
+                     const long long nc = TGrid::getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1);
+                     TGrid::Tree(level + 1, nc).setCheckCoarser();
+                  }
+            if (level > 0)
+            {
+               const long long nf = TGrid::getZforward(level - 1, p[0] / 2, p[1] / 2);
+               TGrid::Tree(level - 1, nf).setCheckFiner();
+            }
+           #endif
          }
       }
 
@@ -411,6 +428,7 @@ class GridMPI : public TGrid
             int level   = (int)recv_buffer[kk][index__];
             long long Z = recv_buffer[kk][index__ + 1];
             TGrid::Tree(level, Z).setrank(r);
+           #if DIMENSION == 3
             int p[3];
             BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
 
@@ -427,6 +445,22 @@ class GridMPI : public TGrid
                const long long nf = TGrid::getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
                TGrid::Tree(level - 1, nf).setCheckFiner();
             }
+           #else
+            int p[2];
+            BlockInfo::inverse(Z, level, p[0], p[1]);
+            if (level < TGrid::levelMax - 1)
+               for (int j = 0; j < 2; j++)
+                  for (int i = 0; i < 2; i++)
+                  {
+                     const long long nc = TGrid::getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
+                     TGrid::Tree(level + 1, nc).setCheckCoarser();
+                  }
+            if (level > 0)
+            {
+               const long long nf = TGrid::getZforward(level - 1, p[0] / 2, p[1] / 2);
+               TGrid::Tree(level - 1, nf).setCheckFiner();
+            }
+           #endif
          }
       }
    }
@@ -440,6 +474,7 @@ class GridMPI : public TGrid
       double p_high[3];
       for (auto &info : TGrid::m_vInfo)
       {
+        #if DIMENSION == 3
          const double h = 2 * info.h;
          info.pos(p_low, 0, 0, 0);
          info.pos(p_high, Block::sizeX - 1, Block::sizeY - 1, Block::sizeZ - 1);
@@ -455,6 +490,23 @@ class GridMPI : public TGrid
          high[0] = std::max(high[0], p_high[0]);
          high[1] = std::max(high[1], p_high[1]);
          high[2] = std::max(high[2], p_high[2]);
+        #else
+         const double h = 2 * info.h;
+         info.pos(p_low, 0, 0);
+         info.pos(p_high, Block::sizeX - 1, Block::sizeY - 1);
+         p_low[0] -= h;
+         p_low[1] -= h;
+         p_low[2]  = 0;
+         p_high[0] += h;
+         p_high[1] += h;
+         p_high[2]  = 0;
+         low[0]  = std::min(low[0], p_low[0]);
+         low[1]  = std::min(low[1], p_low[1]);
+         low[2]  = 0;
+         high[0] = std::max(high[0], p_high[0]);
+         high[1] = std::max(high[1], p_high[1]);
+         high[2] = 0;
+        #endif
       }
       std::vector<double> all_boxes(world_size * 6);
       std::vector<double> my_box(6);
@@ -467,6 +519,7 @@ class GridMPI : public TGrid
       MPI_Allgather(my_box.data(), my_box.size(), MPI_DOUBLE, all_boxes.data(), 6, MPI_DOUBLE, worldcomm);
       for (int i = 0; i < world_size; i++)
       {
+         if ( i == myrank) continue;
          if (Intersect(low.data(), high.data(), &all_boxes[i * 6], &all_boxes[i * 6 + 3])) myNeighbors.push_back(i);
       }
       return myNeighbors;
@@ -486,7 +539,7 @@ class GridMPI : public TGrid
 
       const bool normal_intersection_x = intersect[0][1] - intersect[0][0] > 0.0;
       const bool normal_intersection_y = intersect[1][1] - intersect[1][0] > 0.0;
-      const bool normal_intersection_z = intersect[2][1] - intersect[2][0] > 0.0;
+      const bool normal_intersection_z = DIMENSION == 3 ? (intersect[2][1] - intersect[2][0] > 0.0) : true;
 
       if (normal_intersection_x && normal_intersection_y && normal_intersection_z) return true;
 
@@ -535,10 +588,10 @@ class GridMPI : public TGrid
       StencilInfo Cstencil = p.stencil;
       Cstencil.sx          = -1;
       Cstencil.sy          = -1;
-      Cstencil.sz          = -1;
+      Cstencil.sz          = DIMENSION == 3 ? -1:0;
       Cstencil.ex          = 2;
       Cstencil.ey          = 2;
-      Cstencil.ez          = 2;
+      Cstencil.ez          = DIMENSION == 3 ? 2:1;
       Cstencil.tensorial   = true;
 
       auto blockperDim          = TGrid::getMaxBlocks();

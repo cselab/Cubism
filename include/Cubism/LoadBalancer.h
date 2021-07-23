@@ -18,8 +18,7 @@ class LoadBalancer
    typedef typename TGrid::Block BlockType;
    typedef typename TGrid::Block::ElementType ElementType;
    bool movedBlocks;
-
-   static int counterg;
+   int counterg{0};
    double beta;
    int flux_left_old;
    int flux_right_old;
@@ -68,38 +67,38 @@ class LoadBalancer
       assert(b1 != NULL);
       Real *a1 = &b1->data[0][0][0].member(0);
       std::memcpy(a1, data, sizeof(BlockType));
-#if DIMENSION == 3
-      int p[3];
-      BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
-      if (level < m_refGrid->levelMax - 1)
-         for (int k1 = 0; k1 < 2; k1++)
-         for (int j1 = 0; j1 < 2; j1++)
-         for (int i1 = 0; i1 < 2; i1++)
+      #if DIMENSION == 3
+         int p[3];
+         BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
+         if (level < m_refGrid->levelMax - 1)
+            for (int k1 = 0; k1 < 2; k1++)
+            for (int j1 = 0; j1 < 2; j1++)
+            for (int i1 = 0; i1 < 2; i1++)
+            {
+               const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1, 2 * p[2] + k1);
+               m_refGrid->Tree(level + 1, nc).setCheckCoarser();
+            }
+         if (level > 0)
          {
-            const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1, 2 * p[2] + k1);
-            m_refGrid->Tree(level + 1, nc).setCheckCoarser();
+            const long long nf = m_refGrid->getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
+            m_refGrid->Tree(level - 1, nf).setCheckFiner();
          }
-      if (level > 0)
-      {
-         const long long nf = m_refGrid->getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
-         m_refGrid->Tree(level - 1, nf).setCheckFiner();
-      }
-#else
-      int p[2];
-      BlockInfo::inverse(Z, level, p[0], p[1]);
-      if (level < m_refGrid->levelMax - 1)
-         for (int j1 = 0; j1 < 2; j1++)
-         for (int i1 = 0; i1 < 2; i1++)
+      #else
+         int p[2];
+         BlockInfo::inverse(Z, level, p[0], p[1]);
+         if (level < m_refGrid->levelMax - 1)
+            for (int j1 = 0; j1 < 2; j1++)
+            for (int i1 = 0; i1 < 2; i1++)
+            {
+               const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1);
+               m_refGrid->Tree(level + 1, nc).setCheckCoarser();
+            }
+         if (level > 0)
          {
-            const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1);
-            m_refGrid->Tree(level + 1, nc).setCheckCoarser();
+            const long long nf = m_refGrid->getZforward(level - 1, p[0] / 2, p[1] / 2);
+            m_refGrid->Tree(level - 1, nf).setCheckFiner();
          }
-      if (level > 0)
-      {
-         const long long nf = m_refGrid->getZforward(level - 1, p[0] / 2, p[1] / 2);
-         m_refGrid->Tree(level - 1, nf).setCheckFiner();
-      }
-#endif
+      #endif
    }
 
  public:
@@ -135,11 +134,11 @@ class LoadBalancer
          assert(b.index[0] >= 0);
          assert(b.index[1] >= 0);
          assert(b.index[2] >= 0);
-#if DIMENSION == 3
-         const long long nBlock = m_refGrid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2), 2 * (b.index[2] / 2));
-#else
-         const long long nBlock = m_refGrid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2));
-#endif
+         #if DIMENSION == 3
+            const long long nBlock = m_refGrid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2), 2 * (b.index[2] / 2));
+         #else
+            const long long nBlock = m_refGrid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2));
+         #endif
          assert(nBlock >= 0);
          assert(b.Z >= 0);
 
@@ -161,12 +160,26 @@ class LoadBalancer
          }
          else if (b.Z == nBlock && base.state == Compress)
          {
-#if DIMENSION ==3
-            for (int k = 0; k < 2; k++)
+            #if DIMENSION ==3
+               for (int k = 0; k < 2; k++)
+                  for (int j = 0; j < 2; j++)
+                     for (int i = 0; i < 2; i++)
+                     {
+                        const long long n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
+                        if (n == nBlock) continue;
+                        BlockInfo &temp    = m_refGrid->getBlockInfoAll(b.level, n);
+                        const int temprank = m_refGrid->Tree(b.level, n).rank();
+                        if (temprank != rank)
+                        {
+                           recv_blocks[temprank].push_back({temp, false});
+                           m_refGrid->Tree(b.level, n).setrank(baserank);
+                        }
+                     }
+            #else
                for (int j = 0; j < 2; j++)
                   for (int i = 0; i < 2; i++)
                   {
-                     const long long n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
+                     const long long n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j);
                      if (n == nBlock) continue;
                      BlockInfo &temp    = m_refGrid->getBlockInfoAll(b.level, n);
                      const int temprank = m_refGrid->Tree(b.level, n).rank();
@@ -176,21 +189,7 @@ class LoadBalancer
                         m_refGrid->Tree(b.level, n).setrank(baserank);
                      }
                   }
-#else
-            for (int j = 0; j < 2; j++)
-               for (int i = 0; i < 2; i++)
-               {
-                  const long long n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j);
-                  if (n == nBlock) continue;
-                  BlockInfo &temp    = m_refGrid->getBlockInfoAll(b.level, n);
-                  const int temprank = m_refGrid->Tree(b.level, n).rank();
-                  if (temprank != rank)
-                  {
-                     recv_blocks[temprank].push_back({temp, false});
-                     m_refGrid->Tree(b.level, n).setrank(baserank);
-                  }
-               }
-#endif
+            #endif
          }
       }
 
@@ -354,24 +353,23 @@ class LoadBalancer
       int temp = movedBlocks ? 1 : 0;
       MPI_Allreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_LOR, comm);
       movedBlocks = (temp == 1);
-#if 0
-      if (movedBlocks == true)
-      {
-         int b = m_refGrid->getBlocksInfo().size();
-         std::vector<int> all_b(size);
-         MPI_Gather(&b, 1, MPI_INT, &all_b[0], 1, MPI_INT, 0, comm);
-
-         if (rank == 0)
+      #if 0
+         if (movedBlocks == true)
          {
-            std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
-            std::cout << " Distribution of blocks among ranks: \n";
-            for (int r = 0; r < size; r++) std::cout << all_b[r] << " | ";
-            std::cout << "\n";
-            std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
-            std::cout << std::endl;
+            int b = m_refGrid->getBlocksInfo().size();
+            std::vector<int> all_b(size);
+            MPI_Gather(&b, 1, MPI_INT, &all_b[0], 1, MPI_INT, 0, comm);
+            if (rank == 0)
+            {
+               std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
+               std::cout << " Distribution of blocks among ranks: \n";
+               for (int r = 0; r < size; r++) std::cout << all_b[r] << " | ";
+               std::cout << "\n";
+               std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
+               std::cout << std::endl;
+            }
          }
-      }
-#endif
+      #endif
       m_refGrid->FillPos();
       flux_left_old  = flux_left;
       flux_right_old = flux_right;
@@ -500,7 +498,5 @@ class LoadBalancer
       m_refGrid->FillPos();
    }
 };
-template <typename TGrid>
-int LoadBalancer<TGrid>::counterg = 0;
 
 } // namespace cubism

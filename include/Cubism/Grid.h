@@ -200,6 +200,13 @@ class Grid
 
    virtual void FillPos(bool CopyInfos = true)
    {
+      for (size_t i = 0; i < m_vInfo.size(); i++) m_vInfo[i].blockID = i;
+      std::sort(m_vInfo.begin(), m_vInfo.end());
+      std::vector<size_t> permutation(m_vInfo.size());
+      for (size_t i = 0; i < m_vInfo.size(); i++) permutation[i] = m_vInfo[i].blockID;
+      apply_permutation_in_place<Block *>(this->m_blocks, permutation);
+      for (size_t i = 0; i < m_vInfo.size(); i++) m_vInfo[i].blockID = i;
+
       if (CopyInfos)
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {
@@ -421,39 +428,6 @@ class Grid
             j       = p[j];
          }
       }
-   }
-   void SortBlocks()
-   {
-      for (size_t i = 0; i < m_vInfo.size(); i++) m_vInfo[i].blockID = i;
-      std::sort(m_vInfo.begin(), m_vInfo.end());
-      std::vector<size_t> permutation(m_vInfo.size());
-      for (size_t i = 0; i < m_vInfo.size(); i++) permutation[i] = m_vInfo[i].blockID;
-      apply_permutation_in_place<Block *>(this->m_blocks, permutation);
-      for (size_t i = 0; i < m_vInfo.size(); i++) m_vInfo[i].blockID = i;
-      //
-      //      for (size_t iii = 0 ; iii< m_vInfo.size(); iii++)
-      //      {
-      //         int level = m_vInfo[iii].level;
-      //         int Z = m_vInfo[iii].Z;
-      //         BlockInfo & dummy = getBlockInfoAll(level,Z);
-      //         Tree(level,Z).setrank(0);
-      //         int p[3];
-      //         BlockInfo::inverse(Z,level,p[0],p[1]);
-      //         if (level < levelMax - 1)
-      //           for (int k = 0; k < 2; k++)
-      //            for (int j = 0; j < 2; j++)
-      //             for (int i = 0; i < 2; i++)
-      //             {
-      //                 int nc = getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
-      //                 Tree(level + 1,nc).setCheckCoarser();
-      //             if (level > 0)
-      //             {
-      //                int nf = getZforward(level - 1, p[0] / 2, p[1] / 2);
-      //                Tree(level - 1,nf).setCheckFiner();
-      //             }
-      //             }
-      //      }
-      //
    }
 
    int getBlocksPerDimension(int idim) const

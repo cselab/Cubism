@@ -12,7 +12,7 @@
 namespace cubism
 {
 
-template <typename TGrid, typename TLab, typename otherTGRID = TGrid>
+template <typename TGrid, typename TLab>
 class MeshAdaptation
 {
  public:
@@ -99,15 +99,13 @@ class MeshAdaptation
       if (CallValidStates) ValidStates();
    }
 
-   void TagLike(otherTGRID &OtherGrid)
+   void TagLike(const std::vector<BlockInfo> & I1)
    {
-      otherTGRID *m_OtherGrid = &OtherGrid;
-      std::vector<BlockInfo> &I1 = m_OtherGrid->getBlocksInfo();
       std::vector<BlockInfo> &I2 = m_refGrid->getBlocksInfo();
       #pragma omp parallel for
       for (size_t i = 0 ; i < I1.size(); i++)
       {
-         BlockInfo & info1 = I1[i];
+         const BlockInfo & info1 = I1[i];
          BlockInfo & info2 = I2[i];
          BlockInfo & info3 = m_refGrid->getBlockInfoAll(info2.level, info2.Z);
          info2.state = info1.state;
@@ -177,10 +175,10 @@ class MeshAdaptation
       if (verbosity) std::cout << "Blocks refined:" << r << " blocks compressed:" << c << std::endl;
       m_refGrid->FillPos();
       delete[] labs;
-      if (!CallValidStates)
+      if (r>0 || c>0 || CallValidStates)
       {
          m_refGrid->UpdateGroups         = true;
-         m_refGrid->UpdateFluxCorrection = flag;
+         m_refGrid->UpdateFluxCorrection = true;
          flag                            = false;
       }
       LabsPrepared = false;

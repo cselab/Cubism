@@ -7,8 +7,8 @@
 namespace cubism
 {
 
-template <typename TGrid, typename TLab, typename otherTGRID = TGrid>
-class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
+template <typename TGrid, typename TLab>
+class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 {
 
  public:
@@ -25,10 +25,10 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
    bool LabsPrepared;
    bool CallValidStates;
    LoadBalancer<TGrid> *Balancer;
-   using AMR = MeshAdaptation<TGrid,TLab,otherTGRID>;
+   using AMR = MeshAdaptation<TGrid,TLab>;
 
  public:
-   MeshAdaptationMPI(TGrid &grid, double Rtol, double Ctol): MeshAdaptation<TGrid,TLab,otherTGRID>(grid,Rtol,Ctol)
+   MeshAdaptationMPI(TGrid &grid, double Rtol, double Ctol): MeshAdaptation<TGrid,TLab>(grid,Rtol,Ctol)
    {
       bool tensorial = false;
       const int Gx = 1;
@@ -401,7 +401,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab,otherTGRID>
         for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
         {
             #if DIMENSION == 3
-            const long long n = m_refGrid->getZforward(m, i, j, k);
+            const long long n = AMR::m_refGrid->getZforward(m, i, j, k);
             #else
             // if (k!=0) {std::cout << "k!=0\n"; abort();}
             const long long n = AMR::m_refGrid->getZforward(m, i, j);

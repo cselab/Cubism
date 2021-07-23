@@ -1449,9 +1449,9 @@ class SynchronizerMPI_AMR
       recv_buffer.resize(size);
    }
 
-   std::vector<BlockInfo *> avail_inner() { return inner_blocks; }
+   std::vector<BlockInfo *> & avail_inner() { return inner_blocks; }
 
-   std::vector<BlockInfo *> avail_halo()
+   std::vector<BlockInfo *> & avail_halo()
    {
       MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
       MPI_Waitall(recv_requests.size(), recv_requests.data(), MPI_STATUSES_IGNORE);

@@ -191,7 +191,8 @@ class MeshAdaptation
 
       BlockInfo &parent = m_refGrid->getBlockInfoAll(level, Z);
       parent.state      = Leave;
-      labs[tid].load(parent, time, true);
+      if (basic_refinement == false)
+         labs[tid].load(parent, time, true);
 
       const int p[3] = {parent.index[0], parent.index[1], parent.index[2]};
 

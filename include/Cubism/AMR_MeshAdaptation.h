@@ -108,12 +108,20 @@ class MeshAdaptation
          BlockInfo &info      = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
          for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
          for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
+#if DIMENSION == 3
          for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
          {
             const long long n = m_refGrid->getZforward(info.level, i, j, k);
             BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, n);
             infoNei.state = Leave;
          }
+#else
+         {
+            const long long n = m_refGrid->getZforward(info.level, i, j);
+            BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, n);
+            infoNei.state = Leave;
+         }
+#endif
          info.state = Leave;
          ary0.state = Leave;
       }
@@ -129,8 +137,12 @@ class MeshAdaptation
          {
             const int i2 = 2 * (info2.index[0] / 2);
             const int j2 = 2 * (info2.index[1] / 2);
+#if DIMENSION == 3
             const int k2 = 2 * (info2.index[2] / 2);
             const long long n = m_refGrid->getZforward(info2.level, i2, j2, k2);
+#else
+            const long long n = m_refGrid->getZforward(info2.level, i2, j2);
+#endif
             BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info2.level, n);
             infoNei.state = Compress;
          }

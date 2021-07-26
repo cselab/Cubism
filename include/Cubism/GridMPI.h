@@ -151,7 +151,7 @@ class GridMPI : public TGrid
    }
 
    std::vector<BlockInfo *> boundary;
-   void UpdateBoundary()
+   virtual void UpdateBoundary() override
    {
       const auto blocksPerDim = TGrid::getMaxBlocks();
 

@@ -439,6 +439,7 @@ class MeshAdaptation
 
       std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
 
+      #pragma omp parallel for
       for (size_t j = 0; j < I.size(); j++)
       {
          BlockInfo &info = I[j];
@@ -460,7 +461,6 @@ class MeshAdaptation
       // 3.Compress a block only if all blocks with the same parent need compression
       for (int m = levelMax - 1; m >= levelMin; m--)
       {
-
          // 1.
          for (size_t j = 0; j < I.size(); j++)
          {
@@ -484,7 +484,6 @@ class MeshAdaptation
                   if (!zperiodic && code[2] == zskip && zskin) continue;
 
                   BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-
                   if (m_refGrid->Tree(infoNei).CheckFiner())
                   {
                      if (info.state == Compress)
@@ -494,22 +493,22 @@ class MeshAdaptation
                      }
                      // if (info.level == levelMax - 1) break;
 
-                     int Bstep = 1;                                                    // face
-                     if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge
-                     else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3))
-                        Bstep = 4; // corner
+                     const int tmp = abs(code[0]) + abs(code[1]) + abs(code[2]); 
+                     int Bstep = 1;// face
+                     if (tmp == 2) Bstep = 3; //edge
+                     else if (tmp == 3) Bstep = 4; //corner                                                    
 
-                     for (int B = 0; B <= 3; B += Bstep) // loop over blocks that make up face/edge/corner
-                                                         // (respectively 4,2 or 1 blocks)
+                     //loop over blocks that make up face/edge/corner(respectively 4,2 or 1 blocks)
+                     for (int B = 0; B <= 3; B += Bstep) 
                      {
                         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                        int iNei = 2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0]));
-                        int jNei = 2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1]));
+                        const int iNei = 2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0]));
+                        const int jNei = 2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1]));
                         #if DIMENSION == 3
-                        int kNei = 2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2]));
-                        long long zzz = m_refGrid->getZforward(m + 1, iNei, jNei, kNei);
+                           const int kNei = 2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2]));
+                           const long long zzz = m_refGrid->getZforward(m + 1, iNei, jNei, kNei);
                         #else
-                        long long zzz = m_refGrid->getZforward(m + 1, iNei, jNei);
+                           const long long zzz = m_refGrid->getZforward(m + 1, iNei, jNei);
                         #endif
                         BlockInfo &FinerNei = m_refGrid->getBlockInfoAll(m + 1, zzz);
                         State NeiState      = FinerNei.state;
@@ -527,14 +526,16 @@ class MeshAdaptation
             }
          }
 
+         m_refGrid->UpdateBoundary();
          if (m == levelMin) break;
+
          // 2.
          for (size_t j = 0; j < I.size(); j++)
          {
             BlockInfo &info = I[j];
             if (info.level == m && info.state == Compress)
             {
-               int aux          = 1 << info.level;
+               const int aux    = 1 << info.level;
                const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
                const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
                const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
@@ -569,44 +570,39 @@ class MeshAdaptation
          const int m     = info.level;
          bool found      = false;
          for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
-            for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
-               for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
+         for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
+         for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
+         {
+            #if DIMENSION == 3
+               const long long n = m_refGrid->getZforward(m, i, j, k);
+            #else
+               const long long n = m_refGrid->getZforward(m, i, j);
+            #endif
+            BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
+            if (m_refGrid->Tree(infoNei).Exists() == false || infoNei.state != Compress)
+            {
+               found = true;
+               if (info.state == Compress)
                {
-                  #if DIMENSION == 3
-                  const long long n = m_refGrid->getZforward(m, i, j, k);
-                  #else
-                  // if (k!=0) {std::cout << "k!=0\n"; abort();}
-                  const long long n = m_refGrid->getZforward(m, i, j);
-                  #endif
-                  BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
-                  if (m_refGrid->Tree(infoNei).Exists() == false || infoNei.state != Compress)
-                  {
-                     found = true;
-                     if (info.state == Compress)
-                     {
-                        info.state                                             = Leave;
-                        (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
-                     }
-                     break;
-                  }
+                  info.state                                             = Leave;
+                  (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
                }
+               break;
+            }
+         }
          if (found)
             for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
-               for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
-                  for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
-                  {
-                     #if DIMENSION == 3
-                     const long long n = m_refGrid->getZforward(m, i, j, k);
-                     #else
-                     // if (k!=0) {std::cout << "k!=0\n"; abort();}
-                     const long long n = m_refGrid->getZforward(m, i, j);
-                     #endif
-                     BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
-                     if (m_refGrid->Tree(infoNei).Exists() && infoNei.state == Compress)
-                     {
-                        infoNei.state = Leave;
-                     }
-                  }
+            for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
+            for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
+            {
+               #if DIMENSION == 3
+                  const long long n = m_refGrid->getZforward(m, i, j, k);
+               #else
+                  const long long n = m_refGrid->getZforward(m, i, j);
+               #endif
+               BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
+               if (m_refGrid->Tree(infoNei).Exists() && infoNei.state == Compress) infoNei.state = Leave;
+            }
       }
    }
    ////////////////////////////////////////////////////////////////////////////////////////////////

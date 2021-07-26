@@ -437,6 +437,8 @@ class Grid
    }
    virtual int get_world_size() const { return 1; }
 
+   virtual void UpdateBoundary(){} //does nothing for a single node (no MPI)
+
    void UpdateMyGroups()
    {
       // if (!UpdateGroups) return; //TODO : does not work for CUP2D

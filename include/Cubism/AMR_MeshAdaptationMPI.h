@@ -22,7 +22,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
    SynchronizerMPI_AMR<Real,TGrid> *Synch;
    int timestamp;
    bool flag;
-   bool LabsPrepared;
    bool CallValidStates;
    LoadBalancer<TGrid> *Balancer;
    using AMR = MeshAdaptation<TGrid,TLab>;
@@ -84,7 +83,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       std::vector<BlockInfo * > & halo  = Synch->avail_halo();
       TagBlocksVector(halo , Reduction, Reduction_req, tmp);
 
-      LabsPrepared = true;
+      AMR::LabsPrepared = true;
 
       if (!Reduction)
       {
@@ -104,7 +103,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
    virtual void Adapt(double t = 0, bool verbosity = false, bool basic = false) override
    {
       AMR::basic_refinement = basic;
-      if (LabsPrepared == false)
+      if (AMR::LabsPrepared == false)
       {
          Synch->sync(sizeof(typename Block::element_type) / sizeof(Real),sizeof(Real) > 4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
          timestamp = (timestamp + 1) % 32768;
@@ -200,7 +199,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             it++;
          }
       }
-      LabsPrepared = false;
+      AMR::LabsPrepared = false;
    }
 
  protected:

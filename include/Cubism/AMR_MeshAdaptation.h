@@ -102,6 +102,21 @@ class MeshAdaptation
    void TagLike(const std::vector<BlockInfo> & I1)
    {
       std::vector<BlockInfo> &I2 = m_refGrid->getBlocksInfo();
+      for (size_t i1 = 0; i1 < I2.size(); i1++)
+      {
+         BlockInfo &ary0      = I2[i1];
+         BlockInfo &info      = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
+         for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
+         for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
+         for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
+         {
+            const long long n = m_refGrid->getZforward(info.level, i, j, k);
+            BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, n);
+            infoNei.state = Leave;
+         }
+         info.state = Leave;
+         ary0.state = Leave;
+      }
       #pragma omp parallel for
       for (size_t i = 0 ; i < I1.size(); i++)
       {
@@ -110,6 +125,15 @@ class MeshAdaptation
          BlockInfo & info3 = m_refGrid->getBlockInfoAll(info2.level, info2.Z);
          info2.state = info1.state;
          info3.state = info1.state;
+         if (info2.state == Compress)
+         {
+            const int i2 = 2 * (info2.index[0] / 2);
+            const int j2 = 2 * (info2.index[1] / 2);
+            const int k2 = 2 * (info2.index[2] / 2);
+            const long long n = m_refGrid->getZforward(info2.level, i2, j2, k2);
+            BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info2.level, n);
+            infoNei.state = Compress;
+         }
       }
       LabsPrepared = false;
    }
@@ -583,39 +607,6 @@ class MeshAdaptation
                         infoNei.state = Leave;
                      }
                   }
-      }
-
-      // 4.
-      for (size_t jjj = 0; jjj < I.size(); jjj++)
-      {
-         BlockInfo &info = I[jjj];
-         if (info.state == Compress)
-         {
-            int m      = info.level;
-            bool first = true;
-            for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
-               for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
-                  #if DIMENSION == 3
-                  for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
-                  {
-                     const long long n = m_refGrid->getZforward(m, i, j, k);
-                  #else
-               {
-                  const long long n = m_refGrid->getZforward(m, i, j);
-                  #endif
-                     BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
-                     if (!first)
-                     {
-                        infoNei.state = Leave;
-                     }
-                     first = false;
-                  }
-            if (info.index[0] % 2 == 1 || info.index[1] % 2 == 1 || info.index[2] % 2 == 1)
-            {
-               info.state                                             = Leave;
-               (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
-            }
-         }
       }
    }
    ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -78,7 +78,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       MPI_Request Reduction_req;
       int tmp;
 
-      std::vector<BlockInfo * > & inner = Synch->avail_inner();      
+      std::vector<BlockInfo * > & inner = Synch->avail_inner();
       TagBlocksVector(inner, Reduction, Reduction_req, tmp);
 
       std::vector<BlockInfo * > & halo  = Synch->avail_halo();
@@ -133,7 +133,10 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             m_ref.push_back(info.level);
             n_ref.push_back(info.Z);
          }
-         else if (info.state == Compress)
+         else if (info.state == Compress
+            && info.index[0]%2 == 0
+            && info.index[1]%2 == 0
+            && info.index[2]%2 == 0)
          {
             m_com.push_back(info.level);
             n_com.push_back(info.Z);
@@ -200,132 +203,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       LabsPrepared = false;
    }
 
-   void AdaptLikeOther(otherTGRID &OtherGrid)
-   {
-      std::vector<BlockInfo> &I = AMR::m_refGrid->getBlocksInfo();
-
-      otherTGRID *m_OtherGrid = &OtherGrid;
-      #pragma omp parallel
-      {
-         #pragma omp for
-         for (size_t i1 = 0; i1 < I.size(); i1++)
-         {
-            BlockInfo &ary0      = I[i1];
-            BlockInfo &info      = AMR::m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
-            for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
-            for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
-            {
-               const long long n = AMR::m_refGrid->getZforward(info.level, i, j, k);
-               BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(info.level, n);
-               infoNei.state = Leave;
-            }
-            info.state = Leave; 
-            ary0.state = Leave;
-         }
-
-         #pragma omp for
-         for (size_t i1 = 0; i1 < I.size(); i1++)
-         {
-            BlockInfo &ary0      = I[i1];
-            BlockInfo &info      = AMR::m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            BlockInfo &infoOther = m_OtherGrid->getBlockInfoAll(ary0.level, ary0.Z);
-            if      (m_OtherGrid->Tree(infoOther).Exists()      ) ary0.state = Leave;
-            else if (m_OtherGrid->Tree(infoOther).CheckFiner()  ) ary0.state = Refine;
-            else if (m_OtherGrid->Tree(infoOther).CheckCoarser()) ary0.state = Compress;
-            if (ary0.state == Compress)
-            {
-               const int i = 2 * (info.index[0] / 2);
-               const int j = 2 * (info.index[1] / 2);
-               const int k = 2 * (info.index[2] / 2);
-               const long long n = AMR::m_refGrid->getZforward(info.level, i, j, k);
-               BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(info.level, n);
-               infoNei.state = Compress;
-               if (info.index[0] % 2 == 1 || info.index[1] % 2 == 1 || info.index[2] % 2 == 1)
-               {
-                  ary0.state = Leave;
-                  (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
-               }
-            }
-            info.state = ary0.state;
-         }
-      }
-
-      // Refinement/compression of blocks
-      /*************************************************/
-      int r = 0;
-      int c = 0;
-
-      std::vector<int> m_com;
-      std::vector<int> m_ref;
-      std::vector<long long> n_com;
-      std::vector<long long> n_ref;
-
-
-      for (auto &info : I)
-      {
-         if (info.state == Refine)
-         {
-            m_ref.push_back(info.level);
-            n_ref.push_back(info.Z);
-         }
-         else if (info.state == Compress)
-         {
-            m_com.push_back(info.level);
-            n_com.push_back(info.Z);
-         }
-      }
-
-      #pragma omp parallel
-      {
-         #pragma omp for
-         for (size_t i = 0; i < m_ref.size(); i++)
-         {
-            AMR::basic_refinement = true;
-            AMR::refine_1(m_ref[i], n_ref[i]);
-            #pragma omp atomic
-            r++;
-         }
-         #pragma omp for
-         for (size_t i = 0; i < m_ref.size(); i++)
-         {
-            AMR::refine_2(m_ref[i], n_ref[i]);
-         }
-      }
-
-      Balancer->PrepareCompression();
-
-      #pragma omp parallel for
-      for (size_t i = 0; i < m_com.size(); i++)
-      {
-         AMR::compress(m_com[i], n_com[i]);
-         #pragma omp atomic
-         c++;
-      }
-
-      AMR::m_refGrid->FillPos();
-      Balancer->Balance_Diffusion();
-
-      #if 1
-      int temp[2] = {r, c};
-      int result[2];
-      MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, AMR::m_refGrid->getWorldComm());
-      #endif
-
-      if ( result[0] > 0 || result[1] > 0 || Balancer->movedBlocks)
-      {
-         AMR::m_refGrid->UpdateFluxCorrection = true;
-         AMR::m_refGrid->UpdateGroups = true;
-         AMR::m_refGrid->UpdateBlockInfoAll_States(false);
-         auto it = AMR::m_refGrid->SynchronizerMPIs.begin();
-         while (it != AMR::m_refGrid->SynchronizerMPIs.end())
-         {
-            (*it->second)._Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), timestamp,true);
-            it++;
-         }
-      }
-   }
-////////////////////////////////////////////////////////////////////////////////////////////////////
  protected:
    void TagBlocksVector(std::vector<BlockInfo *> & I, bool & Reduction, MPI_Request & Reduction_req, int & tmp)
    {
@@ -534,39 +411,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);
             if (AMR::m_refGrid->Tree(infoNei).Exists() && infoNei.state == Compress) infoNei.state = Leave;
         }
-      }
-
-      // 4.
-      for (size_t jjj = 0; jjj < I.size(); jjj++)
-      {
-         BlockInfo &info = I[jjj];
-         if (info.state == Compress)
-         {
-            int m      = info.level;
-            bool first = true;
-            for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
-               for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
-                  #if DIMENSION == 3
-                  for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
-                  {
-                     const long long n = AMR::m_refGrid->getZforward(m, i, j, k);
-                  #else
-               {
-                  const long long n = AMR::m_refGrid->getZforward(m, i, j);
-                  #endif
-                     BlockInfo &infoNei = AMR::m_refGrid->getBlockInfoAll(m, n);
-                     if (!first)
-                     {
-                        infoNei.state = Leave;
-                     }
-                     first = false;
-                  }
-            if (info.index[0] % 2 == 1 || info.index[1] % 2 == 1 || info.index[2] % 2 == 1)
-            {
-               info.state                                             = Leave;
-               (AMR::m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
-            }
-         }
       }
    }
 

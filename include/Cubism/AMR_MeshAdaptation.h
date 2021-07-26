@@ -180,7 +180,8 @@ class MeshAdaptation
             m_ref.push_back(info.level);
             n_ref.push_back(info.Z);
          }
-         else if (info.state == Compress)
+         else if (info.state == Compress && info.index[0]%2 == 0
+            && info.index[1]%2 == 0 && info.index[2]%2 == 0)
          {
             m_com.push_back(info.level);
             n_com.push_back(info.Z);

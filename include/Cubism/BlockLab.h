@@ -334,6 +334,9 @@ class BlockLab
             if (!xperiodic && code[0] == xskip && xskin) continue;
             if (!yperiodic && code[1] == yskip && yskin) continue;
             if (!zperiodic && code[2] == zskip && zskin) continue;
+            #if DIMENSION == 2
+            if (code[2] != 0) continue;
+            #endif
 
             //get neighbor on same level of resolution
             const BlockInfo &infoNei = grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
@@ -986,6 +989,9 @@ class BlockLab
          if (!yperiodic && code[1] == yskip && yskin) continue;
          if (!zperiodic && code[2] == zskip && zskin) continue;
          if (!istensorial && abs(code[0]) + abs(code[1]) + abs(code[2]) > 1) continue;
+         #if DIMENSION == 2
+         if (code[2] != 0) continue;
+         #endif
 
          const BlockInfo &infoNei =
              grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));

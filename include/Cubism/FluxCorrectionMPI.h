@@ -124,6 +124,9 @@ class FluxCorrectionMPI : public TFluxCorrection
             if (!TFluxCorrection::xperiodic && code[0] == xskip && xskin) continue;
             if (!TFluxCorrection::yperiodic && code[1] == yskip && yskin) continue;
             if (!TFluxCorrection::zperiodic && code[2] == zskip && zskin) continue;
+            #if DIMENSION == 2
+            if (code[2] != 0) continue;
+            #endif
 
             BlockInfo infoNei =
                 (*TFluxCorrection::m_refGrid)

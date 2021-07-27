@@ -187,6 +187,9 @@ class GridMPI : public TGrid
             if (!TGrid::xperiodic && code[0] == xskip && xskin) continue;
             if (!TGrid::yperiodic && code[1] == yskip && yskin) continue;
             if (!TGrid::zperiodic && code[2] == zskip && zskin) continue;
+            #if DIMENSION == 2
+            if (code[2] != 0) continue;
+            #endif
 
             BlockInfo &infoNei = TGrid::getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 
@@ -332,6 +335,9 @@ class GridMPI : public TGrid
             if (!TGrid::xperiodic && code[0] == xskip && xskin) continue;
             if (!TGrid::yperiodic && code[1] == yskip && yskin) continue;
             if (!TGrid::zperiodic && code[2] == zskip && zskin) continue;
+            #if DIMENSION == 2
+            if (code[2] != 0) continue;
+            #endif
 
             BlockInfo &infoNei = TGrid::getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
 

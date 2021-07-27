@@ -496,6 +496,10 @@ class MeshAdaptation
                   if (!xperiodic && code[0] == xskip && xskin) continue;
                   if (!yperiodic && code[1] == yskip && yskin) continue;
                   if (!zperiodic && code[2] == zskip && zskin) continue;
+                  #if DIMENSION == 2
+                  if (code[2] != 0) continue;
+                  #endif
+
 
                   BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
                   if (m_refGrid->Tree(infoNei).CheckFiner())
@@ -568,6 +572,9 @@ class MeshAdaptation
                   if (!xperiodic && code[0] == xskip && xskin) continue;
                   if (!yperiodic && code[1] == yskip && yskin) continue;
                   if (!zperiodic && code[2] == zskip && zskin) continue;
+                  #if DIMENSION == 2
+                  if (code[2] != 0) continue;
+                  #endif
 
                   BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
                   if (m_refGrid->Tree(infoNei).Exists() && infoNei.state == Refine)

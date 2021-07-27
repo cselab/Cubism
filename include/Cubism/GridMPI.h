@@ -15,6 +15,7 @@
 #include "AMR_SynchronizerMPI.h"
 #include "BlockInfo.h"
 #include "StencilInfo.h"
+#include "FluxCorrectionMPI.h"
 
 CUBISM_NAMESPACE_BEGIN
 
@@ -36,6 +37,7 @@ class GridMPI : public TGrid
    typedef typename TGrid::BlockType Block;
    typedef typename TGrid::BlockType BlockType;
    std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs;
+   FluxCorrectionMPI<FluxCorrection<GridMPI<TGrid>,Block>,GridMPI<TGrid>> Corrector;
 
    GridMPI(const int npeX, const int npeY, const int npeZ, const int nX, const int nY = 1, const int nZ = 1,
            const double _maxextent = 1, const int a_levelStart = 0, const int a_levelMax = 1,
@@ -161,7 +163,7 @@ class GridMPI : public TGrid
 
       std::vector<std::vector<long long>> send_buffer(size);
 
-      std::vector<BlockInfo *> bbb = boundary;
+      std::vector<BlockInfo *> & bbb = boundary;
       std::set<int> Neighbors;
       for (size_t jjj = 0; jjj < bbb.size(); jjj++)
       {
@@ -202,6 +204,7 @@ class GridMPI : public TGrid
                const int infoNeiCoarserrank = TGrid::Tree(infoNei.level - 1, nCoarse).rank();
                if (infoNeiCoarserrank != rank)
                {
+                  assert(infoNeiCoarserrank >= 0);
                   if (infoNeiCoarser.state != Refine) infoNeiCoarser.state = Leave;
                   receivers.insert(infoNeiCoarserrank);
                   Neighbors.insert(infoNeiCoarserrank);
@@ -214,8 +217,12 @@ class GridMPI : public TGrid
                else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3))
                   Bstep = 4; // corner
 
+               #if DIMENSION == 3
                for (int B = 0; B <= 3; B += Bstep) // loop over blocks that make up face/edge/corner
                                                    // (respectively 4,2 or 1 blocks)
+               #else
+               for (int B = 0; B <= 1; B += Bstep)
+               #endif
                {
                   const int temp         = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
                   const long long nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
@@ -276,7 +283,7 @@ class GridMPI : public TGrid
             int recv_size;
             MPI_Status status;
             MPI_Probe(r, 123, worldcomm, &status);
-            MPI_Get_count(&status, MPI_INT, &recv_size);
+            MPI_Get_count(&status, MPI_LONG_LONG, &recv_size);
             if (recv_size > 0)
             {
                recv_buffer[r].resize(recv_size);

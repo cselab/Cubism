@@ -490,6 +490,7 @@ class MeshAdaptation
 
                for (int icode = 0; icode < 27; icode++)
                {
+                  if (info.state == Refine) break;
                   if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;
                   const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
                   if (!xperiodic && code[0] == xskip && xskin) continue;
@@ -512,7 +513,11 @@ class MeshAdaptation
                      else if (tmp == 3) Bstep = 4; //corner                                                    
 
                      //loop over blocks that make up face/edge/corner(respectively 4,2 or 1 blocks)
-                     for (int B = 0; B <= 3; B += Bstep) 
+                     #if DIMENSION == 3
+                     for (int B = 0; B <= 3; B += Bstep)
+                     #else
+                     for (int B = 0; B <= 1; B += Bstep)
+                     #endif
                      {
                         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
                         const int iNei = 2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0]));

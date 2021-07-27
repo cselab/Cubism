@@ -92,7 +92,7 @@ class FluxCorrection
 
       for (auto & info: B)
       {
-	m_refGrid->getBlockInfoAll(info.level, info.Z).auxiliary = nullptr;
+	      m_refGrid->getBlockInfoAll(info.level, info.Z).auxiliary = nullptr;
         const int aux = 1<<info.level;
 
         const bool xskin = info.index[0]==0 || info.index[0]==blocksPerDim[0]*aux-1;

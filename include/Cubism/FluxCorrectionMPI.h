@@ -77,7 +77,7 @@ class FluxCorrectionMPI : public TFluxCorrection
       std::vector<int> send_buffer_size(size, 0);
       std::vector<int> recv_buffer_size(size, 0);
 
-      const int NC = 8;
+      const int NC = ElementType::DIM;
 
       int blocksize[3];
       blocksize[0] = BlockType::sizeX;
@@ -139,7 +139,11 @@ class FluxCorrectionMPI : public TFluxCorrection
             int L[3];
             L[0]  = (code[0] == 0) ? blocksize[0] / 2 : 1;
             L[1]  = (code[1] == 0) ? blocksize[1] / 2 : 1;
-            L[2]  = (code[2] == 0) ? blocksize[2] / 2 : 1;
+            #if DIMENSION == 3
+               L[2] = (code[2] == 0) ? blocksize[2] / 2 : 1;
+            #else
+               L[2] = 1;
+            #endif
             int V = L[0] * L[1] * L[2];
 
             if ( (*TFluxCorrection::m_refGrid).Tree(infoNei).CheckCoarser())
@@ -158,7 +162,11 @@ class FluxCorrectionMPI : public TFluxCorrection
             else if ( (*TFluxCorrection::m_refGrid).Tree(infoNei).CheckFiner())
             {
                int Bstep = 1;                      // face
+               #if DIMENSION == 3
                for (int B = 0; B <= 3; B += Bstep) // loop over blocks that make up face
+               #else
+               for (int B = 0; B <= 1; B += Bstep) // loop over blocks that make up face
+               #endif 
                {
                   const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
                   const long long nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
@@ -218,7 +226,11 @@ class FluxCorrectionMPI : public TFluxCorrection
             int L[3];
             L[0]  = (code[0] == 0) ? blocksize[0] / 2 : 1;
             L[1]  = (code[1] == 0) ? blocksize[1] / 2 : 1;
-            L[2]  = (code[2] == 0) ? blocksize[2] / 2 : 1;
+            #if DIMENSION == 3
+               L[2]  = (code[2] == 0) ? blocksize[2] / 2 : 1;
+            #else
+               L[2] = 1;
+            #endif
             int V = L[0] * L[1] * L[2];
 
             f.offset = offset;
@@ -252,39 +264,37 @@ class FluxCorrectionMPI : public TFluxCorrection
 
             int icode         = f.icode[0];
             const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
-            int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) +
-                         abs(code[2]) * (max(0, code[2]) + 4);
+            const int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) +
+                               abs(code[2]) * (max(0, code[2]) + 4);
             std::vector<ElementType> &FineFace = FineCase.m_pData[myFace];
 
-            int d  = myFace / 2;
-            int d1 = max((d + 1) % 3, (d + 2) % 3);
-            int d2 = min((d + 1) % 3, (d + 2) % 3);
-            int N1 = FineCase.m_vSize[d1];
-            int N2 = FineCase.m_vSize[d2];
-
-            for (int i1 = 0; i1 < N1; i1 += 2)
+            const int d  = myFace / 2;
+            const int d2 = min((d + 1) % 3, (d + 2) % 3);
+            const int N2 = FineCase.m_vSize[d2];
+            #if DIMENSION == 3
+            const int d1 = max((d + 1) % 3, (d + 2) % 3);
+            const int N1 = FineCase.m_vSize[d1];
+               for (int i1 = 0; i1 < N1; i1 += 2)
                for (int i2 = 0; i2 < N2; i2 += 2)
                {
                   ElementType avg = ((FineFace[i2 + i1 * N2] + FineFace[i2 + 1 + i1 * N2]) + (FineFace[i2 + (i1 + 1) * N2] + FineFace[i2 + 1 + (i1 + 1) * N2]));
-                  #if 0
-                     send_buffer[r][displacement]     = avg.alpha1rho1;
-                     send_buffer[r][displacement + 1] = avg.alpha2rho2;
-                     send_buffer[r][displacement + 2] = avg.ru;
-                     send_buffer[r][displacement + 3] = avg.rv;
-                     send_buffer[r][displacement + 4] = avg.rw;
-                     send_buffer[r][displacement + 5] = avg.energy;
-                     send_buffer[r][displacement + 6] = avg.alpha2;
-                     send_buffer[r][displacement + 7] = avg.dummy;
-                  #else
-                     assert(ElementType::DIM == 8);
-                     for (int j = 0 ; j < ElementType::DIM; j++) send_buffer[r][displacement + j] = avg.member(j);
-                  #endif
-                  displacement += 8;
+                  for (int j = 0 ; j < ElementType::DIM; j++) send_buffer[r][displacement + j] = avg.member(j);
+                  displacement += ElementType::DIM;
                   FineFace[i2 + i1 * N2].clear();
                   FineFace[i2 + 1 + i1 * N2].clear();
                   FineFace[i2 + (i1 + 1) * N2].clear();
                   FineFace[i2 + 1 + (i1 + 1) * N2].clear();
                }
+            #else
+              for (int i2 = 0; i2 < N2; i2 += 2)
+              {
+                 ElementType avg = FineFace[i2] + FineFace[i2];
+                 for (int j = 0 ; j < ElementType::DIM; j++) send_buffer[r][displacement + j] = avg.member(j);
+                 displacement += ElementType::DIM;
+                 FineFace[i2    ].clear();
+                 FineFace[i2 + 1].clear();
+              }
+            #endif
          }
       }
 
@@ -334,16 +344,24 @@ class FluxCorrectionMPI : public TFluxCorrection
       assert(search != TFluxCorrection::MapOfCases.end());
       Case &CoarseCase                     = (*search->second);
       std::vector<ElementType> &CoarseFace = CoarseCase.m_pData[myFace];
-
+      #if DIMENSION == 3
       for (int B = 0; B <= 3; B++) // loop over fine blocks that make up coarse face
+      #else
+      for (int B = 0; B <= 1; B++) // loop over fine blocks that make up coarse face
+      #endif
       {
          const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-         const long long Z = (*TFluxCorrection::m_refGrid).getZforward(info.level + 1,
-                                  2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
-                                  2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])),
-                                  2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2])));
-
+         #if DIMENSION == 3
+            const long long Z = (*TFluxCorrection::m_refGrid).getZforward(info.level + 1,
+                                     2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
+                                     2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])),
+                                     2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2])));
+         #else
+            const long long Z = (*TFluxCorrection::m_refGrid).getZforward(info.level + 1,
+                            2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
+                            2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])));
+         #endif
          if (Z != F.infos[0]->Z) continue;
 
          const int d  = myFace / 2;
@@ -359,25 +377,23 @@ class FluxCorrectionMPI : public TFluxCorrection
 
          int r   = (*TFluxCorrection::m_refGrid).Tree(F.infos[0]->level,F.infos[0]->Z).rank();
          int dis = 0;
-         for (int i1 = 0; i1 < N1; i1 += 2)
-         for (int i2 = 0; i2 < N2; i2 += 2)
-         {
-            #if 0
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].alpha1rho1 +=recv_buffer[r][F.offset + dis];
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].alpha2rho2 +=recv_buffer[r][F.offset + dis + 1];
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].ru         +=recv_buffer[r][F.offset + dis + 2];
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].rv         +=recv_buffer[r][F.offset + dis + 3];
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].rw         +=recv_buffer[r][F.offset + dis + 4];
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].energy     +=recv_buffer[r][F.offset + dis + 5];
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].alpha2     +=recv_buffer[r][F.offset + dis + 6];
-            CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].dummy      +=recv_buffer[r][F.offset + dis + 7];
-            #else
-            assert(ElementType::DIM == 8);
-            for (int j = 0; j < ElementType::DIM; j++)
-               CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].member(j) +=recv_buffer[r][F.offset + dis + j];
-            #endif
-            dis += 8;
-         }
+
+         #if DIMENSION == 3
+            for (int i1 = 0; i1 < N1; i1 += 2)
+            for (int i2 = 0; i2 < N2; i2 += 2)
+            {
+               for (int j = 0; j < ElementType::DIM; j++)
+                  CoarseFace[base + (i2 / 2) + (i1 / 2) * N2].member(j) +=recv_buffer[r][F.offset + dis + j];
+               dis += ElementType::DIM;
+            }
+         #else
+            for (int i2 = 0; i2 < N2; i2 += 2)
+            {
+               for (int j = 0; j < ElementType::DIM; j++)
+                  CoarseFace[base + (i2 / 2)].member(j) +=recv_buffer[r][F.offset + dis + j];
+               dis += ElementType::DIM;
+            }
+         #endif
       }
 
       const int d  = myFace / 2;

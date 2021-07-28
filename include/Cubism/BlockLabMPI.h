@@ -58,10 +58,7 @@ class BlockLabMPI : public MyBlockLab
       refSynchronizerMPI->fetch(info, gptfloats, Length, CLength, m_nElemsPerSlice, dst, dst1);
 
       if (MyBlockLab::m_refGrid->get_world_size() > 1)
-      {
-        const std::vector<int> & selcomponents = refSynchronizerMPI->getstencil().selcomponents;
-        MyBlockLab::post_load(info, selcomponents, t, applybc);
-      }
+        MyBlockLab::post_load(info, t, applybc);
    }
 
    void release() { MyBlockLab::release(); }

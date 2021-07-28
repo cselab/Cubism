@@ -251,7 +251,7 @@ class BlockLab
       #endif
    }
 
-   void load(BlockInfo info, const Real t = 0, const bool applybc = true)
+   void load(const BlockInfo & info, const Real t = 0, const bool applybc = true)
    {
       Grid<BlockType, allocator> &grid = *m_refGrid;
       const int nX                    = BlockType::sizeX;
@@ -374,16 +374,12 @@ class BlockLab
 
          if (m_refGrid->get_world_size() == 1)
          {
-            std::vector <int> selcomponents1;
-            for (int i=0;i<ElementType::DIM;i++)
-               selcomponents1.push_back(i);
-            const std::vector <int> selcomponents=selcomponents1;
-            post_load(info, selcomponents,t, applybc);
+            post_load(info, t, applybc);
          }
       }
    }
 
-   void post_load(const BlockInfo &info, const std::vector<int> & selcomponents, const Real t = 0, bool applybc = true)
+   void post_load(const BlockInfo &info, const Real t = 0, bool applybc = true)
    {
       #if DIMENSION == 3
          const int nX = BlockType::sizeX;
@@ -438,7 +434,7 @@ class BlockLab
          }
       #endif
       if (applybc) _apply_bc(info, t, true); // apply BC to coarse block
-      CoarseFineInterpolation(info,selcomponents);
+      CoarseFineInterpolation(info);
       if (applybc) _apply_bc(info, t); 
    }
 
@@ -959,7 +955,7 @@ class BlockLab
       a = 9.0*kappa+3.0*lambda+c;
    }
 
-   void CoarseFineInterpolation(const BlockInfo &info,const std::vector<int> & selcomponents)
+   void CoarseFineInterpolation(const BlockInfo &info)
    {
       Grid<BlockType, allocator> &grid = *m_refGrid;
       const int nX         = BlockType::sizeX;
@@ -1057,7 +1053,7 @@ class BlockLab
                               for (int k = 0; k < 3; k++)
                                  Test[i][j][k] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0], YY - 1 + j - offset[1], ZZ - 1 + k - offset[2]);
    
-                        TestInterp(Test,retval,x,y,z,selcomponents);
+                        TestInterp(Test,retval,x,y,z);
       
                         if (ix       >= s[0] && ix        < e[0] && iy       >= s[1] && iy        < e[1] && iz       >= s[2] && iz       < e[2])
                           m_cacheBlock->Access(ix     - m_stencilStart[0],iy       - m_stencilStart[1],iz       - m_stencilStart[2]) = retval[ rx  +2*ry  +4*rz ];
@@ -1355,7 +1351,7 @@ class BlockLab
                                                                      YY - 1 + j - offset[1],0);
                      TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0),
                                 abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
-                                abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2,selcomponents);
+                                abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2);
                   }
                }
             }
@@ -1500,15 +1496,15 @@ class BlockLab
       right = g1 * w1 + g2 * w2;
    }
 
-   void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType &left, ElementType &right,const std::vector<int> & selcomponents)
+   void Kernel_1D(ElementType E0, ElementType E1, ElementType E2, ElementType &left, ElementType &right)
    {
-      for (auto & i : selcomponents)
+      for (auto & i : ElementType::DIM)
         WENOWavelets3(E0.member(i), E1.member(i), E2.member(i), left.member(i), right.member(i));
    }
    #endif
 
 #if DIMENSION == 3
-   virtual void TestInterp(ElementType *C[3][3][3], ElementType *R, int x, int y, int z, const std::vector<int> & selcomponents)
+   virtual void TestInterp(ElementType *C[3][3][3], ElementType *R, int x, int y, int z)
    {
       ElementType dudx   = 0.5*( (*C[2][1][1]) - (*C[0][1][1]) );
       ElementType dudy   = 0.5*( (*C[1][2][1]) - (*C[1][0][1]) );
@@ -1539,26 +1535,26 @@ class BlockLab
                   *C[1][i1 + Nweno / 2][i2 + Nweno / 2],
                   *C[2][i1 + Nweno / 2][i2 + Nweno / 2],
                   Lines[i1 + Nweno / 2][i2 + Nweno / 2][0],
-                  Lines[i1 + Nweno / 2][i2 + Nweno / 2][1],selcomponents);
+                  Lines[i1 + Nweno / 2][i2 + Nweno / 2][1]);
   
       for (int i2 = -Nweno / 2; i2 <= Nweno / 2; i2++)
       {
         Kernel_1D(Lines[0][i2 + Nweno / 2][0], Lines[1][i2 + Nweno / 2][0],
                   Lines[2][i2 + Nweno / 2][0], Planes[i2 + Nweno / 2][0],
-                  Planes[i2 + Nweno / 2][1],selcomponents);
+                  Planes[i2 + Nweno / 2][1]);
         Kernel_1D(Lines[0][i2 + Nweno / 2][1], Lines[1][i2 + Nweno / 2][1],
                   Lines[2][i2 + Nweno / 2][1], Planes[i2 + Nweno / 2][2],
-                  Planes[i2 + Nweno / 2][3],selcomponents);
+                  Planes[i2 + Nweno / 2][3]);
       }
-      Kernel_1D(Planes[0][0], Planes[1][0], Planes[2][0], R[0], R[4],selcomponents);
-      Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], R[2], R[6],selcomponents);
-      Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], R[1], R[5],selcomponents);
-      Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], R[3], R[7],selcomponents);
+      Kernel_1D(Planes[0][0], Planes[1][0], Planes[2][0], R[0], R[4]);
+      Kernel_1D(Planes[0][1], Planes[1][1], Planes[2][1], R[2], R[6]);
+      Kernel_1D(Planes[0][2], Planes[1][2], Planes[2][2], R[1], R[5]);
+      Kernel_1D(Planes[0][3], Planes[1][3], Planes[2][3], R[3], R[7]);
       #endif
    }
 
 #else
-   virtual void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y, const std::vector<int> & selcomponents)
+   virtual void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y)
    {
       const double dx = 0.25*(2*x-1);
       const double dy = 0.25*(2*y-1);
@@ -1570,12 +1566,12 @@ class BlockLab
       R = *C[1][1] + dx*dudx + dy*dudy + (0.5*dx*dx)*dudx2+(0.5*dy*dy)*dudy2+(dx*dy)*dudxdy;
       #if 0 //WENO3
       //ElementType Line[2][3];
-      //Kernel_1D(*C[0][0], *C[1][0], *C[2][0], Line[0][0], Line[1][0], selcomponents);
-      //Kernel_1D(*C[0][1], *C[1][1], *C[2][1], Line[0][1], Line[1][1], selcomponents);
-      //Kernel_1D(*C[0][2], *C[1][2], *C[2][2], Line[0][2], Line[1][2], selcomponents);
+      //Kernel_1D(*C[0][0], *C[1][0], *C[2][0], Line[0][0], Line[1][0]);
+      //Kernel_1D(*C[0][1], *C[1][1], *C[2][1], Line[0][1], Line[1][1]);
+      //Kernel_1D(*C[0][2], *C[1][2], *C[2][2], Line[0][2], Line[1][2]);
       //ElementType a00,a01,a10,a11;
-      //Kernel_1D(Line[0][0], Line[0][1], Line[0][2], a00, a01, selcomponents);
-      //Kernel_1D(Line[1][0], Line[1][1], Line[1][2], a10, a11, selcomponents);
+      //Kernel_1D(Line[0][0], Line[0][1], Line[0][2], a00, a01);
+      //Kernel_1D(Line[1][0], Line[1][1], Line[1][2], a10, a11);
       //if (x==0&&y==0) R=a00;
       //if (x==1&&y==0) R=a10;
       //if (x==0&&y==1) R=a01;

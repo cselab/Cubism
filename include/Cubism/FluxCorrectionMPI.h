@@ -291,7 +291,7 @@ class FluxCorrectionMPI : public TFluxCorrection
             #else
               for (int i2 = 0; i2 < N2; i2 += 2)
               {
-                 ElementType avg = FineFace[i2] + FineFace[i2];
+                 ElementType avg = FineFace[i2] + FineFace[i2 + 1];
                  for (int j = 0 ; j < ElementType::DIM; j++) send_buffer[r][displacement + j] = avg.member(j);
                  displacement += ElementType::DIM;
                  FineFace[i2    ].clear();

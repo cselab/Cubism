@@ -11,12 +11,15 @@ namespace cubism // AMR_CUBISM
 
 class SpaceFillingCurve2D
 {
-
  protected:
    int BX, BY;
+   bool isRegular;
+   int base_level;
+   std::vector < std::vector <long long> > Zsave;
+   std::vector< std::vector<int> > i_inverse;
+   std::vector< std::vector<int> > j_inverse;
 
-
-   //convert (x,y) to d
+   //convert (x,y) to index
    long long AxestoTranspose(const int *X_in, int b) const
    {
       int x = X_in[0];
@@ -33,7 +36,7 @@ class SpaceFillingCurve2D
       return d;
    }
 
-   //convert d to (x,y)
+   //convert index to (x,y)
    void TransposetoAxes(long long index, int *X, int b) const 
    {
        // position, #bits, dimension
@@ -67,81 +70,53 @@ class SpaceFillingCurve2D
        }
    }
 
-
-
  public:
-   int *SUBSTRACT;
-   int base_level;
    int levelMax;
-
-
-   std::vector< std::vector<int> > i_inverse;
-   std::vector< std::vector<int> > j_inverse;
-   std::vector < std::vector <long long> > Zsave;
 
    SpaceFillingCurve2D(){};
 
-   ~SpaceFillingCurve2D(){ delete[] SUBSTRACT; }
-
-   void __setup(int nx, int ny)
-   {
-      BX = nx;
-      BY = ny;
-   }
-
    SpaceFillingCurve2D(int a_BX, int a_BY, int lmax) : BX(a_BX), BY(a_BY), levelMax(lmax)
    {
-      // std::cout << "[CUP2D] - Constructing Hilbert curve for " << BX << "x" << BY <<  " quadree with " << lmax << " levels..." << std::endl;
+      const int n_max  = max(BX, BY);
+      base_level = (log(n_max) / log(2));
+      if (base_level < (double)(log(n_max) / log(2))) base_level++;
+
       i_inverse.resize(lmax);
       j_inverse.resize(lmax);
       Zsave.resize(lmax);
+      #ifdef CUBISM_USE_MAP
+      for (int l = 0 ; l < 1 ; l++)
+      #else
       for (int l = 0 ; l < lmax ; l++)
+      #endif
       {
-        int aux = pow( pow(2,l) , 2);
+        const int aux = pow( pow(2,l) , 2);
         i_inverse[l].resize(BX*BY*aux,-1);
         j_inverse[l].resize(BX*BY*aux,-1);
         Zsave[l].resize(BX*BY*aux,-1);
       }
 
-      SUBSTRACT = new int[BX * BY];
-
-      int n_max  = max(BX, BY);
-      base_level = (log(n_max) / log(2));
-      if (base_level < (double)(log(n_max) / log(2))) base_level++;
-
+      isRegular = true;
       #pragma omp parallel for collapse(2)
       for (int j=0;j<BY;j++)
       for (int i=0;i<BX;i++)
       {
         const int c[2] = {i,j};
-          
         long long index = AxestoTranspose( c, base_level);
-    
         long long substract = 0;
         for (long long h=0; h<index; h++)
         {
           int X[2] = {0,0};
           TransposetoAxes(h, X, base_level);
           if (X[0] >= BX || X[1] >= BY) substract++;   
-        }   
-        SUBSTRACT[j*BX + i] = substract;
+        }
+        index -= substract;
+        if (substract > 0) isRegular = false;
+        i_inverse[0][index] = i;
+        j_inverse[0][index] = j;
+        Zsave[0][j*BX + i] = index;
       }
-
-      for (int l = 0 ; l < lmax ; l++)
-      {
-        int aux = pow(2,l);
-        #pragma omp parallel for collapse(2)
-        for (int j=0;j<BY*aux;j++)
-        for (int i=0;i<BX*aux;i++)
-        {
-          long long retval = forward(l,i,j);
-          i_inverse[l][retval]=i;
-          j_inverse[l][retval]=j;
-        }      
-      }
-
-      // std::cout << "Hilbert curve ready." << std::endl;
-  }
+    }
 
    // space-filling curve (i,j,k) --> 1D index (given level l)
    long long forward(const int l, const int i, const int j) //const
@@ -149,28 +124,86 @@ class SpaceFillingCurve2D
       const int aux = 1 << l;
 
       if (l>=levelMax) return 0;
-
-      if (Zsave[l][ j*aux*BX + i ] != -1) return Zsave[l][  j*aux*BX + i ];
-      const int I   = i / aux;
-      const int J   = j / aux;
-      
-      if (I >= BX || J >= BY) return 0;
-
-      const int c2_a[2] = {i, j};
-      long long s                      = SUBSTRACT[J * BX + I]  * aux * aux;
-
-      long long retval = AxestoTranspose(c2_a, l + base_level) - s;
-
-      Zsave[l][  j*aux*BX + i ] = retval;
+      #ifndef CUBISM_USE_MAP
+        if (Zsave[l][ j*aux*BX + i ] != -1) return Zsave[l][  j*aux*BX + i ];
+      #endif
+      long long retval;
+      if (!isRegular)
+      {
+        const int I   = i / aux;
+        const int J   = j / aux;
+        const int c2_a[2] = {i-I*aux,j-J*aux};
+        retval = AxestoTranspose(c2_a, l);
+        retval += IJ_to_index(I,J)*aux*aux;
+      }
+      else
+      {
+        const int c2_a[2] = {i,j};
+        retval = AxestoTranspose(c2_a, l + base_level);
+      }
+      #ifndef CUBISM_USE_MAP
+        i_inverse[l][retval] = i;
+        j_inverse[l][retval] = j;
+        Zsave[l][j*aux*BX + i] = retval;
+      #endif
       return retval;
    }
 
    void inverse(long long Z, int l, int &i, int &j)
    {
-      i = i_inverse[l][Z];
-      j = j_inverse[l][Z];
-      assert(i_inverse[l][Z]>=0);
-      assert(j_inverse[l][Z]>=0);
+      #ifndef CUBISM_USE_MAP
+        if (i_inverse[l][Z] != -1)
+        {
+          assert(j_inverse[l][Z] != -1 && k_inverse[l][Z] != -1);
+          i = i_inverse[l][Z];
+          j = j_inverse[l][Z];
+          return;
+        }
+      #endif
+      if (isRegular)
+      {
+        int X[2] = {0, 0};
+        TransposetoAxes(Z, X, l + base_level);
+        i = X[0];
+        j = X[1];
+        #ifndef CUBISM_USE_MAP
+          int aux   = 1 << l;
+          i_inverse[l][Z] = i;
+          j_inverse[l][Z] = j;
+          Zsave[l][j*aux*BX + i] = Z;
+        #endif
+      }
+      else
+      {
+        int aux   = 1 << l;
+        long long Zloc  = Z % (aux*aux);
+        int X[2] = {0, 0};
+        TransposetoAxes(Zloc, X, l);
+        long long index = Z / (aux*aux);
+        int I,J;
+        index_to_IJ(index,I,J);
+        i = X[0] + I*aux;
+        j = X[1] + J*aux;
+        #ifndef CUBISM_USE_MAP
+          i_inverse[l][Z] = i;
+          j_inverse[l][Z] = j;
+          Zsave[l][j*aux*BX + i ] = Z;
+        #endif
+      }
+      return;
+   }
+
+   long long IJ_to_index(int I, int J)
+   {
+     //int index = (J + K * BY) * BX + I;
+     long long index = Zsave[0][J*BX + I];
+     return index;
+   }
+   void index_to_IJ(long long index, int & I, int & J)
+   {
+      I = i_inverse[0][index];
+      J = j_inverse[0][index];
+      return;
    }
 
    // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)

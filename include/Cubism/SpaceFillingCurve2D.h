@@ -154,7 +154,7 @@ class SpaceFillingCurve2D
       #ifndef CUBISM_USE_MAP
         if (i_inverse[l][Z] != -1)
         {
-          assert(j_inverse[l][Z] != -1 && k_inverse[l][Z] != -1);
+          assert(i_inverse[l][Z] != -1 && j_inverse[l][Z] != -1);
           i = i_inverse[l][Z];
           j = j_inverse[l][Z];
           return;

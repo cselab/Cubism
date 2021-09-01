@@ -22,7 +22,7 @@ class MeshAdaptation
    TGrid *m_refGrid;
    int s[3];
    int e[3];
-   bool istensorial;
+   bool istensorial{true};
    int Is[3];
    int Ie[3];
    std::vector<int> components;

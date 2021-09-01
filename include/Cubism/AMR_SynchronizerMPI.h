@@ -490,14 +490,13 @@ class SynchronizerMPI_AMR
          manyUnpacks_recv[r].resize(number_amount);
          pack_requests.resize(pack_requests.size() + 1);
          MPI_Irecv(manyUnpacks_recv[r].data(), manyUnpacks_recv[r].size(),MPI_PACK, r, timestamp, comm, &pack_requests.back());           
-      }       
+      }
     }
 
     void MapIDs()
     {
       if (pack_requests.size() == 0) return;
 
-      MPI_Waitall(pack_requests.size(), pack_requests.data(), MPI_STATUSES_IGNORE);
       pack_requests.clear();        
 
       std::sort(MapOfInfos.begin(), MapOfInfos.end());
@@ -1170,15 +1169,15 @@ class SynchronizerMPI_AMR
          SM(a_stencil, a_Cstencil, a_nx, a_ny, a_nz, a_bx, a_by, a_bz)
    {
       grid = _grid; 
-#if DIMENSION == 3
+      #if DIMENSION == 3
       use_averages = (grid->FiniteDifferences == false || stencil.tensorial
                      || stencil.sx< -2 || stencil.sy < -2 || stencil.sz < -2
                      || stencil.ex>  3 || stencil.ey >  3 || stencil.ez >  3);
-#else
+      #else
       use_averages = (grid->FiniteDifferences == false || stencil.tensorial
                      || stencil.sx< -2 || stencil.sy < -2
                      || stencil.ex>  3 || stencil.ey >  3);
-#endif
+      #endif
       comm = grid->getWorldComm();
 
       xperiodic = grid->xperiodic;
@@ -1219,7 +1218,6 @@ class SynchronizerMPI_AMR
                const int timestamp,
                const bool a_define_neighbors = false) //a_define_neighbors is no longer used
    {
-      //MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE); //segfault is used here
       myInfos_size = a_myInfos_size;
       myInfos      = a_myInfos;
       const int NC = stencil.selcomponents.size();
@@ -1250,8 +1248,6 @@ class SynchronizerMPI_AMR
          send_packinfos[r].clear();
          ToBeAveragedDown[r].clear();
 
-         MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE); //segfault is used here
-
          for (int i = 0; i < (int)send_interfaces[r].size(); i++)
          {
             Interface &f         = send_interfaces[r][i];
@@ -1279,6 +1275,8 @@ class SynchronizerMPI_AMR
             }
          }
       }
+      MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);
+      MPI_Waitall(UnpacksManager.pack_requests.size(), UnpacksManager.pack_requests.data(), MPI_STATUSES_IGNORE);
    }
 
    void sync(unsigned int gptfloats, MPI_Datatype MPIREAL, const int timestamp)
@@ -1334,8 +1332,6 @@ class SynchronizerMPI_AMR
             }
          }
       }
-
-      MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);
       for (auto r : Neighbors)
       {
          recv_buffer_size[r] = ss[r] / NC;
@@ -1362,7 +1358,6 @@ class SynchronizerMPI_AMR
                       &send_requests.back());
          }
       }
-
       UnpacksManager.MapIDs();
    }
 

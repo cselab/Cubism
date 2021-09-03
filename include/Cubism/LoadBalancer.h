@@ -251,7 +251,7 @@ class LoadBalancer
          MPI_Allreduce(&b, &min_b, 1, MPI_LONG_LONG, MPI_MIN, comm);
          const double ratio = static_cast<double>(max_b) / min_b;
          if (rank == 0) std::cout << "Load imbalance ratio = " << ratio << std::endl;
-         if (ratio > 1.5)
+         if (ratio > 1.5 || min_b == 0)
          {
             Balance_Global();
             if (counterg > 11) counterg = 11;
@@ -351,8 +351,8 @@ class LoadBalancer
          AddBlock(recv_right[i].mn[0],recv_right[i].mn[1],recv_right[i].data);
 
       int temp = movedBlocks ? 1 : 0;
-      MPI_Allreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_LOR, comm);
-      movedBlocks = (temp == 1);
+      MPI_Allreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_SUM, comm);
+      movedBlocks = (temp >= 1);
       #if 0
          if (movedBlocks == true)
          {

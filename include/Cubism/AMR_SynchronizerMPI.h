@@ -45,9 +45,9 @@ struct MyRange
 {
   int index;
   int sx, sy, sz, ex, ey, ez;
-  bool needed;
+  bool needed{true};
   std::vector<int> removedIndices;
-  bool avg_down;
+  bool avg_down{true};
 
   bool contains(MyRange r) const
   {

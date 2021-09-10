@@ -84,6 +84,7 @@ class SpaceFillingCurve
       X[0] = 0;
       X[1] = 0;
       X[2] = 0;
+      if (b==0 && index ==0) return;
 
       long long aa = 0;
       const long long one = 1;

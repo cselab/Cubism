@@ -633,6 +633,7 @@ class MeshAdaptation
    ////////////////////////////////////////////////////////////////////////////////////////////////
    // Virtual functions that can be overwritten by user
    ////////////////////////////////////////////////////////////////////////////////////////////////
+
    virtual void RefineBlocks(BlockType *B[8], BlockInfo parent)
    {
       int tid      = omp_get_thread_num();
@@ -708,10 +709,19 @@ class MeshAdaptation
                                             Lab(i / 2 + offsetX[I] - 1, j / 2 + offsetY[J]));
                   ElementType dudy = 0.5 * (Lab(i / 2 + offsetX[I], j / 2 + offsetY[J] + 1) -
                                             Lab(i / 2 + offsetX[I], j / 2 + offsetY[J] - 1));
-                  b(i, j, 0) = Lab(i / 2 + offsetX[I], j / 2 + offsetY[J]) - 0.25 * dudx - 0.25 * dudy;
-                  b(i + 1, j, 0) = Lab(i / 2 + offsetX[I], j / 2 + offsetY[J]) + 0.25 * dudx - 0.25 * dudy;
-                  b(i, j + 1, 0) = Lab(i / 2 + offsetX[I], j / 2 + offsetY[J]) - 0.25 * dudx + 0.25 * dudy;
-                  b(i + 1, j + 1, 0) = Lab(i / 2 + offsetX[I], j / 2 + offsetY[J]) + 0.25 * dudx + 0.25 * dudy;
+
+                  ElementType dudx2 = Lab(i/2+offsetX[I]+1, j/2+offsetY[J]  ) - 2.0*Lab(i/2+offsetX[I], j/2+offsetY[J]) + Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  );
+                  ElementType dudy2 = Lab(i/2+offsetX[I]  , j/2+offsetY[J]+1) - 2.0*Lab(i/2+offsetX[I], j/2+offsetY[J]) + Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1);  
+
+                  ElementType dudxdy = 0.25*(Lab(i/2+offsetX[I]+1, j/2+offsetY[J]+1)
+                                            +Lab(i/2+offsetX[I]-1, j/2+offsetY[J]-1)
+                                            -Lab(i/2+offsetX[I]+1, j/2+offsetY[J]-1)
+                                            -Lab(i/2+offsetX[I]-1, j/2+offsetY[J]+1));
+
+                  b(i  ,j  ,0) = Lab(i/2+offsetX[I], j/2+offsetY[J]) - 0.25*dudx - 0.25*dudy + 0.03125*dudx2 + 0.03125*dudy2 + 0.0625*dudxdy;
+                  b(i+1,j  ,0) = Lab(i/2+offsetX[I], j/2+offsetY[J]) + 0.25*dudx - 0.25*dudy + 0.03125*dudx2 + 0.03125*dudy2 - 0.0625*dudxdy;
+                  b(i  ,j+1,0) = Lab(i/2+offsetX[I], j/2+offsetY[J]) - 0.25*dudx + 0.25*dudy + 0.03125*dudx2 + 0.03125*dudy2 - 0.0625*dudxdy;
+                  b(i+1,j+1,0) = Lab(i/2+offsetX[I], j/2+offsetY[J]) + 0.25*dudx + 0.25*dudy + 0.03125*dudx2 + 0.03125*dudy2 + 0.0625*dudxdy;
                }
          }
       #endif

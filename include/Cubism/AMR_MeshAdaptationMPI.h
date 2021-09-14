@@ -29,7 +29,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
  public:
    MeshAdaptationMPI(TGrid &grid, double Rtol, double Ctol): MeshAdaptation<TGrid,TLab>(grid,Rtol,Ctol)
    {
-      bool tensorial = false;
+      bool tensorial = true;
       const int Gx = 1;
       const int Gy = 1;
       const int Gz = DIMENSION == 3? 1:0;

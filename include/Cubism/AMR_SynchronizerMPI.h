@@ -1285,6 +1285,22 @@ class SynchronizerMPI_AMR
       std::sort(selcomponents.begin(), selcomponents.end());
       const int NC = selcomponents.size();
 
+      send_requests.clear();
+      recv_requests.clear();
+
+      //Post receive requests first
+      for (auto r : Neighbors)
+      {
+         recv_buffer_size[r] = ss[r] / NC;
+         recv_buffer[r].resize(recv_buffer_size[r] * NC, 777.0);
+         if (recv_buffer_size[r] > 0)
+         {
+            recv_requests.resize(recv_requests.size() + 1);
+            MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r] * NC, MPIREAL, r, timestamp, comm,
+                      &recv_requests.back());
+         }
+      }
+
       // Pack data
       for (int r = 0; r < size; r++)
       {
@@ -1295,11 +1311,10 @@ class SynchronizerMPI_AMR
             #pragma omp for schedule(runtime)
             for (size_t j = 0; j < ToBeAveragedDown[r].size(); j += 2)
             {
-               int i              = ToBeAveragedDown[r][j];
-               int d              = ToBeAveragedDown[r][j + 1];
+               const int i        = ToBeAveragedDown[r][j];
+               const int d        = ToBeAveragedDown[r][j + 1];
                Interface &f       = send_interfaces[r][i];
-               const int code[3]  = {f.icode[0] % 3 - 1, (f.icode[0] / 3) % 3 - 1,
-                                    (f.icode[0] / 9) % 3 - 1};
+               const int code[3]  = {f.icode[0] % 3 - 1, (f.icode[0] / 3) % 3 - 1, (f.icode[0] / 9) % 3 - 1};
                const int code0[3] = {-code[0], -code[1], -code[2]};
                if (f.CoarseStencil)
                {
@@ -1332,31 +1347,15 @@ class SynchronizerMPI_AMR
             }
          }
       }
-      for (auto r : Neighbors)
-      {
-         recv_buffer_size[r] = ss[r] / NC;
-         recv_buffer[r].resize(recv_buffer_size[r] * NC, 777.0);
-      }
 
-      send_requests.clear();
-      recv_requests.clear();
+      //Do the sends
       for (auto r : Neighbors)
       {
-         if (recv_buffer_size[r] > 0)
-         {
-            recv_requests.resize(recv_requests.size() + 1);
-            MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r] * NC, MPIREAL, r, timestamp, comm,
-                      &recv_requests.back());
-         }
-      }
-      for (auto r : Neighbors)
-      {
-         if (send_buffer_size[r] > 0)
-         {
-            send_requests.resize(send_requests.size() + 1);
-            MPI_Isend(&send_buffer[r][0], send_buffer_size[r] * NC, MPIREAL, r, timestamp, comm,
-                      &send_requests.back());
-         }
+        if (send_buffer_size[r] > 0)
+        {
+          send_requests.resize(send_requests.size() + 1);
+          MPI_Isend(&send_buffer[r][0], send_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &send_requests.back());
+        }
       }
       UnpacksManager.MapIDs();
    }
@@ -1369,7 +1368,7 @@ class SynchronizerMPI_AMR
               const size_t CLength[3], const size_t ElemsPerSlice[2], Real *cacheBlock,
               Real *coarseBlock)
    {
-      int id = info.halo_block_id;
+      const int id = info.halo_block_id;
       if (id < 0) return;
 
       UnPackInfo **unpacks = UnpacksManager.unpacks[id].data();

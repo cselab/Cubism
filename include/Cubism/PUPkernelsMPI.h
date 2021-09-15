@@ -19,13 +19,17 @@ inline void pack(const Real *const srcbase, Real *const dst, const unsigned int 
 {
    for (int idst = 0, iz = zstart; iz < zend; ++iz)
       for (int iy = ystart; iy < yend; ++iy)
+      {
+      #pragma GCC ivdep
          for (int ix = xstart; ix < xend; ++ix)
          {
             const Real *src = srcbase + gptfloats * (ix + BSX * (iy + BSY * iz));
 
             // bgq: s_c[ic] = ic! -> memcpy or stripes...
+            #pragma GCC ivdep
             for (int ic = 0; ic < ncomponents; ic++, idst++) dst[idst] = src[selected_components[ic]];
          }
+      }  
 }
 
 template <typename Real>
@@ -335,13 +339,17 @@ inline void unpack_subregion(const Real *const pack, Real *const dstbase, const 
 {
    for (int zd = dstzstart; zd < dstzend; ++zd)
       for (int yd = dstystart; yd < dstyend; ++yd)
+      {
+         #pragma GCC ivdep            
          for (int xd = dstxstart; xd < dstxend; ++xd)
          {
             Real *const dst = dstbase + gptfloats * (xd + xsize * (yd + ysize * zd));
             const Real *src = pack + ncomponents * (xd - dstxstart + srcxstart + LX * (yd - dstystart + srcystart + LY * (zd - dstzstart + srczstart)));
 
+            #pragma GCC ivdep
             for (int c = 0; c < ncomponents; ++c) dst[selected_components[c]] = src[c];
-         }
+         }         
+      }
 }
 
 CUBISM_NAMESPACE_END

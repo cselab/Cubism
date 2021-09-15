@@ -2,12 +2,9 @@
 
 #include "Grid.h"
 #include "Matrix3D.h"
-
 #include <cstring>
 #include <math.h>
 #include <string>
-
-
 
 namespace cubism // AMR_CUBISM
 {
@@ -294,9 +291,11 @@ class BlockLab
             const int m_vSize0 = m_cacheBlock->getSize(0);
             const int m_nElemsPerSlice = m_cacheBlock->getNumberOfElementsPerSlice();
             const int my_ix = -m_stencilStart[0];
+            #pragma GCC ivdep
             for (int iz = _iz0; iz < _iz1; iz++)
             {
                const int my_izx = iz * m_nElemsPerSlice + my_ix;
+               #pragma GCC ivdep
                for (int iy = _iy0; iy < _iy1; iy += 4)
                {
                   ElementType *ptrDestination0 = &m_cacheBlock->LinAccess(my_izx + (iy    )*m_vSize0);
@@ -390,25 +389,32 @@ class BlockLab
             const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
                                    (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
                                    (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
+            #pragma GCC ivdep
             for (int k = 0; k < nZ / 2; k++)
-            for (int j = 0; j < nY / 2; j++)
-            for (int i = 0; i < nX / 2; i++)
             {
-               if (i > -m_InterpStencilStart[0] && i < nX / 2 - m_InterpStencilEnd[0] &&
-                   j > -m_InterpStencilStart[1] && j < nY / 2 - m_InterpStencilEnd[1] &&
-                   k > -m_InterpStencilStart[2] && k < nZ / 2 - m_InterpStencilEnd[2]) continue;
-               const int ix = 2 * i - m_stencilStart[0];
-               const int iy = 2 * j - m_stencilStart[1];
-               const int iz = 2 * k - m_stencilStart[2];
-               ElementType &coarseElement = m_CoarsenedBlock->Access(i - offset[0], j - offset[1], k - offset[2]);
-               coarseElement = AverageDown( m_cacheBlock->Read(ix  ,iy  ,iz  ), 
-                                            m_cacheBlock->Read(ix+1,iy  ,iz  ),
-                                            m_cacheBlock->Read(ix  ,iy+1,iz  ),
-                                            m_cacheBlock->Read(ix+1,iy+1,iz  ),
-                                            m_cacheBlock->Read(ix  ,iy  ,iz+1),
-                                            m_cacheBlock->Read(ix+1,iy  ,iz+1),
-                                            m_cacheBlock->Read(ix  ,iy+1,iz+1),
-                                            m_cacheBlock->Read(ix+1,iy+1,iz+1));
+               #pragma GCC ivdep
+               for (int j = 0; j < nY / 2; j++)
+               {
+                  #pragma GCC ivdep
+                  for (int i = 0; i < nX / 2; i++)
+                  {
+                     if (i > -m_InterpStencilStart[0] && i < nX / 2 - m_InterpStencilEnd[0] &&
+                         j > -m_InterpStencilStart[1] && j < nY / 2 - m_InterpStencilEnd[1] &&
+                         k > -m_InterpStencilStart[2] && k < nZ / 2 - m_InterpStencilEnd[2]) continue;
+                     const int ix = 2 * i - m_stencilStart[0];
+                     const int iy = 2 * j - m_stencilStart[1];
+                     const int iz = 2 * k - m_stencilStart[2];
+                     ElementType &coarseElement = m_CoarsenedBlock->Access(i - offset[0], j - offset[1], k - offset[2]);
+                     coarseElement = AverageDown( m_cacheBlock->Read(ix  ,iy  ,iz  ), 
+                                                  m_cacheBlock->Read(ix+1,iy  ,iz  ),
+                                                  m_cacheBlock->Read(ix  ,iy+1,iz  ),
+                                                  m_cacheBlock->Read(ix+1,iy+1,iz  ),
+                                                  m_cacheBlock->Read(ix  ,iy  ,iz+1),
+                                                  m_cacheBlock->Read(ix+1,iy  ,iz+1),
+                                                  m_cacheBlock->Read(ix  ,iy+1,iz+1),
+                                                  m_cacheBlock->Read(ix+1,iy+1,iz+1));
+                  }
+               }
             }
          }
       #else
@@ -416,20 +422,24 @@ class BlockLab
          const int nY = BlockType::sizeY;
          if (coarsened)
          {
-            const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
+            const int offset[2] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
                                    (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1]};
+            #pragma GCC ivdep
             for (int j = 0; j < nY / 2; j++)
-            for (int i = 0; i < nX / 2; i++)
             {
-               if (i > -m_InterpStencilStart[0] && i < nX / 2 - m_InterpStencilEnd[0] &&
-                   j > -m_InterpStencilStart[1] && j < nY / 2 - m_InterpStencilEnd[1]) continue;
-               const int ix = 2 * i - m_stencilStart[0];
-               const int iy = 2 * j - m_stencilStart[1];
-               ElementType &coarseElement = m_CoarsenedBlock->Access(i - offset[0], j - offset[1],0);
-               coarseElement = AverageDown( m_cacheBlock->Read(ix  ,iy  ,0),
-                                            m_cacheBlock->Read(ix+1,iy  ,0),
-                                            m_cacheBlock->Read(ix  ,iy+1,0),
-                                            m_cacheBlock->Read(ix+1,iy+1,0));              
+               #pragma GCC ivdep
+               for (int i = 0; i < nX / 2; i++)
+               {
+                  if (i > -m_InterpStencilStart[0] && i < nX / 2 - m_InterpStencilEnd[0] &&
+                      j > -m_InterpStencilStart[1] && j < nY / 2 - m_InterpStencilEnd[1]) continue;
+                  const int ix = 2 * i - m_stencilStart[0];
+                  const int iy = 2 * j - m_stencilStart[1];
+                  ElementType &coarseElement = m_CoarsenedBlock->Access(i - offset[0], j - offset[1],0);
+                  coarseElement = AverageDown( m_cacheBlock->Read(ix  ,iy  ,0),
+                                               m_cacheBlock->Read(ix+1,iy  ,0),
+                                               m_cacheBlock->Read(ix  ,iy+1,0),
+                                               m_cacheBlock->Read(ix+1,iy+1,0));              
+               }
             }
          }
       #endif
@@ -469,9 +479,11 @@ class BlockLab
       #else
          if ((e[1] - s[1]) % 4 != 0)
          {
+            #pragma GCC ivdep
             for (int iz = s[2]; iz < e[2]; iz++)
             {
                const int my_izx = (iz - m_stencilStart[2]) * m_nElemsPerSlice + my_ix;
+               #pragma GCC ivdep
                for (int iy = s[1]; iy < e[1]; iy++)
                {
                   char *ptrDest = (char *)&m_cacheBlock->LinAccess(my_izx + (iy - m_stencilStart[1]) * m_vSize0);
@@ -482,9 +494,11 @@ class BlockLab
          }
          else
          {
+            #pragma GCC ivdep
             for (int iz = s[2]; iz < e[2]; iz++)
             {
                const int my_izx = (iz - m_stencilStart[2]) * m_nElemsPerSlice + my_ix;
+               #pragma GCC ivdep
                for (int iy = s[1]; iy < e[1]; iy += 4)
                {
                   char *ptrDest0 = (char *)&m_cacheBlock->LinAccess(my_izx + (iy     - m_stencilStart[1]) * m_vSize0);
@@ -579,6 +593,7 @@ class BlockLab
          const int my_ix = abs(code[0]) * (s[0] - m_stencilStart[0]) + (1 - abs(code[0])) * (s[0] - m_stencilStart[0] + (B % 2) * (e[0] - s[0]) / 2);
          const int XX = s[0] - code[0] * nX + min(0, code[0]) * (e[0] - s[0]);
 
+         #pragma GCC ivdep
          for (int iz = s[2]; iz < e[2]; iz += zStep)
          {
             const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
@@ -606,6 +621,7 @@ class BlockLab
             #else //"vectorized"
                if (((e[1] - s[1]) / yStep) % 4 != 0)
                {
+                  #pragma GCC ivdep
                   for (int iy = s[1]; iy < e[1]; iy += yStep)
                   {
                      ElementType *ptrDest = (ElementType *)&m_cacheBlock->LinAccess(
@@ -618,6 +634,7 @@ class BlockLab
                         const ElementType *ptrSrc_2 = (const ElementType *)&b(XX, YY + 1, ZZ);
                         const ElementType *ptrSrc_3 = (const ElementType *)&b(XX, YY + 1, ZZ + 1);
                         // average down elements of block b to send to coarser neighbor
+                        #pragma GCC ivdep
                         for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
                         {
                            ptrDest[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), *(ptrSrc_1 + 2 * ee),
@@ -629,6 +646,7 @@ class BlockLab
                         const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY    , ZZ);
                         const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY + 1, ZZ);
                         // average down elements of block b to send to coarser neighbor
+                        #pragma GCC ivdep
                         for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
                         {
                            ptrDest[ee] = AverageDown(*(ptrSrc_0 + 2 * ee    ), *(ptrSrc_1 + 2 * ee    ),
@@ -639,6 +657,7 @@ class BlockLab
                }
                else
                {
+                  #pragma GCC ivdep
                   for (int iy = s[1]; iy < e[1]; iy += 4 * yStep)
                   {
                      ElementType *ptrDest0 = (ElementType *)&m_cacheBlock->LinAccess(
@@ -683,6 +702,7 @@ class BlockLab
                         const ElementType *ptrSrc_23 = (const ElementType *)&b(XX, YY3 + 1, ZZ);
                         const ElementType *ptrSrc_33 = (const ElementType *)&b(XX, YY3 + 1, ZZ + 1);
        
+                        #pragma GCC ivdep
                         for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
                         {
                            ptrDest0[ee] =
@@ -718,6 +738,7 @@ class BlockLab
 
                        const ElementType *ptrSrc_03 = (const ElementType *)&b(XX, YY3  ,ZZ);
                        const ElementType *ptrSrc_13 = (const ElementType *)&b(XX, YY3+1,ZZ);    
+                       #pragma GCC ivdep
                        for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
                        {
                           ptrDest0[ee] = AverageDown(*(ptrSrc_00 + 2 * ee    ), *(ptrSrc_10 + 2 * ee    ),
@@ -806,6 +827,7 @@ class BlockLab
       const int bytes            = (e[0] - s[0]) * sizeof(ElementType);
       if (!bytes) return;
 
+      #pragma GCC ivdep
       for (int iz = s[2]; iz < e[2]; iz++)
       {
          const int my_izx = (iz - offset[2]) * m_nElemsPerSlice + my_ix;
@@ -819,6 +841,7 @@ class BlockLab
          #else
             if ((e[1] - s[1]) % 4 != 0)
             {
+               #pragma GCC ivdep
                for (int iy = s[1]; iy < e[1]; iy++)
                {
                   char *ptrDest =
@@ -829,6 +852,7 @@ class BlockLab
             }
             else
             {
+               #pragma GCC ivdep
                for (int iy = s[1]; iy < e[1]; iy += 4)
                {
                   char *ptrDest0 = (char *)&m_CoarsenedBlock->LinAccess(my_izx + (iy - offset[1]) * m_vSize0);
@@ -894,11 +918,13 @@ class BlockLab
       const int my_ix            = s[0] - sC[0];
       const int XX               = start[0];
 
+      #pragma GCC ivdep
       for (int iz = s[2]; iz < e[2]; iz++)
       {
          const int ZZ     = 2 * (iz - s[2]) + start[2];
          const int my_izx = (iz - sC[2]) * m_nElemsPerSlice + my_ix;
 
+         #pragma GCC ivdep
          for (int iy = s[1]; iy < e[1]; iy++)
          {
             if (code[1] == 0 && code[2] == 0 && iy > -m_InterpStencilStart[1] &&
@@ -915,6 +941,7 @@ class BlockLab
                const ElementType *ptrSrc_2 = (const ElementType *)&b(XX, YY + 1, ZZ);
                const ElementType *ptrSrc_3 = (const ElementType *)&b(XX, YY + 1, ZZ + 1);
                // average down elements of block b to send to coarser neighbor
+               #pragma GCC ivdep
                for (int ee = 0; ee < e[0] - s[0]; ee++)
                {
                   ptrDest1[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), 
@@ -930,6 +957,7 @@ class BlockLab
                const ElementType *ptrSrc_0 = (const ElementType *)&b(XX, YY, ZZ);
                const ElementType *ptrSrc_1 = (const ElementType *)&b(XX, YY + 1, ZZ);
                // average down elements of block b to send to coarser neighbor
+               #pragma GCC ivdep
                for (int ee = 0; ee < e[0] - s[0]; ee++)
                {
                   ptrDest1[ee] = AverageDown(*(ptrSrc_0 + 2 * ee), 
@@ -1030,7 +1058,8 @@ class BlockLab
                   const int izp = (abs(iz) % 2 == 1) ?  -1 : 1;
                   const int rzp = (izp == 1) ? 1:0;
                   const int rz  = (izp == 1) ? 0:1;
-   
+
+                  #pragma GCC ivdep   
                   for (int iy = s[1]; iy < e[1]; iy += 2)
                   {
                      const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
@@ -1038,7 +1067,8 @@ class BlockLab
                      const int iyp = (abs(iy) % 2 == 1) ?  -1 : 1;
                      const int ryp = (iyp == 1) ? 1:0;
                      const int ry  = (iyp == 1) ? 0:1;
-      
+
+                     #pragma GCC ivdep      
                      for (int ix = s[0]; ix < e[0]; ix += 2)
                      {
                         const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
@@ -1081,13 +1111,14 @@ class BlockLab
                   const int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2] - offset[2];
                   const int z = abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2;
                   const double dz = 0.25*(2*z-1);
-
+                  #pragma GCC ivdep
                   for (int iy = s[1]; iy < e[1]; iy += 1)
                   {
                      const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1] - offset[1];
                      const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
                      const double dy = 0.25*(2*y-1);
-      
+
+                     #pragma GCC ivdep
                      for (int ix = s[0]; ix < e[0]; ix += 1)
                      {
                         const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0] - offset[0];
@@ -1338,9 +1369,11 @@ class BlockLab
 
             if (use_averages)
             {
+               #pragma GCC ivdep
                for (int iy = s[1]; iy < e[1]; iy += 1)
                {
                   const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
+                  #pragma GCC ivdep
                   for (int ix = s[0]; ix < e[0]; ix += 1)
                   {
                      const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
@@ -1358,6 +1391,8 @@ class BlockLab
             if (grid.FiniteDifferences && abs(code[0]) + abs(code[1]) == 1) //Correct stencil points +-1 and +-2 at faces
             {
                for (int iy = s[1]; iy < e[1]; iy += 1)
+               {
+               #pragma GCC ivdep
                for (int ix = s[0]; ix < e[0]; ix += 1)
                {
                   if (ix < -2 || iy < -2 || ix > nX+1 || iy > nY+1) continue;
@@ -1471,6 +1506,7 @@ class BlockLab
                         LE(a,b,c);
                      }
                   }
+               }
                }
             }
          #endif

@@ -780,27 +780,22 @@ class SynchronizerMPI_AMR
     Real *src = (Real *)(*info).ptrBlock;
     const int xStep = (code[0] == 0) ? 2 : 1;
     const int yStep = (code[1] == 0) ? 2 : 1;
-    //int pos = 0;
+    int pos = 0;
     #if DIMENSION == 3
     const int zStep = (code[2] == 0) ? 2 : 1;
-    #pragma GCC ivdep
     for (int iz = s[2]; iz < e[2]; iz += zStep)
     {
       const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
     #endif
-      #pragma GCC ivdep
       for (int iy = s[1]; iy < e[1]; iy += yStep)
       {
         const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
-        #pragma GCC ivdep  
         for (int ix = s[0]; ix < e[0]; ix += xStep)
         {
           const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + min(0, code[0]) * nX : ix;
-          #pragma GCC ivdep
           for (int c = 0; c < NC; c++)
           {
-            const int pos = c + (ix-s[0])/xStep * NC + (iy-s[1])/yStep * (e[0]-s[0])/xStep*NC;// + iz * (e[0]-s[0])/xStep*(e[1]-s[1])/yStep*NC;
-            const int comp = selcomponents[c];
+            int comp = selcomponents[c];
             #if DIMENSION == 3
               dst[pos] = 0.125 *
                       ((*(src + gptfloats * ((XX) + ((YY) + (ZZ)*nY) * nX) + comp)) +
@@ -818,7 +813,7 @@ class SynchronizerMPI_AMR
                        (*(src + gptfloats*(XX+1+(YY  )*nX) + comp)) +
                        (*(src + gptfloats*(XX+1+(YY+1)*nX) + comp)));
             #endif
-            //pos++;
+            pos++;
           }
         }
       }
@@ -842,28 +837,23 @@ class SynchronizerMPI_AMR
 
     Real *src = (Real *)(*info).ptrBlock;
 
-    //int pos = 0;
+    int pos = 0;
 
     #if DIMENSION == 3
-    #pragma GCC ivdep
     for (int iz = s[2]; iz < e[2]; iz++)
     {
       const int ZZ = 2 * (iz - s[2]) + s[2] + max(code[2], 0) * nZ / 2 - code[2] * nZ + min(0, code[2]) * (e[2] - s[2]);
     #endif
-      #pragma GCC ivdep
       for (int iy = s[1]; iy < e[1]; iy++)
       {
         const int YY = 2 * (iy - s[1]) + s[1] + max(code[1], 0) * nY / 2 - code[1] * nY + min(0, code[1]) * (e[1] - s[1]);
-        #pragma GCC ivdep 
         for (int ix = s[0]; ix < e[0]; ix++)
         {
           const int XX = 2 * (ix - s[0]) + s[0] + max(code[0], 0) * nX / 2 - code[0] * nX + min(0, code[0]) * (e[0] - s[0]);
 
-          #pragma GCC ivdep
           for (int c = 0; c < NC; c++)
           {
-            const int comp = selcomponents[c];
-            const int pos = c + (ix-s[0]) * NC + (iy-s[1]) * (e[0]-s[0])*NC;
+            int comp = selcomponents[c];
             #if DIMENSION == 3
               dst[pos] = 0.125 *
                 ((*(src + gptfloats * ((XX) + ((YY) + (ZZ)*nY) * nX) + comp)) +
@@ -881,7 +871,7 @@ class SynchronizerMPI_AMR
                  (*(src + gptfloats * ( XX+1 + (YY  )*nX) + comp)) +
                  (*(src + gptfloats * ( XX+1 + (YY+1)*nX) + comp)));
             #endif
-            //pos++;
+            pos++;
           }
         }
       }

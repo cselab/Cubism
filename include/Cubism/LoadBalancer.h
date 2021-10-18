@@ -70,7 +70,7 @@ class LoadBalancer
       #if DIMENSION == 3
          int p[3];
          BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
-         if (level < m_refGrid->levelMax - 1)
+         if (level < m_refGrid->getlevelMax() - 1)
             for (int k1 = 0; k1 < 2; k1++)
             for (int j1 = 0; j1 < 2; j1++)
             for (int i1 = 0; i1 < 2; i1++)
@@ -86,7 +86,7 @@ class LoadBalancer
       #else
          int p[2];
          BlockInfo::inverse(Z, level, p[0], p[1]);
-         if (level < m_refGrid->levelMax - 1)
+         if (level < m_refGrid->getlevelMax() - 1)
             for (int j1 = 0; j1 < 2; j1++)
             for (int i1 = 0; i1 < 2; i1++)
             {
@@ -242,8 +242,6 @@ class LoadBalancer
 
    void Balance_Diffusion()
    {
-      counterg++;
-      if (counterg < 5 || (counterg % 10 == 0))
       {
          long long b = m_refGrid->getBlocksInfo().size();
          long long max_b, min_b;
@@ -251,18 +249,17 @@ class LoadBalancer
          MPI_Allreduce(&b, &min_b, 1, MPI_LONG_LONG, MPI_MIN, comm);
          const double ratio = static_cast<double>(max_b) / min_b;
          if (rank == 0) std::cout << "Load imbalance ratio = " << ratio << std::endl;
-         if (ratio > 1.5 || min_b == 0)
+         if (ratio > 1.1 || min_b == 0)
          {
             Balance_Global();
-            if (counterg > 11) counterg = 11;
             return;
          }
       }
 
-      int right = (rank == size - 1) ? MPI_PROC_NULL : rank + 1;
-      int left  = (rank == 0) ? MPI_PROC_NULL : rank - 1;
+      const int right = (rank == size - 1) ? MPI_PROC_NULL : rank + 1;
+      const int left  = (rank == 0) ? MPI_PROC_NULL : rank - 1;
 
-      int my_blocks = m_refGrid->getBlocksInfo().size();
+      const int my_blocks = m_refGrid->getBlocksInfo().size();
 
       int right_blocks, left_blocks;
 

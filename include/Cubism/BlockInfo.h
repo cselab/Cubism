@@ -98,7 +98,7 @@ struct BlockInfo
 
    long long blockID, blockID_2;
    int index[3];      //(i,j,k) coordinates of block at given refinement level
-   void *ptrBlock;    // Pointer to data stored in user-defined Block
+   void *ptrBlock{nullptr};    // Pointer to data stored in user-defined Block
    State state;       // Refine/Compress/Leave this block
    long long Z;       // Z-order curve index of this block
    int level;         // refinement level

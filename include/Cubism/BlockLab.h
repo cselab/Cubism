@@ -337,15 +337,17 @@ class BlockLab
             if (code[2] != 0) continue;
             #endif
 
-            //get neighbor on same level of resolution
-            const BlockInfo &infoNei = grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-
-            if (grid.Tree(infoNei).Exists())
+            const auto & TreeNei = grid.Tree(info.level,info.Znei_(code[0], code[1], code[2]));
+            if (TreeNei.Exists())
             {
                icodes.push_back(icode);
-               if (!coarsened) coarsened = UseCoarseStencil(info, infoNei);
+               if (!coarsened)
+               {
+                  const BlockInfo &infoNei = grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+                  coarsened = UseCoarseStencil(info, infoNei);
+               }
             }
-            else if (grid.Tree(infoNei).CheckCoarser())
+            else if (TreeNei.CheckCoarser())
             {
                CoarseFineExchange(info, code);
             }
@@ -361,8 +363,8 @@ class BlockLab
                               code[1] < 1 ? (code[1] < 0 ? 0 : nY) : nY + m_stencilEnd[1] - 1,
                               code[2] < 1 ? (code[2] < 0 ? 0 : nZ) : nZ + m_stencilEnd[2] - 1};
 
-            if      (grid.Tree(infoNei).Exists()    ) SameLevelExchange   (info, code, s, e);
-            else if (grid.Tree(infoNei).CheckFiner()) FineToCoarseExchange(info, code, s, e);
+            if      (TreeNei.Exists()    ) SameLevelExchange   (info, code, s, e);
+            else if (TreeNei.CheckFiner()) FineToCoarseExchange(info, code, s, e);
          } // icode = 0,...,26
          if (coarsened)
             for (int &icode : icodes)

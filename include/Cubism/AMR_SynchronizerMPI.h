@@ -439,6 +439,7 @@ class SynchronizerMPI_AMR
       if (sizes != nullptr)
       {
         delete[] sizes;
+        sizes = nullptr;
         for (size_t i = 0; i < blocks; i++) unpacks[i].clear();
         unpacks.clear();
       }

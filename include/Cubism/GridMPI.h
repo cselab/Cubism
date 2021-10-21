@@ -17,8 +17,6 @@
 #include "StencilInfo.h"
 #include "FluxCorrectionMPI.h"
 
-CUBISM_NAMESPACE_BEGIN
-
 #include <unistd.h>
 #include <ios>
 #include <iostream>
@@ -28,6 +26,8 @@ CUBISM_NAMESPACE_BEGIN
 #include <string>
 #include "sys/types.h"
 #include "sys/sysinfo.h"
+CUBISM_NAMESPACE_BEGIN
+
 static inline void memory_usage(std::string msg)
 {
   static int counter = 0;

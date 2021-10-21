@@ -533,7 +533,7 @@ class BlockLab
       ElementType AverageDown(const ElementType &e0, const ElementType &e1,
                               const ElementType &e2, const ElementType &e3)
       {
-         return 0.25 * (e0 + e1 + e2 + e3);
+         return 0.25 * ((e0 + e3) + (e1 + e2));
       }  
    #endif
 
@@ -974,9 +974,9 @@ class BlockLab
 
    void LI(ElementType & a, ElementType b, ElementType c)
    {
-      auto kappa = (4.0/15.0)*a+(6.0/15.0)*c+(-10.0/15.0)*b;
-      auto lambda = b - c - kappa;
-      a = 4.0*kappa+2.0*lambda+c;
+      auto kappa = ((4.0/15.0)*a+(6.0/15.0)*c)+(-10.0/15.0)*b;
+      auto lambda = (b - c) - kappa;
+      a = (4.0*kappa+2.0*lambda)+c;
    }
    void LE(ElementType & a, ElementType b, ElementType c)
    {
@@ -1412,18 +1412,18 @@ class BlockLab
                      ElementType dudy,dudy2;
                      if (YY+offset[1] == 0)
                      {
-                        dudy  = -0.5*m_CoarsenedBlock->Access(XX,YY+2,0) + 2.0*m_CoarsenedBlock->Access(XX,YY+1,0) - 1.5*m_CoarsenedBlock->Access(XX,YY,0);
-                        dudy2 = m_CoarsenedBlock->Access(XX,YY+2,0)-2.0*m_CoarsenedBlock->Access(XX,YY+1,0)+m_CoarsenedBlock->Access(XX,YY,0);
+                        dudy  = (-0.5*m_CoarsenedBlock->Access(XX,YY+2,0) - 1.5*m_CoarsenedBlock->Access(XX,YY,0))+ 2.0*m_CoarsenedBlock->Access(XX,YY+1,0) ;
+                        dudy2 = (m_CoarsenedBlock->Access(XX,YY+2,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX,YY+1,0);
                      }
                      else if (YY+offset[1] == CoarseBlockSize[1] - 1)
                      {
-                        dudy  = 0.5*m_CoarsenedBlock->Access(XX,YY-2,0) - 2.0*m_CoarsenedBlock->Access(XX,YY-1,0) + 1.5*m_CoarsenedBlock->Access(XX,YY,0);
-                        dudy2 = m_CoarsenedBlock->Access(XX,YY-2,0)-2.0*m_CoarsenedBlock->Access(XX,YY-1,0)+m_CoarsenedBlock->Access(XX,YY,0);
+                        dudy  = (0.5*m_CoarsenedBlock->Access(XX,YY-2,0) + 1.5*m_CoarsenedBlock->Access(XX,YY,0) )- 2.0*m_CoarsenedBlock->Access(XX,YY-1,0) ;
+                        dudy2 = (m_CoarsenedBlock->Access(XX,YY-2,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX,YY-1,0);
                      }
                      else
                      {
                         dudy  = 0.5*(m_CoarsenedBlock->Access(XX,YY+1,0)-m_CoarsenedBlock->Access(XX,YY-1,0));
-                        dudy2 = m_CoarsenedBlock->Access(XX,YY+1,0)-2.0*m_CoarsenedBlock->Access(XX,YY,0)+m_CoarsenedBlock->Access(XX,YY-1,0);
+                        dudy2 = (m_CoarsenedBlock->Access(XX,YY+1,0)+m_CoarsenedBlock->Access(XX,YY-1,0))-2.0*m_CoarsenedBlock->Access(XX,YY,0);
                      }
                      a = m_CoarsenedBlock->Access(XX,YY,0) + dy*dudy + (0.5*dy*dy)*dudy2; 
                   }
@@ -1432,18 +1432,18 @@ class BlockLab
                      ElementType dudx,dudx2;
                      if (XX+offset[0] == 0)
                      {
-                        dudx  = -0.5*m_CoarsenedBlock->Access(XX+2,YY,0) + 2.0*m_CoarsenedBlock->Access(XX+1,YY,0) - 1.5*m_CoarsenedBlock->Access(XX,YY,0);
-                        dudx2 = m_CoarsenedBlock->Access(XX+2,YY,0)-2.0*m_CoarsenedBlock->Access(XX+1,YY,0)+m_CoarsenedBlock->Access(XX,YY,0);
+                        dudx  = (-0.5*m_CoarsenedBlock->Access(XX+2,YY,0)- 1.5*m_CoarsenedBlock->Access(XX,YY,0)) + 2.0*m_CoarsenedBlock->Access(XX+1,YY,0) ;
+                        dudx2 = (m_CoarsenedBlock->Access(XX+2,YY,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX+1,YY,0);
                      }
                      else if (XX+offset[0] == CoarseBlockSize[0] - 1)
                      {
-                        dudx  = 0.5*m_CoarsenedBlock->Access(XX-2,YY,0) - 2.0*m_CoarsenedBlock->Access(XX-1,YY,0) + 1.5*m_CoarsenedBlock->Access(XX,YY,0);
-                        dudx2 = m_CoarsenedBlock->Access(XX-2,YY,0)-2.0*m_CoarsenedBlock->Access(XX-1,YY,0)+m_CoarsenedBlock->Access(XX,YY,0);
+                        dudx  = (0.5*m_CoarsenedBlock->Access(XX-2,YY,0)+ 1.5*m_CoarsenedBlock->Access(XX,YY,0)) - 2.0*m_CoarsenedBlock->Access(XX-1,YY,0) ;
+                        dudx2 = (m_CoarsenedBlock->Access(XX-2,YY,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX-1,YY,0);
                      }
                      else
                      {
                         dudx  = 0.5*(m_CoarsenedBlock->Access(XX+1,YY,0)-m_CoarsenedBlock->Access(XX-1,YY,0));
-                        dudx2 = m_CoarsenedBlock->Access(XX+1,YY,0)-2.0*m_CoarsenedBlock->Access(XX,YY,0)+m_CoarsenedBlock->Access(XX-1,YY,0);
+                        dudx2 = (m_CoarsenedBlock->Access(XX+1,YY,0)+m_CoarsenedBlock->Access(XX-1,YY,0))-2.0*m_CoarsenedBlock->Access(XX,YY,0);
                      }
                      a = m_CoarsenedBlock->Access(XX,YY,0) + dx*dudx + (0.5*dx*dx)*dudx2; 
                   }
@@ -1598,10 +1598,10 @@ class BlockLab
       const double dy = 0.25*(2*y-1);
       ElementType dudx   = 0.5*( (*C[2][1]) + (-1.0)*(*C[0][1]) );
       ElementType dudy   = 0.5*( (*C[1][2]) + (-1.0)*(*C[1][0]) );
-      ElementType dudxdy = 0.25*((*C[0][0]) + (*C[2][2]) - (*C[2][0]) - (*C[0][2]));
-      ElementType dudx2  = (*C[0][1]) + (-2.0)*(*C[1][1]) + (*C[2][1]);
-      ElementType dudy2  = (*C[1][0]) + (-2.0)*(*C[1][1]) + (*C[1][2]);
-      R = *C[1][1] + dx*dudx + dy*dudy + (0.5*dx*dx)*dudx2+(0.5*dy*dy)*dudy2+(dx*dy)*dudxdy;
+      ElementType dudxdy = 0.25*(((*C[0][0]) + (*C[2][2])) - ((*C[2][0]) + (*C[0][2])));
+      ElementType dudx2  = ((*C[0][1]) + (*C[2][1])) -2.0*(*C[1][1]);
+      ElementType dudy2  = ((*C[1][0]) + (*C[1][2])) -2.0*(*C[1][1]);
+      R = (*C[1][1] + (dx*dudx + dy*dudy)) + ( ((0.5*dx*dx)*dudx2+(0.5*dy*dy)*dudy2) +(dx*dy)*dudxdy );
       #if 0 //WENO3
       //ElementType Line[2][3];
       //Kernel_1D(*C[0][0], *C[1][0], *C[2][0], Line[0][0], Line[1][0]);

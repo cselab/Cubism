@@ -809,10 +809,10 @@ class SynchronizerMPI_AMR
                        (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ + 1) * nY) * nX) + comp)));
             #else
               dst[pos] = 0.25 *
-                      ((*(src + gptfloats*(XX  +(YY  )*nX) + comp)) +
-                       (*(src + gptfloats*(XX  +(YY+1)*nX) + comp)) +
-                       (*(src + gptfloats*(XX+1+(YY  )*nX) + comp)) +
-                       (*(src + gptfloats*(XX+1+(YY+1)*nX) + comp)));
+                      (((*(src + gptfloats*(XX  +(YY  )*nX) + comp)) +
+                        (*(src + gptfloats*(XX+1+(YY+1)*nX) + comp)))+
+                       ((*(src + gptfloats*(XX  +(YY+1)*nX) + comp)) +
+                        (*(src + gptfloats*(XX+1+(YY  )*nX) + comp))));
             #endif
             pos++;
           }
@@ -867,10 +867,10 @@ class SynchronizerMPI_AMR
                  (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ + 1) * nY) * nX) + comp)));
             #else
               dst[pos] = 0.25 *
-                ((*(src + gptfloats * ( XX   + (YY  )*nX) + comp)) +
-                 (*(src + gptfloats * ( XX   + (YY+1)*nX) + comp)) +
-                 (*(src + gptfloats * ( XX+1 + (YY  )*nX) + comp)) +
-                 (*(src + gptfloats * ( XX+1 + (YY+1)*nX) + comp)));
+                      (((*(src + gptfloats*(XX  +(YY  )*nX) + comp)) +
+                        (*(src + gptfloats*(XX+1+(YY+1)*nX) + comp)))+
+                       ((*(src + gptfloats*(XX  +(YY+1)*nX) + comp)) +
+                        (*(src + gptfloats*(XX+1+(YY  )*nX) + comp))));
             #endif
             pos++;
           }

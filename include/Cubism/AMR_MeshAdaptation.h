@@ -351,8 +351,10 @@ class MeshAdaptation
                      for (int i = 0; i < nx; i += 2)
                      {
                         ElementType average =
-                            0.125 * (b(i, j, k) + b(i + 1, j, k) + b(i, j + 1, k) + b(i + 1, j + 1, k) +
-                                     b(i, j, k + 1) + b(i + 1, j, k + 1) + b(i, j + 1, k + 1) + b(i + 1, j + 1, k + 1));
+                            0.125 * ( (b(i    , j    , k  ) + b(i + 1, j + 1, k + 1)) 
+                                    + (b(i + 1, j    , k  ) + b(i    , j + 1, k + 1))
+                                    + (b(i    , j + 1, k  ) + b(i + 1, j    , k + 1))
+                                    + (b(i + 1, j + 1, k  ) + b(i    , j    , k + 1)) );
                         (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) = average;
                      }
             }
@@ -408,7 +410,7 @@ class MeshAdaptation
             for (int j = 0; j < ny; j += 2)
                for (int i = 0; i < nx; i += 2)
                {
-                  ElementType average = 0.25 * (b(i, j, 0) + b(i + 1, j, 0) + b(i, j + 1, 0) + b(i + 1, j + 1, 0));
+                  ElementType average = 0.25 * ( (b(i, j, 0)+ b(i + 1, j + 1, 0)) + (b(i + 1, j, 0) + b(i, j + 1, 0)) );
                   (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], 0) = average;
                }
          }
@@ -666,12 +668,12 @@ class MeshAdaptation
                         ElementType dudx  = 0.5 * (Lab(x+1,y,z) - Lab(x-1,y,z));
                         ElementType dudy  = 0.5 * (Lab(x,y+1,z) - Lab(x,y-1,z));
                         ElementType dudz  = 0.5 * (Lab(x,y,z+1) - Lab(x,y,z-1));
-                        ElementType dudx2 = Lab(x+1,y,z) - 2.0*Lab(x,y,z) + Lab(x-1,y,z);
-                        ElementType dudy2 = Lab(x,y+1,z) - 2.0*Lab(x,y,z) + Lab(x,y-1,z);
-                        ElementType dudz2 = Lab(x,y,z+1) - 2.0*Lab(x,y,z) + Lab(x,y,z-1);
-                        ElementType dudxdy = 0.25*(Lab(x+1,y+1,z) +Lab(x-1,y-1,z) -Lab(x+1,y-1,z) -Lab(x-1,y+1,z));
-                        ElementType dudxdz = 0.25*(Lab(x+1,y,z+1) +Lab(x-1,y,z-1) -Lab(x+1,y,z-1) -Lab(x-1,y,z+1));
-                        ElementType dudydz = 0.25*(Lab(x,y+1,z+1) +Lab(x,y-1,z-1) -Lab(x,y+1,z-1) -Lab(x,y-1,z+1));
+                        ElementType dudx2 = (Lab(x+1,y,z)  + Lab(x-1,y,z)) - 2.0*Lab(x,y,z);
+                        ElementType dudy2 = (Lab(x,y+1,z)  + Lab(x,y-1,z)) - 2.0*Lab(x,y,z);
+                        ElementType dudz2 = (Lab(x,y,z+1)  + Lab(x,y,z-1)) - 2.0*Lab(x,y,z);
+                        ElementType dudxdy = 0.25*((Lab(x+1,y+1,z)+Lab(x-1,y-1,z)) - (Lab(x+1,y-1,z)+Lab(x-1,y+1,z)));
+                        ElementType dudxdz = 0.25*((Lab(x+1,y,z+1)+Lab(x-1,y,z-1)) - (Lab(x+1,y,z-1)+Lab(x-1,y,z+1)));
+                        ElementType dudydz = 0.25*((Lab(x,y+1,z+1)+Lab(x,y-1,z-1)) - (Lab(x,y+1,z-1)+Lab(x,y-1,z+1)));
 
                         b(i  , j  , k  ) = Lab(x,y,z) + 0.25*(-(1.0)* dudx - dudy - dudz) + 0.03125 *(dudx2+dudy2+dudz2) + 0.0625*(       dudxdy + dudxdz + dudydz);
                         b(i+1, j  , k  ) = Lab(x,y,z) + 0.25*(        dudx - dudy - dudz) + 0.03125 *(dudx2+dudy2+dudz2) + 0.0625*(-(1.0)*dudxdy - dudxdz + dudydz);
@@ -699,18 +701,16 @@ class MeshAdaptation
                   ElementType dudy = 0.5 * (Lab(i / 2 + offsetX[I], j / 2 + offsetY[J] + 1) -
                                             Lab(i / 2 + offsetX[I], j / 2 + offsetY[J] - 1));
 
-                  ElementType dudx2 = Lab(i/2+offsetX[I]+1, j/2+offsetY[J]  ) - 2.0*Lab(i/2+offsetX[I], j/2+offsetY[J]) + Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  );
-                  ElementType dudy2 = Lab(i/2+offsetX[I]  , j/2+offsetY[J]+1) - 2.0*Lab(i/2+offsetX[I], j/2+offsetY[J]) + Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1);  
+                  ElementType dudx2 = (Lab(i/2+offsetX[I]+1, j/2+offsetY[J]  )  + Lab(i/2+offsetX[I]-1,j/2+offsetY[J]  ))- 2.0*Lab(i/2+offsetX[I], j/2+offsetY[J]);
+                  ElementType dudy2 = (Lab(i/2+offsetX[I]  , j/2+offsetY[J]+1)  + Lab(i/2+offsetX[I]  ,j/2+offsetY[J]-1))- 2.0*Lab(i/2+offsetX[I], j/2+offsetY[J]);  
 
-                  ElementType dudxdy = 0.25*(Lab(i/2+offsetX[I]+1, j/2+offsetY[J]+1)
-                                            +Lab(i/2+offsetX[I]-1, j/2+offsetY[J]-1)
-                                            -Lab(i/2+offsetX[I]+1, j/2+offsetY[J]-1)
-                                            -Lab(i/2+offsetX[I]-1, j/2+offsetY[J]+1));
+                  ElementType dudxdy = 0.25*( (Lab(i/2+offsetX[I]+1, j/2+offsetY[J]+1)+Lab(i/2+offsetX[I]-1, j/2+offsetY[J]-1))
+                                             -(Lab(i/2+offsetX[I]+1, j/2+offsetY[J]-1)+Lab(i/2+offsetX[I]-1, j/2+offsetY[J]+1)));
 
-                  b(i  ,j  ,0) = Lab(i/2+offsetX[I], j/2+offsetY[J]) - 0.25*dudx - 0.25*dudy + 0.03125*dudx2 + 0.03125*dudy2 + 0.0625*dudxdy;
-                  b(i+1,j  ,0) = Lab(i/2+offsetX[I], j/2+offsetY[J]) + 0.25*dudx - 0.25*dudy + 0.03125*dudx2 + 0.03125*dudy2 - 0.0625*dudxdy;
-                  b(i  ,j+1,0) = Lab(i/2+offsetX[I], j/2+offsetY[J]) - 0.25*dudx + 0.25*dudy + 0.03125*dudx2 + 0.03125*dudy2 - 0.0625*dudxdy;
-                  b(i+1,j+1,0) = Lab(i/2+offsetX[I], j/2+offsetY[J]) + 0.25*dudx + 0.25*dudy + 0.03125*dudx2 + 0.03125*dudy2 + 0.0625*dudxdy;
+                  b(i  ,j  ,0) = (Lab(i/2+offsetX[I], j/2+offsetY[J]) + (- 0.25*dudx - 0.25*dudy) ) + ( (0.03125*dudx2 + 0.03125*dudy2) + 0.0625*dudxdy);
+                  b(i+1,j  ,0) = (Lab(i/2+offsetX[I], j/2+offsetY[J]) + (+ 0.25*dudx - 0.25*dudy) ) + ( (0.03125*dudx2 + 0.03125*dudy2) - 0.0625*dudxdy);
+                  b(i  ,j+1,0) = (Lab(i/2+offsetX[I], j/2+offsetY[J]) + (- 0.25*dudx + 0.25*dudy) ) + ( (0.03125*dudx2 + 0.03125*dudy2) - 0.0625*dudxdy);
+                  b(i+1,j+1,0) = (Lab(i/2+offsetX[I], j/2+offsetY[J]) + (+ 0.25*dudx + 0.25*dudy) ) + ( (0.03125*dudx2 + 0.03125*dudy2) + 0.0625*dudxdy);
                }
          }
       #endif

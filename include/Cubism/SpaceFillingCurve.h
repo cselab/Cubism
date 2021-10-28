@@ -244,7 +244,7 @@ class SpaceFillingCurve
       }
       else
       {
-        int aux   = 1 << l;
+        long long aux   = 1 << l;
         long long Zloc  = Z % (aux*aux*aux);
         long long X[3] = {0, 0, 0};
         TransposetoAxes(Zloc, X, l);

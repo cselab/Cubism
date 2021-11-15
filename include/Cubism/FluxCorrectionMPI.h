@@ -33,13 +33,13 @@ class FluxCorrectionMPI : public TFluxCorrection
       }
       bool operator<(const face &other) const
       {
-         if (infos[0]->Z == other.infos[0]->Z)
+         if (infos[0]->blockID_2 == other.infos[0]->blockID_2)
          {
             return (icode[0] < other.icode[0]);
          }
          else
          {
-            return (infos[0]->Z < other.infos[0]->Z);
+            return (infos[0]->blockID_2 < other.infos[0]->blockID_2);
          }
       }
    };
@@ -154,7 +154,6 @@ class FluxCorrectionMPI : public TFluxCorrection
                const long long nCoarse = infoNei.Zparent;
                BlockInfo &infoNeiCoarser = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level - 1, nCoarse);
                const int infoNeiCoarserrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level - 1, nCoarse).rank();
-               if (infoNeiCoarserrank != TFluxCorrection::rank)
                {
                   int code2[3] = {-code[0], -code[1], -code[2]};
                   int icode2   = (code2[0] + 1) + (code2[1] + 1) * 3 + (code2[2] + 1) * 9;
@@ -179,7 +178,6 @@ class FluxCorrectionMPI : public TFluxCorrection
                   const long long nFine = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
                   BlockInfo &infoNeiFiner = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine);
                   const int infoNeiFinerrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level + 1, nFine).rank();
-                  if (infoNeiFinerrank != TFluxCorrection::rank)
                   {
                      int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
                      recv_faces[infoNeiFinerrank].push_back(face(infoNeiFiner, info, icode2, icode[f]));
@@ -246,6 +244,8 @@ class FluxCorrectionMPI : public TFluxCorrection
 
    virtual void FillBlockCases(bool Integrate = true) override
    {
+      auto MPI_real = (sizeof(Real) == sizeof(float) ) ? MPI_FLOAT : ( (sizeof(Real) == sizeof(double)) ? MPI_DOUBLE : MPI_LONG_DOUBLE);
+
       // This assumes that the BlockCases have been filled by the user somehow...
       TFluxCorrection::TimeIntegration = Integrate;
 
@@ -304,38 +304,67 @@ class FluxCorrectionMPI : public TFluxCorrection
       std::vector<MPI_Request> send_requests;
       std::vector<MPI_Request> recv_requests;
 
-      for (int r = 0; r < size; r++)
+      const int me = TFluxCorrection::rank;
+      for (int r = 0; r < size; r++) if (r != me)
       {
          if (recv_buffer[r].size() != 0)
          {
             MPI_Request req;
             recv_requests.push_back(req);
-            MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_DOUBLE, r, 123456,
+            MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_real, r, 123456,
                       (*TFluxCorrection::m_refGrid).getWorldComm(), &recv_requests.back());
          }
          if (send_buffer[r].size() != 0)
          {
             MPI_Request req;
             send_requests.push_back(req);
-            MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_DOUBLE, r, 123456,
+            MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_real, r, 123456,
                       (*TFluxCorrection::m_refGrid).getWorldComm(), &send_requests.back());
          }
       }
 
-      TFluxCorrection::FillBlockCases(Integrate);
+      MPI_Request me_send_request;
+      MPI_Request me_recv_request;
+      if (recv_buffer[me].size() != 0)
+      {
+         MPI_Irecv(&recv_buffer[me][0], recv_buffer[me].size(), MPI_real, me, 123456,
+                   (*TFluxCorrection::m_refGrid).getWorldComm(), &me_recv_request);
+      }
+      if (send_buffer[me].size() != 0)
+      {
+         MPI_Isend(&send_buffer[me][0], send_buffer[me].size(), MPI_real, me, 123456,
+                   (*TFluxCorrection::m_refGrid).getWorldComm(), &me_send_request);
+      }
+
+      if (recv_buffer[me].size() > 0) MPI_Waitall(1, &me_recv_request, MPI_STATUSES_IGNORE);
+      if (send_buffer[me].size() > 0) MPI_Waitall(1, &me_send_request, MPI_STATUSES_IGNORE);
+
+      for (int index = 0; index < (int)recv_faces[me].size(); index++)
+         FillCase(recv_faces[me][index]);
 
       if (recv_requests.size() > 0) MPI_Waitall(recv_requests.size(), &recv_requests[0], MPI_STATUSES_IGNORE);
 
-      for (int r = 0; r < size; r++)
+      for (int r = 0; r < size; r++) if (r!=me)
          for (int index = 0; index < (int)recv_faces[r].size(); index++)
-         {
-            FillCase_2(recv_faces[r][index]);
-         }
+            FillCase(recv_faces[r][index]);
+
+      //first do x, then y then z. It is done like this to preserve symmetry and not favor any direction
+      for (int r = 0; r < size; r++) //if (r!=me)
+         for (int index = 0; index < (int)recv_faces[r].size(); index++)
+            FillCase_2(recv_faces[r][index],1,0,0);
+      for (int r = 0; r < size; r++) //if (r!=me)
+         for (int index = 0; index < (int)recv_faces[r].size(); index++)
+            FillCase_2(recv_faces[r][index],0,1,0);
+      #if DIMENSION == 3
+      for (int r = 0; r < size; r++) //if (r!=me)
+         for (int index = 0; index < (int)recv_faces[r].size(); index++)
+            FillCase_2(recv_faces[r][index],0,0,1);
+      #endif
 
       if (send_requests.size() > 0) MPI_Waitall(send_requests.size(), &send_requests[0], MPI_STATUSES_IGNORE);
    }
 
-   void FillCase_2(face F)
+   void FillCase(face & F)
    {
       BlockInfo & info  = *F.infos[1];
       const int icode   = F.icode[1];
@@ -398,112 +427,81 @@ class FluxCorrectionMPI : public TFluxCorrection
             }
          #endif
       }
+   }
+   void FillCase_2(face & F, int codex, int codey, int codez)
+   {
+      BlockInfo & info  = *F.infos[1];
+      const int icode   = F.icode[1];
+      const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
+
+      if (abs(code[0]) != codex) return;
+      if (abs(code[1]) != codey) return;
+      if (abs(code[2]) != codez) return;
+
+      const int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
+      std::array<long long, 2> temp = {(long long)info.level, info.Z};
+      auto search             = TFluxCorrection::MapOfCases.find(temp);
+      assert(search != TFluxCorrection::MapOfCases.end());
+      Case &CoarseCase                     = (*search->second);
+      std::vector<ElementType> &CoarseFace = CoarseCase.m_pData[myFace];
 
       const int d  = myFace / 2;
       const int d2 = min((d + 1) % 3, (d + 2) % 3);
       const int N2 = CoarseCase.m_vSize[d2];
       BlockType &block = *(BlockType *)info.ptrBlock;
       #if DIMENSION == 3
-      if (TFluxCorrection::TimeIntegration)
-      {
-         abort();
-         #if 0
-           const double V = 1.0 / (info.h*info.h*info.h);
-           int d1 = max((d + 1) % 3, (d + 2) % 3);
-           int N1 = CoarseCase.m_vSize[d1];
-           // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
-           if (d == 0)
-           {
-              int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
-              for (int i1 = 0; i1 < N1; i1 += 1)
-                 for (int i2 = 0; i2 < N2; i2 += 1)
-                 {
-                   for (int e = 0 ; e < ElementType::DIM; e++)
-                     block.tmp[i1][i2][j][e] += V*CoarseFace[i2 + i1 * N2].member(e);
-                   
-                   CoarseFace[i2 + i1 * N2].clear();
-                 }
-           }
-           else if (d == 1)
-           {
-              int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
-              for (int i1 = 0; i1 < N1; i1 += 1)
-                 for (int i2 = 0; i2 < N2; i2 += 1)
-                 {
-                   for (int e = 0 ; e < ElementType::DIM; e++)
-                     block.tmp[i1][j][i2][e] += V*CoarseFace[i2 + i1 * N2].member(e);
-                   CoarseFace[i2 + i1 * N2].clear();
-                 }
-           }
-           else
-           {
-              int j = (myFace % 2 == 0) ? 0 : BlockType::sizeZ - 1;
-              for (int i1 = 0; i1 < N1; i1 += 1)
-                 for (int i2 = 0; i2 < N2; i2 += 1)
-                 {
-                   for (int e = 0 ; e < ElementType::DIM; e++)
-                     block.tmp[j][i1][i2][e] += V*CoarseFace[i2 + i1 * N2].member(e);
-                   CoarseFace[i2 + i1 * N2].clear();
-                 }
-           }
-          #endif
-      }
-      else
-      {
-        // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
-        const int d1 = max((d + 1) % 3, (d + 2) % 3);
-        const int N1 = CoarseCase.m_vSize[d1];
-        if (d == 0)
-        {
-          const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
-          for (int i1 = 0; i1 < N1; i1 ++)
-          for (int i2 = 0; i2 < N2; i2 ++)
-          {
-            block(j,i2,i1) += CoarseFace[i2 + i1 * N2];
-            CoarseFace[i2 + i1 * N2].clear();
-          }
-        }
-        else if (d == 1)
-        {
-          const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
-          for (int i1 = 0; i1 < N1; i1 ++)
-          for (int i2 = 0; i2 < N2; i2 ++)
-          {
-            block(i2,j,i1) += CoarseFace[i2 + i1 * N2];
-            CoarseFace[i2 + i1 * N2].clear();
-          }
-        }
-        else
-        {
-          const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeZ - 1;
-          for (int i1 = 0; i1 < N1; i1 ++)
-          for (int i2 = 0; i2 < N2; i2 ++)
-          {
-            block(i2,i1,j) += CoarseFace[i2 + i1 * N2];
-            CoarseFace[i2 + i1 * N2].clear();
-          }
-        }               
-      }
+         const int d1 = max((d + 1) % 3, (d + 2) % 3);
+         const int N1 = CoarseCase.m_vSize[d1];
+         if (d == 0)
+         {
+            const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
+            for (int i1 = 0; i1 < N1; i1 ++)
+            for (int i2 = 0; i2 < N2; i2 ++)
+            {
+             block(j,i2,i1) += CoarseFace[i2 + i1 * N2];
+             CoarseFace[i2 + i1 * N2].clear();
+            }
+         }
+         else if (d == 1)
+         {
+            const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
+            for (int i1 = 0; i1 < N1; i1 ++)
+            for (int i2 = 0; i2 < N2; i2 ++)
+            {
+             block(i2,j,i1) += CoarseFace[i2 + i1 * N2];
+             CoarseFace[i2 + i1 * N2].clear();
+            }
+         }
+         else
+         {
+            const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeZ - 1;
+            for (int i1 = 0; i1 < N1; i1 ++)
+            for (int i2 = 0; i2 < N2; i2 ++)
+            {
+             block(i2,i1,j) += CoarseFace[i2 + i1 * N2];
+             CoarseFace[i2 + i1 * N2].clear();
+            }
+         }               
       #else
-      assert(d!=2);
-      if (d == 0)
-      {
-        const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
-        for (int i2 = 0; i2 < N2; i2 ++)
-        {
-          block(j,i2) += CoarseFace[i2];
-          CoarseFace[i2].clear();
-        }
-      }
-      else //if (d == 1)
-      {
-        const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
-        for (int i2 = 0; i2 < N2; i2 ++)
-        {
-          block(i2,j) += CoarseFace[i2];
-          CoarseFace[i2].clear();
-        }
-      }
+         assert(d!=2);
+         if (d == 0)
+         {
+            const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
+            for (int i2 = 0; i2 < N2; i2 ++)
+            {
+               block(j,i2) += CoarseFace[i2];
+               CoarseFace[i2].clear();
+            }
+         }
+         else //if (d == 1)
+         {
+            const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
+            for (int i2 = 0; i2 < N2; i2 ++)
+            {
+               block(i2,j) += CoarseFace[i2];
+               CoarseFace[i2].clear();
+            }
+         }
       #endif
    }
 };

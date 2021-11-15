@@ -112,7 +112,11 @@ class LoadBalancer
       MPI_Block dummy;
       int array_of_blocklengths[2]       = {2, sizeof(BlockType) / sizeof(Real)};
       MPI_Aint array_of_displacements[2] = {0, 2 * sizeof(long long)};
-      MPI_Datatype array_of_types[2]     = {MPI_LONG_LONG, MPI_DOUBLE};
+      MPI_Datatype array_of_types[2];//     = {MPI_LONG_LONG, MPI_DOUBLE};
+      array_of_types[0] = MPI_LONG_LONG;
+      if (sizeof(Real) == sizeof(float)) array_of_types[1] = MPI_FLOAT;
+      else if (sizeof(Real) == sizeof(double)) array_of_types[1] = MPI_DOUBLE;
+      else if (sizeof(Real) == sizeof(long double)) array_of_types[1] = MPI_LONG_DOUBLE;
       MPI_Type_create_struct(2, array_of_blocklengths, array_of_displacements, array_of_types, &MPI_BLOCK);
       MPI_Type_commit(&MPI_BLOCK);
       flux_left_old  = 0;

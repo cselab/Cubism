@@ -63,9 +63,10 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
    virtual void Tag(double t = 0) override
    {
+      auto MPI_real = (sizeof(Real) == sizeof(float) ) ? MPI_FLOAT : ( (sizeof(Real) == sizeof(double)) ? MPI_DOUBLE : MPI_LONG_DOUBLE);
       AMR::time = t;
 
-      Synch->sync(sizeof(typename Block::element_type) / sizeof(Real),sizeof(Real) > 4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
+      Synch->sync(sizeof(typename Block::element_type) / sizeof(Real), MPI_real, timestamp);
       timestamp = (timestamp + 1) % 32768;
 
       const int nthreads = omp_get_max_threads();
@@ -102,10 +103,11 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
    virtual void Adapt(double t = 0, bool verbosity = false, bool basic = false) override
    {
+      auto MPI_real = (sizeof(Real) == sizeof(float) ) ? MPI_FLOAT : ( (sizeof(Real) == sizeof(double)) ? MPI_DOUBLE : MPI_LONG_DOUBLE);
       AMR::basic_refinement = basic;
       if (AMR::LabsPrepared == false)
       {
-         Synch->sync(sizeof(typename Block::element_type) / sizeof(Real),sizeof(Real) > 4 ? MPI_DOUBLE : MPI_FLOAT, timestamp);
+         Synch->sync(sizeof(typename Block::element_type) / sizeof(Real), MPI_real, timestamp);
          timestamp = (timestamp + 1) % 32768;
          const int nthreads = omp_get_max_threads();
          AMR::labs = new TLab[nthreads];

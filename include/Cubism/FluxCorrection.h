@@ -78,6 +78,7 @@ class FluxCorrection
    virtual void prepare(TGrid &grid)
    {
       if (grid.UpdateFluxCorrection == false) return;
+      grid.UpdateFluxCorrection = false;
 
       Cases.clear();
       MapOfCases.clear();

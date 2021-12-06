@@ -198,7 +198,7 @@ class GridMPI : public TGrid
    }
 
    std::vector<BlockInfo *> boundary;
-   virtual void UpdateBoundary() override
+   virtual void UpdateBoundary(bool clean=false) override
    {
       const auto blocksPerDim = TGrid::getMaxBlocks();
 
@@ -241,7 +241,7 @@ class GridMPI : public TGrid
             const TreePosition &infoNeiTree = TGrid::Tree(infoNei.level, infoNei.Z);
             if (infoNeiTree.Exists() && infoNeiTree.rank() != rank)
             {
-               if (infoNei.state != Refine) infoNei.state = Leave;
+               if (infoNei.state != Refine || clean) infoNei.state = Leave;
                receivers.insert(infoNeiTree.rank());
                Neighbors.insert(infoNeiTree.rank());
             }
@@ -253,7 +253,7 @@ class GridMPI : public TGrid
                if (infoNeiCoarserrank != rank)
                {
                   assert(infoNeiCoarserrank >= 0);
-                  if (infoNeiCoarser.state != Refine) infoNeiCoarser.state = Leave;
+                  if (infoNeiCoarser.state != Refine || clean) infoNeiCoarser.state = Leave;
                   receivers.insert(infoNeiCoarserrank);
                   Neighbors.insert(infoNeiCoarserrank);
                }
@@ -283,7 +283,7 @@ class GridMPI : public TGrid
                   const int infoNeiFinerrank = TGrid::Tree(infoNei.level + 1, nFine).rank();
                   if (infoNeiFinerrank != rank)
                   {
-                     if (infoNeiFiner.state != Refine) infoNeiFiner.state = Leave;
+                     if (infoNeiFiner.state != Refine || clean) infoNeiFiner.state = Leave;
                      receivers.insert(infoNeiFinerrank);
                      Neighbors.insert(infoNeiFinerrank);
                   }

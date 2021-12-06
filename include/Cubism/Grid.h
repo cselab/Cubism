@@ -442,7 +442,7 @@ class Grid
    }
    virtual int get_world_size() const { return 1; }
 
-   virtual void UpdateBoundary(){} //does nothing for a single node (no MPI)
+   virtual void UpdateBoundary(bool clean=false){} //does nothing for a single node (no MPI)
 
    void UpdateMyGroups()
    {

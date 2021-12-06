@@ -474,6 +474,7 @@ class MeshAdaptation
       // 1.Change states of blocks next to finer resolution blocks
       // 2.Change states of blocks next to same resolution blocks
       // 3.Compress a block only if all blocks with the same parent need compression
+      bool clean_boundary = true;
       for (int m = levelMax - 1; m >= levelMin; m--)
       {
          // 1.
@@ -550,7 +551,8 @@ class MeshAdaptation
             }
          }
 
-         m_refGrid->UpdateBoundary();
+         m_refGrid->UpdateBoundary(clean_boundary);
+         clean_boundary = false;
          if (m == levelMin) break;
 
          // 2.

@@ -68,6 +68,8 @@ void DumpHDF5_uniform(const TGrid &grid, const typename TGrid::Real absTime, con
   for (size_t i = 0 ; i < MyInfos.size() ; i ++) hmin = std::min(hmin,MyInfos[i].h);
   const double h = hmin;
 
+  // TODO: Refactor, move the interpolation logic into a separate function at
+  // the level of a Grid, see copyToUniformNoInterpolation for reference.
 
   std::vector <float> uniform_mesh(uny*unx*NCHANNELS);
   for (size_t i = 0 ; i < MyInfos.size() ; i ++)

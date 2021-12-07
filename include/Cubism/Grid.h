@@ -330,8 +330,20 @@ class Grid
   #endif
 
    std::array<int, 3> getMaxBlocks() const { return {NX, NY, NZ}; }
+   std::array<int, 3> getMaxMostRefinedBlocks() const
+   {
+     return {
+       NX << (levelMax - 1),
+       NY << (levelMax - 1),
+       DIMENSION == 3 ? (NZ << (levelMax - 1)) : 1,
+     };
+   }
+   std::array<int, 3> getMaxMostRefinedCells() const
+   {
+     const auto b = getMaxMostRefinedBlocks();
+     return {b[0] * Block::sizeX, b[1] * Block::sizeY, b[2] * Block::sizeZ};
+   }
 
-   inline int getlevelMax() { return levelMax; }
    inline int getlevelMax() const { return levelMax; }
 
    BlockInfo &getBlockInfoAll(int m, long long n)
@@ -676,6 +688,17 @@ class Grid
    }
 
 #endif
+
+  /** Copy the grid to a uniform grid matrix, scaling where necessary.
+
+      Blocks that are not at the most refined level are scaled without
+      interpolation.
+
+      If `out` is `nullptr`, a new buffer is allocated.
+      Returns a pointer to the buffer.
+  */
+  template <typename T>
+  T *copyToUniformNoInterpolation(T *out = nullptr) const;
 };
 
 } // namespace cubism

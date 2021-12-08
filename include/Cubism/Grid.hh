@@ -73,8 +73,7 @@ void Grid<Block, Allocator>::copyFromMatrix(const ElementType *in)
   for (size_t i = 0; i < m_vInfo.size(); ++i) {
     const BlockInfo &info = m_vInfo[i];
     Block &block = *(Block *)info.ptrBlock;
-    const int level = info.level;
-    assert(level == 0);
+    assert(info.level == 0);
 
     const int offset = info.index[0] * BX * xStride
                      + info.index[1] * BY * yStride

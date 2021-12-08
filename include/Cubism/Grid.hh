@@ -4,8 +4,8 @@ namespace cubism
 {
 
 template <typename Block, template <typename> class Allocator>
-template <typename T>
-T *Grid<Block, Allocator>::copyToUniformNoInterpolation(T *out) const
+auto Grid<Block, Allocator>::copyToUniformNoInterpolation(
+    ElementType *out) const -> ElementType *
 {
   constexpr int BX = Block::sizeX;
   constexpr int BY = Block::sizeY;
@@ -16,7 +16,7 @@ T *Grid<Block, Allocator>::copyToUniformNoInterpolation(T *out) const
   const int zStride = C[0] * C[1];
 
   if (out == nullptr)
-    out = new T[C[0] * C[1] * C[2]];
+    out = new ElementType[C[0] * C[1] * C[2]];
 
 #pragma omp parallel for
   for (size_t i = 0; i < m_vInfo.size(); ++i) {
@@ -52,6 +52,43 @@ T *Grid<Block, Allocator>::copyToUniformNoInterpolation(T *out) const
   }
 
   return out;
+}
+
+
+template <typename Block, template <typename> class Allocator>
+void Grid<Block, Allocator>::copyFromMatrix(const ElementType *in)
+{
+  if (levelMax != 1)
+    throw std::runtime_error("importFromMartix works only for uniform grids");
+
+  constexpr int BX = Block::sizeX;
+  constexpr int BY = Block::sizeY;
+  constexpr int BZ = Block::sizeZ;
+  const auto C = getMaxMostRefinedCells();
+  constexpr int xStride = 1;
+  const int yStride = C[0];
+  const int zStride = C[0] * C[1];
+
+#pragma omp parallel for
+  for (size_t i = 0; i < m_vInfo.size(); ++i) {
+    const BlockInfo &info = m_vInfo[i];
+    Block &block = *(Block *)info.ptrBlock;
+    const int level = info.level;
+    assert(level == 0);
+
+    const int offset = info.index[0] * BX * xStride
+                     + info.index[1] * BY * yStride
+                     + info.index[2] * BZ * zStride;
+
+    for (int iz = 0; iz < BZ; ++iz)
+    for (int iy = 0; iy < BY; ++iy)
+    for (int ix = 0; ix < BX; ++ix)
+    {
+      const int idx = offset + ix * xStride + iy * yStride + iz * zStride;
+      assert(idx < C[0] * C[1] * C[2]);
+      block(ix, iy, iz) = in[idx];
+    }
+  }
 }
 
 }  // namespace cubism

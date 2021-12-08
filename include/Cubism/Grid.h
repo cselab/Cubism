@@ -65,6 +65,7 @@ class Grid
  public:
    typedef Block BlockType;
    typedef typename Block::RealType Real; // Block MUST provide `RealType`.
+   using ElementType = typename Block::ElementType;
 
    const bool xperiodic;             // grid periodicity in x-direction
    const bool yperiodic;             // grid periodicity in y-direction
@@ -697,8 +698,13 @@ class Grid
       If `out` is `nullptr`, a new buffer is allocated.
       Returns a pointer to the buffer.
   */
-  template <typename T>
-  T *copyToUniformNoInterpolation(T *out = nullptr) const;
+  ElementType *copyToUniformNoInterpolation(ElementType *out = nullptr) const;
+
+  /** Import data from a large uniform matrix ordered as [z][y][x].
+
+      Throws an exception if maxLevel is larger than 1.
+  */
+  void copyFromMatrix(const ElementType *in);
 };
 
 } // namespace cubism

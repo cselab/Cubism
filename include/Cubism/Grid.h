@@ -9,6 +9,7 @@
 #endif
 
 #include "BlockInfo.h"
+#include "FluxCorrection.h"
 
 namespace cubism // AMR_CUBISM
 {
@@ -61,6 +62,7 @@ class Grid
    const int levelStart;   // Initial refinement level
 
    std::vector<long long> level_base;
+   FluxCorrection<Grid,Block> CorrectorGrid;
 
  public:
    typedef Block BlockType;

@@ -175,6 +175,7 @@ class Grid
       m_blocks.clear();
       m_vInfo.clear();
       BlockInfoAll.clear();
+      Octree.clear();
    }
 
    void _dealloc(int m, long long n) // called whenever the grid is compressed

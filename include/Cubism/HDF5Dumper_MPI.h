@@ -7,6 +7,12 @@
  *
  */
 
+//TODOs:
+//1. Remove LabMPI from template arguments
+//2. Dump all fields to single hdf5 file (use separate xmf file per field) - append to hdf5. 
+//   Vertices are currenly dumped multiple times (once per field), which is a waste of memory.
+
+
 #pragma once
 
 #include <cassert>
@@ -17,20 +23,296 @@
 #include <string>
 #include <vector>
 #include <fstream>
-
+#include <sys/stat.h>
 #include "HDF5Dumper.h"
 #include "GridMPI.h"
 #include "StencilInfo.h"
 
 CUBISM_NAMESPACE_BEGIN
 
+template <typename data_type>
+void read_buffer_from_file(std::vector<data_type> & buffer,MPI_Comm & comm, const std::string & name, const std::string & dataset_name, const int chunk)
+{
+    int rank,size;
+    MPI_Comm_rank(comm,&rank);
+    MPI_Comm_size(comm,&size);
+    
+    hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
+
+    //1. Open file
+    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL);
+    file_id = H5Fopen(name.c_str(), H5F_ACC_RDONLY, fapl_id);
+    H5Pclose(fapl_id);
+
+    //2. Dataset property list
+    fapl_id = H5Pcreate(H5P_DATASET_XFER);
+    H5Pset_dxpl_mpio(fapl_id, H5FD_MPIO_COLLECTIVE);
+
+    //3. Read dataset size
+    dataset_id = H5Dopen2(file_id, dataset_name.c_str(), H5P_DEFAULT);
+    hsize_t total = H5Dget_storage_size(dataset_id) / sizeof(data_type) / chunk;
+
+    //4. Determine part of the dataset to be read by this rank
+    unsigned long long my_data = total / size;
+    if ((hsize_t)rank < total % (hsize_t)size) my_data++;
+    unsigned long long n_start = rank * (total / size);
+    if (total % size > 0)
+    {
+       if ((hsize_t)rank < total % (hsize_t)size) 
+          n_start += rank;
+       else
+          n_start += total % size;
+    }
+    hsize_t offset = n_start * chunk;
+    hsize_t count = my_data * chunk;
+    buffer.resize(count);
+
+    //5. Read from file
+    fspace_id = H5Dget_space(dataset_id);
+    mspace_id = H5Screate_simple(1, &count, NULL);
+    H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, &offset, NULL, &count, NULL);
+    H5Dread(dataset_id, get_hdf5_type<data_type>(), mspace_id, fspace_id, fapl_id, buffer.data());
+
+    //6. Close stuff
+    H5Pclose(fapl_id);
+    H5Dclose(dataset_id);
+    H5Sclose(fspace_id);
+    H5Sclose(mspace_id);
+    H5Fclose(file_id);
+}
+
+template <typename data_type>
+void save_buffer_to_file(const std::vector<data_type> & buffer, const int NCHANNELS, MPI_Comm & comm, const std::string & name, const std::string & dataset_name)
+{
+    assert(buffer.size() % NCHANNELS == 0);
+    unsigned long long MyCells = buffer.size() / NCHANNELS;
+    unsigned long long TotalCells;
+    MPI_Allreduce(&MyCells, &TotalCells, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, comm);
+
+    hsize_t base_tmp[1] = {0};
+    MPI_Exscan(&MyCells, &base_tmp[0], 1, MPI_UNSIGNED_LONG_LONG,  MPI_SUM , comm);
+    base_tmp[0] *= NCHANNELS;
+
+    hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
+    
+    //1.Set up file access property list with parallel I/O access
+    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL);
+
+    //2.Create a new file collectively and release property list identifier. 
+    file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, fapl_id);
+
+    H5Pclose(fapl_id);
+
+    //3.Create dataset
+    fapl_id = H5Pcreate(H5P_DATASET_XFER);
+    H5Pset_dxpl_mpio(fapl_id, H5FD_MPIO_COLLECTIVE);
+
+    hsize_t dims[1]  = {(hsize_t) TotalCells*NCHANNELS};
+    fspace_id        = H5Screate_simple(1, dims, NULL);
+    dataset_id       = H5Dcreate (file_id, dataset_name.c_str(), get_hdf5_type<data_type>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    //4.Dump
+    hsize_t count[1] = {MyCells*NCHANNELS};
+
+    fspace_id = H5Dget_space(dataset_id);
+    mspace_id = H5Screate_simple(1, count, NULL);
+
+    H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, base_tmp, NULL, count, NULL);
+    H5Dwrite(dataset_id, get_hdf5_type<data_type>(), mspace_id, fspace_id, fapl_id, buffer.data());
+    H5Sclose(mspace_id);
+    H5Sclose(fspace_id);
+    H5Dclose(dataset_id);
+    H5Pclose(fapl_id);
+    H5Fclose(file_id);
+}
+
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-
 template <typename TStreamer, typename hdf5Real, typename TGrid, typename LabMPI> 
 void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
+{
+    typedef typename TGrid::BlockType B;
+    const int nX = B::sizeX;
+    const int nY = B::sizeY;
+    const int nZ = B::sizeZ;
+    const int NCHANNELS = TStreamer::NCHANNELS;
+
+    MPI_Comm comm = grid.getWorldComm();
+    const int rank = grid.myrank;
+    std::ostringstream filename;
+    std::ostringstream fullpath;
+    filename << fname;// fname is the base filepath without file type extension
+    fullpath << dpath << "/" << filename.str();
+
+    #if DIMENSION == 2
+    const int PtsPerElement = 4;
+    #else
+    const int PtsPerElement = 8;
+    #endif 
+    std::vector<BlockInfo> & MyInfos = grid.getBlocksInfo();
+    unsigned long long MyCells = MyInfos.size()*nX*nY*nZ;
+    unsigned long long TotalCells;
+    MPI_Allreduce(&MyCells, &TotalCells, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, comm);
+
+    H5open();
+    hid_t file_id,fapl_id;
+    
+    //1.Set up file access property list with parallel I/O access
+    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL);
+
+    //2.Create a new file collectively and release property list identifier.
+    file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+    H5Pclose(fapl_id);
+    H5Fclose(file_id);
+    
+    // Write grid meta-data
+    if (rank == 0)
+    {
+        std::ostringstream myfilename;
+        myfilename << filename.str();
+        std::stringstream s;        
+        s << "<?xml version=\"1.0\" ?>\n";
+        s << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n";
+        s << "<Xdmf Version=\"2.0\">\n";
+        s << "<Domain>\n";
+        s << " <Grid Name=\"OctTree\" GridType=\"Uniform\">\n";
+        s << "  <Time Value=\"" << std::scientific << absTime << "\"/>\n\n";
+        #if DIMENSION == 2
+        s << "   <Topology NumberOfElements=\"" << TotalCells << "\" TopologyType=\"Quadrilateral\"/>\n";
+        s << "     <Geometry GeometryType=\"XY\">\n";
+        #else
+        s << "   <Topology NumberOfElements=\"" << TotalCells << "\" TopologyType=\"Hexahedron\"/>\n";
+        s << "     <Geometry GeometryType=\"XYZ\">\n";
+        #endif
+        s << "        <DataItem ItemType=\"Uniform\"  Dimensions=\" " << TotalCells*PtsPerElement << " " << DIMENSION << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real) << "\" Format=\"HDF\">\n";
+        s << "            " << (myfilename.str() + ".h5").c_str() << ":/" << "vertices" << "\n";
+        s << "        </DataItem>\n";
+        s << "     </Geometry>\n";
+        s << "     <Attribute Name=\"data\" AttributeType=\"" << TStreamer::getAttributeName()<< "\" Center=\"Cell\">\n";
+        s << "        <DataItem ItemType=\"Uniform\"  Dimensions=\" " << TotalCells << " " << NCHANNELS << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real) << "\" Format=\"HDF\">\n";
+        s << "            " << (myfilename.str() + ".h5").c_str() << ":/" << "data" << "\n";
+        s << "        </DataItem>\n";
+        s << "     </Attribute>\n";
+        s << " </Grid>\n";
+        s << "</Domain>\n";
+        s << "</Xdmf>\n";
+        std::string st = s.str();
+        FILE *xmf = 0;
+        xmf = fopen((fullpath.str() + "-new.xmf").c_str(), "w");
+        fprintf(xmf, st.c_str());
+        fclose(xmf);
+    }
+    //Dump grid structure (used when restarting)
+    {
+        std::vector<int> bufferlevel(MyInfos.size());
+        std::vector<long long> bufferZ(MyInfos.size());
+        for (size_t i = 0 ; i < MyInfos.size() ; i ++)
+        {
+            bufferlevel[i] = MyInfos[i].level;
+            bufferZ[i]     = MyInfos[i].Z;
+        }
+        save_buffer_to_file<int      >(bufferlevel, 1, comm,fullpath.str()+".h5","blockslevel");
+        save_buffer_to_file<long long>(bufferZ    , 1, comm,fullpath.str()+".h5","blocksZ"    );
+    }
+    //Dump vertices
+    {
+        std::vector<hdf5Real> buffer(MyCells * PtsPerElement * DIMENSION);
+        for (size_t i = 0 ; i < MyInfos.size() ; i ++)
+        {
+            const BlockInfo & info = MyInfos[i];
+            const double h2 = 0.5*info.h;
+            for (int z = 0; z < nZ; z++)
+            for (int y = 0; y < nY; y++)
+            for (int x = 0; x < nX; x++)
+            {
+                const int bbase = (i*nZ*nY*nX+z*nY*nX+y*nX+x)*PtsPerElement*DIMENSION;
+                #if DIMENSION == 3
+                double p[3];
+                info.pos(p,x,y,z);
+                //(0,0,0)
+                buffer[bbase              ] = p[0]-h2;
+                buffer[bbase            +1] = p[1]-h2;
+                buffer[bbase            +2] = p[2]-h2;
+                //(0,0,1)
+                buffer[bbase+  DIMENSION  ] = p[0]-h2;
+                buffer[bbase+  DIMENSION+1] = p[1]-h2;
+                buffer[bbase+  DIMENSION+2] = p[2]+h2;
+                //(0,1,1)
+                buffer[bbase+2*DIMENSION  ] = p[0]-h2;
+                buffer[bbase+2*DIMENSION+1] = p[1]+h2;
+                buffer[bbase+2*DIMENSION+2] = p[2]+h2;
+                //(0,1,0)
+                buffer[bbase+3*DIMENSION  ] = p[0]-h2;
+                buffer[bbase+3*DIMENSION+1] = p[1]+h2;
+                buffer[bbase+3*DIMENSION+2] = p[2]-h2;
+                //(1,0,0)
+                buffer[bbase+4*DIMENSION  ] = p[0]+h2;
+                buffer[bbase+4*DIMENSION+1] = p[1]-h2;
+                buffer[bbase+4*DIMENSION+2] = p[2]-h2;
+                //(1,0,1)
+                buffer[bbase+5*DIMENSION  ] = p[0]+h2;
+                buffer[bbase+5*DIMENSION+1] = p[1]-h2;
+                buffer[bbase+5*DIMENSION+2] = p[2]+h2;
+                //(1,1,1)
+                buffer[bbase+6*DIMENSION  ] = p[0]+h2;
+                buffer[bbase+6*DIMENSION+1] = p[1]+h2;
+                buffer[bbase+6*DIMENSION+2] = p[2]+h2;
+                //(1,1,0)
+                buffer[bbase+7*DIMENSION  ] = p[0]+h2;
+                buffer[bbase+7*DIMENSION+1] = p[1]+h2;
+                buffer[bbase+7*DIMENSION+2] = p[2]-h2;
+                #else
+                double p[2];
+                info.pos(p,x,y);
+                //(0,0)
+                buffer[bbase              ] = p[0]-h2;
+                buffer[bbase            +1] = p[1]-h2;
+                //(0,1)
+                buffer[bbase+  DIMENSION  ] = p[0]-h2;
+                buffer[bbase+  DIMENSION+1] = p[1]+h2;
+                //(1,1)
+                buffer[bbase+2*DIMENSION  ] = p[0]+h2;
+                buffer[bbase+2*DIMENSION+1] = p[1]+h2;
+                //(1,0)
+                buffer[bbase+3*DIMENSION  ] = p[0]+h2;
+                buffer[bbase+3*DIMENSION+1] = p[1]-h2;
+                #endif
+            }
+        }
+        save_buffer_to_file<hdf5Real>(buffer, 1, comm,fullpath.str()+".h5","vertices");
+    }
+    //Dump data
+    {
+        std::vector<hdf5Real> buffer(MyCells*NCHANNELS);
+        for (size_t i = 0 ; i < MyInfos.size() ; i ++)
+        {
+            const BlockInfo & info = MyInfos[i];
+            B & b = * (B*)info.ptrBlock;
+            for (int z = 0; z < nZ; z++)
+            for (int y = 0; y < nY; y++)
+            for (int x = 0; x < nX; x++)
+            {
+                hdf5Real output[NCHANNELS]{0};
+                TStreamer::operate(b,x,y,z,output);
+                for (int nc = 0 ; nc < NCHANNELS ; nc ++)
+                {
+                    buffer[(i*nZ*nY*nX+z*nY*nX+y*nX+x)*NCHANNELS+nc] = output[nc];
+                }
+            }
+        }
+        save_buffer_to_file<hdf5Real>(buffer, NCHANNELS, comm,fullpath.str()+".h5","data");
+    }
+
+    H5close();
+}
+
+template <typename TStreamer, typename hdf5Real, typename TGrid, typename LabMPI> 
+void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
 {
     typedef typename TGrid::BlockType B;
     const int nX = B::sizeX;
@@ -295,15 +577,49 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
 }
 
 template <typename TStreamer, typename hdf5Real, typename TGrid>
-void DumpHDF5_MPI(TGrid &grid, const int iCounter, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
-{
-  DumpHDF5_MPI<TStreamer,hdf5Real,TGrid>(grid,absTime,fname,dpath,bXMF);
-}
-
-template <typename TStreamer, typename hdf5Real, typename TGrid>
 void ReadHDF5_MPI(TGrid &grid, const std::string &fname, const std::string &dpath = ".")
 {
-   std::cout << "ReadHDF5_MPI is not implemented!" << std::endl;
-   return;
+    typedef typename TGrid::BlockType B;
+    const int nX = B::sizeX;
+    const int nY = B::sizeY;
+    const int nZ = B::sizeZ;
+    const int NCHANNELS = TStreamer::NCHANNELS;
+    const int blocksize = nX*nY*nZ*NCHANNELS;
+
+    MPI_Comm comm = grid.getWorldComm();
+
+    // fname is the base filepath tail without file type extension and additional identifiers
+    std::ostringstream filename;
+    std::ostringstream fullpath;
+    filename << fname;
+    fullpath << dpath << "/" << filename.str();
+
+    H5open();
+
+    std::vector<long long> blocksZ;
+    std::vector<int      > blockslevel;
+    std::vector<hdf5Real > data;
+    read_buffer_from_file<long long>(blocksZ    , comm, fullpath.str()+".h5" ,"blocksZ"    ,1        );
+    read_buffer_from_file<int      >(blockslevel, comm, fullpath.str()+".h5" ,"blockslevel",1        );
+    read_buffer_from_file<hdf5Real >(data       , comm, fullpath.str()+".h5" ,"data"       ,blocksize);
+
+    grid.initialize_blocks(blocksZ,blockslevel);
+
+    std::vector<BlockInfo> & MyInfos = grid.getBlocksInfo();
+    for (size_t i = 0 ; i < MyInfos.size() ; i ++)
+    {
+        const BlockInfo & info = MyInfos[i];
+        B & b = * (B*)info.ptrBlock;
+        for (int z = 0; z < nZ; z++)
+        for (int y = 0; y < nY; y++)
+        for (int x = 0; x < nX; x++)
+        for (int nc = 0 ; nc < min(NCHANNELS,B::ElementType::DIM) ; nc ++) 
+        {
+            //NCHANNELS > DIM only for 2D vectors, otherwise NCHANNELS=DIM
+            b(x,y,z).member(nc) = data[(i*nZ*nY*nX+z*nY*nX+y*nX+x)*NCHANNELS+nc];                
+        }
+    }
+
+    H5close();
 }
 CUBISM_NAMESPACE_END

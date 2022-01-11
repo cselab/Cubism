@@ -294,6 +294,61 @@ class Grid
 
    virtual int rank() const { return 0; }
 
+
+   virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<int> & blockslevel)
+   {
+      //Given two vectors with the SFC coordinate (Z) and the level of each block, this function
+      //will erase the current structure of the grid and create a new one, with the given blocks.
+      //This is used when reading data from file (possibly to restart) or when initializing the
+      //simulation.
+      _deallocAll();
+      for (size_t i = 0 ; i < blocksZ.size() ; i++)
+      {
+         const int level   = blockslevel[i];
+         const long long Z = blocksZ[i];
+
+         _alloc(level, Z);
+         Tree(level, Z).setrank(rank());
+
+         #if DIMENSION == 3
+            int p[3];
+            BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
+            if (level < levelMax - 1)
+               for (int k1 = 0; k1 < 2; k1++)
+               for (int j1 = 0; j1 < 2; j1++)
+               for (int i1 = 0; i1 < 2; i1++)
+               {
+                  const long long nc = getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1, 2 * p[2] + k1);
+                  Tree(level + 1, nc).setCheckCoarser();
+               }
+            if (level > 0)
+            {
+               const long long nf = getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
+               Tree(level - 1, nf).setCheckFiner();
+            }
+         #else
+            int p[2];
+            BlockInfo::inverse(Z, level, p[0], p[1]);
+            if (level < levelMax - 1)
+               for (int j1 = 0; j1 < 2; j1++)
+               for (int i1 = 0; i1 < 2; i1++)
+               {
+                  const long long nc = getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1);
+                  Tree(level + 1, nc).setCheckCoarser();
+               }
+            if (level > 0)
+            {
+               const long long nf = getZforward(level - 1, p[0] / 2, p[1] / 2);
+               Tree(level - 1, nf).setCheckFiner();
+            }
+         #endif
+      }
+      FillPos(true);
+      UpdateFluxCorrection = true;
+      UpdateGroups = true;
+   }
+
+
   #if DIMENSION == 3
    long long getZforward(const int level, const int i, const int j, const int k) const
    {

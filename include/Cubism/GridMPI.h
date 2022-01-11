@@ -105,70 +105,11 @@ class GridMPI : public TGrid
          else
             n_start += total_blocks % world_size;
       }
-      for (long long n = n_start; n < n_start + my_blocks; n++) TGrid::_alloc(a_levelStart, n);
 
-      const int m          = TGrid::levelStart;
-      const long long nmax = nX * nY * nZ * pow(pow(2, m), DIMENSION);
-      for (long long n = 0; n < nmax; n++)
-      {
-         long long r;
-         if (total_blocks % world_size > 0)
-         {
-            if (n + 1 > (total_blocks / world_size + 1) * (total_blocks % world_size))
-            {
-               long long aux = (total_blocks / world_size + 1) * (total_blocks % world_size);
-               r             = (n - aux) / (total_blocks / world_size) + total_blocks % world_size;
-            }
-            else
-            {
-               r = n / (total_blocks / world_size + 1);
-            }
-         }
-         else
-         {
-            r = n / my_blocks;
-         }
-         TGrid::Tree(m, n).setrank(r);
-         if (r == (long long)myrank)
-         {
-            const int level   = m;
-            const long long Z = n;
-           #if DIMENSION == 3
-            int p[3];
-            BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
-            if (level < TGrid::levelMax - 1)
-               for (int k1 = 0; k1 < 2; k1++)
-                  for (int j1 = 0; j1 < 2; j1++)
-                     for (int i1 = 0; i1 < 2; i1++)
-                     {
-                        const long long nc = TGrid::getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1, 2 * p[2] + k1);
-                        TGrid::Tree(level + 1, nc).setCheckCoarser();
-                     }
-            if (level > 0)
-            {
-               const long long nf = TGrid::getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
-               TGrid::Tree(level - 1, nf).setCheckFiner();
-            }
-           #else
-            int p[2];
-            BlockInfo::inverse(Z, level, p[0], p[1]);
-            if (level < TGrid::levelMax - 1)
-               for (int j1 = 0; j1 < 2; j1++)
-                  for (int i1 = 0; i1 < 2; i1++)
-                  {
-                     const long long nc = TGrid::getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1);
-                     TGrid::Tree(level + 1, nc).setCheckCoarser();
-                  }
-            if (level > 0)
-            {
-               const long long nf = TGrid::getZforward(level - 1, p[0] / 2, p[1] / 2);
-               TGrid::Tree(level - 1, nf).setCheckFiner();
-            }
-           #endif
-         }
-      }
-
-      TGrid::FillPos(true);
+      std::vector<int> levels(my_blocks,a_levelStart);
+      std::vector<long long> Zs (my_blocks);
+      for (long long n = n_start; n < n_start + my_blocks; n++) Zs[n-n_start]=n;
+      initialize_blocks(Zs,levels);
 
       if (myrank == 0)
       {
@@ -687,6 +628,14 @@ class GridMPI : public TGrid
       assert((SynchronizerMPIs.find(p.stencil) != SynchronizerMPIs.end()));
 
       return *SynchronizerMPIs.find(p.stencil)->second;
+   }
+
+   virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<int> & blockslevel) override
+   {
+      TGrid::initialize_blocks(blocksZ,blockslevel);
+      UpdateBlockInfoAll_States();
+      for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
+        (*it->second)._Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(), timestamp, true);
    }
 
    virtual int rank() const override { return myrank; }

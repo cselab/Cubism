@@ -205,12 +205,6 @@ void DumpHDF5_uniform(const TGrid &grid, const typename TGrid::Real absTime, con
    }
 }
 
-template<typename TStreamer, typename hdf5Real, typename TGrid>
-void DumpHDF5_groups(TGrid &grid,const typename TGrid::Real absTime,const std::string &fname,const std::string &dpath = ".",const bool bXMF = true)
-{
-  DumpHDF5<TStreamer,hdf5Real,TGrid>(grid,absTime,fname,dpath,bXMF);
-}
-
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
@@ -370,6 +364,12 @@ void DumpHDF5(const TGrid &grid, const typename TGrid::Real absTime, const std::
   H5Pclose(fapl_id);
   H5Fclose(file_id);
   H5close();
+}
+
+template<typename TStreamer, typename hdf5Real, typename TGrid>
+void DumpHDF5_groups(TGrid &grid,const typename TGrid::Real absTime,const std::string &fname,const std::string &dpath = ".",const bool bXMF = true)
+{
+  DumpHDF5<TStreamer,hdf5Real,TGrid>(grid,absTime,fname,dpath,bXMF);
 }
 
 template<typename TStreamer, typename hdf5Real, typename TGrid>

@@ -440,20 +440,20 @@ class LoadBalancer
       std::vector<MPI_Request> send_request;
       long long counter_S = 0;
       long long counter_E = 0;
-      for (int r = 0; r < size; r++)
+      for (int r = 0; r < rank; r++)
          if (send_blocks[r].size() != 0)
          {
-            if (r < rank)
-            {
-               for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[counter_S + i]);
-               counter_S += send_blocks[r].size();
-            }
-            else
-            {
-               for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[SortedInfos.size() - 1 - (counter_E + i)]);
-               counter_E += send_blocks[r].size();
-            }
-
+            for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[counter_S + i]);
+            counter_S += send_blocks[r].size();
+            MPI_Request req;
+            send_request.push_back(req);
+            MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &send_request.back());
+         }
+      for (int r = size-1; r > rank; r--)
+         if (send_blocks[r].size() != 0)
+         {
+            for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[SortedInfos.size() - 1 - (counter_E + i)]);
+            counter_E += send_blocks[r].size();
             MPI_Request req;
             send_request.push_back(req);
             MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &send_request.back());

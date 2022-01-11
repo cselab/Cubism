@@ -19,12 +19,16 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
  protected:
 
-   SynchronizerMPI_AMR<Real,TGrid> *Synch;
-   int timestamp;
    bool flag;
    bool CallValidStates;
    LoadBalancer<TGrid> *Balancer;
    using AMR = MeshAdaptation<TGrid,TLab>;
+
+   struct stencilWrapper
+   {
+      StencilInfo stencil;
+   };
+   stencilWrapper kernel;
 
  public:
    MeshAdaptationMPI(TGrid &grid, double Rtol, double Ctol): MeshAdaptation<TGrid,TLab>(grid,Rtol,Ctol)
@@ -34,6 +38,21 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       const int Gy = 2;
       const int Gz = DIMENSION == 3? 2:0;
       StencilInfo stencil(-Gx, -Gy, -Gz, Gx + 1, Gy + 1, Gz + 1, tensorial, AMR::components);
+
+      kernel.stencil.sx = stencil.sx;
+      kernel.stencil.ex = stencil.ex;
+      kernel.stencil.sy = stencil.sy;
+      kernel.stencil.ey = stencil.ey;
+      kernel.stencil.sz = stencil.sz;
+      kernel.stencil.ez = stencil.ez;
+      kernel.stencil.sx = stencil.sx;
+      kernel.stencil.ez = stencil.ez;
+      kernel.stencil.sy = stencil.sy;
+      kernel.stencil.ey = stencil.ey;
+      kernel.stencil.sz = stencil.sz;
+      kernel.stencil.ez = stencil.ez;
+      kernel.stencil.tensorial = stencil.tensorial;
+      kernel.stencil.selcomponents = stencil.selcomponents;
 
       AMR::m_refGrid = &grid;
       AMR::s [0] = stencil.sx;
@@ -51,23 +70,16 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       AMR::istensorial = stencil.tensorial;
 
       Balancer = new LoadBalancer<TGrid>(*AMR::m_refGrid);
-      timestamp = 0;
       flag      = true;
-      auto blockperDim     = AMR::m_refGrid->getMaxBlocks();
-      StencilInfo Cstencil = stencil;
-      Synch                = new SynchronizerMPIType(stencil, Cstencil, AMR::m_refGrid->getlevelMax(), TGrid::Block::sizeX,TGrid::Block::sizeY, TGrid::Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2], &grid);
-      Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), timestamp, true);
    }
 
-   virtual ~MeshAdaptationMPI() { delete Synch; delete Balancer;}
+   virtual ~MeshAdaptationMPI() {delete Balancer;}
 
    virtual void Tag(double t = 0) override
    {
-      auto MPI_real = (sizeof(Real) == sizeof(float) ) ? MPI_FLOAT : ( (sizeof(Real) == sizeof(double)) ? MPI_DOUBLE : MPI_LONG_DOUBLE);
       AMR::time = t;
 
-      Synch->sync(sizeof(typename Block::element_type) / sizeof(Real), MPI_real, timestamp);
-      timestamp = (timestamp + 1) % 32768;
+      SynchronizerMPI_AMR<Real,TGrid> * Synch = AMR::m_refGrid->sync(kernel);
 
       const int nthreads = omp_get_max_threads();
       AMR::labs = new TLab[nthreads];
@@ -103,12 +115,10 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
    virtual void Adapt(double t = 0, bool verbosity = false, bool basic = false) override
    {
-      auto MPI_real = (sizeof(Real) == sizeof(float) ) ? MPI_FLOAT : ( (sizeof(Real) == sizeof(double)) ? MPI_DOUBLE : MPI_LONG_DOUBLE);
       AMR::basic_refinement = basic;
       if (AMR::LabsPrepared == false)
       {
-         Synch->sync(sizeof(typename Block::element_type) / sizeof(Real), MPI_real, timestamp);
-         timestamp = (timestamp + 1) % 32768;
+         SynchronizerMPI_AMR<Real,TGrid> * Synch = AMR::m_refGrid->sync(kernel);
          const int nthreads = omp_get_max_threads();
          AMR::labs = new TLab[nthreads];
          for (int i = 0; i < nthreads; i++) AMR::labs[i].prepare(*AMR::m_refGrid, *Synch);
@@ -192,12 +202,10 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
          AMR::m_refGrid->UpdateBlockInfoAll_States(false);
 
-         Synch->_Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), timestamp, true);
-
          auto it = AMR::m_refGrid->SynchronizerMPIs.begin();
          while (it != AMR::m_refGrid->SynchronizerMPIs.end())
          {
-            (*it->second)._Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), timestamp);
+            (*it->second)._Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), AMR::m_refGrid->getTimeStamp());
             it++;
          }
       }

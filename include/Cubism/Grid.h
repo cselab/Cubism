@@ -704,7 +704,8 @@ class Grid
 
   /** Import data from a large uniform matrix ordered as [z][y][x].
 
-      Throws an exception if maxLevel is larger than 1.
+      The grid structure is left unchanged. The values of cells at level lower
+      than maxLevel-1 are computed by averaging the corresponding input cells.
   */
   void copyFromMatrix(const ElementType *in);
 };

@@ -19,11 +19,11 @@ auto Grid<Block, Allocator>::copyToUniformNoInterpolation(
     out = new ElementType[C[0] * C[1] * C[2]];
 
 #pragma omp parallel for
-  for (size_t i = 0; i < m_vInfo.size(); ++i) {
+  for (size_t i = 0; i < m_vInfo.size(); ++i)
+  {
     const BlockInfo &info = m_vInfo[i];
     const Block &block = *(Block *)info.ptrBlock;
-    const int level = info.level;
-    const int factor = 1 << ((levelMax - 1) - level);
+    const int factor = 1 << ((levelMax - 1) - info.level);
 
     for (int iz = 0; iz < Block::sizeZ; ++iz)
     for (int iy = 0; iy < Block::sizeY; ++iy)
@@ -36,7 +36,6 @@ auto Grid<Block, Allocator>::copyToUniformNoInterpolation(
       const int yOffset = (info.index[1] * BY + iy) * factor;
       const int xOffset = (info.index[0] * BX + ix) * factor;
 
-      // It might be beneficial to make this
       for (int jz = 0; jz < (DIMENSION == 3 ? factor : 1); ++jz)
       for (int jy = 0; jy < factor; ++jy)
       for (int jx = 0; jx < factor; ++jx)
@@ -58,9 +57,6 @@ auto Grid<Block, Allocator>::copyToUniformNoInterpolation(
 template <typename Block, template <typename> class Allocator>
 void Grid<Block, Allocator>::copyFromMatrix(const ElementType *in)
 {
-  if (levelMax != 1)
-    throw std::runtime_error("importFromMartix works only for uniform grids");
-
   constexpr int BX = Block::sizeX;
   constexpr int BY = Block::sizeY;
   constexpr int BZ = Block::sizeZ;
@@ -70,22 +66,36 @@ void Grid<Block, Allocator>::copyFromMatrix(const ElementType *in)
   const int zStride = C[0] * C[1];
 
 #pragma omp parallel for
-  for (size_t i = 0; i < m_vInfo.size(); ++i) {
+  for (size_t i = 0; i < m_vInfo.size(); ++i)
+  {
     const BlockInfo &info = m_vInfo[i];
     Block &block = *(Block *)info.ptrBlock;
-    assert(info.level == 0);
-
-    const int offset = info.index[0] * BX * xStride
-                     + info.index[1] * BY * yStride
-                     + info.index[2] * BZ * zStride;
+    const int factor = 1 << ((levelMax - 1) - info.level);
+    const auto avgFactor = (typename ElementType::RealType)1
+                         / (factor * factor * (DIMENSION == 3 ? factor : 1));
 
     for (int iz = 0; iz < BZ; ++iz)
     for (int iy = 0; iy < BY; ++iy)
     for (int ix = 0; ix < BX; ++ix)
     {
-      const int idx = offset + ix * xStride + iy * yStride + iz * zStride;
-      assert(idx < C[0] * C[1] * C[2]);
-      block(ix, iy, iz) = in[idx];
+      const int zOffset = (info.index[2] * BZ + iz) * factor;
+      const int yOffset = (info.index[1] * BY + iy) * factor;
+      const int xOffset = (info.index[0] * BX + ix) * factor;
+
+      ElementType sum{};
+      for (int jz = 0; jz < (DIMENSION == 3 ? factor : 1); ++jz)
+      for (int jy = 0; jy < factor; ++jy)
+      for (int jx = 0; jx < factor; ++jx)
+      {
+        const int kz = zOffset + jz;
+        const int ky = yOffset + jy;
+        const int kx = xOffset + jx;
+        const int idx = kx * xStride + ky * yStride + kz * zStride;
+        assert(idx < C[0] * C[1] * C[2]);
+        sum += in[idx];
+      }
+
+      block(ix, iy, iz) = avgFactor * sum;
     }
   }
 }

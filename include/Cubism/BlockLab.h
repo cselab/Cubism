@@ -1392,61 +1392,83 @@ class BlockLab
             }
             if (grid.FiniteDifferences && abs(code[0]) + abs(code[1]) == 1) //Correct stencil points +-1 and +-2 at faces
             {
+               #pragma GCC ivdep
+               for (int iy = s[1]; iy < e[1]; iy += 2)
+               {
+                  const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1]- offset[1];
+                  const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
+                  const int iyp = (abs(iy) % 2 == 1) ?  -1 : 1;
+                  const double dy = 0.25*(2*y-1);
+
+                  #pragma GCC ivdep
+                  for (int ix = s[0]; ix < e[0]; ix += 2)
+                  {
+                     const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0]- offset[0];
+                     const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                     const int ixp = (abs(ix) % 2 == 1) ?  -1 : 1;
+                     const double dx = 0.25*(2*x-1);
+                     if (ix < -2 || iy < -2 || ix > nX+1 || iy > nY+1) continue;
+
+                     if (code[0] != 0)
+                     {
+                        ElementType dudy,dudy2;
+                        if (YY+offset[1] == 0)
+                        {
+                           dudy  = (-0.5*m_CoarsenedBlock->Access(XX,YY+2,0) - 1.5*m_CoarsenedBlock->Access(XX,YY,0))+ 2.0*m_CoarsenedBlock->Access(XX,YY+1,0) ;
+                           dudy2 = (m_CoarsenedBlock->Access(XX,YY+2,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX,YY+1,0);
+                        }
+                        else if (YY+offset[1] == CoarseBlockSize[1] - 1)
+                        {
+                           dudy  = (0.5*m_CoarsenedBlock->Access(XX,YY-2,0) + 1.5*m_CoarsenedBlock->Access(XX,YY,0) )- 2.0*m_CoarsenedBlock->Access(XX,YY-1,0) ;
+                           dudy2 = (m_CoarsenedBlock->Access(XX,YY-2,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX,YY-1,0);
+                        }
+                        else
+                        {
+                           dudy  = 0.5*(m_CoarsenedBlock->Access(XX,YY+1,0)-m_CoarsenedBlock->Access(XX,YY-1,0));
+                           dudy2 = (m_CoarsenedBlock->Access(XX,YY+1,0)+m_CoarsenedBlock->Access(XX,YY-1,0))-2.0*m_CoarsenedBlock->Access(XX,YY,0);
+                        }
+                        m_cacheBlock->Access(ix - m_stencilStart[0]    , iy - m_stencilStart[1]    ,0) = m_CoarsenedBlock->Access(XX,YY,0) + dy*dudy + (0.5*dy*dy)*dudy2;
+                        if (iy + iyp >= s[1] && iy + iyp  < e[1]) m_cacheBlock->Access(ix - m_stencilStart[0]    , iy - m_stencilStart[1]+iyp,0) = m_CoarsenedBlock->Access(XX,YY,0) - dy*dudy + (0.5*dy*dy)*dudy2;
+                        if (ix + ixp >= s[0] && ix + ixp  < e[0]) m_cacheBlock->Access(ix - m_stencilStart[0]+ixp, iy - m_stencilStart[1]    ,0) = m_CoarsenedBlock->Access(XX,YY,0) + dy*dudy + (0.5*dy*dy)*dudy2;
+                        if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1]) m_cacheBlock->Access(ix - m_stencilStart[0]+ixp, iy - m_stencilStart[1]+iyp,0) = m_CoarsenedBlock->Access(XX,YY,0) - dy*dudy + (0.5*dy*dy)*dudy2;
+                     }
+                     else //if (code[1] != 0)
+                     {
+                        ElementType dudx,dudx2;
+                        if (XX+offset[0] == 0)
+                        {
+                           dudx  = (-0.5*m_CoarsenedBlock->Access(XX+2,YY,0)- 1.5*m_CoarsenedBlock->Access(XX,YY,0)) + 2.0*m_CoarsenedBlock->Access(XX+1,YY,0) ;
+                           dudx2 = (m_CoarsenedBlock->Access(XX+2,YY,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX+1,YY,0);
+                        }
+                        else if (XX+offset[0] == CoarseBlockSize[0] - 1)
+                        {
+                           dudx  = (0.5*m_CoarsenedBlock->Access(XX-2,YY,0)+ 1.5*m_CoarsenedBlock->Access(XX,YY,0)) - 2.0*m_CoarsenedBlock->Access(XX-1,YY,0) ;
+                           dudx2 = (m_CoarsenedBlock->Access(XX-2,YY,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX-1,YY,0);
+                        }
+                        else
+                        {
+                           dudx  = 0.5*(m_CoarsenedBlock->Access(XX+1,YY,0)-m_CoarsenedBlock->Access(XX-1,YY,0));
+                           dudx2 = (m_CoarsenedBlock->Access(XX+1,YY,0)+m_CoarsenedBlock->Access(XX-1,YY,0))-2.0*m_CoarsenedBlock->Access(XX,YY,0);
+                        }
+                        m_cacheBlock->Access(ix - m_stencilStart[0]    , iy - m_stencilStart[1]    ,0) = m_CoarsenedBlock->Access(XX,YY,0) + dx*dudx + (0.5*dx*dx)*dudx2;
+                        if (iy + iyp >= s[1] && iy + iyp  < e[1]) m_cacheBlock->Access(ix - m_stencilStart[0]    , iy - m_stencilStart[1]+iyp,0) = m_CoarsenedBlock->Access(XX,YY,0) + dx*dudx + (0.5*dx*dx)*dudx2;
+                        if (ix + ixp >= s[0] && ix + ixp  < e[0]) m_cacheBlock->Access(ix - m_stencilStart[0]+ixp, iy - m_stencilStart[1]    ,0) = m_CoarsenedBlock->Access(XX,YY,0) - dx*dudx + (0.5*dx*dx)*dudx2;
+                        if (ix + ixp >= s[0] && ix + ixp  < e[0] && iy + iyp >= s[1] && iy + iyp  < e[1]) m_cacheBlock->Access(ix - m_stencilStart[0]+ixp, iy - m_stencilStart[1]+iyp,0) = m_CoarsenedBlock->Access(XX,YY,0) - dx*dudx + (0.5*dx*dx)*dudx2;
+                     }
+                  }
+
+               }
+
                for (int iy = s[1]; iy < e[1]; iy += 1)
                {
                #pragma GCC ivdep
                for (int ix = s[0]; ix < e[0]; ix += 1)
                {
                   if (ix < -2 || iy < -2 || ix > nX+1 || iy > nY+1) continue;
-                  const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1] - offset[1];
-                  const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0] - offset[0];
                   const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
                   const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
-                  const double dx = 0.25*(2*x-1);
-                  const double dy = 0.25*(2*y-1);
 
                   auto & a = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0);
-   
-                  if (code[0] != 0)
-                  {
-                     ElementType dudy,dudy2;
-                     if (YY+offset[1] == 0)
-                     {
-                        dudy  = (-0.5*m_CoarsenedBlock->Access(XX,YY+2,0) - 1.5*m_CoarsenedBlock->Access(XX,YY,0))+ 2.0*m_CoarsenedBlock->Access(XX,YY+1,0) ;
-                        dudy2 = (m_CoarsenedBlock->Access(XX,YY+2,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX,YY+1,0);
-                     }
-                     else if (YY+offset[1] == CoarseBlockSize[1] - 1)
-                     {
-                        dudy  = (0.5*m_CoarsenedBlock->Access(XX,YY-2,0) + 1.5*m_CoarsenedBlock->Access(XX,YY,0) )- 2.0*m_CoarsenedBlock->Access(XX,YY-1,0) ;
-                        dudy2 = (m_CoarsenedBlock->Access(XX,YY-2,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX,YY-1,0);
-                     }
-                     else
-                     {
-                        dudy  = 0.5*(m_CoarsenedBlock->Access(XX,YY+1,0)-m_CoarsenedBlock->Access(XX,YY-1,0));
-                        dudy2 = (m_CoarsenedBlock->Access(XX,YY+1,0)+m_CoarsenedBlock->Access(XX,YY-1,0))-2.0*m_CoarsenedBlock->Access(XX,YY,0);
-                     }
-                     a = m_CoarsenedBlock->Access(XX,YY,0) + dy*dudy + (0.5*dy*dy)*dudy2; 
-                  }
-                  else //if (code[1] != 0)
-                  {
-                     ElementType dudx,dudx2;
-                     if (XX+offset[0] == 0)
-                     {
-                        dudx  = (-0.5*m_CoarsenedBlock->Access(XX+2,YY,0)- 1.5*m_CoarsenedBlock->Access(XX,YY,0)) + 2.0*m_CoarsenedBlock->Access(XX+1,YY,0) ;
-                        dudx2 = (m_CoarsenedBlock->Access(XX+2,YY,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX+1,YY,0);
-                     }
-                     else if (XX+offset[0] == CoarseBlockSize[0] - 1)
-                     {
-                        dudx  = (0.5*m_CoarsenedBlock->Access(XX-2,YY,0)+ 1.5*m_CoarsenedBlock->Access(XX,YY,0)) - 2.0*m_CoarsenedBlock->Access(XX-1,YY,0) ;
-                        dudx2 = (m_CoarsenedBlock->Access(XX-2,YY,0)+m_CoarsenedBlock->Access(XX,YY,0))-2.0*m_CoarsenedBlock->Access(XX-1,YY,0);
-                     }
-                     else
-                     {
-                        dudx  = 0.5*(m_CoarsenedBlock->Access(XX+1,YY,0)-m_CoarsenedBlock->Access(XX-1,YY,0));
-                        dudx2 = (m_CoarsenedBlock->Access(XX+1,YY,0)+m_CoarsenedBlock->Access(XX-1,YY,0))-2.0*m_CoarsenedBlock->Access(XX,YY,0);
-                     }
-                     a = m_CoarsenedBlock->Access(XX,YY,0) + dx*dudx + (0.5*dx*dx)*dudx2; 
-                  }
 
                   if (code[0] == 0 && code[1] == 1)
                   {

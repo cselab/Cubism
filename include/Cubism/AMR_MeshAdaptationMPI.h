@@ -191,7 +191,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          std::cout << std::flush;
       }
       AMR::m_refGrid->FillPos();     
-      Balancer->Balance_Diffusion();
+      Balancer->Balance_Diffusion(verbosity);
 
       delete[] AMR::labs;
 

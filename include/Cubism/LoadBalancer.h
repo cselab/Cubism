@@ -244,7 +244,7 @@ class LoadBalancer
          }
    }
 
-   void Balance_Diffusion()
+   void Balance_Diffusion(bool verbose)
    {
       {
          long long b = m_refGrid->getBlocksInfo().size();
@@ -252,7 +252,8 @@ class LoadBalancer
          MPI_Allreduce(&b, &max_b, 1, MPI_LONG_LONG, MPI_MAX, comm);
          MPI_Allreduce(&b, &min_b, 1, MPI_LONG_LONG, MPI_MIN, comm);
          const double ratio = static_cast<double>(max_b) / min_b;
-         if (rank == 0) std::cout << "Load imbalance ratio = " << ratio << std::endl;
+         if (rank == 0 && verbose)
+           std::cout << "Load imbalance ratio = " << ratio << std::endl;
          if (ratio > 1.1 || min_b == 0)
          {
             Balance_Global();
@@ -267,7 +268,7 @@ class LoadBalancer
 
       int right_blocks, left_blocks;
 
-      std::vector<MPI_Request> reqs(4);
+      MPI_Request reqs[4];
       MPI_Irecv(&left_blocks, 1, MPI_INT, left, 123, comm, &reqs[0]);
       MPI_Irecv(&right_blocks, 1, MPI_INT, right, 456, comm, &reqs[1]);
       MPI_Isend(&my_blocks, 1, MPI_INT, left, 456, comm, &reqs[2]);

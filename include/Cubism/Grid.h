@@ -543,12 +543,9 @@ class Grid
          newGroup.h     = I.h;
          newGroup.Z.push_back(I.Z);
 
-         std::vector<int> base(3);
-         base[0] = I.index[0];
-         base[1] = I.index[1];
-         base[2] = I.index[2];
-         std::vector<int> i_off(6, 0);
-         std::vector<bool> ready_(6, false);
+         const int base[3] = {I.index[0], I.index[1], I.index[2]};
+         int i_off[6] = {};
+         bool ready_[6] = {};
 
          int d    = 0;
          auto blk = getMaxBlocks();
@@ -658,12 +655,9 @@ class Grid
          newGroup.h     = I.h;
          newGroup.Z.push_back(I.Z);
 
-         std::vector<int> base(3);
-         base[0] = I.index[0];
-         base[1] = I.index[1];
-         base[2] = 0; // I.index[2];
-         std::vector<int> i_off(4, 0);
-         std::vector<bool> ready_(4, false);
+         const int base[3] = {I.index[0], I.index[1], 0};  // I.index[2]
+         int i_off[4] = {};
+         bool ready_[4] = {};
 
          int d    = 0;
          auto blk = getMaxBlocks();

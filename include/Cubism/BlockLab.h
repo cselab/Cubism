@@ -323,24 +323,22 @@ class BlockLab
          const int yskip  = info.index[1] == 0 ? -1 : 1;
          const int zskip  = info.index[2] == 0 ? -1 : 1;
 
-         std::vector<int> icodes;
+         int icodes[DIMENSION == 2 ? 8 : 26];  // Could be uint8_t?
+         int k = 0;
 
-         for (int icode = 0; icode < 27; icode++)
+         for (int icode = (DIMENSION == 2 ? 9 : 0); icode < (DIMENSION == 2 ? 18 : 27); icode++)
          {
             if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;
-            const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
+            const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, icode / 9 - 1};
 
             if (!xperiodic && code[0] == xskip && xskin) continue;
             if (!yperiodic && code[1] == yskip && yskin) continue;
             if (!zperiodic && code[2] == zskip && zskin) continue;
-            #if DIMENSION == 2
-            if (code[2] != 0) continue;
-            #endif
 
             const auto & TreeNei = grid.Tree(info.level,info.Znei_(code[0], code[1], code[2]));
             if (TreeNei.Exists())
             {
-               icodes.push_back(icode);
+               icodes[k++] = icode;
                if (!coarsened)
                {
                   const BlockInfo &infoNei = grid.getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
@@ -365,11 +363,12 @@ class BlockLab
 
             if      (TreeNei.Exists()    ) SameLevelExchange   (info, code, s, e);
             else if (TreeNei.CheckFiner()) FineToCoarseExchange(info, code, s, e);
-         } // icode = 0,...,26
+         } // icode = 0,...,26 (3D) or 9,...,17 (2D)
          if (coarsened)
-            for (int &icode : icodes)
+            for (int i = 0; i < k; ++i)
             {
-               const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
+               const int icode = icodes[i];
+               const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, icode / 9 - 1};
                FillCoarseVersion(info, code);
             }
 

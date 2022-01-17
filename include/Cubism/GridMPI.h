@@ -467,8 +467,8 @@ class GridMPI : public TGrid
    std::vector<int> FindMyNeighbors()
    {
       std::vector<int> myNeighbors;
-      std::vector<double> low(3, +1e20);
-      std::vector<double> high(3, -1e20);
+      double low[3] = {+1e20, +1e20, +1e20};
+      double high[3] = {-1e20, -1e20, -1e20};
       double p_low[3];
       double p_high[3];
       for (auto &info : TGrid::m_vInfo)
@@ -508,18 +508,12 @@ class GridMPI : public TGrid
         #endif
       }
       std::vector<double> all_boxes(world_size * 6);
-      std::vector<double> my_box(6);
-      my_box[0] = low[0];
-      my_box[1] = low[1];
-      my_box[2] = low[2];
-      my_box[3] = high[0];
-      my_box[4] = high[1];
-      my_box[5] = high[2];
-      MPI_Allgather(my_box.data(), my_box.size(), MPI_DOUBLE, all_boxes.data(), 6, MPI_DOUBLE, worldcomm);
+      double my_box[6] = {low[0], low[1], low[2], high[0], high[1], high[2]};
+      MPI_Allgather(my_box, 6, MPI_DOUBLE, all_boxes.data(), 6, MPI_DOUBLE, worldcomm);
       for (int i = 0; i < world_size; i++)
       {
          if ( i == myrank) continue;
-         if (Intersect(low.data(), high.data(), &all_boxes[i * 6], &all_boxes[i * 6 + 3])) myNeighbors.push_back(i);
+         if (Intersect(low, high, &all_boxes[i * 6], &all_boxes[i * 6 + 3])) myNeighbors.push_back(i);
       }
       return myNeighbors;
    }

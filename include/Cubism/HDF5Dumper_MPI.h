@@ -189,7 +189,8 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         s << "   <Topology NumberOfElements=\"" << TotalCells << "\" TopologyType=\"Hexahedron\"/>\n";
         s << "     <Geometry GeometryType=\"XYZ\">\n";
         #endif
-        s << "        <DataItem ItemType=\"Uniform\"  Dimensions=\" " << TotalCells*PtsPerElement << " " << DIMENSION << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real) << "\" Format=\"HDF\">\n";
+        //s << "        <DataItem ItemType=\"Uniform\"  Dimensions=\" " << TotalCells*PtsPerElement << " " << DIMENSION << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real) << "\" Format=\"HDF\">\n";
+        s << "        <DataItem ItemType=\"Uniform\"  Dimensions=\" " << TotalCells*PtsPerElement << " " << DIMENSION << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(float) << "\" Format=\"HDF\">\n";
         s << "            " << (myfilename.str() + ".h5").c_str() << ":/" << "vertices" << "\n";
         s << "        </DataItem>\n";
         s << "     </Geometry>\n";
@@ -209,30 +210,30 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     }
     //Dump grid structure (used when restarting)
     {
-        std::vector<int> bufferlevel(MyInfos.size());
+        std::vector<short int> bufferlevel(MyInfos.size());
         std::vector<long long> bufferZ(MyInfos.size());
         for (size_t i = 0 ; i < MyInfos.size() ; i ++)
         {
             bufferlevel[i] = MyInfos[i].level;
             bufferZ[i]     = MyInfos[i].Z;
         }
-        save_buffer_to_file<int      >(bufferlevel, 1, comm,fullpath.str()+".h5","blockslevel");
+        save_buffer_to_file<short int>(bufferlevel, 1, comm,fullpath.str()+".h5","blockslevel");
         save_buffer_to_file<long long>(bufferZ    , 1, comm,fullpath.str()+".h5","blocksZ"    );
     }
     //Dump vertices
     {
-        std::vector<hdf5Real> buffer(MyCells * PtsPerElement * DIMENSION);
+        std::vector<float> buffer(MyCells * PtsPerElement * DIMENSION);
         for (size_t i = 0 ; i < MyInfos.size() ; i ++)
         {
             const BlockInfo & info = MyInfos[i];
-            const double h2 = 0.5*info.h;
+            const float h2 = 0.5*info.h;
             for (int z = 0; z < nZ; z++)
             for (int y = 0; y < nY; y++)
             for (int x = 0; x < nX; x++)
             {
                 const int bbase = (i*nZ*nY*nX+z*nY*nX+y*nX+x)*PtsPerElement*DIMENSION;
                 #if DIMENSION == 3
-                double p[3];
+                float p[3];
                 info.pos(p,x,y,z);
                 //(0,0,0)
                 buffer[bbase              ] = p[0]-h2;
@@ -284,7 +285,8 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
                 #endif
             }
         }
-        save_buffer_to_file<hdf5Real>(buffer, 1, comm,fullpath.str()+".h5","vertices");
+        save_buffer_to_file<float>(buffer, 1, comm,fullpath.str()+".h5","vertices");
+        //save_buffer_to_file<hdf5Real>(buffer, 1, comm,fullpath.str()+".h5","vertices");
     }
     //Dump data
     {

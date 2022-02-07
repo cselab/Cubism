@@ -30,6 +30,7 @@
 // If using custom types, the user should specialize this function.
 template <typename T> hid_t get_hdf5_type();
 template <> inline hid_t get_hdf5_type<long long>() { return H5T_NATIVE_LLONG;}
+template <> inline hid_t get_hdf5_type<short int>() { return H5T_NATIVE_SHORT;}
 template <> inline hid_t get_hdf5_type<int>      () { return H5T_NATIVE_INT;  }
 template <> inline hid_t get_hdf5_type<float>    () { return H5T_NATIVE_FLOAT;}
 template <> inline hid_t get_hdf5_type<double>   () { return H5T_NATIVE_DOUBLE;}

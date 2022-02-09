@@ -295,7 +295,7 @@ class GridMPI : public TGrid
             }
    };
 
-   void UpdateBlockInfoAll_States(bool GlobalUpdate = false)
+   void UpdateBlockInfoAll_States(bool UpdateIDs = false)
    {
       std::vector<int> myNeighbors = FindMyNeighbors();
 
@@ -378,6 +378,7 @@ class GridMPI : public TGrid
          {
             myData.push_back(info.level);
             myData.push_back(info.Z);
+            if (UpdateIDs) myData.push_back(info.blockID);
          }
       }
 
@@ -419,14 +420,16 @@ class GridMPI : public TGrid
       MPI_Waitall(recv_requests.size(), recv_requests.data(), MPI_STATUSES_IGNORE);
       MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
       kk = -1;
+      const int increment = UpdateIDs ? 3 : 2;
       for (auto r : myNeighbors)
       {
          kk++;
-         for (size_t index__ = 0; index__ < recv_buffer[kk].size(); index__ += 2)
+         for (size_t index__ = 0; index__ < recv_buffer[kk].size(); index__ += increment)
          {
-            int level   = (int)recv_buffer[kk][index__];
-            long long Z = recv_buffer[kk][index__ + 1];
+            const int level   = (int)recv_buffer[kk][index__];
+            const long long Z = recv_buffer[kk][index__ + 1];
             TGrid::Tree(level, Z).setrank(r);
+            if (UpdateIDs) TGrid::getBlockInfoAll(level, Z).blockID = recv_buffer[kk][index__ + 2];
            #if DIMENSION == 3
             int p[3];
             BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
@@ -627,7 +630,7 @@ class GridMPI : public TGrid
    virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<int> & blockslevel) override
    {
       TGrid::initialize_blocks(blocksZ,blockslevel);
-      UpdateBlockInfoAll_States();
+      UpdateBlockInfoAll_States(false);
       for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
         (*it->second)._Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(), timestamp, true);
    }

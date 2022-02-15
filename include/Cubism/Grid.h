@@ -295,7 +295,7 @@ class Grid
    virtual int rank() const { return 0; }
 
 
-   virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<int> & blockslevel)
+   virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<short int> & blockslevel)
    {
       //Given two vectors with the SFC coordinate (Z) and the level of each block, this function
       //will erase the current structure of the grid and create a new one, with the given blocks.

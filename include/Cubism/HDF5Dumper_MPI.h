@@ -599,10 +599,10 @@ void ReadHDF5_MPI(TGrid &grid, const std::string &fname, const std::string &dpat
     H5open();
 
     std::vector<long long> blocksZ;
-    std::vector<int      > blockslevel;
+    std::vector<short int> blockslevel;
     std::vector<hdf5Real > data;
     read_buffer_from_file<long long>(blocksZ    , comm, fullpath.str()+".h5" ,"blocksZ"    ,1        );
-    read_buffer_from_file<int      >(blockslevel, comm, fullpath.str()+".h5" ,"blockslevel",1        );
+    read_buffer_from_file<short int>(blockslevel, comm, fullpath.str()+".h5" ,"blockslevel",1        );
     read_buffer_from_file<hdf5Real >(data       , comm, fullpath.str()+".h5" ,"data"       ,blocksize);
 
     grid.initialize_blocks(blocksZ,blockslevel);

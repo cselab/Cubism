@@ -106,7 +106,7 @@ class GridMPI : public TGrid
             n_start += total_blocks % world_size;
       }
 
-      std::vector<int> levels(my_blocks,a_levelStart);
+      std::vector<short int> levels(my_blocks,a_levelStart);
       std::vector<long long> Zs (my_blocks);
       for (long long n = n_start; n < n_start + my_blocks; n++) Zs[n-n_start]=n;
       initialize_blocks(Zs,levels);
@@ -627,7 +627,7 @@ class GridMPI : public TGrid
       return *SynchronizerMPIs.find(p.stencil)->second;
    }
 
-   virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<int> & blockslevel) override
+   virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<short int> & blockslevel) override
    {
       TGrid::initialize_blocks(blocksZ,blockslevel);
       UpdateBlockInfoAll_States(false);

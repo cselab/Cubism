@@ -22,7 +22,7 @@ using namespace std;
 namespace cubism // AMR_CUBISM
 {
 
-enum State
+enum State : signed char
 {
    Leave    = 0,
    Refine   = 1,
@@ -31,15 +31,6 @@ enum State
 
 struct BlockInfo
 {
-
-   template <typename T> // 3D
-   inline void spacing(T dx[3], int ix, int iy, int iz) const
-   {
-      dx[0] = h_gridpoint;
-      dx[1] = h_gridpoint;
-      dx[2] = h_gridpoint;
-   }
-
    static int levelMax(int l = 0)
    {
       static int lmax = l;
@@ -97,23 +88,19 @@ struct BlockInfo
 #endif
 
    long long blockID, blockID_2;
-   int index[3];      //(i,j,k) coordinates of block at given refinement level
-   void *ptrBlock{nullptr};    // Pointer to data stored in user-defined Block
-   State state;       // Refine/Compress/Leave this block
    long long Z;       // Z-order curve index of this block
-   int level;         // refinement level
    long long Znei[3][3][3]; // Z-order curve index of 26 neighboring boxes (Znei[1][1][1] = Z)
-
-   double h, h_gridpoint; // grid spacing
-   void *auxiliary;       // Pointer to blockcase
-   double origin[3];      //(x,y,z) of block's origin
-
-   bool changed2;
-
    long long halo_block_id;
    long long Zparent;
-
    long long Zchild[2][2][2];
+   double h, h_gridpoint; // grid spacing
+   double origin[3];      //(x,y,z) of block's origin
+   int index[3];      //(i,j,k) coordinates of block at given refinement level
+   int level;         // refinement level
+   void *ptrBlock{nullptr};    // Pointer to data stored in user-defined Block
+   void *auxiliary;       // Pointer to blockcase
+   bool changed2;
+   State state;       // Refine/Compress/Leave this block
 
 #if DIMENSION == 3
    template <typename T>

@@ -645,12 +645,6 @@ class GridMPI : public TGrid
    MPI_Comm getWorldComm() const { return worldcomm; }
 
    virtual int get_world_size() const override { return world_size; }
-
-   int getResidentBlocksPerDimension(int idim) const
-   {
-      MPI_Abort(worldcomm, 1);
-      return 1;
-   }
 };
 
 }//namespace cubism

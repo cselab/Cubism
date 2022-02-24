@@ -3,7 +3,7 @@
 #include "GridMPI.h"
 #include "AMR_SynchronizerMPI.h"
 
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 template <typename MyBlockLab, typename TGrid>
 class BlockLabMPI : public MyBlockLab
@@ -64,4 +64,4 @@ class BlockLabMPI : public MyBlockLab
    void release() { MyBlockLab::release(); }
 };
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

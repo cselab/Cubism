@@ -16,7 +16,7 @@
 
 using namespace std;
 
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 void Histogram::_setup()
 {
@@ -90,4 +90,4 @@ void Histogram::_print_statistcis(string sKernel, vector<float> & buf)
     cout << sKernel << ": (Average, STD_DEV) ("<< avg << ", " << std_dev << ")" << endl;
 }
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

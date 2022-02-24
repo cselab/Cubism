@@ -10,7 +10,7 @@
 
 #include "Cubism/ArgumentParser.h"
 
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 ///////////////////////////////////////////////////////////
 // Value
@@ -394,4 +394,4 @@ void ArgumentParser::print_args()
     }
 }
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

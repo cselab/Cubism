@@ -28,7 +28,7 @@
 #include "GridMPI.h"
 #include "StencilInfo.h"
 
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 template <typename data_type>
 void read_buffer_from_file(std::vector<data_type> & buffer,MPI_Comm & comm, const std::string & name, const std::string & dataset_name, const int chunk)
@@ -624,4 +624,5 @@ void ReadHDF5_MPI(TGrid &grid, const std::string &fname, const std::string &dpat
 
     H5close();
 }
-CUBISM_NAMESPACE_END
+
+}//namespace cubism

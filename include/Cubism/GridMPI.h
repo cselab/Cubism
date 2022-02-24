@@ -26,7 +26,8 @@
 #include <string>
 #include "sys/types.h"
 #include "sys/sysinfo.h"
-CUBISM_NAMESPACE_BEGIN
+
+namespace cubism {
 
 static inline void memory_usage(std::string msg)
 {
@@ -652,4 +653,4 @@ class GridMPI : public TGrid
    }
 };
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

@@ -15,9 +15,11 @@
 #include "math.h"
 #include <iostream>
 
-#include "Common.h"
+#ifndef CUBISM_ALIGNMENT
+#define CUBISM_ALIGNMENT
+#endif
 
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 template <class DataType, bool bPrimitiveType, template <typename T> class allocator>
 class Matrix3D
@@ -218,4 +220,4 @@ inline void SwapBytes(unsigned char *pBuffer, int nBufferSize)
    assert(i == nBufferSize); // se no son cazzi acidi
 }
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

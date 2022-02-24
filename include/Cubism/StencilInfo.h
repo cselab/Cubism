@@ -14,9 +14,7 @@
 #include <iostream>
 #include <vector>
 
-#include "Common.h"
-
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 struct StencilInfo
 {
@@ -74,4 +72,4 @@ struct StencilInfo
    }
 };
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

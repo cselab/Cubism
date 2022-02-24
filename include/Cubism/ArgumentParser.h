@@ -19,9 +19,7 @@
 #include <map>
 #include <string>
 
-#include "Cubism/Common.h"
-
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 class Value
 {
@@ -125,4 +123,4 @@ class ArgumentParser : public CommandlineParser
    void print_args(void);
 };
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

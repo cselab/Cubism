@@ -9,10 +9,9 @@
 #pragma once
 #include <cstring>
 
-#include "Common.h"
 #include "BlockLab.h"
 
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 template <typename Real>
 inline void pack(const Real *const srcbase, Real *const dst, const unsigned int gptfloats, int *selected_components, const int ncomponents, const int xstart, const int ystart, const int zstart, const int xend, const int yend, const int zend, const int BSX, const int BSY)
@@ -344,4 +343,4 @@ inline void unpack_subregion(const Real *const pack, Real *const dstbase, const 
          }
 }
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

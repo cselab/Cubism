@@ -38,7 +38,7 @@ template <> inline hid_t get_hdf5_type<double>   () { return H5T_NATIVE_DOUBLE;}
 
 #include "BlockInfo.h"
 
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 template<typename TStreamer, typename hdf5Real, typename TGrid>
 void DumpHDF5_uniform(const TGrid &grid, const typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".")
@@ -379,4 +379,4 @@ void ReadHDF5(TGrid &grid, const std::string& fname, const std::string& dpath=".
   std::cout<<"ReadHDF5 is only implemented for MPI (no serial version). \n"; return;
 }
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

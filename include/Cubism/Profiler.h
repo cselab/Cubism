@@ -23,9 +23,7 @@
 //#include <tbb/tick_count.h>
 // namespace tbb { class tick_count; }
 
-#include "Common.h"
-
-CUBISM_NAMESPACE_BEGIN
+namespace cubism {
 
 const bool bVerboseProfiling = false;
 
@@ -229,4 +227,4 @@ class Profiler
    friend class ProfileAgent;
 };
 
-CUBISM_NAMESPACE_END
+}//namespace cubism

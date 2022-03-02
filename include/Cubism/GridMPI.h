@@ -613,9 +613,9 @@ class GridMPI : public TGrid
       {
          queryresult = itSynchronizerMPI->second;
       }
-      if (sizeof(Real) == sizeof(float) ) queryresult->sync(sizeof(typename Block::element_type) / sizeof(Real), MPI_FLOAT, timestamp);
-      else if (sizeof(Real) == sizeof(double) ) queryresult->sync(sizeof(typename Block::element_type) / sizeof(Real), MPI_DOUBLE, timestamp);
-      else if (sizeof(Real) == sizeof(long double) ) queryresult->sync(sizeof(typename Block::element_type) / sizeof(Real), MPI_LONG_DOUBLE, timestamp);
+      if (sizeof(Real) == sizeof(float) ) queryresult->sync(sizeof(typename Block::ElementType) / sizeof(Real), MPI_FLOAT, timestamp);
+      else if (sizeof(Real) == sizeof(double) ) queryresult->sync(sizeof(typename Block::ElementType) / sizeof(Real), MPI_DOUBLE, timestamp);
+      else if (sizeof(Real) == sizeof(long double) ) queryresult->sync(sizeof(typename Block::ElementType) / sizeof(Real), MPI_LONG_DOUBLE, timestamp);
       timestamp = (timestamp + 1) % 32768;
       return queryresult;
    }

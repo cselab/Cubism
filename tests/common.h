@@ -29,7 +29,6 @@ template <typename TReal, size_t _AOSmembers=1>
 struct Block
 {
     typedef TReal ElementType;
-    typedef TReal element_type;
     typedef TReal RealType;
     static constexpr size_t sizeX   = BLOCK_SIZE;
     static constexpr size_t sizeY   = BLOCK_SIZE;

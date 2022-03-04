@@ -205,7 +205,8 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         std::string st = s.str();
         FILE *xmf = 0;
         xmf = fopen((fullpath.str() + "-new.xmf").c_str(), "w");
-        fprintf(xmf, st.c_str());
+        //fprintf(xmf, st.c_str());
+        fprintf(xmf, "%s",st.c_str());
         fclose(xmf);
     }
     //Dump grid structure (used when restarting)

@@ -473,16 +473,16 @@ class SynchronizerMPI_AMR
       sizes[block_id]++;
     }
 
-    void SendPacks(std::set<int> Neighbors, int timestamp)
+    void SendPacks(std::set<int> Neighbor, int timestamp)
     {
       pack_requests.clear();
       assert(pack_requests.size() == 0);
-      for (auto &r : Neighbors)
+      for (auto &r : Neighbor)
       {
          pack_requests.resize(pack_requests.size() + 1);
          MPI_Isend(manyUnpacks[r].data(), manyUnpacks[r].size(), MPI_PACK, r, timestamp, comm, &pack_requests.back());         
       }
-      for (auto &r : Neighbors)
+      for (auto &r : Neighbor)
       {
          int number_amount;
          MPI_Status status;
@@ -502,10 +502,10 @@ class SynchronizerMPI_AMR
 
       std::sort(MapOfInfos.begin(), MapOfInfos.end());
 
-      int rank;
-      MPI_Comm_rank(comm,&rank);
+      int myrank;
+      MPI_Comm_rank(comm,&myrank);
 
-      for (int r = 0; r < size; r++) if (r!=rank)
+      for (int r = 0; r < size; r++) if (r!=myrank)
       for (size_t i = 0; i < manyUnpacks_recv[r].size(); i++)
       {
         UnPackInfo &info                     = manyUnpacks_recv[r][i];

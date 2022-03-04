@@ -204,13 +204,13 @@ class LoadBalancer
          {
             if (recv_blocks[r].size() != 0)
             {
-               MPI_Request req;
+               MPI_Request req{};
                requests.push_back(req);
                MPI_Irecv(&recv_blocks[r][0], recv_blocks[r].size(), MPI_BLOCK, r, 123450, comm, &requests.back());
             }
             if (send_blocks[r].size() != 0)
             {
-               MPI_Request req;
+               MPI_Request req{};
                requests.push_back(req);
                MPI_Isend(&send_blocks[r][0], send_blocks[r].size(), MPI_BLOCK, r, 123450, comm, &requests.back());
             }
@@ -298,14 +298,14 @@ class LoadBalancer
          send_left.resize(flux_left);
          #pragma omp parallel for schedule(runtime)
          for (int i = 0; i < flux_left; i++) send_left[i].prepare(SortedInfos[i]);
-         MPI_Request req;
+         MPI_Request req{};
          request.push_back(req);
          MPI_Isend(&send_left[0], send_left.size(), MPI_BLOCK, left, 7890, comm, &request.back());
       }
       else if (flux_left < 0) // then I will receive blocks from my left rank
       {
          recv_left.resize(abs(flux_left));
-         MPI_Request req;
+         MPI_Request req{};
          request.push_back(req);
          MPI_Irecv(&recv_left[0], recv_left.size(), MPI_BLOCK, left, 4560, comm, &request.back());
       }
@@ -314,14 +314,14 @@ class LoadBalancer
          send_right.resize(flux_right);
          #pragma omp parallel for schedule(runtime)
          for (int i = 0; i < flux_right; i++) send_right[i].prepare(SortedInfos[my_blocks - i - 1]);
-         MPI_Request req;
+         MPI_Request req{};
          request.push_back(req);
          MPI_Isend(&send_right[0], send_right.size(), MPI_BLOCK, right, 4560, comm, &request.back());
       }
       else if (flux_right < 0) // then I will receive blocks from my right rank
       {
          recv_right.resize(abs(flux_right));
-         MPI_Request req;
+	 MPI_Request req{};
          request.push_back(req);
          MPI_Irecv(&recv_right[0], recv_right.size(), MPI_BLOCK, right, 7890, comm, &request.back());
       }
@@ -433,7 +433,7 @@ class LoadBalancer
       for (int r = 0; r < size; r++)
          if (recv_blocks[r].size() != 0)
          {
-            MPI_Request req;
+            MPI_Request req{};
             recv_request.push_back(req);
             MPI_Irecv(recv_blocks[r].data(), recv_blocks[r].size(), MPI_BLOCK, r, tag, comm, &recv_request.back());
          }
@@ -446,7 +446,7 @@ class LoadBalancer
          {
             for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[counter_S + i]);
             counter_S += send_blocks[r].size();
-            MPI_Request req;
+            MPI_Request req{};
             send_request.push_back(req);
             MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &send_request.back());
          }
@@ -455,7 +455,7 @@ class LoadBalancer
          {
             for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[SortedInfos.size() - 1 - (counter_E + i)]);
             counter_E += send_blocks[r].size();
-            MPI_Request req;
+            MPI_Request req{};
             send_request.push_back(req);
             MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &send_request.back());
          }

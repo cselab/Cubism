@@ -309,14 +309,14 @@ class FluxCorrectionMPI : public TFluxCorrection
       {
          if (recv_buffer[r].size() != 0)
          {
-            MPI_Request req;
+            MPI_Request req{};
             recv_requests.push_back(req);
             MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_real, r, 123456,
                       (*TFluxCorrection::m_refGrid).getWorldComm(), &recv_requests.back());
          }
          if (send_buffer[r].size() != 0)
          {
-            MPI_Request req;
+            MPI_Request req{};
             send_requests.push_back(req);
             MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_real, r, 123456,
                       (*TFluxCorrection::m_refGrid).getWorldComm(), &send_requests.back());

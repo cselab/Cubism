@@ -120,6 +120,24 @@ class BlockLab
         imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
       }
 
+      const int aux = 1 << a.level;
+      std::array<int, 3> blocksPerDim = m_refGrid->getMaxBlocks();
+      if (is_xperiodic())
+      {
+        if (a.index[0] == 0 && b.index[0] == blocksPerDim[0] * aux - 1) imin[0] = -1;
+        if (b.index[0] == 0 && a.index[0] == blocksPerDim[0] * aux - 1) imax[0] = +1;
+      }
+      if (is_yperiodic())
+      {
+        if (a.index[1] == 0 && b.index[1] == blocksPerDim[1] * aux - 1) imin[1] = -1;
+        if (b.index[1] == 0 && a.index[1] == blocksPerDim[1] * aux - 1) imax[1] = +1;
+      }
+      if (is_zperiodic())
+      {
+        if (a.index[2] == 0 && b.index[2] == blocksPerDim[2] * aux - 1) imin[2] = -1;
+        if (b.index[2] == 0 && a.index[2] == blocksPerDim[2] * aux - 1) imax[2] = +1;
+      }
+
       bool retval = false;
 
       for (int i2 = imin[2]; i2 <= imax[2]; i2++)

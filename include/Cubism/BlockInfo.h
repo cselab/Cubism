@@ -93,8 +93,8 @@ struct BlockInfo
    long long halo_block_id;
    long long Zparent;
    long long Zchild[2][2][2];
-   double h, h_gridpoint; // grid spacing
-   double origin[3];      //(x,y,z) of block's origin
+   double h;          // grid spacing
+   double origin[3];  //(x,y,z) of block's origin
    int index[3];      //(i,j,k) coordinates of block at given refinement level
    int level;         // refinement level
    void *ptrBlock{nullptr};    // Pointer to data stored in user-defined Block
@@ -138,12 +138,9 @@ struct BlockInfo
 
    void setup(const int a_level, const double a_h, const double a_origin[3], const long long a_Z)
    {
-      level = a_level;
-      Z     = a_Z;
-
-      state       = Leave;
-      h_gridpoint = a_h;
-
+      level     = a_level;
+      Z         = a_Z;
+      state     = Leave;
       level     = a_level;
       h         = a_h;
       origin[0] = a_origin[0];

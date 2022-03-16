@@ -132,7 +132,6 @@ class Grid
    {
       allocator<Block> alloc;
       getBlockInfoAll(m, n).ptrBlock    = alloc.allocate(1);
-      getBlockInfoAll(m, n).h_gridpoint = getBlockInfoAll(m, n).h;
       m_blocks.push_back((Block *)getBlockInfoAll(m, n).ptrBlock);
       m_vInfo.push_back(getBlockInfoAll(m, n));
       Tree(m, n).setrank(rank());

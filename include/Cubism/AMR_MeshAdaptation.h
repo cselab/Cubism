@@ -363,7 +363,6 @@ class MeshAdaptation
       BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
       m_refGrid->Tree(parent.level, parent.Z).setrank(m_refGrid->rank());
       parent.ptrBlock    = info.ptrBlock;
-      parent.h_gridpoint = parent.h;
       parent.state       = Leave;
       if (level - 2 >= 0) m_refGrid->Tree(level - 2, parent.Zparent).setCheckFiner();
 
@@ -418,7 +417,6 @@ class MeshAdaptation
       BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
       m_refGrid->Tree(parent.level, parent.Z).setrank(m_refGrid->rank());
       parent.ptrBlock    = info.ptrBlock;
-      parent.h_gridpoint = parent.h;
       parent.state       = Leave;
       if (level - 2 >= 0) m_refGrid->Tree(level - 2, parent.Zparent).setCheckFiner();
 

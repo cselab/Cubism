@@ -246,6 +246,7 @@ class LoadBalancer
 
    void Balance_Diffusion(bool verbose)
    {
+      movedBlocks = false;
       {
          long long b = m_refGrid->getBlocksInfo().size();
          long long max_b, min_b;

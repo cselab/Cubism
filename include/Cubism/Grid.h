@@ -640,7 +640,6 @@ class Grid
 
          MyGroups.push_back(newGroup);
       }
-   }
 #else
       for (unsigned int m = 0; m < Ngrids; m++)
       {
@@ -737,26 +736,8 @@ class Grid
 
          MyGroups.push_back(newGroup);
       }
-   }
-
 #endif
-
-  /** Copy the grid to a uniform grid matrix, scaling where necessary.
-
-      Blocks that are not at the most refined level are scaled without
-      interpolation.
-
-      If `out` is `nullptr`, a new buffer is allocated.
-      Returns a pointer to the buffer.
-  */
-  ElementType *copyToUniformNoInterpolation(ElementType *out = nullptr) const;
-
-  /** Import data from a large uniform matrix ordered as [z][y][x].
-
-      The grid structure is left unchanged. The values of cells at level lower
-      than maxLevel-1 are computed by averaging the corresponding input cells.
-  */
-  void copyFromMatrix(const ElementType *in);
+   }
 };
 
 } // namespace cubism

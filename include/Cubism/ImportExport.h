@@ -30,4 +30,37 @@ template <typename Lab, typename Grid, typename Getter, typename T>
 void exportGridToUniformMatrix(
     Grid *grid, Getter getter, std::vector<int> components, T * __restrict__ out);
 
+
+/** Copy the grid to a uniform grid matrix, scaling where necessary.
+
+    Blocks that are not at the most refined level are scaled with
+    no interpolation, i.e. with nearest/constant interpolation.
+
+    See `exportGridToUniformMatrix` for more information. Note that this
+    function requires no lab nor the `components` list, since no stencils are
+    involved.
+*/
+template <typename Grid, typename Getter, typename T>
+void exportGridToUniformMatrixNearestInterpolation(
+    Grid *grid, Getter getter, T * __restrict__ out);
+
+
+/** Import data from a large contiguous matrix representing the fully refined
+    grid.
+
+    The grid structure is left unchanged. The values of cells at level lower
+    than maxLevel-1 are computed by averaging the corresponding input cells.
+
+    Arguments:
+      grid: the AMR grid
+      setter: A function that takes the reference to the cell element and the
+          (averaged) input cell value, and updates the cell element in the
+          desired fashion. E.g. it can be used to update only one component of
+          a vector element.
+      in: the input contiguous matrix
+*/
+template <typename Grid, typename Setter, typename T>
+void importGridFromUniformMatrix(
+    Grid *grid, Setter setter, const T * __restrict__ in);
+
 }  // namespace cubism

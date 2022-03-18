@@ -616,7 +616,7 @@ void ReadHDF5_MPI(TGrid &grid, const std::string &fname, const std::string &dpat
         for (int z = 0; z < nZ; z++)
         for (int y = 0; y < nY; y++)
         for (int x = 0; x < nX; x++)
-        for (int nc = 0 ; nc < min(NCHANNELS,B::ElementType::DIM) ; nc ++) 
+        for (int nc = 0; nc < std::min(NCHANNELS, (int)B::ElementType::DIM); nc++)
         {
             //NCHANNELS > DIM only for 2D vectors, otherwise NCHANNELS=DIM
             b(x,y,z).member(nc) = data[(i*nZ*nY*nX+z*nY*nX+y*nX+x)*NCHANNELS+nc];                

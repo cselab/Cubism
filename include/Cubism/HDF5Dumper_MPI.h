@@ -83,7 +83,8 @@ void read_buffer_from_file(std::vector<data_type> & buffer,MPI_Comm & comm, cons
 }
 
 template <typename data_type>
-void save_buffer_to_file(const std::vector<data_type> & buffer, const int NCHANNELS, MPI_Comm & comm, const std::string & name, const std::string & dataset_name)
+void save_buffer_to_file(const std::vector<data_type> & buffer, const int NCHANNELS, MPI_Comm & comm, const std::string & name, const std::string & dataset_name, const hid_t & file_id, const hid_t & fapl_id)
+
 {
     assert(buffer.size() % NCHANNELS == 0);
     unsigned long long MyCells = buffer.size() / NCHANNELS;
@@ -94,40 +95,25 @@ void save_buffer_to_file(const std::vector<data_type> & buffer, const int NCHANN
     MPI_Exscan(&MyCells, &base_tmp[0], 1, MPI_UNSIGNED_LONG_LONG,  MPI_SUM , comm);
     base_tmp[0] *= NCHANNELS;
 
-    hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;
-    
-    //1.Set up file access property list with parallel I/O access
-    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
-    H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL);
-
-    //2.Create a new file collectively and release property list identifier. 
-    file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, fapl_id);
-
-    H5Pclose(fapl_id);
-
-    //3.Create dataset
-    fapl_id = H5Pcreate(H5P_DATASET_XFER);
-    H5Pset_dxpl_mpio(fapl_id, H5FD_MPIO_COLLECTIVE);
+    hid_t dataset_id, fspace_id, mspace_id;
 
     hsize_t dims[1]  = {(hsize_t) TotalCells*NCHANNELS};
     fspace_id        = H5Screate_simple(1, dims, NULL);
     dataset_id       = H5Dcreate (file_id, dataset_name.c_str(), get_hdf5_type<data_type>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
-    //4.Dump
     hsize_t count[1] = {MyCells*NCHANNELS};
-
     fspace_id = H5Dget_space(dataset_id);
     mspace_id = H5Screate_simple(1, count, NULL);
-
     H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, base_tmp, NULL, count, NULL);
     H5Dwrite(dataset_id, get_hdf5_type<data_type>(), mspace_id, fspace_id, fapl_id, buffer.data());
+
     H5Sclose(mspace_id);
     H5Sclose(fspace_id);
     H5Dclose(dataset_id);
-    H5Pclose(fapl_id);
-    H5Fclose(file_id);
 }
 
+static double latestTime{0.0};
+static int    gridCount{0};
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
@@ -135,6 +121,10 @@ void save_buffer_to_file(const std::vector<data_type> & buffer, const int NCHANN
 template <typename TStreamer, typename hdf5Real, typename TGrid, typename LabMPI> 
 void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
 {
+    const bool SaveGrid = latestTime < absTime;
+    if (SaveGrid) gridCount ++;
+    latestTime = absTime;
+
     typedef typename TGrid::BlockType B;
     const int nX = B::sizeX;
     const int nY = B::sizeY;
@@ -169,6 +159,23 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     file_id = H5Fcreate((fullpath.str()+".h5").c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
     H5Pclose(fapl_id);
     H5Fclose(file_id);
+
+
+    hid_t file_id_grid,fapl_id_grid;
+    std::stringstream gridFile_s;
+    gridFile_s << "grid" <<std::setfill('0')<<std::setw(9)<<gridCount << ".h5";
+    std::string gridFile = gridFile_s.str();
+    if (SaveGrid)
+    {
+       //1.Set up file access property list with parallel I/O access
+       fapl_id_grid = H5Pcreate(H5P_FILE_ACCESS);
+       H5Pset_fapl_mpio(fapl_id_grid, comm, MPI_INFO_NULL);
+
+       //2.Create a new file collectively and release property list identifier.
+       file_id_grid = H5Fcreate(gridFile.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id_grid);
+       H5Pclose(fapl_id_grid);
+       H5Fclose(file_id_grid);
+    }
     
     // Write grid meta-data
     if (rank == 0)
@@ -191,7 +198,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         #endif
         //s << "        <DataItem ItemType=\"Uniform\"  Dimensions=\" " << TotalCells*PtsPerElement << " " << DIMENSION << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real) << "\" Format=\"HDF\">\n";
         s << "        <DataItem ItemType=\"Uniform\"  Dimensions=\" " << TotalCells*PtsPerElement << " " << DIMENSION << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(float) << "\" Format=\"HDF\">\n";
-        s << "            " << (myfilename.str() + ".h5").c_str() << ":/" << "vertices" << "\n";
+        s << "            " << gridFile.c_str() << ":/" << "vertices" << "\n";
         s << "        </DataItem>\n";
         s << "     </Geometry>\n";
         s << "     <Attribute Name=\"data\" AttributeType=\"" << TStreamer::getAttributeName()<< "\" Center=\"Cell\">\n";
@@ -209,6 +216,16 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         fprintf(xmf, "%s",st.c_str());
         fclose(xmf);
     }
+
+    std::string name = fullpath.str()+".h5";
+
+    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    H5Pset_fapl_mpio(fapl_id, comm, MPI_INFO_NULL);
+    file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, fapl_id);
+    H5Pclose(fapl_id);
+    fapl_id = H5Pcreate(H5P_DATASET_XFER);
+    H5Pset_dxpl_mpio(fapl_id, H5FD_MPIO_INDEPENDENT);
+
     //Dump grid structure (used when restarting)
     {
         std::vector<short int> bufferlevel(MyInfos.size());
@@ -218,11 +235,19 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
             bufferlevel[i] = MyInfos[i].level;
             bufferZ[i]     = MyInfos[i].Z;
         }
-        save_buffer_to_file<short int>(bufferlevel, 1, comm,fullpath.str()+".h5","blockslevel");
-        save_buffer_to_file<long long>(bufferZ    , 1, comm,fullpath.str()+".h5","blocksZ"    );
+        save_buffer_to_file<short int>(bufferlevel, 1, comm,fullpath.str()+".h5","blockslevel",file_id,fapl_id);
+        save_buffer_to_file<long long>(bufferZ    , 1, comm,fullpath.str()+".h5","blocksZ"    ,file_id,fapl_id);
     }
     //Dump vertices
+    if (SaveGrid)
     {
+        fapl_id_grid = H5Pcreate(H5P_FILE_ACCESS);
+        H5Pset_fapl_mpio(fapl_id_grid, comm, MPI_INFO_NULL);
+        file_id_grid = H5Fopen(gridFile.c_str(), H5F_ACC_RDWR, fapl_id_grid);
+        H5Pclose(fapl_id_grid);
+        fapl_id_grid = H5Pcreate(H5P_DATASET_XFER);
+        H5Pset_dxpl_mpio(fapl_id_grid, H5FD_MPIO_INDEPENDENT);
+
         std::vector<float> buffer(MyCells * PtsPerElement * DIMENSION);
         for (size_t i = 0 ; i < MyInfos.size() ; i ++)
         {
@@ -286,8 +311,10 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
                 #endif
             }
         }
-        save_buffer_to_file<float>(buffer, 1, comm,fullpath.str()+".h5","vertices");
-        //save_buffer_to_file<hdf5Real>(buffer, 1, comm,fullpath.str()+".h5","vertices");
+        save_buffer_to_file<float>(buffer, 1, comm,gridFile,"vertices",file_id_grid,fapl_id_grid);
+
+        H5Pclose(fapl_id_grid);
+        H5Fclose(file_id_grid);
     }
     //Dump data
     {
@@ -308,10 +335,13 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
                 }
             }
         }
-        save_buffer_to_file<hdf5Real>(buffer, NCHANNELS, comm,fullpath.str()+".h5","data");
+        save_buffer_to_file<hdf5Real>(buffer, NCHANNELS, comm,fullpath.str()+".h5","data",file_id,fapl_id);
     }
 
+    H5Pclose(fapl_id);
+    H5Fclose(file_id);
     H5close();
+
 }
 
 template <typename TStreamer, typename hdf5Real, typename TGrid, typename LabMPI> 

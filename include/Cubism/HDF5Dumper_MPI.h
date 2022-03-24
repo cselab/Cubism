@@ -112,7 +112,7 @@ void save_buffer_to_file(const std::vector<data_type> & buffer, const int NCHANN
     H5Dclose(dataset_id);
 }
 
-static double latestTime{0.0};
+static double latestTime{-1.0};
 static int    gridCount{0};
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)

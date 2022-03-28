@@ -310,7 +310,7 @@ class BlockLabNeumann: public cubism::BlockLab<BlockType,allocator>
   static constexpr int sizeY = BlockType::sizeY;
   static constexpr int sizeZ = BlockType::sizeZ;
   static constexpr int DIM = dim;
-
+ protected:
   // Apply bc on face of direction dir and side side (0 or 1):
   template<int dir, int side> void Neumann3D(const bool coarse = false)
   {

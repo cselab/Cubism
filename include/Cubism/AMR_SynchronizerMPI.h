@@ -1231,10 +1231,7 @@ class SynchronizerMPI_AMR
    std::vector<MPI_Request> size_requests;
    std::vector<int> ss1;
    std::vector<int> ss;
-   void _Setup(BlockInfo *a_myInfos, 
-               size_t a_myInfos_size,
-               const int timestamp,
-               const bool a_define_neighbors = false) //a_define_neighbors is no longer used
+   void _Setup(BlockInfo *a_myInfos, const size_t a_myInfos_size, const int timestamp)
    {
       myInfos_size = a_myInfos_size;
       myInfos      = a_myInfos;

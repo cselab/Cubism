@@ -606,7 +606,7 @@ class GridMPI : public TGrid
                                                Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2], this);
 
          if (myrank == 0) std::cout << "GRIDMPI IS CALLING SETUP!!!!\n";
-         queryresult->_Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(), timestamp, true);
+         queryresult->_Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(), timestamp);
          SynchronizerMPIs[stencil] = queryresult;
       }
       else
@@ -633,7 +633,7 @@ class GridMPI : public TGrid
       TGrid::initialize_blocks(blocksZ,blockslevel);
       UpdateBlockInfoAll_States(false);
       for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
-        (*it->second)._Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(), timestamp, true);
+        (*it->second)._Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(), timestamp);
    }
 
    virtual int rank() const override { return myrank; }

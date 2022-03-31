@@ -43,10 +43,10 @@ struct InterfaceInfo
 
 struct MyRange
 {
+  std::vector<int> removedIndices;
   int index;
   int sx, sy, sz, ex, ey, ez;
   bool needed{true};
-  std::vector<int> removedIndices;
   bool avg_down{true};
 
   bool contains(MyRange r) const
@@ -83,8 +83,11 @@ struct UnPackInfo
   int CoarseVersionsrcystart;
   int CoarseVersionsrczstart;
   int level;
-  long long Z;
   int icode;
+  int rank;
+  int index_0;
+  int index_1;
+  int index_2;
   long long IDreceiver;
 };
 
@@ -397,43 +400,47 @@ class SynchronizerMPI_AMR
       manyUnpacks_recv.resize(size);
       manyUnpacks.resize(size);
 
-      int array_of_blocklengths[19];
-      MPI_Datatype array_of_types[19];
-      for (int i=0;i<18;i++)
+      int array_of_blocklengths[22];
+      MPI_Datatype array_of_types[22];
+      for (int i=0;i<21;i++)
       {
         array_of_blocklengths[i] = 1;
         array_of_types[i] = MPI_INT;
       }
-      array_of_blocklengths[18] = 1;
-      array_of_types[16] = MPI_LONG_LONG_INT;//for Z
-      array_of_types[18] = MPI_LONG_LONG_INT;
+      array_of_blocklengths[21] = 1;
+      //array_of_blocklengths[22] = 1;
+      array_of_types[21] = MPI_LONG_LONG_INT;
+      //array_of_types[22] = MPI_LONG_LONG_INT;
 
-      MPI_Aint array_of_displacements[19];
+      MPI_Aint array_of_displacements[23];
       UnPackInfo p;    
-      MPI_Aint base; MPI_Get_address(&p,&base);
-      MPI_Aint offset; MPI_Get_address(&p.offset,&offset); array_of_displacements[0] = offset - base;
-      MPI_Aint lx; MPI_Get_address(&p.lx,&lx); array_of_displacements[1] = lx - base;
-      MPI_Aint ly; MPI_Get_address(&p.ly,&ly); array_of_displacements[2] = ly - base;
-      MPI_Aint lz; MPI_Get_address(&p.lz,&lz); array_of_displacements[3] = lz - base;
-      MPI_Aint srcxstart; MPI_Get_address(&p.srcxstart,&srcxstart); array_of_displacements[4] = srcxstart - base;
-      MPI_Aint srcystart; MPI_Get_address(&p.srcystart,&srcystart); array_of_displacements[5] = srcystart - base;
-      MPI_Aint srczstart; MPI_Get_address(&p.srczstart,&srczstart); array_of_displacements[6] = srczstart - base;
-      MPI_Aint LX; MPI_Get_address(&p.LX,&LX); array_of_displacements[7] = LX - base;
-      MPI_Aint LY; MPI_Get_address(&p.LY,&LY); array_of_displacements[8] = LY - base;
-      MPI_Aint CoarseVersionOffset; MPI_Get_address(&p.CoarseVersionOffset,&CoarseVersionOffset); array_of_displacements[9] = CoarseVersionOffset - base;
-      MPI_Aint CoarseVersionLX; MPI_Get_address(&p.CoarseVersionLX,&CoarseVersionLX); array_of_displacements[10] = CoarseVersionLX - base;
-      MPI_Aint CoarseVersionLY; MPI_Get_address(&p.CoarseVersionLY,&CoarseVersionLY); array_of_displacements[11] = CoarseVersionLY - base;
+      MPI_Aint base                  ; MPI_Get_address(&p                       ,&base);
+      MPI_Aint offset                ; MPI_Get_address(&p.offset                ,&offset                ); array_of_displacements[ 0] = offset                 - base;
+      MPI_Aint lx                    ; MPI_Get_address(&p.lx                    ,&lx                    ); array_of_displacements[ 1] = lx                     - base;
+      MPI_Aint ly                    ; MPI_Get_address(&p.ly                    ,&ly                    ); array_of_displacements[ 2] = ly                     - base;
+      MPI_Aint lz                    ; MPI_Get_address(&p.lz                    ,&lz                    ); array_of_displacements[ 3] = lz                     - base;
+      MPI_Aint srcxstart             ; MPI_Get_address(&p.srcxstart             ,&srcxstart             ); array_of_displacements[ 4] = srcxstart              - base;
+      MPI_Aint srcystart             ; MPI_Get_address(&p.srcystart             ,&srcystart             ); array_of_displacements[ 5] = srcystart              - base;
+      MPI_Aint srczstart             ; MPI_Get_address(&p.srczstart             ,&srczstart             ); array_of_displacements[ 6] = srczstart              - base;
+      MPI_Aint LX                    ; MPI_Get_address(&p.LX                    ,&LX                    ); array_of_displacements[ 7] = LX                     - base;
+      MPI_Aint LY                    ; MPI_Get_address(&p.LY                    ,&LY                    ); array_of_displacements[ 8] = LY                     - base;
+      MPI_Aint CoarseVersionOffset   ; MPI_Get_address(&p.CoarseVersionOffset   ,&CoarseVersionOffset   ); array_of_displacements[ 9] = CoarseVersionOffset    - base;
+      MPI_Aint CoarseVersionLX       ; MPI_Get_address(&p.CoarseVersionLX       ,&CoarseVersionLX       ); array_of_displacements[10] = CoarseVersionLX        - base;
+      MPI_Aint CoarseVersionLY       ; MPI_Get_address(&p.CoarseVersionLY       ,&CoarseVersionLY       ); array_of_displacements[11] = CoarseVersionLY        - base;
       MPI_Aint CoarseVersionsrcxstart; MPI_Get_address(&p.CoarseVersionsrcxstart,&CoarseVersionsrcxstart); array_of_displacements[12] = CoarseVersionsrcxstart - base;
       MPI_Aint CoarseVersionsrcystart; MPI_Get_address(&p.CoarseVersionsrcystart,&CoarseVersionsrcystart); array_of_displacements[13] = CoarseVersionsrcystart - base;
       MPI_Aint CoarseVersionsrczstart; MPI_Get_address(&p.CoarseVersionsrczstart,&CoarseVersionsrczstart); array_of_displacements[14] = CoarseVersionsrczstart - base;
-      MPI_Aint level; MPI_Get_address(&p.level,&level); array_of_displacements[15] = level - base;
-      MPI_Aint Z; MPI_Get_address(&p.Z,&Z); array_of_displacements[16] = Z - base;
-      MPI_Aint icode; MPI_Get_address(&p.icode,&icode); array_of_displacements[17] = icode - base;
-      MPI_Aint IDreceiver; MPI_Get_address(&p.IDreceiver,&IDreceiver); array_of_displacements[18] = IDreceiver - base;
-      MPI_Type_create_struct(19, array_of_blocklengths, array_of_displacements, array_of_types,&MPI_PACK);
+      MPI_Aint level                 ; MPI_Get_address(&p.level                 ,&level                 ); array_of_displacements[15] = level                  - base;
+      MPI_Aint icode                 ; MPI_Get_address(&p.icode                 ,&icode                 ); array_of_displacements[16] = icode                  - base;
+      MPI_Aint rank                  ; MPI_Get_address(&p.rank                  ,&rank                  ); array_of_displacements[17] = rank                   - base;
+      MPI_Aint index_0               ; MPI_Get_address(&p.index_0               ,&index_0               ); array_of_displacements[18] = index_0                - base;
+      MPI_Aint index_1               ; MPI_Get_address(&p.index_1               ,&index_1               ); array_of_displacements[19] = index_1                - base;
+      MPI_Aint index_2               ; MPI_Get_address(&p.index_2               ,&index_2               ); array_of_displacements[20] = index_2                - base;
+      MPI_Aint IDreceiver            ; MPI_Get_address(&p.IDreceiver            ,&IDreceiver            ); array_of_displacements[21] = IDreceiver             - base;
+      //MPI_Aint Z                     ; MPI_Get_address(&p.Z                     ,&Z                     ); array_of_displacements[22] = Z                      - base;
+      MPI_Type_create_struct(22, array_of_blocklengths, array_of_displacements, array_of_types,&MPI_PACK);
       MPI_Type_commit(&MPI_PACK);
     }
-
     void clear()
     {
       if (sizes != nullptr)
@@ -703,7 +710,13 @@ class SynchronizerMPI_AMR
                     total_size += Vc;
                 }                    
 
-                UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,f[k].infos[0]->Z,f[k].icode[1],f[k].infos[1]->blockID_2};
+                UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,
+                  f[k].icode[1],
+                  Synch_ptr->rank,
+                  f[k].infos[0]->index[0],
+                  f[k].infos[0]->index[1],
+                  f[k].infos[0]->index[2],
+                  f[k].infos[1]->blockID_2};
                 
                 fInfo[k].dis = offset;
                 offset += V*NC;
@@ -740,7 +753,13 @@ class SynchronizerMPI_AMR
                     Synch_ptr->UnpacksManager.manyUnpacks[r].push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,
                     info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY,
                     Csrcx, Csrcy, Csrcz,
-                    f[remEl1].infos[0]->level,f[remEl1].infos[0]->Z,f[remEl1].icode[1],f[remEl1].infos[1]->blockID_2});
+                    f[remEl1].infos[0]->level,
+                    f[remEl1].icode[1],
+                    Synch_ptr->rank,
+                    f[remEl1].infos[0]->index[0],
+                    f[remEl1].infos[0]->index[1],
+                    f[remEl1].infos[0]->index[2],
+                    f[remEl1].infos[1]->blockID_2});
                     
                     fInfo[remEl1].dis = info.offset;
                 } 
@@ -752,7 +771,7 @@ class SynchronizerMPI_AMR
   {
     BlockInfo &a = *f.infos[0];
     BlockInfo &b = *f.infos[1];
-    if (a.level != b.level || a.level == 0|| (!use_averages)) return false;
+    if (a.level == 0|| (!use_averages)) return false;
     int imin[3];
     int imax[3];
     for (int d = 0; d < 3; d++)
@@ -792,19 +811,74 @@ class SynchronizerMPI_AMR
     return retval;
   }
 
-  void AverageDownAndFill(Real *dst, const BlockInfo *const info, const int s[3], const int e[3],
+  void AverageDownAndFill(Real * __restrict__ dst, const BlockInfo *const info, const int s[3], const int e[3],
                           const int code[3], const int *const selcomponents, const int NC, const int gptfloats)
   {
-    Real *src = (Real *)(*info).ptrBlock;
-    const int xStep = (code[0] == 0) ? 2 : 1;
-    const int yStep = (code[1] == 0) ? 2 : 1;
-    int pos = 0;
     #if DIMENSION == 3
-    const int zStep = (code[2] == 0) ? 2 : 1;
-    for (int iz = s[2]; iz < e[2]; iz += zStep)
-    {
-      const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
+      int pos = 0;
+      const Real *src = (const Real *)(*info).ptrBlock;
+      const int xStep = (code[0] == 0) ? 2 : 1;
+      const int yStep = (code[1] == 0) ? 2 : 1;
+      const int zStep = (code[2] == 0) ? 2 : 1;
+      if (gptfloats == 1)
+      {
+        for (int iz = s[2]; iz < e[2]; iz += zStep)
+        {
+          const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
+          for (int iy = s[1]; iy < e[1]; iy += yStep)
+          {
+            const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
+            for (int ix = s[0]; ix < e[0]; ix += xStep)
+            {
+              const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + min(0, code[0]) * nX : ix;
+              dst[pos] = 0.125 *(src[XX  +(YY  +(ZZ  )*nY)*nX] +
+                                 src[XX  +(YY  +(ZZ+1)*nY)*nX] +
+                                 src[XX  +(YY+1+(ZZ  )*nY)*nX] +
+                                 src[XX  +(YY+1+(ZZ+1)*nY)*nX] +
+                                 src[XX+1+(YY  +(ZZ  )*nY)*nX] +
+                                 src[XX+1+(YY  +(ZZ+1)*nY)*nX] +
+                                 src[XX+1+(YY+1+(ZZ  )*nY)*nX] +
+                                 src[XX+1+(YY+1+(ZZ+1)*nY)*nX]);
+              pos ++;
+            }
+          }
+        }
+      }
+      else
+      {
+        for (int iz = s[2]; iz < e[2]; iz += zStep)
+        {
+          const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
+          for (int iy = s[1]; iy < e[1]; iy += yStep)
+          {
+            const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
+            for (int ix = s[0]; ix < e[0]; ix += xStep)
+            {
+              const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + min(0, code[0]) * nX : ix;
+              for (int c = 0; c < NC; c++)
+              {
+                int comp = selcomponents[c];
+                  dst[pos] = 0.125 *
+                          ((*(src + gptfloats * ((XX) + ((YY) + (ZZ)*nY) * nX) + comp)) +
+                           (*(src + gptfloats * ((XX) + ((YY) + (ZZ + 1) * nY) * nX) + comp)) +
+                           (*(src + gptfloats * ((XX) + ((YY + 1) + (ZZ)*nY) * nX) + comp)) +
+                           (*(src + gptfloats * ((XX) + ((YY + 1) + (ZZ + 1) * nY) * nX) + comp)) +
+                           (*(src + gptfloats * ((XX + 1) + ((YY) + (ZZ)*nY) * nX) + comp)) +
+                           (*(src + gptfloats * ((XX + 1) + ((YY) + (ZZ + 1) * nY) * nX) + comp)) +
+                           (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ)*nY) * nX) + comp)) +
+                           (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ + 1) * nY) * nX) + comp)));
+                pos++;
+              }
+            }
+          }
+        }
+      }
     #endif
+    #if DIMENSION == 2
+      Real *src = (Real *)(*info).ptrBlock;
+      const int xStep = (code[0] == 0) ? 2 : 1;
+      const int yStep = (code[1] == 0) ? 2 : 1;
+      int pos = 0;
       for (int iy = s[1]; iy < e[1]; iy += yStep)
       {
         const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
@@ -814,30 +888,15 @@ class SynchronizerMPI_AMR
           for (int c = 0; c < NC; c++)
           {
             int comp = selcomponents[c];
-            #if DIMENSION == 3
-              dst[pos] = 0.125 *
-                      ((*(src + gptfloats * ((XX) + ((YY) + (ZZ)*nY) * nX) + comp)) +
-                       (*(src + gptfloats * ((XX) + ((YY) + (ZZ + 1) * nY) * nX) + comp)) +
-                       (*(src + gptfloats * ((XX) + ((YY + 1) + (ZZ)*nY) * nX) + comp)) +
-                       (*(src + gptfloats * ((XX) + ((YY + 1) + (ZZ + 1) * nY) * nX) + comp)) +
-                       (*(src + gptfloats * ((XX + 1) + ((YY) + (ZZ)*nY) * nX) + comp)) +
-                       (*(src + gptfloats * ((XX + 1) + ((YY) + (ZZ + 1) * nY) * nX) + comp)) +
-                       (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ)*nY) * nX) + comp)) +
-                       (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ + 1) * nY) * nX) + comp)));
-            #else
-              dst[pos] = 0.25 *
-                      (((*(src + gptfloats*(XX  +(YY  )*nX) + comp)) +
-                        (*(src + gptfloats*(XX+1+(YY+1)*nX) + comp)))+
-                       ((*(src + gptfloats*(XX  +(YY+1)*nX) + comp)) +
-                        (*(src + gptfloats*(XX+1+(YY  )*nX) + comp))));
-            #endif
+            dst[pos] = 0.25 *(((*(src + gptfloats*(XX  +(YY  )*nX) + comp)) +
+                               (*(src + gptfloats*(XX+1+(YY+1)*nX) + comp)))+
+                              ((*(src + gptfloats*(XX  +(YY+1)*nX) + comp)) +
+                               (*(src + gptfloats*(XX+1+(YY  )*nX) + comp))));
             pos++;
           }
         }
       }
-    #if DIMENSION == 3
-    }
-    #endif
+    #endif  
   }
 
   void AverageDownAndFill2(Real *dst, const BlockInfo *const info, const int code[3], const int *const selcomponents, const int NC, const int gptfloats)
@@ -1351,14 +1410,14 @@ class SynchronizerMPI_AMR
 
             if (send_buffer_size[r] != 0)
             {
-               const int N = send_packinfos[r].size();
-               #pragma omp for schedule(runtime)
-               for (int i = 0; i < N; i++)
-               {
-                  PackInfo &info = send_packinfos[r][i];
-                  pack(info.block, info.pack, gptfloats, &selcomponents.front(), NC, info.sx,
-                       info.sy, info.sz, info.ex, info.ey, info.ez, nX, nY);
-               }
+              const int N = send_packinfos[r].size();
+              #pragma omp for schedule(runtime)
+              for (int i = 0; i < N; i++)
+              {
+                 PackInfo &info = send_packinfos[r][i];
+                 pack(info.block, info.pack, gptfloats, &selcomponents.front(), NC, info.sx,
+                      info.sy, info.sz, info.ex, info.ey, info.ez, nX, nY);
+              }
             }
          }
       }
@@ -1392,11 +1451,9 @@ class SynchronizerMPI_AMR
       {
          UnPackInfo &unpack = *unpacks[jj];
 
-         const int code[3] = {unpack.icode % 3 - 1, (unpack.icode / 3) % 3 - 1,
-                              (unpack.icode / 9) % 3 - 1};
+         const int code[3] = {unpack.icode % 3 - 1, (unpack.icode / 3) % 3 - 1, (unpack.icode / 9) % 3 - 1};
 
-         BlockInfo &other = grid->getBlockInfoAll(unpack.level, unpack.Z);
-         const int otherrank = grid->Tree(unpack.level, unpack.Z).rank();
+         const int otherrank = unpack.rank;
 
          const int s[3] = {code[0] < 1 ? (code[0] < 0 ? stencil.sx : 0) : nX,
                            code[1] < 1 ? (code[1] < 0 ? stencil.sy : 0) : nY,
@@ -1405,37 +1462,38 @@ class SynchronizerMPI_AMR
                            code[1] < 1 ? (code[1] < 0 ? 0 : nY) : nY + stencil.ey - 1,
                            code[2] < 1 ? (code[2] < 0 ? 0 : nZ) : nZ + stencil.ez - 1};
 
-         if (other.level == info.level)
+         if (unpack.level == info.level)
          {
             Real *dst = cacheBlock + ((s[2] - stencil.sz) * ElemsPerSlice[0] +
-                                      (s[1] - stencil.sy) * Length[0] + s[0] - stencil.sx) *
-                                         gptfloats;
+                                      (s[1] - stencil.sy) * Length[0] +
+                                       s[0] - stencil.sx                      ) * gptfloats;
 
-            unpack_subregion<Real>(&recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
-                                   &stencil.selcomponents[0], stencil.selcomponents.size(),
-                                   unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX,
-                                   unpack.LY, 0, 0, 0, unpack.lx, unpack.ly, unpack.lz, Length[0],
-                                   Length[1], Length[2]);
+            unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], 
+                             gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
+                             unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX, unpack.LY, 
+                             0               , 0               , 0               , unpack.lx, unpack.ly, unpack.lz, 
+                             Length[0],Length[1], Length[2]);
 
             if (unpack.CoarseVersionOffset >= 0)
             {
-               const int sC[3] = {(stencil.sx - 1) / 2 + Cstencil.sx,
-                                  (stencil.sy - 1) / 2 + Cstencil.sy,
-                                  (stencil.sz - 1) / 2 + Cstencil.sz};
+               const int offset[3] = {(stencil.sx - 1) / 2 + Cstencil.sx,
+                                      (stencil.sy - 1) / 2 + Cstencil.sy,
+                                      (stencil.sz - 1) / 2 + Cstencil.sz};
 
-               const int s1[3] = {code[0] < 1 ? (code[0] < 0 ? sC[0] : 0) : nX / 2,
-                                  code[1] < 1 ? (code[1] < 0 ? sC[1] : 0) : nY / 2,
-                                  code[2] < 1 ? (code[2] < 0 ? sC[2] : 0) : nZ / 2};
+               const int sC[3] = {
+                                  code[0] < 1 ? (code[0] < 0 ? (stencil.sx - 1) / 2 + Cstencil.sx : 0) : nX / 2,
+                                  code[1] < 1 ? (code[1] < 0 ? (stencil.sy - 1) / 2 + Cstencil.sy : 0) : nY / 2,
+                                  code[2] < 1 ? (code[2] < 0 ? (stencil.sz - 1) / 2 + Cstencil.sz : 0) : nZ / 2};
 
-               Real *dst1 = coarseBlock + ((s1[2] - sC[2]) * ElemsPerSlice[1] +
-                                           (s1[1] - sC[1]) * CLength[0] + s1[0] - sC[0]) *
+               Real *dst1 = coarseBlock + ((sC[2] - offset[2]) * ElemsPerSlice[1] +
+                                           (sC[1] - offset[1]) * CLength[0] + sC[0] - offset[0]) *
                                               gptfloats;
 
                int L[3];
                int code__[3] = {-code[0], -code[1], -code[2]};
                SM.CoarseStencilLength(&code__[0], &L[0]);
 
-               unpack_subregion<Real>(
+               unpack_subregion(
                    &recv_buffer[otherrank][unpack.offset + unpack.CoarseVersionOffset], &dst1[0],
                    gptfloats, &stencil.selcomponents[0], stencil.selcomponents.size(),
                    unpack.CoarseVersionsrcxstart, unpack.CoarseVersionsrcystart,
@@ -1443,26 +1501,22 @@ class SynchronizerMPI_AMR
                    0, 0, L[0], L[1], L[2], CLength[0], CLength[1], CLength[2]);
             }
          }
-         else if (other.level < info.level)
+         else if (unpack.level < info.level)
          {
-            const int sC[3] = {
-                code[0] < 1 ? (code[0] < 0 ? ((stencil.sx - 1) / 2 + Cstencil.sx) : 0) : nX / 2,
-                code[1] < 1 ? (code[1] < 0 ? ((stencil.sy - 1) / 2 + Cstencil.sy) : 0) : nY / 2,
-                code[2] < 1 ? (code[2] < 0 ? ((stencil.sz - 1) / 2 + Cstencil.sz) : 0) : nZ / 2};
+            const int sC[3] = {code[0] < 1 ? (code[0] < 0 ? ((stencil.sx - 1) / 2 + Cstencil.sx) : 0) : nX / 2,
+                               code[1] < 1 ? (code[1] < 0 ? ((stencil.sy - 1) / 2 + Cstencil.sy) : 0) : nY / 2,
+                               code[2] < 1 ? (code[2] < 0 ? ((stencil.sz - 1) / 2 + Cstencil.sz) : 0) : nZ / 2};
 
             const int offset[3] = {(stencil.sx - 1) / 2 + Cstencil.sx,
                                    (stencil.sy - 1) / 2 + Cstencil.sy,
                                    (stencil.sz - 1) / 2 + Cstencil.sz};
 
-            Real *dst = coarseBlock + ((sC[2] - offset[2]) * ElemsPerSlice[1] + sC[0] - offset[0] +
-                                       (sC[1] - offset[1]) * CLength[0]) *
-                                          gptfloats;
-
-            unpack_subregion<Real>(&recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
-                                   &stencil.selcomponents[0], stencil.selcomponents.size(),
-                                   unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX,
-                                   unpack.LY, 0, 0, 0, unpack.lx, unpack.ly, unpack.lz, CLength[0],
-                                   CLength[1], CLength[2]);
+            Real *dst = coarseBlock + ((sC[2] - offset[2]) * ElemsPerSlice[1] + sC[0] - offset[0] + (sC[1] - offset[1]) * CLength[0]) *gptfloats;
+            unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], 
+                             gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
+                             unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX, unpack.LY, 
+                                            0,                0,                0, unpack.lx, unpack.ly, unpack.lz, 
+                             CLength[0],CLength[1], CLength[2]);
          }
          else
          {
@@ -1473,15 +1527,15 @@ class SynchronizerMPI_AMR
                int t;
                if (code[0] == 0)
                {
-                  t = other.index[0] - (2 * info.index[0] + max(code[0], 0) + code[0]);
+                  t = unpack.index_0 - 2 * info.index[0];
                }
                else if (code[1] == 0)
                {
-                  t = other.index[1] - (2 * info.index[1] + max(code[1], 0) + code[1]);
+                  t = unpack.index_1 - 2 * info.index[1];
                }
                else // if (code[2] ==0)
                {
-                  t = other.index[2] - (2 * info.index[2] + max(code[2], 0) + code[2]);
+                  t = unpack.index_2 - 2 * info.index[2];
                }
 
                assert(t == 0 || t == 1);
@@ -1495,18 +1549,18 @@ class SynchronizerMPI_AMR
                int Bmod, Bdiv;
                if (abs(code[0]) == 1)
                {
-                  Bmod = other.index[1] - (2 * info.index[1] + max(code[1], 0) + code[1]);
-                  Bdiv = other.index[2] - (2 * info.index[2] + max(code[2], 0) + code[2]);
+                  Bmod = unpack.index_1 - 2 * info.index[1];
+                  Bdiv = unpack.index_2 - 2 * info.index[2];
                }
                else if (abs(code[1]) == 1)
                {
-                  Bmod = other.index[0] - (2 * info.index[0] + max(code[0], 0) + code[0]);
-                  Bdiv = other.index[2] - (2 * info.index[2] + max(code[2], 0) + code[2]);
+                  Bmod = unpack.index_0 - 2 * info.index[0];
+                  Bdiv = unpack.index_2 - 2 * info.index[2];
                }
                else
                {
-                  Bmod = other.index[0] - (2 * info.index[0] + max(code[0], 0) + code[0]);
-                  Bdiv = other.index[1] - (2 * info.index[1] + max(code[1], 0) + code[1]);
+                  Bmod = unpack.index_0 - 2 * info.index[0];
+                  Bdiv = unpack.index_1 - 2 * info.index[1];
                }
 
                B = 2 * Bdiv + Bmod;
@@ -1533,12 +1587,12 @@ class SynchronizerMPI_AMR
                            (1 - abs(code[1])) * (iy / 2 - stencil.sy + aux1 * (e[1] - s[1]) / 2)) *
                               m_vSize0) *
                     gptfloats;
+            unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
+                   &stencil.selcomponents[0], stencil.selcomponents.size(),
+                   unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX,
+                   unpack.LY, 0, 0, 0, unpack.lx, unpack.ly, unpack.lz, Length[0],
+                   Length[1], Length[2]);
 
-            unpack_subregion<Real>(&recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
-                                   &stencil.selcomponents[0], stencil.selcomponents.size(),
-                                   unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX,
-                                   unpack.LY, 0, 0, 0, unpack.lx, unpack.ly, unpack.lz, Length[0],
-                                   Length[1], Length[2]);
          }
       }
    }

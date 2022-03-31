@@ -1080,7 +1080,6 @@ class BlockLab
                         const bool xstart = (XX+offset[0] == 0);
 
                         auto & a = m_cacheBlock->Access(ix - m_stencilStart[0],iy - m_stencilStart[1],iz - m_stencilStart[2]);
-
                         if (code[0] != 0) //X-face
                         {
                            ElementType x1D,x2D,mixed;
@@ -1447,13 +1446,12 @@ class BlockLab
                            }
                            a = x1D + x2D + mixed;
                         }
-
-                        const auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] + (-3*code[0]+1)/2 - x,
-                                                              iy - m_stencilStart[1] + (-3*code[1]+1)/2 - y,
-                                                              iz - m_stencilStart[2] + (-3*code[2]+1)/2 - z);
-                        const auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] + (-5*code[0]+1)/2 - x,
-                                                              iy - m_stencilStart[1] + (-5*code[1]+1)/2 - y,
-                                                              iz - m_stencilStart[2] + (-5*code[2]+1)/2 - z);
+                        const auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] + (-3*code[0]+1)/2 - x*abs(code[0]),
+                                                              iy - m_stencilStart[1] + (-3*code[1]+1)/2 - y*abs(code[1]),
+                                                              iz - m_stencilStart[2] + (-3*code[2]+1)/2 - z*abs(code[2]));
+                        const auto & c = m_cacheBlock->Access(ix - m_stencilStart[0] + (-5*code[0]+1)/2 - x*abs(code[0]),
+                                                              iy - m_stencilStart[1] + (-5*code[1]+1)/2 - y*abs(code[1]),
+                                                              iz - m_stencilStart[2] + (-5*code[2]+1)/2 - z*abs(code[2]));
                         const int ccc  = code[0] + code[1] + code[2];
                         const int xyz  = abs(code[0])*x+abs(code[1])*y+abs(code[2])*z;
                         if (ccc == 1)     a = (xyz==0)?(1.0/15.0)*(8.0*a+10.0*b-3.0*c):(1.0/15.0)*(24.0*a-15.0*b+6*c);

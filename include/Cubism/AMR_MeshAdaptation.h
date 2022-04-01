@@ -187,26 +187,26 @@ class MeshAdaptation
             n_com.push_back(info.Z);
          }
       }
-      #pragma omp parallel
+      //#pragma omp parallel
       {
-         #pragma omp for
+         //#pragma omp for
          for (size_t i = 0; i < m_ref.size(); i++)
          {
             refine_1(m_ref[i], n_ref[i]);
-            #pragma omp atomic
+            //#pragma omp atomic
             r++;
          }
-         #pragma omp for
+         //#pragma omp for
          for (size_t i = 0; i < m_ref.size(); i++)
          {
             refine_2(m_ref[i], n_ref[i]);
          }
       }
-      #pragma omp parallel for
+      //#pragma omp parallel for
       for (size_t i = 0; i < m_com.size(); i++)
       {
          compress(m_com[i], n_com[i]);
-         #pragma omp atomic
+         //#pragma omp atomic
          c++;
       }
       if (verbosity) std::cout << "Blocks refined:" << r << " blocks compressed:" << c << std::endl;

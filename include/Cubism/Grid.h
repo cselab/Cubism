@@ -505,11 +505,6 @@ class Grid
       }
    }
 
-   int getBlocksPerDimension(int idim) const
-   {
-      std::cout << "You called Grid::getBlocksPerDimension() in an AMR solver. Do you really need that?" << std::endl;
-      abort();
-   }
    virtual int get_world_size() const { return 1; }
 
    virtual void UpdateBoundary(bool clean=false){} //does nothing for a single node (no MPI)

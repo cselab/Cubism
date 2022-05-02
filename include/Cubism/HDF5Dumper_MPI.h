@@ -163,8 +163,13 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
 
     hid_t file_id_grid,fapl_id_grid;
     std::stringstream gridFile_s;
-    gridFile_s << dpath << "/grid" <<std::setfill('0')<<std::setw(9)<<gridCount << ".h5";
+    gridFile_s << "grid" <<std::setfill('0')<<std::setw(9)<<gridCount << ".h5";
     std::string gridFile = gridFile_s.str();
+
+    std::stringstream gridFilePath_s;
+    gridFilePath_s << dpath << "/grid" <<std::setfill('0')<<std::setw(9)<<gridCount << ".h5";
+    std::string gridFilePath = gridFilePath_s.str();
+    
     if (SaveGrid)
     {
        //1.Set up file access property list with parallel I/O access
@@ -172,7 +177,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
        H5Pset_fapl_mpio(fapl_id_grid, comm, MPI_INFO_NULL);
 
        //2.Create a new file collectively and release property list identifier.
-       file_id_grid = H5Fcreate(gridFile.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id_grid);
+       file_id_grid = H5Fcreate(gridFilePath.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id_grid);
        H5Pclose(fapl_id_grid);
        H5Fclose(file_id_grid);
     }
@@ -243,7 +248,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     {
         fapl_id_grid = H5Pcreate(H5P_FILE_ACCESS);
         H5Pset_fapl_mpio(fapl_id_grid, comm, MPI_INFO_NULL);
-        file_id_grid = H5Fopen(gridFile.c_str(), H5F_ACC_RDWR, fapl_id_grid);
+        file_id_grid = H5Fopen(gridFilePath.c_str(), H5F_ACC_RDWR, fapl_id_grid);
         H5Pclose(fapl_id_grid);
         fapl_id_grid = H5Pcreate(H5P_DATASET_XFER);
         H5Pset_dxpl_mpio(fapl_id_grid, H5FD_MPIO_COLLECTIVE);
@@ -311,7 +316,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
                 #endif
             }
         }
-        save_buffer_to_file<float>(buffer, 1, comm,gridFile,"vertices",file_id_grid,fapl_id_grid);
+        save_buffer_to_file<float>(buffer, 1, comm,gridFilePath,"vertices",file_id_grid,fapl_id_grid);
 
         H5Pclose(fapl_id_grid);
         H5Fclose(file_id_grid);

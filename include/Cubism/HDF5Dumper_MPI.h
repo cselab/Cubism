@@ -163,7 +163,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
 
     hid_t file_id_grid,fapl_id_grid;
     std::stringstream gridFile_s;
-    gridFile_s << "grid" <<std::setfill('0')<<std::setw(9)<<gridCount << ".h5";
+    gridFile_s << dpath << "/grid" <<std::setfill('0')<<std::setw(9)<<gridCount << ".h5";
     std::string gridFile = gridFile_s.str();
     if (SaveGrid)
     {

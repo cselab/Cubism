@@ -17,13 +17,6 @@
 #include <fstream>
 #include <iomanip> // std::setfill, std::setw
 
-
-#ifdef _USE_HDF_
-#warning  _USE_HDF_ is deprecated, use CUBISM_USE_HDF instead.
-#define CUBISM_USE_HDF
-#endif
-
-#ifdef CUBISM_USE_HDF
 #include <hdf5.h>
 
 // Function to retrieve HDF5 type (hid_t) for a given real type.
@@ -34,7 +27,6 @@ template <> inline hid_t get_hdf5_type<short int>() { return H5T_NATIVE_SHORT;}
 template <> inline hid_t get_hdf5_type<int>      () { return H5T_NATIVE_INT;  }
 template <> inline hid_t get_hdf5_type<float>    () { return H5T_NATIVE_FLOAT;}
 template <> inline hid_t get_hdf5_type<double>   () { return H5T_NATIVE_DOUBLE;}
-#endif
 
 #include "BlockInfo.h"
 

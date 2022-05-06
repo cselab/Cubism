@@ -110,6 +110,29 @@ void save_buffer_to_file(const std::vector<data_type> & buffer, const int NCHANN
     H5Sclose(mspace_id);
     H5Sclose(fspace_id);
     H5Dclose(dataset_id);
+
+    #if 0 //compression
+    hid_t plist_id = H5Pcreate(H5P_DATASET_CREATE);
+    hsize_t cdims[1];
+    cdims[0] = 8*8*8;
+    if (compression==false)
+    {
+        const int PtsPerElement = 8;
+        cdims[0] *= PtsPerElement * DIMENSION;
+    }
+    H5Pset_chunk(plist_id, 1, cdims);
+    H5Pset_deflate(plist_id, 6);
+    dataset_id = H5Dcreate(file_id, dataset_name.c_str(), get_hdf5_type<data_type>(), fspace_id, H5P_DEFAULT, plist_id, H5P_DEFAULT);
+    hsize_t count[1] = {MyCells*NCHANNELS};
+    fspace_id = H5Dget_space(dataset_id);
+    mspace_id = H5Screate_simple(1, count, NULL);
+    H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, base_tmp, NULL, count, NULL);
+    H5Dwrite(dataset_id, get_hdf5_type<data_type>(), mspace_id, fspace_id, fapl_id, buffer.data());
+    H5Sclose(mspace_id);
+    H5Sclose(fspace_id);
+    H5Dclose(dataset_id);
+    H5Pclose(plist_id);
+    #endif
 }
 
 static double latestTime{-1.0};
@@ -427,7 +450,7 @@ void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string 
             s << 1     <<"\n";
             s << dd    <<"\n";
             s << "</DataItem>\n";
-            s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << dd << " " << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(hdf5Real) << "\" Format=\"HDF\">\n";
+            s << "   <DataItem ItemType=\"Uniform\"  Dimensions=\" " << dd << " " << "\" NumberType=\"Float\" Precision=\" " << (int)sizeof(float) << "\" Format=\"HDF\">\n";
             s << "    " << (myfilename.str() + ".h5").c_str() << ":/" << "dset" << "\n";
             s << "   </DataItem>\n";
             s << "   </DataItem>\n";
@@ -548,11 +571,18 @@ void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string 
     //total = start;
     hsize_t dims[1]  = {(hsize_t) total};
     fspace_id        = H5Screate_simple(1, dims, NULL);
-    dataset_id       = H5Dcreate (file_id, "dset", get_hdf5_type<hdf5Real>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id       = H5Dcreate (file_id, "dset", get_hdf5_type<float>(), fspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    //hid_t plist_id = H5Pcreate(H5P_DATASET_CREATE);
+    //hsize_t cdims[1];
+    //cdims[0] = 8*8*8;
+    //H5Pset_chunk(plist_id, 1, cdims);
+    //H5Pset_deflate(plist_id, 6);
+    //dataset_id = H5Dcreate(file_id, "dset", get_hdf5_type<double>(), fspace_id, H5P_DEFAULT, plist_id, H5P_DEFAULT);
 
     //4.Dump
     long long start1 = 0;
-    std::vector<hdf5Real> bigArray(start);
+    std::vector<float> bigArray(start);
     for (size_t groupID = 0 ; groupID < MyGroups.size() ; groupID ++)
     {
         const BlockGroup & group = MyGroups[groupID];
@@ -560,7 +590,7 @@ void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string 
         const int nY_max = group.NYY-1;
         const int nZ_max = group.NZZ-1;
         int dd1 = nX_max * nY_max * nZ_max;// * NCHANNELS;
-        std::vector<hdf5Real> array_block( dd1, 0.0);
+        std::vector<float> array_block( dd1, 0.0);
         for (int kB = group.i_min[2]; kB <= group.i_max[2]; kB++)
         for (int jB = group.i_min[1]; jB <= group.i_max[1]; jB++)
         for (int iB = group.i_min[0]; iB <= group.i_max[0]; iB++)
@@ -576,7 +606,7 @@ void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string 
             for (int iy = 0; iy < nY; iy++)
             for (int ix = 0; ix < nX; ix++)
             {
-                hdf5Real output[NCHANNELS];
+                float output[NCHANNELS];
                 TStreamer::operate(lab,ix,iy,iz,output);
                 const int iz_b = (kB-group.i_min[2])*nZ + iz;
                 const int iy_b = (jB-group.i_min[1])*nY + iy;
@@ -605,12 +635,13 @@ void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string 
     mspace_id = H5Screate_simple(1, count, NULL);
 
     H5Sselect_hyperslab(fspace_id, H5S_SELECT_SET, base_tmp, NULL, count, NULL);
-    H5Dwrite(dataset_id, get_hdf5_type<hdf5Real>(), mspace_id, fspace_id, fapl_id, bigArray.data());
+    H5Dwrite(dataset_id, get_hdf5_type<float>(), mspace_id, fspace_id, fapl_id, bigArray.data());
     H5Sclose(mspace_id);
     H5Sclose(fspace_id);
     H5Dclose(dataset_id);
     H5Pclose(fapl_id);
     H5Fclose(file_id);
+    //H5Pclose(plist_id);
     H5close();
 }
 

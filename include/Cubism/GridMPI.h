@@ -252,7 +252,7 @@ class GridMPI : public TGrid
       std::vector<MPI_Request> send_requests;
       std::vector<MPI_Request> recv_requests;
 
-      int dummy = 0;
+      long long dummy = 0;
       for (int r : Neighbors)
          if (r != rank)
          {

@@ -22,7 +22,7 @@ struct BlockGroup
    int i_min[3];
    int i_max[3];
    int level;
-   std::vector<int> Z;
+   std::vector<long long> Z;
    size_t ID;
    double origin[3];
    double h;

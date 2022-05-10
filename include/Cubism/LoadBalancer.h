@@ -13,21 +13,25 @@ namespace cubism
 template <typename TGrid>
 class LoadBalancer
 {
-
+   /*
+    * This class will redistribute Blocks among different MPI ranks for two reasons:
+    * 1) Eight (in 3D) or four (in 2D) blocks need to be compressed to one, but they are owned by
+    *    different ranks. PrepareCompression() will collect them all to one rank, so that 
+    *    they can be compressed.
+    * 2) There is a load imbalance after the grid is refined or compressed. If the imbalance is 
+    *    not great (load imbalance ratio < 1.1), a 1D-diffusion based scheme is used to redistribute
+    *    blocks along the 1D Space-Filling-Curve. Otherwise, all blocks are simply evenly 
+    *    redistributed among all ranks.
+    */
  public:
    typedef typename TGrid::Block BlockType;
    typedef typename TGrid::Block::ElementType ElementType;
    bool movedBlocks;
-   int counterg{0};
-   double beta;
-   int flux_left_old;
-   int flux_right_old;
-
-   MPI_Comm comm;
 
  protected:
    TGrid *m_refGrid;
    int rank, size;
+   MPI_Comm comm;
    MPI_Datatype MPI_BLOCK;
    struct MPI_Block
    {
@@ -112,15 +116,13 @@ class LoadBalancer
       MPI_Block dummy;
       int array_of_blocklengths[2]       = {2, sizeof(BlockType) / sizeof(Real)};
       MPI_Aint array_of_displacements[2] = {0, 2 * sizeof(long long)};
-      MPI_Datatype array_of_types[2];//     = {MPI_LONG_LONG, MPI_DOUBLE};
+      MPI_Datatype array_of_types[2];
       array_of_types[0] = MPI_LONG_LONG;
-      if (sizeof(Real) == sizeof(float)) array_of_types[1] = MPI_FLOAT;
-      else if (sizeof(Real) == sizeof(double)) array_of_types[1] = MPI_DOUBLE;
+      if      (sizeof(Real) == sizeof(float)      ) array_of_types[1] = MPI_FLOAT;
+      else if (sizeof(Real) == sizeof(double)     ) array_of_types[1] = MPI_DOUBLE;
       else if (sizeof(Real) == sizeof(long double)) array_of_types[1] = MPI_LONG_DOUBLE;
       MPI_Type_create_struct(2, array_of_blocklengths, array_of_displacements, array_of_types, &MPI_BLOCK);
       MPI_Type_commit(&MPI_BLOCK);
-      flux_left_old  = 0;
-      flux_right_old = 0;
    }
 
    ~LoadBalancer() { MPI_Type_free(&MPI_BLOCK); }
@@ -322,7 +324,7 @@ class LoadBalancer
       else if (flux_right < 0) // then I will receive blocks from my right rank
       {
          recv_right.resize(abs(flux_right));
-	 MPI_Request req{};
+	      MPI_Request req{};
          request.push_back(req);
          MPI_Irecv(&recv_right[0], recv_right.size(), MPI_BLOCK, right, 7890, comm, &request.back());
       }
@@ -374,8 +376,6 @@ class LoadBalancer
          }
       #endif
       m_refGrid->FillPos();
-      flux_left_old  = flux_left;
-      flux_right_old = flux_right;
    }
 
    void Balance_Global()
@@ -429,7 +429,7 @@ class LoadBalancer
             }
          }
 
-      int tag = counterg;
+      int tag = 12345;
       std::vector<MPI_Request> recv_request;
       for (int r = 0; r < size; r++)
          if (recv_blocks[r].size() != 0)

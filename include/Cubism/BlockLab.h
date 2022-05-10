@@ -8,12 +8,7 @@
 
 namespace cubism // AMR_CUBISM
 {
-#ifdef __bgq__
-#include <builtins.h>
-#define memcpy2(a, b, c) __bcopy((b), (a), (c))
-#else
 #define memcpy2(a, b, c) memcpy((a), (b), (c))
-#endif
 
 //default coarse-fine interpolation stencil
 #if DIMENSION == 3

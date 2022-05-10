@@ -4,10 +4,6 @@
 #include <omp.h>
 #include <unordered_map>
 
-#ifdef CUBISM_USE_NUMA
-#include <numa.h>
-#endif
-
 #include "BlockInfo.h"
 #include "FluxCorrection.h"
 
@@ -16,6 +12,13 @@ namespace cubism // AMR_CUBISM
 
 struct BlockGroup
 {
+   /*
+    * When dumping the Grid, blocks are grouped into larger rectangular regions
+    * of uniform resolution. These regions (BlockGroups) have blocks with the 
+    * same level and with various Space-filling-curve coordinates Z.
+    * They have NXX x NYY x NZZ grid points, grid spacing h, an origin and a
+    * minimum and maximum index (indices of bottom left and top right blocks).
+    */
    int i_min[3];
    int i_max[3];
    int level;
@@ -30,6 +33,10 @@ struct BlockGroup
 
 struct TreePosition
 {
+   /*
+    * Single integer used to recognize if a Block exists in the Grid and
+    * by which MPI rank it is owned. 
+    */
    int position{-3};
    bool CheckCoarser() const { return position == -2; }
    bool CheckFiner() const { return position == -1; }
@@ -43,42 +50,51 @@ struct TreePosition
 template <typename Block, template <typename X> class allocator = std::allocator>
 class Grid
 {
- public: // protected:
- #ifdef CUBISM_USE_MAP
-   std::unordered_map<long long, BlockInfo *> BlockInfoAll;
-   std::unordered_map<long long, TreePosition> Octree;
- #else
-   std::vector<std::vector<BlockInfo *>> BlockInfoAll;
-   std::vector<std::vector<TreePosition>> Octree;
- #endif
-   std::vector<BlockInfo> m_vInfo; // meta-data for blocks that belong to this rank
-   std::vector<Block *> m_blocks;  // pointers to blocks that belong to this rank
-
-   const int NX;           // Total # of blocks for level 0 in X-direction
-   const int NY;           // Total # of blocks for level 0 in Y-direction
-   const int NZ;           // Total # of blocks for level 0 in Z-direction
-   const double maxextent; // Maximum domain extent
-   const int levelMax;     // Maximum refinement level allowed
-   const int levelStart;   // Initial refinement level
-
-   std::vector<long long> level_base;
-   FluxCorrection<Grid,Block> CorrectorGrid;
-
+   /*
+    * This class holds the blocks and their meta-data (BlockInfos).
+    * The BlockInfoAll and Octree objects hold information for the blocks owned by this rank
+    * and its neighboring ranks (when running with MPI).
+    */
  public:
    typedef Block BlockType;
+   using ElementType = typename Block::ElementType; //Blocks hold ElementTypes
    typedef typename Block::RealType Real; // Block MUST provide `RealType`.
-   using ElementType = typename Block::ElementType;
 
+   #ifdef CUBISM_USE_MAP
+   std::unordered_map<long long, BlockInfo *> BlockInfoAll;
+   std::unordered_map<long long, TreePosition> Octree;
+   #else
+   std::vector<std::vector<BlockInfo *>> BlockInfoAll;
+   std::vector<std::vector<TreePosition>> Octree;
+   #endif
+
+   std::vector<BlockInfo> m_vInfo;   // meta-data for blocks that belong to this rank
+   std::vector<Block *> m_blocks;    // pointers to blocks that belong to this rank
+   const int NX;                     // Total # of blocks for level 0 in X-direction
+   const int NY;                     // Total # of blocks for level 0 in Y-direction
+   const int NZ;                     // Total # of blocks for level 0 in Z-direction
+   const double maxextent;           // Maximum domain extent
+   const int levelMax;               // Maximum refinement level allowed
+   const int levelStart;             // Initial refinement level
    const bool xperiodic;             // grid periodicity in x-direction
    const bool yperiodic;             // grid periodicity in y-direction
    const bool zperiodic;             // grid periodicity in z-direction
    std::vector<BlockGroup> MyGroups; // used for dumping data
-   bool UpdateGroups{true};
-   bool FiniteDifferences{true};     // used by BlockLab, to determine what kind of coarse-fine interface interpolation to make.
-                                     // true means that biased stencils will be used to get an O(h^3) approximation
+   std::vector<long long> level_base;// auxiliary array used when searching is std::unordered_map
+   bool UpdateFluxCorrection{true};  // FluxCorrection updates only when grid is refined/compressed
+   bool UpdateGroups{true};          // (inactive) BlockGroups updated only when this is true
+   bool FiniteDifferences{true};     // used by BlockLab, to determine what kind of coarse-fine 
+                                     // interface interpolation to make.
+                                     // true means that biased stencils will be used to 
+                                     // get an O(h^3) approximation
+   FluxCorrection<Grid,Block> CorrectorGrid; // used for AMR flux-corrections at coarse-fine 
+                                             // interfaces
 
    TreePosition &Tree(int m, long long n)
    {
+      /*
+       * Return the position in the Octree of a Block at level m and SFC coordinate n.
+       */
       #ifdef CUBISM_USE_MAP
       long long aux = level_base[m] + n;
       auto retval   = Octree.find(aux);
@@ -105,8 +121,6 @@ class Grid
    }
    TreePosition &Tree(BlockInfo &info) { return Tree(info.level, info.Z); }
    TreePosition &Tree(const BlockInfo &info) { return Tree(info.level, info.Z); }
-
-   bool UpdateFluxCorrection{true};
 
    void _alloc() // called in class constructor
    {
@@ -194,6 +208,12 @@ class Grid
 
    void FindBlockInfo(int m, long long n, int m_new, long long n_new)
    {
+      /*
+       * Used when Block at level m_new with SFC coordinate n_new is added to the Grid
+       * as a result of compression of Block (m,n). Sets the state of the newly added 
+       * Block. It also replaces BlockInfo(m,n) and Block(m,n) with 
+       * BlockInfo(m_new,n_new) and Block(m_new,n_new).
+       */
       for (size_t j = 0; j < m_vInfo.size(); j++)
       {
          if (m == m_vInfo[j].level && n == m_vInfo[j].Z)
@@ -208,6 +228,12 @@ class Grid
 
    virtual void FillPos(bool CopyInfos = true)
    {
+      /*
+       * The data in BlockInfoAll is always correct (states, blockIDs etc.), but this 
+       * is not the case for m_vInfo and m_blocks, whose content might be outdated
+       * after grid refinement/compression or exchange of blocks between different 
+       * ranks. This function updates their content.
+       */
       for (size_t i = 0; i < m_vInfo.size(); i++) m_vInfo[i].blockID = i;
       std::sort(m_vInfo.begin(), m_vInfo.end());
       std::vector<size_t> permutation(m_vInfo.size());
@@ -245,25 +271,32 @@ class Grid
       }
    }
 
-   Grid(const unsigned int _NX, const unsigned int _NY = 1, const unsigned int _NZ = 1, const double _maxextent = 1,
-        const unsigned int _levelStart = 0, const unsigned int _levelMax = 1, const bool AllocateBlocks = true,
-        const bool a_xperiodic = true, const bool a_yperiodic = true, const bool a_zperiodic = true)
+   Grid(const unsigned int _NX, 
+        const unsigned int _NY = 1,
+        const unsigned int _NZ = 1,
+        const double _maxextent = 1,
+        const unsigned int _levelStart = 0,
+        const unsigned int _levelMax = 1,
+        const bool AllocateBlocks = true,
+        const bool a_xperiodic = true,
+        const bool a_yperiodic = true,
+        const bool a_zperiodic = true)
        : NX(_NX), NY(_NY), NZ(_NZ), maxextent(_maxextent), levelMax(_levelMax), levelStart(_levelStart),
          xperiodic(a_xperiodic), yperiodic(a_yperiodic), zperiodic(a_zperiodic)
    {
       BlockInfo dummy;
-     #if DIMENSION == 3
+      #if DIMENSION == 3
       int nx = dummy.blocks_per_dim(0, NX, NY, NZ);
       int ny = dummy.blocks_per_dim(1, NX, NY, NZ);
       int nz = dummy.blocks_per_dim(2, NX, NY, NZ);
-     #else
+      #else
       int nx = dummy.blocks_per_dim(0, NX, NY);
       int ny = dummy.blocks_per_dim(1, NX, NY);
       int nz = 1;
       #endif
       int lvlMax = dummy.levelMax(levelMax);
 
-     #ifdef CUBISM_USE_MAP
+      #ifdef CUBISM_USE_MAP
       for (int m = 0; m < lvlMax; m++)
       {
          const int TwoPower   = 1 << m;
@@ -271,7 +304,7 @@ class Grid
          if (m == 0) level_base.push_back(Ntot);
          if (m > 0) level_base.push_back(level_base[m - 1] + Ntot);
       }
-     #else
+      #else
       BlockInfoAll.resize(lvlMax);
       Octree.resize(lvlMax);
       for (int m = 0; m < lvlMax; m++)
@@ -283,7 +316,7 @@ class Grid
          BlockInfoAll[m].resize(Ntot, nullptr);
          Octree[m].resize(Ntot);
       }
-     #endif
+      #endif
       if (AllocateBlocks) _alloc();
    }
 
@@ -348,7 +381,7 @@ class Grid
    }
 
 
-  #if DIMENSION == 3
+   #if DIMENSION == 3
    long long getZforward(const int level, const int i, const int j, const int k) const
    {
       const int TwoPower = 1 << level;
@@ -367,7 +400,7 @@ class Grid
       const long long n = getZforward(m, ix, iy, iz);
       return avail(m, n);
    }
-  #else // DIMENSION = 2
+   #else // DIMENSION = 2
    long long getZforward(const int level, const int i, const int j) const
    {
       const int TwoPower = 1 << level;
@@ -385,7 +418,7 @@ class Grid
       const long long n = getZforward(m, ix, iy);
       return avail(m, n);
    }
-  #endif
+   #endif
 
    std::array<int, 3> getMaxBlocks() const { return {NX, NY, NZ}; }
    std::array<int, 3> getMaxMostRefinedBlocks() const
@@ -406,7 +439,12 @@ class Grid
 
    BlockInfo &getBlockInfoAll(int m, long long n)
    {
-    #ifdef CUBISM_USE_MAP
+      /*
+       * Access BlockInfo at level m with Space-Filling-Curve coordinate n.
+       * If the BlockInfo has not been allocated (not found in the std::unordered_map), 
+       * allocate it as well.
+       */
+      #ifdef CUBISM_USE_MAP
       long long aux = level_base[m] + n;
       auto retval   = BlockInfoAll.find(aux);
       if (retval != BlockInfoAll.end())
@@ -511,6 +549,12 @@ class Grid
 
    void UpdateMyGroups()
    {
+      /*
+       * This function is used before dumping the Grid. It groups adjacent blocks of the same
+       * resolution (and owned by the same MPI rank) to BlockGroups that will be dumped as
+       * a collection of rectangular uniform grids.
+       */
+
       // if (!UpdateGroups) return; //TODO : does not work for CUP2D
       if (rank() == 0) std::cout << "Updating groups..." << std::endl;
 
@@ -523,7 +567,7 @@ class Grid
       std::vector<bool> added(MyInfos.size(), false);
       FillPos();
 
-#if DIMENSION == 3
+      #if DIMENSION == 3
       const unsigned int nZ = BlockType::sizeZ;
       for (unsigned int m = 0; m < Ngrids; m++)
       {
@@ -635,7 +679,7 @@ class Grid
 
          MyGroups.push_back(newGroup);
       }
-#else
+      #else
       for (unsigned int m = 0; m < Ngrids; m++)
       {
          const BlockInfo &I = MyInfos[m];
@@ -731,7 +775,7 @@ class Grid
 
          MyGroups.push_back(newGroup);
       }
-#endif
+      #endif
    }
 };
 

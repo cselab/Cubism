@@ -1281,9 +1281,6 @@ class SynchronizerMPI_AMR
       return halo_blocks;
    }
 
-   std::vector<MPI_Request> size_requests;
-   std::vector<int> ss1;
-   std::vector<int> ss;
    void _Setup()
    {
       myInfos = &(grid->getBlocksInfo())[0];
@@ -1293,20 +1290,22 @@ class SynchronizerMPI_AMR
       const int NC = stencil.selcomponents.size();
       DefineInterfaces();
 
-      for (int r = 0; r < size; r++) 
-        send_buffer[r].resize(send_buffer_size[r] * NC, 666.0);
-      recv_buffer_size.resize(size, 0);
-      ss1.resize(size, 0);
-      ss.resize(size, 0);
-      size_requests.clear();
-      size_requests.resize(2 * Neighbors.size());
+      std::vector<MPI_Request> size_requests(2 * Neighbors.size());
+      std::vector<int> temp_send(size);
+      std::vector<int> temp_recv(size);
+
+      for (int r = 0; r < size; r++)
+      {
+        send_buffer[r].resize(send_buffer_size[r] * NC);
+        temp_send[r] = send_buffer[r].size();
+        recv_buffer_size[r] = 0;
+      }
       int k = 0;
       for (auto r : Neighbors)
       {
-         ss1[r] = send_buffer[r].size();
-         MPI_Irecv(&ss [r], 1, MPI_INT, r, timestamp, comm, &size_requests[k]    );
-         MPI_Isend(&ss1[r], 1, MPI_INT, r, timestamp, comm, &size_requests[k + 1]);
-         k += 2;
+        MPI_Irecv(&temp_recv[r], 1, MPI_INT, r, timestamp, comm, &size_requests[k]    );
+        MPI_Isend(&temp_send[r], 1, MPI_INT, r, timestamp, comm, &size_requests[k + 1]);
+        k += 2;
       }
 
       UnpacksManager.SendPacks(Neighbors, timestamp);
@@ -1347,6 +1346,12 @@ class SynchronizerMPI_AMR
       }
       MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);
       MPI_Waitall(UnpacksManager.pack_requests.size(), UnpacksManager.pack_requests.data(), MPI_STATUSES_IGNORE);
+
+      for (auto r : Neighbors)
+      {
+        recv_buffer_size[r] = temp_recv[r] / NC;
+        recv_buffer[r].resize(recv_buffer_size[r] * NC);
+      }
    }
 
    void sync()
@@ -1376,16 +1381,10 @@ class SynchronizerMPI_AMR
       recv_requests.clear();
 
       //Post receive requests first
-      for (auto r : Neighbors)
+      for (auto r : Neighbors) if (recv_buffer_size[r] > 0)
       {
-         recv_buffer_size[r] = ss[r] / NC;
-         recv_buffer[r].resize(recv_buffer_size[r] * NC, 777.0);
-         if (recv_buffer_size[r] > 0)
-         {
-            recv_requests.resize(recv_requests.size() + 1);
-            MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r] * NC, MPIREAL, r, timestamp, comm,
-                      &recv_requests.back());
-         }
+        recv_requests.resize(recv_requests.size() + 1);
+        MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &recv_requests.back());
       }
 
       // Pack data
@@ -1436,13 +1435,10 @@ class SynchronizerMPI_AMR
       }
 
       //Do the sends
-      for (auto r : Neighbors)
+      for (auto r : Neighbors) if (send_buffer_size[r] > 0)
       {
-        if (send_buffer_size[r] > 0)
-        {
-          send_requests.resize(send_requests.size() + 1);
-          MPI_Isend(&send_buffer[r][0], send_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &send_requests.back());
-        }
+        send_requests.resize(send_requests.size() + 1);
+        MPI_Isend(&send_buffer[r][0], send_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &send_requests.back());
       }
       UnpacksManager.MapIDs();
    }

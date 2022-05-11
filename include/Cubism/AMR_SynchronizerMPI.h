@@ -365,7 +365,6 @@ class SynchronizerMPI_AMR
   std::vector<MPI_Request> recv_requests;
 
   // grid parameters
-  const int levelMax;
   std::array<int,3> blocksPerDim;
   int nX,nY,nZ;
 
@@ -1237,13 +1236,8 @@ class SynchronizerMPI_AMR
 
    TGrid * grid;
 
-   SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil,
-                       const int a_levelMax, const int a_nx,
-                       const int a_ny, const int a_nz, const int a_bx, const int a_by,
-                       const int a_bz, TGrid * _grid)
-       : stencil(a_stencil), Cstencil(a_Cstencil), levelMax(a_levelMax),
-         UnpacksManager(_grid->getWorldComm()),
-         SM(a_stencil, a_Cstencil, a_nx, a_ny, a_nz, a_bx, a_by, a_bz)
+   SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, TGrid * _grid) : stencil(a_stencil), Cstencil(a_Cstencil),
+        UnpacksManager(_grid->getWorldComm()), SM(a_stencil, a_Cstencil, TGrid::Block::sizeX, TGrid::Block::sizeY, TGrid::Block::sizeZ, _grid->getMaxBlocks()[0], _grid->getMaxBlocks()[1], _grid->getMaxBlocks()[2])
    {
       grid = _grid; 
       #if DIMENSION == 3
@@ -1290,10 +1284,12 @@ class SynchronizerMPI_AMR
    std::vector<MPI_Request> size_requests;
    std::vector<int> ss1;
    std::vector<int> ss;
-   void _Setup(BlockInfo *a_myInfos, const size_t a_myInfos_size, const int timestamp)
+   void _Setup()
    {
-      myInfos_size = a_myInfos_size;
-      myInfos      = a_myInfos;
+      myInfos = &(grid->getBlocksInfo())[0];
+      myInfos_size = (grid->getBlocksInfo()).size();
+      const int timestamp = grid->getTimeStamp();
+
       const int NC = stencil.selcomponents.size();
       DefineInterfaces();
 

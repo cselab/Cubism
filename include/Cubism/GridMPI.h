@@ -591,22 +591,19 @@ class GridMPI : public TGrid
       Cstencil.ez          = DIMENSION == 3 ? 2:1;
       Cstencil.tensorial   = true;
 
-      auto blockperDim          = TGrid::getMaxBlocks();
       const StencilInfo stencil = p.stencil;
       assert(stencil.isvalid());
 
       SynchronizerMPIType *queryresult = nullptr;
 
-      typename std::map<StencilInfo, SynchronizerMPIType *>::iterator itSynchronizerMPI =
-          SynchronizerMPIs.find(stencil);
+      typename std::map<StencilInfo, SynchronizerMPIType *>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
 
       if (itSynchronizerMPI == SynchronizerMPIs.end())
       {
-         queryresult = new SynchronizerMPIType(p.stencil, Cstencil, TGrid::getlevelMax(), Block::sizeX, Block::sizeY,
-                                               Block::sizeZ, blockperDim[0], blockperDim[1], blockperDim[2], this);
+         queryresult = new SynchronizerMPIType(p.stencil, Cstencil, this);
 
          if (myrank == 0) std::cout << "GRIDMPI IS CALLING SETUP!!!!\n";
-         queryresult->_Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(), timestamp);
+         queryresult->_Setup();
          SynchronizerMPIs[stencil] = queryresult;
       }
       else
@@ -633,7 +630,7 @@ class GridMPI : public TGrid
       TGrid::initialize_blocks(blocksZ,blockslevel);
       UpdateBlockInfoAll_States(false);
       for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it)
-        (*it->second)._Setup(&(TGrid::getBlocksInfo())[0], (TGrid::getBlocksInfo()).size(), timestamp);
+        (*it->second)._Setup();
    }
 
    virtual int rank() const override { return myrank; }

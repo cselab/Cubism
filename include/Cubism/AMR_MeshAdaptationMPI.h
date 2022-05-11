@@ -205,7 +205,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          auto it = AMR::m_refGrid->SynchronizerMPIs.begin();
          while (it != AMR::m_refGrid->SynchronizerMPIs.end())
          {
-            (*it->second)._Setup(&(AMR::m_refGrid->getBlocksInfo())[0], (AMR::m_refGrid->getBlocksInfo()).size(), AMR::m_refGrid->getTimeStamp());
+            (*it->second)._Setup();
             it++;
          }
       }

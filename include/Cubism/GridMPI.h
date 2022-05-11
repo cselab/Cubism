@@ -581,6 +581,8 @@ class GridMPI : public TGrid
    template <typename Processing>
    SynchronizerMPIType *sync(const Processing &p)
    {
+      assert(p.stencil.isvalid());
+
       // temporarily hardcoded Cstencil
       StencilInfo Cstencil = p.stencil;
       Cstencil.sx          = -1;
@@ -591,28 +593,23 @@ class GridMPI : public TGrid
       Cstencil.ez          = DIMENSION == 3 ? 2:1;
       Cstencil.tensorial   = true;
 
-      const StencilInfo stencil = p.stencil;
-      assert(stencil.isvalid());
-
       SynchronizerMPIType *queryresult = nullptr;
 
-      typename std::map<StencilInfo, SynchronizerMPIType *>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
+      typename std::map<StencilInfo, SynchronizerMPIType *>::iterator itSynchronizerMPI = SynchronizerMPIs.find(p.stencil);
 
       if (itSynchronizerMPI == SynchronizerMPIs.end())
       {
          queryresult = new SynchronizerMPIType(p.stencil, Cstencil, this);
-
-         if (myrank == 0) std::cout << "GRIDMPI IS CALLING SETUP!!!!\n";
          queryresult->_Setup();
-         SynchronizerMPIs[stencil] = queryresult;
+         SynchronizerMPIs[p.stencil] = queryresult;
       }
       else
       {
          queryresult = itSynchronizerMPI->second;
       }
-      if (sizeof(Real) == sizeof(float) ) queryresult->sync(sizeof(typename Block::ElementType) / sizeof(Real), MPI_FLOAT, timestamp);
-      else if (sizeof(Real) == sizeof(double) ) queryresult->sync(sizeof(typename Block::ElementType) / sizeof(Real), MPI_DOUBLE, timestamp);
-      else if (sizeof(Real) == sizeof(long double) ) queryresult->sync(sizeof(typename Block::ElementType) / sizeof(Real), MPI_LONG_DOUBLE, timestamp);
+
+      queryresult->sync();
+
       timestamp = (timestamp + 1) % 32768;
       return queryresult;
    }

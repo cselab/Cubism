@@ -1349,8 +1349,25 @@ class SynchronizerMPI_AMR
       MPI_Waitall(UnpacksManager.pack_requests.size(), UnpacksManager.pack_requests.data(), MPI_STATUSES_IGNORE);
    }
 
-   void sync(unsigned int gptfloats, MPI_Datatype MPIREAL, const int timestamp)
+   void sync()
    {
+      const int timestamp = grid->getTimeStamp();
+      MPI_Datatype MPIREAL;
+      if (sizeof(Real) == sizeof(double))
+      {
+        MPIREAL = MPI_DOUBLE;
+      }
+      else if (sizeof(Real) == sizeof(long double))
+      {
+        MPIREAL = MPI_LONG_DOUBLE;
+      }
+      else
+      {
+        MPIREAL = MPI_FLOAT;
+        assert(sizeof(Real) == sizeof(float));
+      }
+      unsigned int gptfloats = sizeof(typename TGrid::Block::ElementType) / sizeof(Real);
+
       std::vector<int> &selcomponents = stencil.selcomponents;
       std::sort(selcomponents.begin(), selcomponents.end());
       const int NC = selcomponents.size();

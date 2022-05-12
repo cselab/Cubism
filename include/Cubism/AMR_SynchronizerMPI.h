@@ -811,7 +811,7 @@ class SynchronizerMPI_AMR
   }
 
   void AverageDownAndFill(Real * __restrict__ dst, const BlockInfo *const info, const int s[3], const int e[3],
-                          const int code[3], const int *const selcomponents, const int NC, const int gptfloats)
+                          const int code[3])
   {
     #if DIMENSION == 3
       int pos = 0;
@@ -856,7 +856,7 @@ class SynchronizerMPI_AMR
               const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + min(0, code[0]) * nX : ix;
               for (int c = 0; c < NC; c++)
               {
-                int comp = selcomponents[c];
+                int comp = stencil.selcomponents[c];
                   dst[pos] = 0.125 *
                           ((*(src + gptfloats * ((XX) + ((YY) + (ZZ)*nY) * nX) + comp)) +
                            (*(src + gptfloats * ((XX) + ((YY) + (ZZ + 1) * nY) * nX) + comp)) +
@@ -886,7 +886,7 @@ class SynchronizerMPI_AMR
           const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + min(0, code[0]) * nX : ix;
           for (int c = 0; c < NC; c++)
           {
-            int comp = selcomponents[c];
+            int comp = stencil.selcomponents[c];
             dst[pos] = 0.25 *(((*(src + gptfloats*(XX  +(YY  )*nX) + comp)) +
                                (*(src + gptfloats*(XX+1+(YY+1)*nX) + comp)))+
                               ((*(src + gptfloats*(XX  +(YY+1)*nX) + comp)) +
@@ -898,7 +898,7 @@ class SynchronizerMPI_AMR
     #endif  
   }
 
-  void AverageDownAndFill2(Real *dst, const BlockInfo *const info, const int code[3], const int *const selcomponents, const int NC, const int gptfloats)
+  void AverageDownAndFill2(Real *dst, const BlockInfo *const info, const int code[3])
   {
     const int eC[3] = {(stencil.ex) / 2 + Cstencil.ex, (stencil.ey) / 2 + Cstencil.ey, (stencil.ez) / 2 + Cstencil.ez};
     const int sC[3] = {(stencil.sx - 1) / 2 + Cstencil.sx, (stencil.sy - 1) / 2 + Cstencil.sy, (stencil.sz - 1) / 2 + Cstencil.sz};
@@ -929,7 +929,7 @@ class SynchronizerMPI_AMR
 
           for (int c = 0; c < NC; c++)
           {
-            int comp = selcomponents[c];
+            int comp = stencil.selcomponents[c];
             #if DIMENSION == 3
               dst[pos] = 0.125 *
                 ((*(src + gptfloats * ((XX) + ((YY) + (ZZ)*nY) * nX) + comp)) +
@@ -992,13 +992,16 @@ class SynchronizerMPI_AMR
       {
          if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;
          const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
-         if (!xperiodic && code[0] == xskip && xskin) continue;
-         if (!yperiodic && code[1] == yskip && yskin) continue;
-         if (!zperiodic && code[2] == zskip && zskin) continue;
          #if DIMENSION == 2
             if (code[2] != 0) continue;
          #endif
+         if (!xperiodic && code[0] == xskip && xskin) continue;
+         if (!yperiodic && code[1] == yskip && yskin) continue;
+         if (!zperiodic && code[2] == zskip && zskin) continue;
+
          // if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
+         //if (!stencil.tensorial && use_averages == false && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
+
          BlockInfo &infoNei = grid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
          const TreePosition & infoNeiTree = grid->Tree(info.level,info.Znei_(code[0], code[1], code[2]));
          if (infoNeiTree.Exists() && infoNeiTree.rank() != rank)
@@ -1017,12 +1020,11 @@ class SynchronizerMPI_AMR
          else if (infoNeiTree.CheckCoarser())
          {
             Coarsened = true;
-            // int nCoarse = infoNei.Z /8; // this does not work for Hilbert
             const long long nCoarse = infoNei.Zparent;
-            BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, nCoarse);
             const int infoNeiCoarserrank = grid->Tree(info.level-1,nCoarse).rank();
             if (infoNeiCoarserrank != rank)
             {
+               BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, nCoarse);
                if (isInner)
                   interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
                isInner         = false;
@@ -1062,10 +1064,10 @@ class SynchronizerMPI_AMR
                                        [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
                                        [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
               const long long nFine = grid->getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
-              BlockInfo &infoNeiFiner = grid->getBlockInfoAll(infoNei.level + 1, nFine);
               const int infoNeiFinerrank = grid->Tree(info.level+1,nFine).rank();
               if (infoNeiFinerrank != rank)
               {
+                BlockInfo &infoNeiFiner = grid->getBlockInfoAll(infoNei.level + 1, nFine);
                 if (isInner) interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
                 isInner    = false;
                 int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
@@ -1233,11 +1235,16 @@ class SynchronizerMPI_AMR
    std::vector<std::vector<std::pair<int, int>>> interface_ranks_and_positions;
    std::vector<size_t> lengths;
    bool use_averages;
+   MPI_Datatype MPIREAL;
+   const unsigned int gptfloats;
+   const int NC;
 
    TGrid * grid;
 
    SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, TGrid * _grid) : stencil(a_stencil), Cstencil(a_Cstencil),
-        UnpacksManager(_grid->getWorldComm()), SM(a_stencil, a_Cstencil, TGrid::Block::sizeX, TGrid::Block::sizeY, TGrid::Block::sizeZ, _grid->getMaxBlocks()[0], _grid->getMaxBlocks()[1], _grid->getMaxBlocks()[2])
+        UnpacksManager(_grid->getWorldComm()), SM(a_stencil, a_Cstencil, TGrid::Block::sizeX, TGrid::Block::sizeY, TGrid::Block::sizeZ, _grid->getMaxBlocks()[0], _grid->getMaxBlocks()[1], _grid->getMaxBlocks()[2]),
+        gptfloats(sizeof(typename TGrid::Block::ElementType) / sizeof(Real)), NC(a_stencil.selcomponents.size())
+
    {
       grid = _grid; 
       #if DIMENSION == 3
@@ -1270,6 +1277,21 @@ class SynchronizerMPI_AMR
       recv_buffer_size.resize(size);
       send_buffer.resize(size);
       recv_buffer.resize(size);
+
+      if (sizeof(Real) == sizeof(double))
+      {
+        MPIREAL = MPI_DOUBLE;
+      }
+      else if (sizeof(Real) == sizeof(long double))
+      {
+        MPIREAL = MPI_LONG_DOUBLE;
+      }
+      else
+      {
+        MPIREAL = MPI_FLOAT;
+        assert(sizeof(Real) == sizeof(float));
+      }
+
    }
 
    std::vector<BlockInfo *> & avail_inner() { return inner_blocks; }
@@ -1287,7 +1309,6 @@ class SynchronizerMPI_AMR
       myInfos_size = (grid->getBlocksInfo()).size();
       const int timestamp = grid->getTimeStamp();
 
-      const int NC = stencil.selcomponents.size();
       DefineInterfaces();
 
       std::vector<MPI_Request> size_requests(2 * Neighbors.size());
@@ -1357,25 +1378,8 @@ class SynchronizerMPI_AMR
    void sync()
    {
       const int timestamp = grid->getTimeStamp();
-      MPI_Datatype MPIREAL;
-      if (sizeof(Real) == sizeof(double))
-      {
-        MPIREAL = MPI_DOUBLE;
-      }
-      else if (sizeof(Real) == sizeof(long double))
-      {
-        MPIREAL = MPI_LONG_DOUBLE;
-      }
-      else
-      {
-        MPIREAL = MPI_FLOAT;
-        assert(sizeof(Real) == sizeof(float));
-      }
-      unsigned int gptfloats = sizeof(typename TGrid::Block::ElementType) / sizeof(Real);
 
-      std::vector<int> &selcomponents = stencil.selcomponents;
-      std::sort(selcomponents.begin(), selcomponents.end());
-      const int NC = selcomponents.size();
+      std::sort(stencil.selcomponents.begin(), stencil.selcomponents.end());
 
       send_requests.clear();
       recv_requests.clear();
@@ -1388,10 +1392,8 @@ class SynchronizerMPI_AMR
       }
 
       // Pack data
-      for (int r = 0; r < size; r++)
+      for (int r = 0; r < size; r++) if (send_buffer_size[r] != 0)
       {
-         if (ToBeAveragedDown[r].size() == 0 && send_buffer_size[r] == 0) continue;
-
          #pragma omp parallel
          {
             #pragma omp for schedule(runtime)
@@ -1404,8 +1406,7 @@ class SynchronizerMPI_AMR
                const int code0[3] = {-code[0], -code[1], -code[2]};
                if (f.CoarseStencil)
                {
-                  AverageDownAndFill2(send_buffer[r].data() + d, f.infos[0], code0,
-                                      &selcomponents[0], NC, gptfloats);
+                  AverageDownAndFill2(send_buffer[r].data() + d, f.infos[0], code0);
                }
                else
                {
@@ -1415,21 +1416,17 @@ class SynchronizerMPI_AMR
                   const int e[3] = {code0[0] < 1 ? (code0[0] < 0 ? 0 : nX) : nX + stencil.ex - 1,
                                     code0[1] < 1 ? (code0[1] < 0 ? 0 : nY) : nY + stencil.ey - 1,
                                     code0[2] < 1 ? (code0[2] < 0 ? 0 : nZ) : nZ + stencil.ez - 1};
-                  AverageDownAndFill(send_buffer[r].data() + d, f.infos[0], s, e, code0,
-                                     &selcomponents[0], NC, gptfloats);
+                  AverageDownAndFill(send_buffer[r].data() + d, f.infos[0], s, e, code0);
                }
             }
 
-            if (send_buffer_size[r] != 0)
+            const int N = send_packinfos[r].size();
+            #pragma omp for schedule(runtime)
+            for (int i = 0; i < N; i++)
             {
-              const int N = send_packinfos[r].size();
-              #pragma omp for schedule(runtime)
-              for (int i = 0; i < N; i++)
-              {
-                 PackInfo &info = send_packinfos[r][i];
-                 pack(info.block, info.pack, gptfloats, &selcomponents.front(), NC, info.sx,
-                      info.sy, info.sz, info.ex, info.ey, info.ez, nX, nY);
-              }
+               PackInfo &info = send_packinfos[r][i];
+               pack(info.block, info.pack, gptfloats, &stencil.selcomponents.front(), NC, info.sx,
+                    info.sy, info.sz, info.ex, info.ey, info.ez, nX, nY);
             }
          }
       }
@@ -1447,9 +1444,7 @@ class SynchronizerMPI_AMR
 
    StencilInfo getCstencil() const { return Cstencil; }
 
-   void fetch(const BlockInfo &info, const int gptfloats, const size_t Length[3],
-              const size_t CLength[3], const size_t ElemsPerSlice[2], Real *cacheBlock,
-              Real *coarseBlock)
+   void fetch(const BlockInfo &info, const size_t Length[3], const size_t CLength[3], Real *cacheBlock, Real *coarseBlock)
    {
       const int id = info.halo_block_id;
       if (id < 0) return;
@@ -1473,7 +1468,7 @@ class SynchronizerMPI_AMR
 
          if (unpack.level == info.level)
          {
-            Real *dst = cacheBlock + ((s[2] - stencil.sz) * ElemsPerSlice[0] +
+            Real *dst = cacheBlock + ((s[2] - stencil.sz) * Length[0] * Length[1] +
                                       (s[1] - stencil.sy) * Length[0] +
                                        s[0] - stencil.sx                      ) * gptfloats;
 
@@ -1494,7 +1489,7 @@ class SynchronizerMPI_AMR
                                   code[1] < 1 ? (code[1] < 0 ? (stencil.sy - 1) / 2 + Cstencil.sy : 0) : nY / 2,
                                   code[2] < 1 ? (code[2] < 0 ? (stencil.sz - 1) / 2 + Cstencil.sz : 0) : nZ / 2};
 
-               Real *dst1 = coarseBlock + ((sC[2] - offset[2]) * ElemsPerSlice[1] +
+               Real *dst1 = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] +
                                            (sC[1] - offset[1]) * CLength[0] + sC[0] - offset[0]) *
                                               gptfloats;
 
@@ -1520,7 +1515,7 @@ class SynchronizerMPI_AMR
                                    (stencil.sy - 1) / 2 + Cstencil.sy,
                                    (stencil.sz - 1) / 2 + Cstencil.sz};
 
-            Real *dst = coarseBlock + ((sC[2] - offset[2]) * ElemsPerSlice[1] + sC[0] - offset[0] + (sC[1] - offset[1]) * CLength[0]) *gptfloats;
+            Real *dst = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] + sC[0] - offset[0] + (sC[1] - offset[1]) * CLength[0]) *gptfloats;
             unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], 
                              gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
                              unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX, unpack.LY, 
@@ -1576,26 +1571,12 @@ class SynchronizerMPI_AMR
             }
             const int aux1 = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-            int iz = s[2];
-            int iy = s[1];
+            Real *dst = cacheBlock + (
+                 (abs(code[2]) * (s[2] - stencil.sz) + (1 - abs(code[2])) * (s[2] / 2 - stencil.sz + (B / 2) * (e[2] - s[2]) / 2)) * Length[0]*Length[1] +
+                 (abs(code[1]) * (s[1] - stencil.sy) + (1 - abs(code[1])) * (s[1] / 2 - stencil.sy + aux1    * (e[1] - s[1]) / 2)) * Length[0] +
+                  abs(code[0]) * (s[0] - stencil.sx) + (1 - abs(code[0])) * (s[0]     - stencil.sx + (B % 2) * (e[0] - s[0]) / 2)
+                ) * gptfloats;
 
-            const int my_ix =
-                abs(code[0]) * (s[0] - stencil.sx) +
-                (1 - abs(code[0])) * (s[0] - stencil.sx + (B % 2) * (e[0] - s[0]) / 2);
-            const int m_vSize0         = Length[0];
-            const int m_nElemsPerSlice = ElemsPerSlice[0];
-            const int my_izx =
-                (abs(code[2]) * (iz - stencil.sz) +
-                 (1 - abs(code[2])) * (iz / 2 - stencil.sz + (B / 2) * (e[2] - s[2]) / 2)) *
-                    m_nElemsPerSlice +
-                my_ix;
-
-            Real *dst =
-                cacheBlock +
-                (my_izx + (abs(code[1]) * (iy - stencil.sy) +
-                           (1 - abs(code[1])) * (iy / 2 - stencil.sy + aux1 * (e[1] - s[1]) / 2)) *
-                              m_vSize0) *
-                    gptfloats;
             unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
                    &stencil.selcomponents[0], stencil.selcomponents.size(),
                    unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX,

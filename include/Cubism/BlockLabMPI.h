@@ -42,20 +42,17 @@ class BlockLabMPI : public MyBlockLab
    {
       MyBlockLab::load(info, t, applybc);
 
-      typedef typename MyBlockLab::ElementType ET;
-      const int gptfloats              = sizeof(ET) / sizeof(Real);
-      const size_t Length[3]           = {MyBlockLab::m_cacheBlock->getSize(0),
-                                MyBlockLab::m_cacheBlock->getSize(1),
-                                MyBlockLab::m_cacheBlock->getSize(2)};
-      const size_t CLength[3]          = {MyBlockLab::m_CoarsenedBlock->getSize(0),
+      const size_t Length[3]  = {MyBlockLab::m_cacheBlock->getSize(0),
+                                 MyBlockLab::m_cacheBlock->getSize(1),
+                                 MyBlockLab::m_cacheBlock->getSize(2)};
+      const size_t CLength[3] = {MyBlockLab::m_CoarsenedBlock->getSize(0),
                                  MyBlockLab::m_CoarsenedBlock->getSize(1),
                                  MyBlockLab::m_CoarsenedBlock->getSize(2)};
-      const size_t m_nElemsPerSlice[2] = {
-          MyBlockLab::m_cacheBlock->getNumberOfElementsPerSlice(),
-          MyBlockLab::m_CoarsenedBlock->getNumberOfElementsPerSlice()};
+
       Real *dst  = &MyBlockLab ::m_cacheBlock    ->LinAccess(0).member(0);
       Real *dst1 = &MyBlockLab ::m_CoarsenedBlock->LinAccess(0).member(0);
-      refSynchronizerMPI->fetch(info, gptfloats, Length, CLength, m_nElemsPerSlice, dst, dst1);
+
+      refSynchronizerMPI->fetch(info, Length, CLength, dst, dst1);
 
       if (MyBlockLab::m_refGrid->get_world_size() > 1)
         MyBlockLab::post_load(info, t, applybc);

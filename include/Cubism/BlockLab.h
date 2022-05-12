@@ -363,7 +363,7 @@ class BlockLab
                CoarseFineExchange(info, code);
             }
 
-            if (!istensorial && abs(code[0]) + abs(code[1]) + abs(code[2]) > 1) continue;
+            if (!istensorial && !use_averages && abs(code[0]) + abs(code[1]) + abs(code[2]) > 1) continue;
 
             // s and e correspond to start and end of this lab's cells that are filled by neighbors
             const int s[3] = {code[0] < 1 ? (code[0] < 0 ? m_stencilStart[0] : 0) : nX,
@@ -949,7 +949,7 @@ class BlockLab
          if (!xperiodic && code[0] == xskip && xskin) continue;
          if (!yperiodic && code[1] == yskip && yskin) continue;
          if (!zperiodic && code[2] == zskip && zskin) continue;
-         if (!istensorial && abs(code[0]) + abs(code[1]) + abs(code[2]) > 1) continue;
+         if (!istensorial && !use_averages && abs(code[0]) + abs(code[1]) + abs(code[2]) > 1) continue;
 
          // s and e correspond to start and end of this lab's cells that are filled by neighbors
          const int s[3] = {code[0] < 1 ? (code[0] < 0 ? m_stencilStart[0] : 0) : nX,

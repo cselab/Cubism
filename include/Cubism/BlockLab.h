@@ -739,6 +739,9 @@ class BlockLab
       const int infoNei_index[3] ={(info.index[0]+code[0]+NX)%NX,
                                    (info.index[1]+code[1]+NY)%NY,
                                    (info.index[2]+code[2]+NZ)%NZ};
+      const int infoNei_index_true[3] ={(info.index[0]+code[0]),
+                                        (info.index[1]+code[1]),
+                                        (info.index[2]+code[2])};
       #if DIMENSION == 3
          BlockType *b_ptr = m_refGrid->avail1((infoNei_index[0]) / 2,
                                               (infoNei_index[1]) / 2,
@@ -773,12 +776,12 @@ class BlockLab
       const int base[3] = {(info.index[0] + code[0]) % 2, (info.index[1] + code[1]) % 2, (info.index[2] + code[2]) % 2};
 
       int CoarseEdge[3];
-      CoarseEdge[0] = (code[0] == 0) ? 0 : (((info.index[0] % 2 == 0) && (infoNei_index[0] > info.index[0])) ||
-                                            ((info.index[0] % 2 == 1) && (infoNei_index[0] < info.index[0]))) ? 1 : 0;
-      CoarseEdge[1] = (code[1] == 0) ? 0 : (((info.index[1] % 2 == 0) && (infoNei_index[1] > info.index[1])) ||
-                                            ((info.index[1] % 2 == 1) && (infoNei_index[1] < info.index[1]))) ? 1 : 0;
-      CoarseEdge[2] = (code[2] == 0) ? 0 : (((info.index[2] % 2 == 0) && (infoNei_index[2] > info.index[2])) ||
-                                            ((info.index[2] % 2 == 1) && (infoNei_index[2] < info.index[2]))) ? 1 : 0;
+      CoarseEdge[0] = (code[0] == 0) ? 0 : (((info.index[0] % 2 == 0) && (infoNei_index_true[0] > info.index[0])) ||
+                                            ((info.index[0] % 2 == 1) && (infoNei_index_true[0] < info.index[0]))) ? 1 : 0;
+      CoarseEdge[1] = (code[1] == 0) ? 0 : (((info.index[1] % 2 == 0) && (infoNei_index_true[1] > info.index[1])) ||
+                                            ((info.index[1] % 2 == 1) && (infoNei_index_true[1] < info.index[1]))) ? 1 : 0;
+      CoarseEdge[2] = (code[2] == 0) ? 0 : (((info.index[2] % 2 == 0) && (infoNei_index_true[2] > info.index[2])) ||
+                                            ((info.index[2] % 2 == 1) && (infoNei_index_true[2] < info.index[2]))) ? 1 : 0;
 
       const int start[3] = {max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2,
                             max(code[1], 0) * nY / 2 + (1 - abs(code[1])) * base[1] * nY / 2 - code[1] * nY + CoarseEdge[1] * code[1] * nY / 2,

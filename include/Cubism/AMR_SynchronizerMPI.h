@@ -260,24 +260,23 @@ struct StencilManager
                              (f.infos[1]->index[1] + code[1]) % 2,
                              (f.infos[1]->index[2] + code[2]) % 2};
 
-        const int aux = 1 << f.infos[1]->level;
-        int Cindex[3];
+        int Cindex_true[3];
         for (int d = 0; d < 3; d++)
-          Cindex[d] = (f.infos[1]->index[d] + code[d] + aux * blocksPerDim[d]) % (aux * blocksPerDim[d]);
+          Cindex_true[d] = f.infos[1]->index[d] + code[d];
 
         int CoarseEdge[3];
 
         CoarseEdge[0] = (code[0] == 0) ? 0
-                    : (((f.infos[1]->index[0] % 2 == 0) && (Cindex[0] > f.infos[1]->index[0])) ||
-                       ((f.infos[1]->index[0] % 2 == 1) && (Cindex[0] < f.infos[1]->index[0])))
+                    : (((f.infos[1]->index[0] % 2 == 0) && (Cindex_true[0] > f.infos[1]->index[0])) ||
+                       ((f.infos[1]->index[0] % 2 == 1) && (Cindex_true[0] < f.infos[1]->index[0])))
                           ? 1 : 0;
         CoarseEdge[1] = (code[1] == 0) ? 0
-                    : (((f.infos[1]->index[1] % 2 == 0) && (Cindex[1] > f.infos[1]->index[1])) ||
-                       ((f.infos[1]->index[1] % 2 == 1) && (Cindex[1] < f.infos[1]->index[1])))
+                    : (((f.infos[1]->index[1] % 2 == 0) && (Cindex_true[1] > f.infos[1]->index[1])) ||
+                       ((f.infos[1]->index[1] % 2 == 1) && (Cindex_true[1] < f.infos[1]->index[1])))
                           ? 1 : 0;
         CoarseEdge[2] = (code[2] == 0) ? 0
-                    : (((f.infos[1]->index[2] % 2 == 0) && (Cindex[2] > f.infos[1]->index[2])) ||
-                       ((f.infos[1]->index[2] % 2 == 1) && (Cindex[2] < f.infos[1]->index[2])))
+                    : (((f.infos[1]->index[2] % 2 == 0) && (Cindex_true[2] > f.infos[1]->index[2])) ||
+                       ((f.infos[1]->index[2] % 2 == 1) && (Cindex_true[2] < f.infos[1]->index[2])))
                           ? 1 : 0;
 
         Coarse_Range.sx = s[0] + max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2;

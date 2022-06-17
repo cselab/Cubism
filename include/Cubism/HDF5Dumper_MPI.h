@@ -7,11 +7,8 @@
  *
  */
 
-//TODOs:
-//1. Remove LabMPI from template arguments
-//2. Dump all fields to single hdf5 file (use separate xmf file per field) - append to hdf5. 
-//   Vertices are currenly dumped multiple times (once per field), which is a waste of memory.
-
+//TODO: Dump all fields to single hdf5 file (use separate xmf file per field) - append to hdf5. 
+//      Vertices are currenly dumped multiple times (once per field), which is a waste of memory.
 
 #pragma once
 
@@ -141,7 +138,7 @@ static int    gridCount{0};
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
-template <typename TStreamer, typename hdf5Real, typename TGrid, typename LabMPI> 
+template <typename TStreamer, typename hdf5Real, typename TGrid> 
 void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
 {
     const bool SaveGrid = latestTime < absTime;
@@ -372,7 +369,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
 
 }
 
-template <typename TStreamer, typename hdf5Real, typename TGrid, typename LabMPI> 
+template <typename TStreamer, typename hdf5Real, typename TGrid> 
 void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
 {
     typedef typename TGrid::BlockType B;

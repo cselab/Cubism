@@ -68,7 +68,6 @@ static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool
         labs2[i].prepare(grid2, Synch2);
     }
 
-    //MPI_Barrier(grid.getCartComm());
     std::vector<BlockInfo*> & avail0  = Synch .avail_inner();
     std::vector<BlockInfo*> & avail02 = Synch2.avail_inner();
     const int Ninner = avail0.size();

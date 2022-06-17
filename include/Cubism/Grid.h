@@ -69,7 +69,6 @@ class Grid
    #endif
 
    std::vector<BlockInfo> m_vInfo;   // meta-data for blocks that belong to this rank
-   std::vector<Block *> m_blocks;    // pointers to blocks that belong to this rank
    const int NX;                     // Total # of blocks for level 0 in X-direction
    const int NY;                     // Total # of blocks for level 0 in Y-direction
    const int NZ;                     // Total # of blocks for level 0 in Z-direction
@@ -145,8 +144,7 @@ class Grid
    void _alloc(int m, long long n) // called whenever the grid is refined
    {
       allocator<Block> alloc;
-      getBlockInfoAll(m, n).ptrBlock    = alloc.allocate(1);
-      m_blocks.push_back((Block *)getBlockInfoAll(m, n).ptrBlock);
+      getBlockInfoAll(m, n).ptrBlock = alloc.allocate(1);
       m_vInfo.push_back(getBlockInfoAll(m, n));
       Tree(m, n).setrank(rank());
    }
@@ -185,7 +183,6 @@ class Grid
          }
       }
       #endif
-      m_blocks.clear();
       m_vInfo.clear();
       BlockInfoAll.clear();
       Octree.clear();
@@ -200,7 +197,6 @@ class Grid
          if (m_vInfo[j].level == m && m_vInfo[j].Z == n)
          {
             m_vInfo.erase(m_vInfo.begin() + j);
-            m_blocks.erase(m_blocks.begin() + j);
             return;
          }
       }
@@ -215,60 +211,46 @@ class Grid
        * BlockInfo(m_new,n_new) and Block(m_new,n_new).
        */
       for (size_t j = 0; j < m_vInfo.size(); j++)
-      {
          if (m == m_vInfo[j].level && n == m_vInfo[j].Z)
          {
-            getBlockInfoAll(m_new, n_new).state = Leave;
-            m_vInfo[j]                          = getBlockInfoAll(m_new, n_new);
-            m_blocks[j]                         = (Block *)getBlockInfoAll(m_new, n_new).ptrBlock;
+            BlockInfo & correct_info = getBlockInfoAll(m_new, n_new);
+            correct_info.state = Leave;
+            m_vInfo[j] = correct_info;
             return;
          }
-      }
    }
 
    virtual void FillPos(bool CopyInfos = true)
    {
       /*
        * The data in BlockInfoAll is always correct (states, blockIDs etc.), but this 
-       * is not the case for m_vInfo and m_blocks, whose content might be outdated
+       * is not the case for m_vInfo, whose content might be outdated
        * after grid refinement/compression or exchange of blocks between different 
        * ranks. This function updates their content.
        */
-      for (size_t i = 0; i < m_vInfo.size(); i++) m_vInfo[i].blockID = i;
-      std::sort(m_vInfo.begin(), m_vInfo.end());
-      std::vector<size_t> permutation(m_vInfo.size());
-      for (size_t i = 0; i < m_vInfo.size(); i++) permutation[i] = m_vInfo[i].blockID;
-      apply_permutation_in_place<Block *>(this->m_blocks, permutation);
-      for (size_t i = 0; i < m_vInfo.size(); i++) m_vInfo[i].blockID = i;
+      std::sort(m_vInfo.begin(), m_vInfo.end()); //sort according to blockID_2
 
       if (CopyInfos)
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {
-            int m       = m_vInfo[j].level;
-            long long n = m_vInfo[j].Z;
-            m_vInfo[j]  = getBlockInfoAll(m, n);
-
-            assert(getBlockInfoAll(m, n).state == m_vInfo[j].state);
+            const int m       = m_vInfo[j].level;
+            const long long n = m_vInfo[j].Z;
+            BlockInfo & correct_info = getBlockInfoAll(m, n);
+            correct_info.blockID = j;
+            m_vInfo[j]  = correct_info;
             assert(Tree(m, n).Exists());
-
-            m_blocks[j] = (Block *)getBlockInfoAll(m, n).ptrBlock;
          }
       else
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {
-            int m            = m_vInfo[j].level;
-            long long n      = m_vInfo[j].Z;
-            m_vInfo[j].state = getBlockInfoAll(m, n).state;
+            const int m            = m_vInfo[j].level;
+            const long long n      = m_vInfo[j].Z;
+            BlockInfo & correct_info = getBlockInfoAll(m, n);
+            correct_info.blockID = j;
+            m_vInfo[j].blockID = j;
+            m_vInfo[j].state = correct_info.state;
             assert(Tree(m, n).Exists());
-            m_blocks[j] = (Block *)getBlockInfoAll(m, n).ptrBlock;
          }
-      for (size_t j = 0; j < m_vInfo.size(); j++)
-      {
-         int m                         = m_vInfo[j].level;
-         long long n                   = m_vInfo[j].Z;
-         m_vInfo[j].blockID            = j;
-         getBlockInfoAll(m, n).blockID = j;
-      }
    }
 
    Grid(const unsigned int _NX, 
@@ -326,7 +308,6 @@ class Grid
 
    virtual int rank() const { return 0; }
 
-
    virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<short int> & blockslevel)
    {
       //Given two vectors with the SFC coordinate (Z) and the level of each block, this function
@@ -375,11 +356,10 @@ class Grid
             }
          #endif
       }
-      FillPos(true);
+      FillPos();
       UpdateFluxCorrection = true;
       UpdateGroups = true;
    }
-
 
    #if DIMENSION == 3
    long long getZforward(const int level, const int i, const int j, const int k) const
@@ -389,11 +369,6 @@ class Grid
       const int iy       = (j + TwoPower * NY) % (NY * TwoPower);
       const int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
       return BlockInfo::forward(level, ix, iy, iz);
-   }
-   Block &operator()(int ix, int iy, int iz, int m)
-   {
-      const long long n = getZforward(m, ix, iy, iz);
-      return *(Block *)getBlockInfoAll(m, n).ptrBlock;
    }
    Block *avail1(int ix, int iy, int iz, int m)
    {
@@ -408,17 +383,17 @@ class Grid
       const int iy       = (j + TwoPower * NY) % (NY * TwoPower);
       return BlockInfo::forward(level, ix, iy);
    }
-   Block &operator()(int ix, int iy, int m)
-   {
-      const long long n = getZforward(m, ix, iy);
-      return *(Block *)getBlockInfoAll(m, n).ptrBlock;
-   }
    Block *avail1(int ix, int iy, int m)
    {
       const long long n = getZforward(m, ix, iy);
       return avail(m, n);
    }
    #endif
+
+   Block &operator()(const long long ID)
+   {
+      return *(Block *)m_vInfo[ID].ptrBlock;
+   }
 
    std::array<int, 3> getMaxBlocks() const { return {NX, NY, NZ}; }
    std::array<int, 3> getMaxMostRefinedBlocks() const
@@ -514,34 +489,8 @@ class Grid
       #endif
    }
 
-   inline std::vector<Block *> &GetBlocks() { return m_blocks; }
-   inline const std::vector<Block *> &GetBlocks() const { return m_blocks; }
-
    std::vector<BlockInfo> &getBlocksInfo() { return m_vInfo; }
    const std::vector<BlockInfo> &getBlocksInfo() const { return m_vInfo; }
-
-   template <typename T>
-   void apply_permutation_in_place(std::vector<T> &vec, std::vector<std::size_t> &p)
-   {
-      std::vector<bool> done(vec.size(), false);
-      for (std::size_t i = 0; i < vec.size(); ++i)
-      {
-         if (done[i])
-         {
-            continue;
-         }
-         done[i]            = true;
-         std::size_t prev_j = i;
-         std::size_t j      = p[i];
-         while (i != j)
-         {
-            std::swap(vec[prev_j], vec[j]);
-            done[j] = true;
-            prev_j  = j;
-            j       = p[j];
-         }
-      }
-   }
 
    virtual int get_world_size() const { return 1; }
 

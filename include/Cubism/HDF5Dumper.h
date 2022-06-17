@@ -48,7 +48,6 @@ void DumpHDF5_uniform(const TGrid &grid, const typename TGrid::Real absTime, con
   std::ostringstream fullpath;
   filename << fname;
   fullpath << dpath << "/" << filename.str();
-  std::vector<B *> MyBlocks      = grid.GetBlocks();
   std::vector<BlockInfo> MyInfos = grid.getBlocksInfo();
   const int levelMax = grid.getlevelMax();
   std::array<int, 3> bpd = grid.getMaxBlocks();

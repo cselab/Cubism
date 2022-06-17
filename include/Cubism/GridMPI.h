@@ -70,31 +70,34 @@ class GridMPI : public TGrid
 {
  public:
    typedef typename TGrid::Real Real;
-   int myrank, world_size;
-
- private:
-   size_t timestamp;
-
- protected:
-   typedef SynchronizerMPI_AMR<Real, GridMPI<TGrid>> SynchronizerMPIType;
-   MPI_Comm worldcomm, cartcomm;
-
- public:
    typedef typename TGrid::BlockType Block;
    typedef typename TGrid::BlockType BlockType;
+   typedef SynchronizerMPI_AMR<Real, GridMPI<TGrid>> SynchronizerMPIType;
+
+   //MPI related variables
+   size_t timestamp; //used as message tag during communication
+   MPI_Comm worldcomm;
+   int myrank;
+   int world_size;
+
    std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs;
    FluxCorrectionMPI<FluxCorrection<GridMPI<TGrid>,Block>,GridMPI<TGrid>> Corrector;
 
-   GridMPI(const int npeX, const int npeY, const int npeZ, const int nX, const int nY = 1, const int nZ = 1,
-           const double _maxextent = 1, const int a_levelStart = 0, const int a_levelMax = 1,
-           const MPI_Comm comm = MPI_COMM_WORLD, const bool a_xperiodic = true, const bool a_yperiodic = true,
+   GridMPI(const int nX, 
+           const int nY = 1,
+           const int nZ = 1,
+           const double a_maxextent = 1,
+           const int a_levelStart = 0,
+           const int a_levelMax = 1,
+           const MPI_Comm comm = MPI_COMM_WORLD,
+           const bool a_xperiodic = true,
+           const bool a_yperiodic = true,
            const bool a_zperiodic = true)
-       : TGrid(nX, nY, nZ, _maxextent, a_levelStart, a_levelMax, false, a_xperiodic, a_yperiodic, a_zperiodic),
+       : TGrid(nX, nY, nZ, a_maxextent, a_levelStart, a_levelMax, false, a_xperiodic, a_yperiodic, a_zperiodic),
          timestamp(0), worldcomm(comm)
    {
       MPI_Comm_size(worldcomm, &world_size);
       MPI_Comm_rank(worldcomm, &myrank);
-      cartcomm = worldcomm;
 
       const long long total_blocks = nX * nY * nZ * pow(pow(2, a_levelStart), DIMENSION);
       long long my_blocks          = total_blocks / world_size;
@@ -128,15 +131,9 @@ class GridMPI : public TGrid
       MPI_Barrier(worldcomm);
    }
 
-   std::vector<BlockInfo> &getResidentBlocksInfo() { return TGrid::getBlocksInfo(); }
-
-   const std::vector<BlockInfo> &getResidentBlocksInfo() const { return TGrid::getBlocksInfo(); }
-
    virtual Block *avail(int m, long long n) override
    {
-      if (TGrid::Tree(m, n).rank() == myrank) return (Block *)TGrid::getBlockInfoAll(m, n).ptrBlock;
-      else
-         return nullptr;
+      return (TGrid::Tree(m, n).rank() == myrank) ? (Block *)TGrid::getBlockInfoAll(m, n).ptrBlock : nullptr;
    }
 
    std::vector<BlockInfo *> boundary;
@@ -633,8 +630,6 @@ class GridMPI : public TGrid
    virtual int rank() const override { return myrank; }
 
    size_t getTimeStamp() const { return timestamp; }
-
-   MPI_Comm getCartComm() const { return cartcomm; }
 
    MPI_Comm getWorldComm() const { return worldcomm; }
 

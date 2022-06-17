@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cmath>
-#include <map>
 #include <vector>
 
 namespace cubism
@@ -10,7 +8,6 @@ namespace cubism
 template <typename T>
 class GrowingVector
 {
-
    size_t pos;
    size_t s;
 

@@ -89,19 +89,19 @@ class Grid
    FluxCorrection<Grid,Block> CorrectorGrid; // used for AMR flux-corrections at coarse-fine 
                                              // interfaces
 
-   TreePosition &Tree(int m, long long n)
+   TreePosition &Tree(const int m, const long long n)
    {
       /*
        * Return the position in the Octree of a Block at level m and SFC coordinate n.
        */
       #ifdef CUBISM_USE_MAP
-      long long aux = level_base[m] + n;
-      auto retval   = Octree.find(aux);
+      const long long aux = level_base[m] + n;
+      const auto retval   = Octree.find(aux);
       if (retval == Octree.end())
       {
          #pragma omp critical
          {
-            auto retval1 = Octree.find(aux);
+            const auto retval1 = Octree.find(aux);
             if (retval1 == Octree.end())
             {
                TreePosition dum;
@@ -141,7 +141,7 @@ class Grid
       FillPos();
    }
 
-   void _alloc(int m, long long n) // called whenever the grid is refined
+   void _alloc(const int m, const long long n) // called whenever the grid is refined
    {
       allocator<Block> alloc;
       getBlockInfoAll(m, n).ptrBlock = alloc.allocate(1);
@@ -164,7 +164,7 @@ class Grid
          aux.push_back(m.first);
       for (size_t i = 0 ; i < aux.size() ; i++)
       {
-         auto retval = BlockInfoAll.find(aux[i]);
+         const auto retval = BlockInfoAll.find(aux[i]);
          if (retval != BlockInfoAll.end())
          {
             delete retval->second;
@@ -188,7 +188,7 @@ class Grid
       Octree.clear();
    }
 
-   void _dealloc(int m, long long n) // called whenever the grid is compressed
+   void _dealloc(const int m, const long long n) // called whenever the grid is compressed
    {
       allocator<Block> alloc;
       alloc.deallocate((Block *)getBlockInfoAll(m, n).ptrBlock, 1);
@@ -202,7 +202,7 @@ class Grid
       }
    }
 
-   void FindBlockInfo(int m, long long n, int m_new, long long n_new)
+   void FindBlockInfo(const int m, const long long n, const int m_new, const long long n_new)
    {
       /*
        * Used when Block at level m_new with SFC coordinate n_new is added to the Grid
@@ -243,8 +243,8 @@ class Grid
       else
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {
-            const int m            = m_vInfo[j].level;
-            const long long n      = m_vInfo[j].Z;
+            const int m       = m_vInfo[j].level;
+            const long long n = m_vInfo[j].Z;
             BlockInfo & correct_info = getBlockInfoAll(m, n);
             correct_info.blockID = j;
             m_vInfo[j].blockID = j;
@@ -268,15 +268,15 @@ class Grid
    {
       BlockInfo dummy;
       #if DIMENSION == 3
-      int nx = dummy.blocks_per_dim(0, NX, NY, NZ);
-      int ny = dummy.blocks_per_dim(1, NX, NY, NZ);
-      int nz = dummy.blocks_per_dim(2, NX, NY, NZ);
+      const int nx = dummy.blocks_per_dim(0, NX, NY, NZ);
+      const int ny = dummy.blocks_per_dim(1, NX, NY, NZ);
+      const int nz = dummy.blocks_per_dim(2, NX, NY, NZ);
       #else
-      int nx = dummy.blocks_per_dim(0, NX, NY);
-      int ny = dummy.blocks_per_dim(1, NX, NY);
-      int nz = 1;
+      const int nx = dummy.blocks_per_dim(0, NX, NY);
+      const int ny = dummy.blocks_per_dim(1, NX, NY);
+      const int nz = 1;
       #endif
-      int lvlMax = dummy.levelMax(levelMax);
+      const int lvlMax = dummy.levelMax(levelMax);
 
       #ifdef CUBISM_USE_MAP
       for (int m = 0; m < lvlMax; m++)
@@ -304,7 +304,7 @@ class Grid
 
    virtual ~Grid() { _deallocAll(); }
 
-   virtual Block *avail(int m, long long n) { return (Block *)getBlockInfoAll(m, n).ptrBlock; }
+   virtual Block *avail(const int m, const long long n) { return (Block *)getBlockInfoAll(m, n).ptrBlock; }
 
    virtual int rank() const { return 0; }
 
@@ -370,7 +370,7 @@ class Grid
       const int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
       return BlockInfo::forward(level, ix, iy, iz);
    }
-   Block *avail1(int ix, int iy, int iz, int m)
+   Block *avail1(const int ix, const int iy, const int iz, const int m)
    {
       const long long n = getZforward(m, ix, iy, iz);
       return avail(m, n);
@@ -383,7 +383,7 @@ class Grid
       const int iy       = (j + TwoPower * NY) % (NY * TwoPower);
       return BlockInfo::forward(level, ix, iy);
    }
-   Block *avail1(int ix, int iy, int m)
+   Block *avail1(const int ix, const int iy, const int m)
    {
       const long long n = getZforward(m, ix, iy);
       return avail(m, n);
@@ -398,21 +398,21 @@ class Grid
    std::array<int, 3> getMaxBlocks() const { return {NX, NY, NZ}; }
    std::array<int, 3> getMaxMostRefinedBlocks() const
    {
-     return {
+      return {
        NX << (levelMax - 1),
        NY << (levelMax - 1),
        DIMENSION == 3 ? (NZ << (levelMax - 1)) : 1,
-     };
+      };
    }
    std::array<int, 3> getMaxMostRefinedCells() const
    {
-     const auto b = getMaxMostRefinedBlocks();
-     return {b[0] * Block::sizeX, b[1] * Block::sizeY, b[2] * Block::sizeZ};
+      const auto b = getMaxMostRefinedBlocks();
+      return {b[0] * Block::sizeX, b[1] * Block::sizeY, b[2] * Block::sizeZ};
    }
 
    inline int getlevelMax() const { return levelMax; }
 
-   BlockInfo &getBlockInfoAll(int m, long long n)
+   BlockInfo &getBlockInfoAll(const int m, const long long n)
    {
       /*
        * Access BlockInfo at level m with Space-Filling-Curve coordinate n.
@@ -420,8 +420,8 @@ class Grid
        * allocate it as well.
        */
       #ifdef CUBISM_USE_MAP
-      long long aux = level_base[m] + n;
-      auto retval   = BlockInfoAll.find(aux);
+      const long long aux = level_base[m] + n;
+      const auto retval   = BlockInfoAll.find(aux);
       if (retval != BlockInfoAll.end())
       {
          return *retval->second;
@@ -430,13 +430,13 @@ class Grid
       {
          #pragma omp critical
          {
-            auto retval1 = BlockInfoAll.find(aux);
+            const auto retval1 = BlockInfoAll.find(aux);
             if (retval1 == BlockInfoAll.end())
             {
                BlockInfo *dumm = new BlockInfo();
-               int TwoPower    = 1 << m;
-               double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
-               double h  = h0 / TwoPower;
+               const int TwoPower    = 1 << m;
+               const double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
+               const double h  = h0 / TwoPower;
                double origin[3];
                int i, j, k;
                #if DIMENSION == 3
@@ -466,9 +466,9 @@ class Grid
             if (BlockInfoAll[m][n] == nullptr)
             {
                BlockInfo *dummy = new BlockInfo();
-               int TwoPower     = 1 << m;
-               double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
-               double h  = h0 / TwoPower;
+               const int TwoPower     = 1 << m;
+               const double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
+               const double h  = h0 / TwoPower;
                double origin[3];
                int i, j, k;
                #if DIMENSION == 3

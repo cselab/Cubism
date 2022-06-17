@@ -1,8 +1,8 @@
 #pragma once
 
-#include "AMR_SynchronizerMPI.h"
 #include "FluxCorrection.h"
 #include <omp.h>
+using namespace std;
 
 namespace cubism // AMR_CUBISM
 {
@@ -242,12 +242,11 @@ class FluxCorrectionMPI : public TFluxCorrection
       TFluxCorrection::m_refGrid->FillPos();
    }
 
-   virtual void FillBlockCases(bool Integrate = true) override
+   virtual void FillBlockCases() override
    {
       auto MPI_real = (sizeof(Real) == sizeof(float) ) ? MPI_FLOAT : ( (sizeof(Real) == sizeof(double)) ? MPI_DOUBLE : MPI_LONG_DOUBLE);
 
       // This assumes that the BlockCases have been filled by the user somehow...
-      TFluxCorrection::TimeIntegration = Integrate;
 
       // 1.Pack send data
       for (int r = 0; r < size; r++)

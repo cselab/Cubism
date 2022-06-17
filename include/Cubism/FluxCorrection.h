@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Grid.h"
 #include <map>
 #include <omp.h>
+using namespace std;
 
 namespace cubism
 {
@@ -62,7 +62,6 @@ class FluxCorrection
    typedef typename BlockType::ElementType ElementType;
    typedef typename ElementType::RealType Real;
    typedef BlockCase<BlockType> Case;
-   bool TimeIntegration;
    int rank{0};
 
  protected:
@@ -152,9 +151,8 @@ class FluxCorrection
       return (search->second);
    }
 
-   virtual void FillBlockCases(bool Integrate = true)
+   virtual void FillBlockCases()
    {
-      TimeIntegration = Integrate;
       // This assumes that the BlockCases have been filled by the user somehow...
       std::vector<BlockInfo> &B = (*m_refGrid).getBlocksInfo();
 
@@ -201,85 +199,39 @@ class FluxCorrection
             BlockType &block = *(BlockType *)info.ptrBlock;
 
             #if DIMENSION == 3
-              if (TimeIntegration)
+              // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
+              const int d1 = max((d + 1) % 3, (d + 2) % 3);
+              const int N1 = CoarseCase.m_vSize[d1];
+              if (d == 0)
               {
-                abort();
-                #if 0
-                // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
-                const double V = 1.0 / (info.h*info.h*info.h);
-                const int d1 = max((d + 1) % 3, (d + 2) % 3);
-                const int N1 = CoarseCase.m_vSize[d1];
-                if (d == 0)
+                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+                for (int i1 = 0; i1 < N1; i1 ++)
+                for (int i2 = 0; i2 < N2; i2 ++)
                 {
-                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
-                  for (int i1 = 0; i1 < N1; i1 ++)
-                  for (int i2 = 0; i2 < N2; i2 ++)
-                  {
-                    for (int e = 0 ; e < ElementType::DIM; e++)
-                      block.tmp[i1][i2][j][e] += V*CoarseFace[i2 + i1 * N2].member(e);
-                    CoarseFace[i2 + i1 * N2].clear();
-                  }
+                  block(j,i2,i1) += CoarseFace[i2 + i1 * N2];
+                  CoarseFace[i2 + i1 * N2].clear();
                 }
-                else if (d == 1)
+              }
+              else if (d == 1)
+              {
+                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+                for (int i1 = 0; i1 < N1; i1 ++)
+                for (int i2 = 0; i2 < N2; i2 ++)
                 {
-                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
-                  for (int i1 = 0; i1 < N1; i1 ++)
-                  for (int i2 = 0; i2 < N2; i2 ++)
-                  {
-                    for (int e = 0 ; e < ElementType::DIM; e++)
-                      block.tmp[i1][j][i2][e] += V*CoarseFace[i2 + i1 * N2].member(e);
-                    CoarseFace[i2 + i1 * N2].clear();
-                  }
+                  block(i2,j,i1) += CoarseFace[i2 + i1 * N2];
+                  CoarseFace[i2 + i1 * N2].clear();
                 }
-                else
-                {
-                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
-                  for (int i1 = 0; i1 < N1; i1 ++)
-                  for (int i2 = 0; i2 < N2; i2 ++)
-                  {
-                    for (int e = 0 ; e < ElementType::DIM; e++)
-                      block.tmp[j][i1][i2][e] += V*CoarseFace[i2 + i1 * N2].member(e);
-                    CoarseFace[i2 + i1 * N2].clear();
-                  }
-                }
-                #endif
               }
               else
               {
-                // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
-                const int d1 = max((d + 1) % 3, (d + 2) % 3);
-                const int N1 = CoarseCase.m_vSize[d1];
-                if (d == 0)
+                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
+                for (int i1 = 0; i1 < N1; i1 ++)
+                for (int i2 = 0; i2 < N2; i2 ++)
                 {
-                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
-                  for (int i1 = 0; i1 < N1; i1 ++)
-                  for (int i2 = 0; i2 < N2; i2 ++)
-                  {
-                    block(j,i2,i1) += CoarseFace[i2 + i1 * N2];
-                    CoarseFace[i2 + i1 * N2].clear();
-                  }
+                  block(i2,i1,j) += CoarseFace[i2 + i1 * N2];
+                  CoarseFace[i2 + i1 * N2].clear();
                 }
-                else if (d == 1)
-                {
-                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
-                  for (int i1 = 0; i1 < N1; i1 ++)
-                  for (int i2 = 0; i2 < N2; i2 ++)
-                  {
-                    block(i2,j,i1) += CoarseFace[i2 + i1 * N2];
-                    CoarseFace[i2 + i1 * N2].clear();
-                  }
-                }
-                else
-                {
-                  const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
-                  for (int i1 = 0; i1 < N1; i1 ++)
-                  for (int i2 = 0; i2 < N2; i2 ++)
-                  {
-                    block(i2,i1,j) += CoarseFace[i2 + i1 * N2];
-                    CoarseFace[i2 + i1 * N2].clear();
-                  }
-                }               
-              }
+              }               
             #else
               assert(d!=2);
               if (d == 0)

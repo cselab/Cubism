@@ -10,24 +10,16 @@ namespace cubism
 template <typename TGrid, typename TLab, typename otherTGRID = TGrid>
 class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 {
-
- public:
+ protected:
    typedef typename TGrid::Block BlockType;
    typedef typename TGrid::BlockType::ElementType ElementType;
    typedef SynchronizerMPI_AMR<Real,TGrid> SynchronizerMPIType;
-   typedef typename TGrid::BlockType Block;
 
- protected:
-
-   bool flag;
    bool CallValidStates;
    LoadBalancer<TGrid> *Balancer;
    using AMR = MeshAdaptation<TGrid,TLab>;
 
-   struct stencilWrapper
-   {
-      StencilInfo stencil;
-   };
+   struct stencilWrapper{StencilInfo stencil;};
    stencilWrapper kernel;
 
  public:
@@ -70,7 +62,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       AMR::istensorial = stencil.tensorial;
 
       Balancer = new LoadBalancer<TGrid>(*AMR::m_refGrid);
-      flag      = true;
    }
 
    virtual ~MeshAdaptationMPI() {delete Balancer;}

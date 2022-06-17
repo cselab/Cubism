@@ -9,8 +9,6 @@
 #pragma once
 
 #include <cassert>
-#include <cstdarg>
-#include <cstdlib>
 #include <iostream>
 #include <vector>
 

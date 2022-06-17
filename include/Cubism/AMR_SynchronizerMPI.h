@@ -1,8 +1,5 @@
 #pragma once
 
-#include <algorithm>
-#include <cmath>
-#include <map>
 #include <mpi.h>
 #include <omp.h>
 #include <vector>
@@ -302,8 +299,8 @@ struct StencilManager
 
   void __FixDuplicates(const Interface &f, const Interface &f_dup, int lx, int ly, int lz, int lx_dup, int ly_dup, int lz_dup, int &sx, int &sy, int &sz)
   {
-    BlockInfo &receiver     = *f.infos[1];
-    BlockInfo &receiver_dup = *f_dup.infos[1];
+    const BlockInfo &receiver     = *f.infos[1];
+    const BlockInfo &receiver_dup = *f_dup.infos[1];
     if (receiver.level >= receiver_dup.level)
     {
       int icode_dup         = f_dup.icode[1];
@@ -314,8 +311,8 @@ struct StencilManager
     }
     else
     {
-      MyRange range     = DetermineStencil(f);
-      MyRange range_dup = DetermineStencil(f_dup);
+      MyRange & range     = DetermineStencil(f);
+      MyRange & range_dup = DetermineStencil(f_dup);
       sx = range_dup.sx - range.sx;
       sy = range_dup.sy - range.sy;
       sz = range_dup.sz - range.sz;
@@ -324,446 +321,401 @@ struct StencilManager
   void __FixDuplicates2(const Interface &f, const Interface &f_dup, int &sx, int &sy, int &sz)
   {
     if (f.infos[0]->level != f.infos[1]->level || f_dup.infos[0]->level != f_dup.infos[1]->level) return;
-    MyRange range     = DetermineStencil(f, true);
-    MyRange range_dup = DetermineStencil(f_dup, true);
+    MyRange & range     = DetermineStencil(f, true);
+    MyRange & range_dup = DetermineStencil(f_dup, true);
     sx                = range_dup.sx - range.sx;
     sy                = range_dup.sy - range.sy;
     sz                = range_dup.sz - range.sz;
    }
 };
 
+struct UnpacksManagerStruct
+{
+  size_t blocks;
+  size_t *sizes;
+  int size;
+  std::vector<GrowingVector<UnPackInfo>> manyUnpacks;
+  std::vector<GrowingVector<UnPackInfo>> manyUnpacks_recv; 
+  GrowingVector<GrowingVector<UnPackInfo *>> unpacks;
+  std::vector<MPI_Request> pack_requests;
+  std::vector<std::array<long long int, 2>> MapOfInfos;
+  MPI_Datatype MPI_PACK;
+  MPI_Comm comm;
+  UnpacksManagerStruct(MPI_Comm a_comm)
+  {
+    comm = a_comm;
+    sizes = nullptr;
+    MPI_Comm_size(comm, &size);
+    manyUnpacks_recv.resize(size);
+    manyUnpacks.resize(size);
+    int array_of_blocklengths[22];
+    MPI_Datatype array_of_types[22];
+    for (int i=0;i<21;i++)
+    {
+      array_of_blocklengths[i] = 1;
+      array_of_types[i] = MPI_INT;
+    }
+    array_of_blocklengths[21] = 1;
+    array_of_types[21] = MPI_LONG_LONG_INT;
+    MPI_Aint array_of_displacements[23];
+    UnPackInfo p;    
+    MPI_Aint base                  ; MPI_Get_address(&p                       ,&base);
+    MPI_Aint offset                ; MPI_Get_address(&p.offset                ,&offset                ); array_of_displacements[ 0] = offset                 - base;
+    MPI_Aint lx                    ; MPI_Get_address(&p.lx                    ,&lx                    ); array_of_displacements[ 1] = lx                     - base;
+    MPI_Aint ly                    ; MPI_Get_address(&p.ly                    ,&ly                    ); array_of_displacements[ 2] = ly                     - base;
+    MPI_Aint lz                    ; MPI_Get_address(&p.lz                    ,&lz                    ); array_of_displacements[ 3] = lz                     - base;
+    MPI_Aint srcxstart             ; MPI_Get_address(&p.srcxstart             ,&srcxstart             ); array_of_displacements[ 4] = srcxstart              - base;
+    MPI_Aint srcystart             ; MPI_Get_address(&p.srcystart             ,&srcystart             ); array_of_displacements[ 5] = srcystart              - base;
+    MPI_Aint srczstart             ; MPI_Get_address(&p.srczstart             ,&srczstart             ); array_of_displacements[ 6] = srczstart              - base;
+    MPI_Aint LX                    ; MPI_Get_address(&p.LX                    ,&LX                    ); array_of_displacements[ 7] = LX                     - base;
+    MPI_Aint LY                    ; MPI_Get_address(&p.LY                    ,&LY                    ); array_of_displacements[ 8] = LY                     - base;
+    MPI_Aint CoarseVersionOffset   ; MPI_Get_address(&p.CoarseVersionOffset   ,&CoarseVersionOffset   ); array_of_displacements[ 9] = CoarseVersionOffset    - base;
+    MPI_Aint CoarseVersionLX       ; MPI_Get_address(&p.CoarseVersionLX       ,&CoarseVersionLX       ); array_of_displacements[10] = CoarseVersionLX        - base;
+    MPI_Aint CoarseVersionLY       ; MPI_Get_address(&p.CoarseVersionLY       ,&CoarseVersionLY       ); array_of_displacements[11] = CoarseVersionLY        - base;
+    MPI_Aint CoarseVersionsrcxstart; MPI_Get_address(&p.CoarseVersionsrcxstart,&CoarseVersionsrcxstart); array_of_displacements[12] = CoarseVersionsrcxstart - base;
+    MPI_Aint CoarseVersionsrcystart; MPI_Get_address(&p.CoarseVersionsrcystart,&CoarseVersionsrcystart); array_of_displacements[13] = CoarseVersionsrcystart - base;
+    MPI_Aint CoarseVersionsrczstart; MPI_Get_address(&p.CoarseVersionsrczstart,&CoarseVersionsrczstart); array_of_displacements[14] = CoarseVersionsrczstart - base;
+    MPI_Aint level                 ; MPI_Get_address(&p.level                 ,&level                 ); array_of_displacements[15] = level                  - base;
+    MPI_Aint icode                 ; MPI_Get_address(&p.icode                 ,&icode                 ); array_of_displacements[16] = icode                  - base;
+    MPI_Aint rank                  ; MPI_Get_address(&p.rank                  ,&rank                  ); array_of_displacements[17] = rank                   - base;
+    MPI_Aint index_0               ; MPI_Get_address(&p.index_0               ,&index_0               ); array_of_displacements[18] = index_0                - base;
+    MPI_Aint index_1               ; MPI_Get_address(&p.index_1               ,&index_1               ); array_of_displacements[19] = index_1                - base;
+    MPI_Aint index_2               ; MPI_Get_address(&p.index_2               ,&index_2               ); array_of_displacements[20] = index_2                - base;
+    MPI_Aint IDreceiver            ; MPI_Get_address(&p.IDreceiver            ,&IDreceiver            ); array_of_displacements[21] = IDreceiver             - base;
+    MPI_Type_create_struct(22, array_of_blocklengths, array_of_displacements, array_of_types,&MPI_PACK);
+    MPI_Type_commit(&MPI_PACK);
+  }
+  void clear()
+  {
+    if (sizes != nullptr)
+    {
+      delete[] sizes;
+      sizes = nullptr;
+      for (size_t i = 0; i < blocks; i++) unpacks[i].clear();
+      unpacks.clear();
+    }
+    for (int i = 0; i < size; i++)
+    {
+      manyUnpacks[i].clear();
+      manyUnpacks_recv[i].clear();
+    }
+    MapOfInfos.clear();
+  }
+  ~UnpacksManagerStruct() { clear(); MPI_Type_free(&MPI_PACK);}
+  void _allocate(size_t a_blocks, size_t *L)
+  {
+    blocks = a_blocks;
+    unpacks.resize(blocks);
+    sizes = new size_t[blocks];
+    for (size_t i = 0; i < blocks; i++)
+    {
+      sizes[i] = 0;
+      unpacks[i].resize(L[i]);
+    }
+  }
+  void add(UnPackInfo &info, size_t block_id)
+  {
+    assert(block_id < blocks);
+    assert(sizes[block_id] < unpacks[block_id].size());
+    unpacks[block_id][sizes[block_id]] = &info;
+    sizes[block_id]++;
+  }
+  void SendPacks(std::set<int> Neighbor, int timestamp)
+  {
+    pack_requests.clear();
+    assert(pack_requests.size() == 0);
+    for (auto &r : Neighbor)
+    {
+       pack_requests.resize(pack_requests.size() + 1);
+       MPI_Isend(manyUnpacks[r].data(), manyUnpacks[r].size(), MPI_PACK, r, timestamp, comm, &pack_requests.back());         
+    }
+    for (auto &r : Neighbor)
+    {
+       int number_amount;
+       MPI_Status status;
+       MPI_Probe(r, timestamp, comm, &status);
+       MPI_Get_count(&status, MPI_PACK, &number_amount);
+       manyUnpacks_recv[r].resize(number_amount);
+       pack_requests.resize(pack_requests.size() + 1);
+       MPI_Irecv(manyUnpacks_recv[r].data(), manyUnpacks_recv[r].size(),MPI_PACK, r, timestamp, comm, &pack_requests.back());           
+    }
+  }
+  void MapIDs()
+  {
+    if (pack_requests.size() == 0) return;
+    pack_requests.clear();        
+    std::sort(MapOfInfos.begin(), MapOfInfos.end());
+    int myrank;
+    MPI_Comm_rank(comm,&myrank);
+    for (int r = 0; r < size; r++) if (r!=myrank)
+    for (size_t i = 0; i < manyUnpacks_recv[r].size(); i++)
+    {
+      UnPackInfo &info                     = manyUnpacks_recv[r][i];
+      std::array<long long int, 2> element = {info.IDreceiver, -1};
+      auto low   = std::lower_bound(MapOfInfos.begin(), MapOfInfos.end(), element);
+      int Target = (*low)[1];
+      assert((*low)[0] == info.IDreceiver);
+      add(info, Target);
+    }
+  }
+};
+
 template <typename Real, typename TGrid>
 class SynchronizerMPI_AMR
 {
+  MPI_Comm comm;
+  int rank, size;
+
   StencilInfo stencil;  // stencil associated with kernel (advection,diffusion etc.)
   StencilInfo Cstencil; // stencil required to do coarse->fine interpolation
 
-  MPI_Comm comm;
-  int rank, size;
-  bool xperiodic, yperiodic, zperiodic;
+  TGrid * grid;         // grid which owns blocks that need ghost cells 
+  int nX,nY,nZ;         // each block is nX x nY x nZ grid points
 
+  MPI_Datatype MPIREAL; // datatype that will be sent/received
+
+  std::vector<BlockInfo *> inner_blocks; // will contain inner blocks with loaded ghost cells
+  std::vector<BlockInfo *>  halo_blocks; // will contain outer blocks with loaded ghost cells
+
+  std::vector<GrowingVector<Real>> send_buffer; // send_buffer[i] contains data to send to rank i
+  std::vector<GrowingVector<Real>> recv_buffer; // recv_buffer[i] will receive data from rank i
+
+  std::vector<MPI_Request> send_requests; // requests for non-blocking sends
+  std::vector<MPI_Request> recv_requests; // requests for non-blocking receives
+
+  std::vector<int> send_buffer_size; // sizes of send_buffer (communicated before actual data)
+  std::vector<int> recv_buffer_size; // sizes of recv_buffer (communicated before actual data)
+
+  std::set<int> Neighbors; // neighboring MPI ranks 
+
+  UnpacksManagerStruct UnpacksManager;
+  StencilManager SM;
+
+  const unsigned int gptfloats; // = sizeof(Element)/sizeof(Real)
+  const int NC;                 // = number of components to send/receive for the ghosts
+
+  // meta-data for the parts of a particular block that will be sent to another rank
   struct PackInfo
   {
     Real *block, *pack;
     int sx, sy, sz, ex, ey, ez;
   };
+  std::vector<GrowingVector<PackInfo>> send_packinfos;
 
-  std::vector<GrowingVector<Real>> send_buffer;
-  std::vector<GrowingVector<Real>> recv_buffer;
 
   std::vector<GrowingVector<Interface>> send_interfaces;
   std::vector<std::vector<InterfaceInfo>> send_interfaces_infos;
-  std::vector<GrowingVector<PackInfo>> send_packinfos;
-
-  std::vector<int> send_buffer_size;
-  std::vector<int> recv_buffer_size;
 
   std::vector<std::vector<int>> ToBeAveragedDown;
 
-  std::vector<MPI_Request> send_requests;
-  std::vector<MPI_Request> recv_requests;
 
-  // grid parameters
-  std::array<int,3> blocksPerDim;
-  int nX,nY,nZ;
+  std::vector<std::vector<std::pair<int, int>>> interface_ranks_and_positions;
+  std::vector<size_t> lengths;
+  bool use_averages;
 
-  size_t myInfos_size;
-  BlockInfo *myInfos;
-
-  std::vector<BlockInfo *> inner_blocks;
-  std::vector<BlockInfo *> halo_blocks;
-
-  struct UnpacksManagerStruct
+  struct DuplicatesManager
   {
-    size_t blocks;
-    size_t *sizes;
+    struct cube //could be more efficient, fix later
+    {
+      GrowingVector <MyRange> compass [27];
+
+      void clear() { for (int i=0;i<27;i++) compass[i].clear(); }
+
+      cube(){}
+        
+      std::vector<MyRange *> keepEl()
+      {
+        std::vector<MyRange *> retval;
+        for (int i=0; i<27; i++)
+        {
+          for (size_t j=0; j< compass[i].size() ; j++)
+          {
+            if (compass[i][j].needed) retval.push_back(&compass[i][j]);
+          }
+        }    
+        return retval;
+      }
+
+      void __needed(std::vector<int> & v)
+      {
+        static constexpr std::array <int,3> faces_and_edges [18] = {
+          {0,1,1},{2,1,1},{1,0,1},{1,2,1},{1,1,0},{1,1,2},
+
+          {0,0,1},{0,2,1},{2,0,1},{2,2,1},{1,0,0},{1,0,2},
+          {1,2,0},{1,2,2},{0,1,0},{0,1,2},{2,1,0},{2,1,2}};
+    
+        for (auto & f:faces_and_edges) if ( compass[f[0] + f[1]*3 + f[2]*9].size() != 0 )
+        {
+          auto & me = compass[f[0] + f[1]*3 + f[2]*9];
+
+          bool needme = false;
+          auto & other1 = compass[f[0] + f[1]*3 + f[2]*9];       
+          for (size_t j1=0; j1<other1.size(); j1++)
+          { 
+            auto & o = other1[j1];
+            if (o.needed)
+            {
+              needme = true;
+              for (size_t j=0; j<me.size(); j++)
+              {
+                auto & m = me[j];
+                if (m.needed && m.contains(o) )
+                {
+                  o.needed = false;
+                  m.removedIndices.push_back(o.index);
+                  m.Remove(o);
+                  v.push_back(o.index);
+                  break;
+                }
+              }
+            }
+          }
+          if (!needme) continue;
+     
+          const int imax = (f[0] == 1) ? 2:f[0];
+          const int imin = (f[0] == 1) ? 0:f[0]; 
+          const int jmax = (f[1] == 1) ? 2:f[1];
+          const int jmin = (f[1] == 1) ? 0:f[1]; 
+          const int kmax = (f[2] == 1) ? 2:f[2];
+          const int kmin = (f[2] == 1) ? 0:f[2];  
+    
+          for (int k=kmin;k<=kmax;k++)
+          for (int j=jmin;j<=jmax;j++)
+          for (int i=imin;i<=imax;i++)
+          {
+            if (i==f[0] && j==f[1] && k==f[2]) continue;
+            auto & other = compass[i + j*3 + k*9];       
+
+            for (size_t j1=0; j1<other.size(); j1++)
+            { 
+              auto & o = other[j1];
+              if (o.needed)
+              {
+                for (size_t k1=0; k1<me.size(); k1++)
+                {  
+                  auto & m = me[k1];
+                  if (m.needed && m.contains(o) )
+                  {
+                    o.needed = false;
+                    m.removedIndices.push_back(o.index);
+                    m.Remove(o);
+                    v.push_back(o.index);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } 
+      }
+    };
+    cube C;
+
+    std::vector<bool> skip_needed;
     int size;
 
-    std::vector<GrowingVector<UnPackInfo>> manyUnpacks;
-    std::vector<GrowingVector<UnPackInfo>> manyUnpacks_recv; 
+    SynchronizerMPI_AMR * Synch_ptr;
 
-    GrowingVector<GrowingVector<UnPackInfo *>> unpacks;
+    std::vector< GrowingVector <int>> positions;
 
-    std::vector<MPI_Request> pack_requests;
-    std::vector<std::array<long long int, 2>> MapOfInfos;
-
-    MPI_Datatype MPI_PACK;
-    MPI_Comm comm;
-
-    UnpacksManagerStruct(MPI_Comm a_comm)
+    DuplicatesManager(int a_size, SynchronizerMPI_AMR & Synch)
     {
-      comm = a_comm;
-      sizes = nullptr;
-      MPI_Comm_size(comm, &size);
-      manyUnpacks_recv.resize(size);
-      manyUnpacks.resize(size);
-
-      int array_of_blocklengths[22];
-      MPI_Datatype array_of_types[22];
-      for (int i=0;i<21;i++)
-      {
-        array_of_blocklengths[i] = 1;
-        array_of_types[i] = MPI_INT;
-      }
-      array_of_blocklengths[21] = 1;
-      //array_of_blocklengths[22] = 1;
-      array_of_types[21] = MPI_LONG_LONG_INT;
-      //array_of_types[22] = MPI_LONG_LONG_INT;
-
-      MPI_Aint array_of_displacements[23];
-      UnPackInfo p;    
-      MPI_Aint base                  ; MPI_Get_address(&p                       ,&base);
-      MPI_Aint offset                ; MPI_Get_address(&p.offset                ,&offset                ); array_of_displacements[ 0] = offset                 - base;
-      MPI_Aint lx                    ; MPI_Get_address(&p.lx                    ,&lx                    ); array_of_displacements[ 1] = lx                     - base;
-      MPI_Aint ly                    ; MPI_Get_address(&p.ly                    ,&ly                    ); array_of_displacements[ 2] = ly                     - base;
-      MPI_Aint lz                    ; MPI_Get_address(&p.lz                    ,&lz                    ); array_of_displacements[ 3] = lz                     - base;
-      MPI_Aint srcxstart             ; MPI_Get_address(&p.srcxstart             ,&srcxstart             ); array_of_displacements[ 4] = srcxstart              - base;
-      MPI_Aint srcystart             ; MPI_Get_address(&p.srcystart             ,&srcystart             ); array_of_displacements[ 5] = srcystart              - base;
-      MPI_Aint srczstart             ; MPI_Get_address(&p.srczstart             ,&srczstart             ); array_of_displacements[ 6] = srczstart              - base;
-      MPI_Aint LX                    ; MPI_Get_address(&p.LX                    ,&LX                    ); array_of_displacements[ 7] = LX                     - base;
-      MPI_Aint LY                    ; MPI_Get_address(&p.LY                    ,&LY                    ); array_of_displacements[ 8] = LY                     - base;
-      MPI_Aint CoarseVersionOffset   ; MPI_Get_address(&p.CoarseVersionOffset   ,&CoarseVersionOffset   ); array_of_displacements[ 9] = CoarseVersionOffset    - base;
-      MPI_Aint CoarseVersionLX       ; MPI_Get_address(&p.CoarseVersionLX       ,&CoarseVersionLX       ); array_of_displacements[10] = CoarseVersionLX        - base;
-      MPI_Aint CoarseVersionLY       ; MPI_Get_address(&p.CoarseVersionLY       ,&CoarseVersionLY       ); array_of_displacements[11] = CoarseVersionLY        - base;
-      MPI_Aint CoarseVersionsrcxstart; MPI_Get_address(&p.CoarseVersionsrcxstart,&CoarseVersionsrcxstart); array_of_displacements[12] = CoarseVersionsrcxstart - base;
-      MPI_Aint CoarseVersionsrcystart; MPI_Get_address(&p.CoarseVersionsrcystart,&CoarseVersionsrcystart); array_of_displacements[13] = CoarseVersionsrcystart - base;
-      MPI_Aint CoarseVersionsrczstart; MPI_Get_address(&p.CoarseVersionsrczstart,&CoarseVersionsrczstart); array_of_displacements[14] = CoarseVersionsrczstart - base;
-      MPI_Aint level                 ; MPI_Get_address(&p.level                 ,&level                 ); array_of_displacements[15] = level                  - base;
-      MPI_Aint icode                 ; MPI_Get_address(&p.icode                 ,&icode                 ); array_of_displacements[16] = icode                  - base;
-      MPI_Aint rank                  ; MPI_Get_address(&p.rank                  ,&rank                  ); array_of_displacements[17] = rank                   - base;
-      MPI_Aint index_0               ; MPI_Get_address(&p.index_0               ,&index_0               ); array_of_displacements[18] = index_0                - base;
-      MPI_Aint index_1               ; MPI_Get_address(&p.index_1               ,&index_1               ); array_of_displacements[19] = index_1                - base;
-      MPI_Aint index_2               ; MPI_Get_address(&p.index_2               ,&index_2               ); array_of_displacements[20] = index_2                - base;
-      MPI_Aint IDreceiver            ; MPI_Get_address(&p.IDreceiver            ,&IDreceiver            ); array_of_displacements[21] = IDreceiver             - base;
-      //MPI_Aint Z                     ; MPI_Get_address(&p.Z                     ,&Z                     ); array_of_displacements[22] = Z                      - base;
-      MPI_Type_create_struct(22, array_of_blocklengths, array_of_displacements, array_of_types,&MPI_PACK);
-      MPI_Type_commit(&MPI_PACK);
-    }
-    void clear()
-    {
-      if (sizes != nullptr)
-      {
-        delete[] sizes;
-        sizes = nullptr;
-        for (size_t i = 0; i < blocks; i++) unpacks[i].clear();
-        unpacks.clear();
-      }
-      for (int i = 0; i < size; i++)
-      {
-        manyUnpacks[i].clear();
-        manyUnpacks_recv[i].clear();
-      }
-      MapOfInfos.clear();
+      size = a_size;
+      skip_needed.resize(size,false);
+      positions.resize(size);
+      Synch_ptr = & Synch;
     }
 
-    ~UnpacksManagerStruct() { clear(); MPI_Type_free(&MPI_PACK);}
-
-    void _allocate(size_t a_blocks, size_t *L)
+    void Add(int r,int index)
     {
-      blocks = a_blocks;
-      unpacks.resize(blocks);
-      sizes = new size_t[blocks];
-      for (size_t i = 0; i < blocks; i++)
-      {
-        sizes[i] = 0;
-        unpacks[i].resize(L[i]);
-      }
+      positions[r].push_back(index);
     }
 
-    void add(UnPackInfo &info, size_t block_id)
+    void RemoveDuplicates(int r, std::vector<Interface> & f, int & offset, int & total_size, int NC, std::vector<InterfaceInfo> &fInfo)
     {
-      assert(block_id < blocks);
-      assert(sizes[block_id] < unpacks[block_id].size());
-      unpacks[block_id][sizes[block_id]] = &info;
-      sizes[block_id]++;
-    }
-
-    void SendPacks(std::set<int> Neighbor, int timestamp)
-    {
-      pack_requests.clear();
-      assert(pack_requests.size() == 0);
-      for (auto &r : Neighbor)
-      {
-         pack_requests.resize(pack_requests.size() + 1);
-         MPI_Isend(manyUnpacks[r].data(), manyUnpacks[r].size(), MPI_PACK, r, timestamp, comm, &pack_requests.back());         
-      }
-      for (auto &r : Neighbor)
-      {
-         int number_amount;
-         MPI_Status status;
-         MPI_Probe(r, timestamp, comm, &status);
-         MPI_Get_count(&status, MPI_PACK, &number_amount);
-         manyUnpacks_recv[r].resize(number_amount);
-         pack_requests.resize(pack_requests.size() + 1);
-         MPI_Irecv(manyUnpacks_recv[r].data(), manyUnpacks_recv[r].size(),MPI_PACK, r, timestamp, comm, &pack_requests.back());           
-      }
-    }
-
-    void MapIDs()
-    {
-      if (pack_requests.size() == 0) return;
-
-      pack_requests.clear();        
-
-      std::sort(MapOfInfos.begin(), MapOfInfos.end());
-
-      int myrank;
-      MPI_Comm_rank(comm,&myrank);
-
-      for (int r = 0; r < size; r++) if (r!=myrank)
-      for (size_t i = 0; i < manyUnpacks_recv[r].size(); i++)
-      {
-        UnPackInfo &info                     = manyUnpacks_recv[r][i];
-        std::array<long long int, 2> element = {info.IDreceiver, -1};
-        auto low   = std::lower_bound(MapOfInfos.begin(), MapOfInfos.end(), element);
-        int Target = (*low)[1];
-        assert((*low)[0] == info.IDreceiver);
-        add(info, Target);
-      }
+        std::vector<int> remEl;
+        
+        C.clear();
+        for (size_t i=0; i<positions[r].size();i++)
+        {              
+            C.compass[f[positions[r][i]].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[positions[r][i]]));
+            C.compass[f[positions[r][i]].icode[0]].back().index = positions[r][i];
+            C.compass[f[positions[r][i]].icode[0]].back().avg_down = (f[positions[r][i]].infos[0]->level > f[positions[r][i]].infos[1]->level);
+            if (!skip_needed[r]) skip_needed[r] = f[positions[r][i]].CoarseStencil;
+        }
+        if (!skip_needed[r])
+        {
+            C.__needed(remEl);
+            for (size_t k=0; k< remEl.size();k++)
+                fInfo[remEl[k]].ToBeKept = false;
+        }
+        for (auto & i:C.keepEl())
+        {
+            int k = i->index;            
+            int L [3] ={0,0,0};
+            int Lc[3] ={0,0,0};
+             
+            int code[3] = { f[k].icode[1]%3-1, (f[k].icode[1]/3)%3-1, (f[k].icode[1]/9)%3-1};
+            Synch_ptr->SM.DetermineStencilLength(f[k].infos[0]->level,f[k].infos[1]->level,f[k].icode[1],&L[0]);
+            int V = L[0]*L[1]*L[2];
+            int Vc = 0;
+            total_size+= V;
+            if (f[k].CoarseStencil)
+            {
+                Synch_ptr->SM.CoarseStencilLength(&code[0],&Lc[0]);
+                Vc = Lc[0]*Lc[1]*Lc[2];
+                total_size += Vc;
+            }                    
+            UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,
+              f[k].icode[1],
+              Synch_ptr->rank,
+              f[k].infos[0]->index[0],
+              f[k].infos[0]->index[1],
+              f[k].infos[0]->index[2],
+              f[k].infos[1]->blockID_2};
+            
+            fInfo[k].dis = offset;
+            offset += V*NC;
+            if (f[k].CoarseStencil)
+            {
+                offset += Vc*NC; 
+                info.CoarseVersionOffset = V*NC;                                       
+                info.CoarseVersionLX = Lc[0];
+                info.CoarseVersionLY = Lc[1];
+            }                   
+                
+            Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info);
+            
+            for (size_t kk=0; kk< (*i).removedIndices.size();kk++)
+            {
+                int remEl1 = i->removedIndices[kk];
+                Synch_ptr->SM.DetermineStencilLength(f[remEl1].infos[0]->level,f[remEl1].infos[1]->level,f[remEl1].icode[1],&L[0]);
+                    
+                int srcx, srcy, srcz;
+                Synch_ptr->SM.__FixDuplicates(f[k],f[remEl1], info.lx,info.ly,info.lz,L[0],L[1],L[2], srcx,srcy,srcz);
+                int Csrcx=0;
+                int Csrcy=0;
+                int Csrcz=0;
+                if (f[k].CoarseStencil)
+                {
+                    Synch_ptr->SM.__FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);
+                }
+                Synch_ptr->UnpacksManager.manyUnpacks[r].push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,
+                info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY,
+                Csrcx, Csrcy, Csrcz,
+                f[remEl1].infos[0]->level,
+                f[remEl1].icode[1],
+                Synch_ptr->rank,
+                f[remEl1].infos[0]->index[0],
+                f[remEl1].infos[0]->index[1],
+                f[remEl1].infos[0]->index[2],
+                f[remEl1].infos[1]->blockID_2});
+                
+                fInfo[remEl1].dis = info.offset;
+            } 
+        }
     }
   };
-
-  UnpacksManagerStruct UnpacksManager;
-  StencilManager SM;
-
-    struct DuplicatesManager
-    {
-        struct cube //could be more efficient, fix later
-        {
-            GrowingVector <MyRange> compass [27];
-
-            void clear()
-            {
-                for (int i=0;i<27;i++) compass[i].clear();
-            }
-
-            void EraseAll()
-            {
-                for (int i=0;i<27;i++) compass[i].EraseAll();
-            }
-     
-            cube(){}
-        
-            std::vector<MyRange *> keepEl()
-            {
-                std::vector<MyRange *> retval;
-            
-                for (int i=0; i<27; i++)
-                {
-                    for (size_t j=0; j< compass[i].size() ; j++)
-                    {
-                        if (compass[i][j].needed)
-                            retval.push_back(&compass[i][j]);
-                    }
-                }    
-                return retval;
-            }
-        
-            void __needed(std::vector<int> & v)
-            {
-                static constexpr std::array <int,3> faces_and_edges [18] = {
-                    {0,1,1},{2,1,1},{1,0,1},{1,2,1},{1,1,0},{1,1,2},
-                    
-                    {0,0,1},{0,2,1},{2,0,1},{2,2,1},{1,0,0},{1,0,2},
-                    {1,2,0},{1,2,2},{0,1,0},{0,1,2},{2,1,0},{2,1,2}};
-    
-                for (auto & f:faces_and_edges)
-                if ( compass[f[0] + f[1]*3 + f[2]*9].size() != 0 )
-                {
-                    auto & me = compass[f[0] + f[1]*3 + f[2]*9];
-
-                    bool needme = false;
-                    auto & other1 = compass[f[0] + f[1]*3 + f[2]*9];       
-                    for (size_t j1=0; j1<other1.size(); j1++)
-                    { 
-                        auto & o = other1[j1];
-                        if (o.needed)
-                        {
-                            needme = true;
-    
-                            for (size_t j=0; j<me.size(); j++)
-                            {
-                             auto & m = me[j];
-                             if (m.needed && m.contains(o) )
-                             {
-                                o.needed = false;
-                                m.removedIndices.push_back(o.index);
-                                m.Remove(o);
-                                v.push_back(o.index);
-                                break;
-                             }
-                            }
-                        }
-                    }             
-                    if (!needme) continue;
-     
-                    int imax = (f[0] == 1) ? 2:f[0];
-                    int imin = (f[0] == 1) ? 0:f[0]; 
-                    
-                    int jmax = (f[1] == 1) ? 2:f[1];
-                    int jmin = (f[1] == 1) ? 0:f[1]; 
-                    
-                    int kmax = (f[2] == 1) ? 2:f[2];
-                    int kmin = (f[2] == 1) ? 0:f[2];  
-    
-                    for (int k=kmin;k<=kmax;k++)
-                    for (int j=jmin;j<=jmax;j++)
-                    for (int i=imin;i<=imax;i++)
-                    {
-                        if (i==f[0] && j==f[1] && k==f[2]) continue;
-                        auto & other = compass[i + j*3 + k*9];       
-    
-                        for (size_t j1=0; j1<other.size(); j1++)
-                        { 
-                            auto & o = other[j1];
-                            if (o.needed)
-                            {
-                               for (size_t k1=0; k1<me.size(); k1++)
-                               {  
-                                    auto & m = me[k1];
-                                    if (m.needed && m.contains(o) )
-                                    {
-                                        o.needed = false;
-                                        m.removedIndices.push_back(o.index);
-                                        m.Remove(o);
-                                        v.push_back(o.index);
-                                        break;
-                                    }
-                               }
-                            }
-                        }
-                    }
-                } 
-            }
-        };
-      
-        cube C;
-
-        std::vector<bool> skip_needed;
-        int size;
-
-        SynchronizerMPI_AMR * Synch_ptr;
-
-        std::vector< GrowingVector <int>> positions;
-
-
-        DuplicatesManager(int a_size, SynchronizerMPI_AMR & Synch)
-        {
-            size = a_size;
-            skip_needed.resize(size,false);
-            positions.resize(size);
-
-            Synch_ptr = & Synch;
-        }
-
-        void Add(int r,int index)
-        {
-            positions[r].push_back(index);
-        }
-
-
-        void RemoveDuplicates(int r, std::vector<Interface> & f, int & offset, int & total_size, int NC, std::vector<InterfaceInfo> &fInfo)
-        {
-            std::vector<int> remEl;
-
-            
-            C.clear();
-            for (size_t i=0; i<positions[r].size();i++)
-            {              
-                C.compass[f[positions[r][i]].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[positions[r][i]]));
-                C.compass[f[positions[r][i]].icode[0]].back().index = positions[r][i];
-                C.compass[f[positions[r][i]].icode[0]].back().avg_down = (f[positions[r][i]].infos[0]->level > f[positions[r][i]].infos[1]->level);
-
-                if (!skip_needed[r]) skip_needed[r] = f[positions[r][i]].CoarseStencil;
-            }
-
-
-            if (!skip_needed[r])
-            {
-                C.__needed(remEl);
-                for (size_t k=0; k< remEl.size();k++)
-                    fInfo[remEl[k]].ToBeKept = false;
-            }
-  
-
-
-            for (auto & i:C.keepEl())
-            {
-                int k = i->index;            
-                int L [3] ={0,0,0};
-                int Lc[3] ={0,0,0};
-                 
-                int code[3] = { f[k].icode[1]%3-1, (f[k].icode[1]/3)%3-1, (f[k].icode[1]/9)%3-1};
-
-                Synch_ptr->SM.DetermineStencilLength(f[k].infos[0]->level,f[k].infos[1]->level,f[k].icode[1],&L[0]);
-
-                int V = L[0]*L[1]*L[2];
-                int Vc = 0;
-
-                total_size+= V;
-                if (f[k].CoarseStencil)
-                {
-                    Synch_ptr->SM.CoarseStencilLength(&code[0],&Lc[0]);
-                    Vc = Lc[0]*Lc[1]*Lc[2];
-                    total_size += Vc;
-                }                    
-
-                UnPackInfo info = {offset,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,
-                  f[k].icode[1],
-                  Synch_ptr->rank,
-                  f[k].infos[0]->index[0],
-                  f[k].infos[0]->index[1],
-                  f[k].infos[0]->index[2],
-                  f[k].infos[1]->blockID_2};
-                
-                fInfo[k].dis = offset;
-                offset += V*NC;
-
-                if (f[k].CoarseStencil)
-                {
-                    offset += Vc*NC; 
-                    info.CoarseVersionOffset = V*NC;                                       
-                    info.CoarseVersionLX = Lc[0];
-                    info.CoarseVersionLY = Lc[1];
-                }                   
-                    
-                Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info);
-                
-                for (size_t kk=0; kk< (*i).removedIndices.size();kk++)
-                {
-                    int remEl1 = i->removedIndices[kk];
-
-                    Synch_ptr->SM.DetermineStencilLength(f[remEl1].infos[0]->level,f[remEl1].infos[1]->level,f[remEl1].icode[1],&L[0]);
-                        
-                    int srcx, srcy, srcz;
-
-                    Synch_ptr->SM.__FixDuplicates(f[k],f[remEl1], info.lx,info.ly,info.lz,L[0],L[1],L[2], srcx,srcy,srcz);
-
-                    int Csrcx=0;
-                    int Csrcy=0;
-                    int Csrcz=0;
-
-                    if (f[k].CoarseStencil)
-                    {
-                        Synch_ptr->SM.__FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);
-                    }
-
-                    Synch_ptr->UnpacksManager.manyUnpacks[r].push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,
-                    info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY,
-                    Csrcx, Csrcy, Csrcz,
-                    f[remEl1].infos[0]->level,
-                    f[remEl1].icode[1],
-                    Synch_ptr->rank,
-                    f[remEl1].infos[0]->index[0],
-                    f[remEl1].infos[0]->index[1],
-                    f[remEl1].infos[0]->index[2],
-                    f[remEl1].infos[1]->blockID_2});
-                    
-                    fInfo[remEl1].dis = info.offset;
-                } 
-            }
-        }
-    };
 
   bool UseCoarseStencil(Interface &f)
   {
@@ -778,20 +730,20 @@ class SynchronizerMPI_AMR
       imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
     }
     const int aux = 1 << a.level;
-    if (xperiodic)
+    if (grid->xperiodic)
     {
-      if (a.index[0] == 0 && b.index[0] == blocksPerDim[0] * aux - 1) imin[0] = -1;
-      if (b.index[0] == 0 && a.index[0] == blocksPerDim[0] * aux - 1) imax[0] = +1;
+      if (a.index[0] == 0 && b.index[0] == grid->getMaxBlocks()[0] * aux - 1) imin[0] = -1;
+      if (b.index[0] == 0 && a.index[0] == grid->getMaxBlocks()[0] * aux - 1) imax[0] = +1;
     }
-    if (yperiodic)
+    if (grid->yperiodic)
     {
-      if (a.index[1] == 0 && b.index[1] == blocksPerDim[1] * aux - 1) imin[1] = -1;
-      if (b.index[1] == 0 && a.index[1] == blocksPerDim[1] * aux - 1) imax[1] = +1;
+      if (a.index[1] == 0 && b.index[1] == grid->getMaxBlocks()[1] * aux - 1) imin[1] = -1;
+      if (b.index[1] == 0 && a.index[1] == grid->getMaxBlocks()[1] * aux - 1) imax[1] = +1;
     }
-    if (zperiodic)
+    if (grid->zperiodic)
     {
-      if (a.index[2] == 0 && b.index[2] == blocksPerDim[2] * aux - 1) imin[2] = -1;
-      if (b.index[2] == 0 && a.index[2] == blocksPerDim[2] * aux - 1) imax[2] = +1;
+      if (a.index[2] == 0 && b.index[2] == grid->getMaxBlocks()[2] * aux - 1) imin[2] = -1;
+      if (b.index[2] == 0 && a.index[2] == grid->getMaxBlocks()[2] * aux - 1) imax[2] = +1;
     }
 
     bool retval = false;
@@ -809,8 +761,7 @@ class SynchronizerMPI_AMR
     return retval;
   }
 
-  void AverageDownAndFill(Real * __restrict__ dst, const BlockInfo *const info, const int s[3], const int e[3],
-                          const int code[3])
+  void AverageDownAndFill(Real * __restrict__ dst, const BlockInfo *const info, const int s[3], const int e[3], const int code[3])
   {
     #if DIMENSION == 3
       int pos = 0;
@@ -962,21 +913,25 @@ class SynchronizerMPI_AMR
     halo_blocks.clear();
     interface_ranks_and_positions.clear();
     lengths.clear();
-    for (int r = 0; r < size; r++) send_interfaces[r].clear();
-    for (int r = 0; r < size; r++) send_interfaces_infos[r].clear();
-    std::vector<int> offsets(size, 0);
     for (int r = 0; r < size; r++)
-       send_buffer_size[r] = 0;
+    {
+      send_interfaces[r].clear();
+      send_interfaces_infos[r].clear();
+      send_buffer_size[r] = 0;
+    }
+
+    std::vector<int> offsets(size, 0);
     UnpacksManager.clear();
 
-    for (int i = 0; i < (int)myInfos_size; i++)
+    auto & myInfos = grid->getBlocksInfo();
+    for (size_t i = 0; i < myInfos.size(); i++)
     {
       BlockInfo &info    = myInfos[i];
       info.halo_block_id = -1;
       const int aux          = 1 << info.level;
-      const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
-      const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
-      const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
+      const bool xskin = info.index[0] == 0 || info.index[0] == grid->getMaxBlocks()[0] * aux - 1;
+      const bool yskin = info.index[1] == 0 || info.index[1] == grid->getMaxBlocks()[1] * aux - 1;
+      const bool zskin = info.index[2] == 0 || info.index[2] == grid->getMaxBlocks()[2] * aux - 1;
       const int xskip  = info.index[0] == 0 ? -1 : 1;
       const int yskip  = info.index[1] == 0 ? -1 : 1;
       const int zskip  = info.index[2] == 0 ? -1 : 1;
@@ -994,9 +949,9 @@ class SynchronizerMPI_AMR
          #if DIMENSION == 2
             if (code[2] != 0) continue;
          #endif
-         if (!xperiodic && code[0] == xskip && xskin) continue;
-         if (!yperiodic && code[1] == yskip && yskin) continue;
-         if (!zperiodic && code[2] == zskip && zskin) continue;
+         if (!grid->xperiodic && code[0] == xskip && xskin) continue;
+         if (!grid->yperiodic && code[1] == yskip && yskin) continue;
+         if (!grid->zperiodic && code[2] == zskip && zskin) continue;
 
          // if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
          //if (!stencil.tensorial && use_averages == false && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
@@ -1005,8 +960,7 @@ class SynchronizerMPI_AMR
          const TreePosition & infoNeiTree = grid->Tree(info.level,info.Znei_(code[0], code[1], code[2]));
          if (infoNeiTree.Exists() && infoNeiTree.rank() != rank)
          {
-            if (isInner)
-               interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
+            if (isInner) interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
             isInner    = false;
             int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
             send_interfaces[infoNeiTree.rank()].push_back(Interface(info, infoNei, icode, icode2));
@@ -1019,26 +973,24 @@ class SynchronizerMPI_AMR
          else if (infoNeiTree.CheckCoarser())
          {
             Coarsened = true;
-            const long long nCoarse = infoNei.Zparent;
-            const int infoNeiCoarserrank = grid->Tree(info.level-1,nCoarse).rank();
+            const int infoNeiCoarserrank = grid->Tree(info.level-1,infoNei.Zparent).rank();
             if (infoNeiCoarserrank != rank)
             {
-               BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, nCoarse);
-               if (isInner)
-                  interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
-               isInner         = false;
-               int code2[3]    = {-code[0], -code[1], -code[2]};
-               int icode2      = (code2[0] + 1) + (code2[1] + 1) * 3 + (code2[2] + 1) * 9;
-               BlockInfo &test = grid->getBlockInfoAll(
-                   infoNeiCoarser.level, infoNeiCoarser.Znei_(code2[0], code2[1], code2[2]));
-               if (info.index[0] / 2 == test.index[0] && info.index[1] / 2 == test.index[1] &&
+               BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, infoNei.Zparent);
+
+               if (isInner) interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
+               isInner = false;
+               int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
+
+
+               const BlockInfo &test = grid->getBlockInfoAll(infoNeiCoarser.level, infoNeiCoarser.Znei_(-code[0], -code[1], -code[2]));
+
+               if (info.index[0] / 2 == test.index[0] && 
+                   info.index[1] / 2 == test.index[1] &&
                    info.index[2] / 2 == test.index[2])
                {
-                  send_interfaces[infoNeiCoarserrank].push_back(
-                      Interface(info, infoNeiCoarser, icode, icode2));
-                  interface_ranks_and_positions.back().push_back(
-                      {infoNeiCoarserrank,
-                       (int)send_interfaces[infoNeiCoarserrank].size() - 1});
+                  send_interfaces[infoNeiCoarserrank].push_back(Interface(info, infoNeiCoarser, icode, icode2));
+                  interface_ranks_and_positions.back().push_back({infoNeiCoarserrank,(int)send_interfaces[infoNeiCoarserrank].size() - 1});
                }
                Neighbors.insert(infoNeiCoarserrank);
                l++;
@@ -1058,10 +1010,9 @@ class SynchronizerMPI_AMR
               #endif
               const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-              const long long nFine1 =
-                         infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
-                                       [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
-                                       [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
+              const long long nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
+                                                     [max(code[1], 0) + temp    * max(0, 1 - abs(code[1]))]
+                                                     [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
               const long long nFine = grid->getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
               const int infoNeiFinerrank = grid->Tree(info.level+1,nFine).rank();
               if (infoNeiFinerrank != rank)
@@ -1082,11 +1033,8 @@ class SynchronizerMPI_AMR
                    code3[1]   = (code[1] == 0) ? (B == 0 ? 1 : -1) : -code[1];
                    code3[2]   = (code[2] == 0) ? (B == 0 ? 1 : -1) : -code[2];
                    int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
-                   send_interfaces[infoNeiFinerrank].push_back(
-                       Interface(info, infoNeiFiner, icode, icode3));
-                   interface_ranks_and_positions.back().push_back(
-                       {infoNeiFinerrank,
-                        (int)send_interfaces[infoNeiFinerrank].size() - 1});
+                   send_interfaces[infoNeiFinerrank].push_back( Interface(info, infoNeiFiner, icode, icode3));
+                   interface_ranks_and_positions.back().push_back({infoNeiFinerrank, (int)send_interfaces[infoNeiFinerrank].size() - 1});
                 }
                 else
                 #endif 
@@ -1230,15 +1178,6 @@ class SynchronizerMPI_AMR
   }
 
  public:
-   std::set<int> Neighbors;
-   std::vector<std::vector<std::pair<int, int>>> interface_ranks_and_positions;
-   std::vector<size_t> lengths;
-   bool use_averages;
-   MPI_Datatype MPIREAL;
-   const unsigned int gptfloats;
-   const int NC;
-
-   TGrid * grid;
 
    SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, TGrid * _grid) : stencil(a_stencil), Cstencil(a_Cstencil),
         UnpacksManager(_grid->getWorldComm()), SM(a_stencil, a_Cstencil, TGrid::Block::sizeX, TGrid::Block::sizeY, TGrid::Block::sizeZ, _grid->getMaxBlocks()[0], _grid->getMaxBlocks()[1], _grid->getMaxBlocks()[2]),
@@ -1246,28 +1185,17 @@ class SynchronizerMPI_AMR
 
    {
       grid = _grid; 
-      #if DIMENSION == 3
       use_averages = (grid->FiniteDifferences == false || stencil.tensorial
                      || stencil.sx< -2 || stencil.sy < -2 || stencil.sz < -2
                      || stencil.ex>  3 || stencil.ey >  3 || stencil.ez >  3);
-      #else
-      use_averages = (grid->FiniteDifferences == false || stencil.tensorial
-                     || stencil.sx< -2 || stencil.sy < -2
-                     || stencil.ex>  3 || stencil.ey >  3);
-      #endif
+
       comm = grid->getWorldComm();
-
-      xperiodic = grid->xperiodic;
-      yperiodic = grid->yperiodic;
-      zperiodic = grid->zperiodic;
-
       MPI_Comm_rank(comm, &rank);
       MPI_Comm_size(comm, &size);
+
       nX = TGrid::Block::sizeX;
       nY = TGrid::Block::sizeY;
       nZ = TGrid::Block::sizeZ;
-
-      blocksPerDim = grid->getMaxBlocks();
 
       send_interfaces.resize(size);
       send_interfaces_infos.resize(size);
@@ -1304,8 +1232,6 @@ class SynchronizerMPI_AMR
 
    void _Setup()
    {
-      myInfos = &(grid->getBlocksInfo())[0];
-      myInfos_size = (grid->getBlocksInfo()).size();
       const int timestamp = grid->getTimeStamp();
 
       DefineInterfaces();
@@ -1443,7 +1369,7 @@ class SynchronizerMPI_AMR
 
    StencilInfo getCstencil() const { return Cstencil; }
 
-   void fetch(const BlockInfo &info, const size_t Length[3], const size_t CLength[3], Real *cacheBlock, Real *coarseBlock)
+   void fetch(const BlockInfo &info, const unsigned int Length[3], const unsigned int CLength[3], Real *cacheBlock, Real *coarseBlock)
    {
       const int id = info.halo_block_id;
       if (id < 0) return;

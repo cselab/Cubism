@@ -15,10 +15,9 @@ namespace cubism
 template <typename TGrid, typename TLab>
 class MeshAdaptation
 {
- public:
+ protected:
    typedef typename TGrid::BlockType BlockType;
    typedef typename TGrid::BlockType::ElementType ElementType;
- protected:
    TGrid *m_refGrid;
    int s[3];
    int e[3];

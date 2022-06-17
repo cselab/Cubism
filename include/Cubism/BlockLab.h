@@ -27,19 +27,15 @@ namespace cubism // AMR_CUBISM
    with grid spacing h and h/4 are allowed). Refinement ratio is (of course) 2.
 */
 
-template <typename TBlock, template <typename X> class allocator = std::allocator,
-          typename ElementTypeT = typename TBlock::ElementType>
+template <typename BlockType, template <typename X> class allocator = std::allocator,
+          typename ElementType = typename BlockType::ElementType>
 class BlockLab
 {
  public:
-   typedef ElementTypeT ElementType;
-   typedef typename ElementTypeT::RealType Real; // Element type MUST provide `RealType`.
+   typedef typename ElementType::RealType Real; // Element type MUST provide `RealType`.
 
  protected:
-   typedef TBlock BlockType;
-   typedef typename BlockType::ElementType ElementTypeBlock;
-
-   Matrix3D<ElementType, true, allocator> *m_cacheBlock; // This is filled by the Blocklab
+   Matrix3D<ElementType, allocator> *m_cacheBlock; // This is filled by the Blocklab
    int m_stencilStart[3], m_stencilEnd[3];
    bool istensorial;
    bool use_averages;
@@ -51,7 +47,7 @@ class BlockLab
    int coarsened_nei_codes_size;
 
    // Extra stuff for AMR:
-   Matrix3D<ElementType, true, allocator> *m_CoarsenedBlock; // coarsened version of given block
+   Matrix3D<ElementType, allocator> *m_CoarsenedBlock; // coarsened version of given block
    int m_InterpStencilStart[3], m_InterpStencilEnd[3];       // stencil used for refinement (assumed tensorial)
    bool coarsened;                                           // will be true if block has at least one coarser neighbor
    int CoarseBlockSize[3];                                   // size of coarsened block (nX/2,nY/2,nZ/2)
@@ -62,19 +58,6 @@ class BlockLab
    const double d_coef_minus[9]= { 0.15625,-0.5625, 0.90625, //starting point (+2,+1,0)
                                   -0.09375, 0.4375, 0.15625, //last point     (-2,-1,0)
                                    0.15625, 0.4375,-0.09375};//central point  (-1,0,+1)
-
-   virtual void _apply_bc(const BlockInfo &info, const Real t = 0, bool coarse = false) {}
-
-   template <typename T>
-   void _release(T *&t)
-   {
-      if (t != NULL)
-      {
-         allocator<T>().destroy(t);
-         allocator<T>().deallocate(t, 1);
-      }
-      t = NULL;
-   }
 
  public:
    BlockLab(): m_cacheBlock(nullptr), m_refGrid(nullptr),m_CoarsenedBlock(nullptr)
@@ -103,48 +86,42 @@ class BlockLab
       _release(m_CoarsenedBlock);
    }
 
-   bool UseCoarseStencil(const BlockInfo &a, const int *b_index)
+   /**
+    * Get a single element from the block.
+    * stencil_start and stencil_end refer to the values passed in BlockLab::prepare().
+    * ix: Index in x-direction (stencil_start[0] <= ix < BlockType::sizeX + stencil_end[0] - 1).
+    * iy: Index in y-direction (stencil_start[1] <= iy < BlockType::sizeY + stencil_end[1] - 1).
+    * iz: Index in z-direction (stencil_start[2] <= iz < BlockType::sizeZ + stencil_end[2] - 1).
+    */
+   ElementType &operator()(int ix, int iy = 0, int iz = 0)
    {
-      if (a.level == 0|| (!use_averages)) return false;
+      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
+      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < (int)m_cacheBlock->getSize()[1]);
+      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < (int)m_cacheBlock->getSize()[2]);
+      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
+   }
 
-      int imin[3];
-      int imax[3];
-      for (int d = 0; d < 3; d++)
-      {
-        imin[d] = (a.index[d] < b_index[d]) ? 0 : -1;
-        imax[d] = (a.index[d] > b_index[d]) ? 0 : +1;
-      }
+   const ElementType &operator()(int ix, int iy = 0, int iz = 0) const
+   {
+      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
+      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < (int)m_cacheBlock->getSize()[1]);
+      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < (int)m_cacheBlock->getSize()[2]);
+      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
+   }
 
-      const int aux = 1 << a.level;
-      std::array<int, 3> blocksPerDim = m_refGrid->getMaxBlocks();
-      if (is_xperiodic())
-      {
-        if (a.index[0] == 0 && b_index[0] == blocksPerDim[0] * aux - 1) imin[0] = -1;
-        if (b_index[0] == 0 && a.index[0] == blocksPerDim[0] * aux - 1) imax[0] = +1;
-      }
-      if (is_yperiodic())
-      {
-        if (a.index[1] == 0 && b_index[1] == blocksPerDim[1] * aux - 1) imin[1] = -1;
-        if (b_index[1] == 0 && a.index[1] == blocksPerDim[1] * aux - 1) imax[1] = +1;
-      }
-      if (is_zperiodic())
-      {
-        if (a.index[2] == 0 && b_index[2] == blocksPerDim[2] * aux - 1) imin[2] = -1;
-        if (b_index[2] == 0 && a.index[2] == blocksPerDim[2] * aux - 1) imax[2] = +1;
-      }
+   /** Just as BlockLab::operator() but returning a const. */
+   const ElementType &read(int ix, int iy = 0, int iz = 0) const
+   {
+      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
+      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < (int)m_cacheBlock->getSize()[1]);
+      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < (int)m_cacheBlock->getSize()[2]);
+      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
+   }
 
-      for (int i2 = imin[2]; i2 <= imax[2]; i2++)
-      for (int i1 = imin[1]; i1 <= imax[1]; i1++)
-      for (int i0 = imin[0]; i0 <= imax[0]; i0++)
-      {
-         const long long n = a.Znei_(i0, i1, i2);
-         if ((m_refGrid->Tree(a.level, n)).CheckCoarser())
-         {
-            return true;
-            break;
-         }
-      }
-      return false;
+   void release()
+   {
+      _release(m_cacheBlock);
+      _release(m_CoarsenedBlock);
    }
 
    void prepare(Grid<BlockType, allocator> &grid, int startX, int endX, int startY, int endY,
@@ -202,9 +179,9 @@ class BlockLab
       {
          if (m_cacheBlock != NULL) _release(m_cacheBlock);
 
-         m_cacheBlock = allocator<Matrix3D<ElementType, true, allocator>>().allocate(1);
+         m_cacheBlock = allocator<Matrix3D<ElementType, allocator>>().allocate(1);
 
-         allocator<Matrix3D<ElementType, true, allocator>>().construct(m_cacheBlock);
+         allocator<Matrix3D<ElementType, allocator>>().construct(m_cacheBlock);
 
          m_cacheBlock->_Setup(BlockType::sizeX + m_stencilEnd[0] - m_stencilStart[0] - 1,
                               BlockType::sizeY + m_stencilEnd[1] - m_stencilStart[1] - 1,
@@ -239,9 +216,9 @@ class BlockLab
       {
          if (m_CoarsenedBlock != NULL) _release(m_CoarsenedBlock);
 
-         m_CoarsenedBlock = allocator<Matrix3D<ElementType, true, allocator>>().allocate(1);
+         m_CoarsenedBlock = allocator<Matrix3D<ElementType, allocator>>().allocate(1);
 
-         allocator<Matrix3D<ElementType, true, allocator>>().construct(m_CoarsenedBlock);
+         allocator<Matrix3D<ElementType, allocator>>().construct(m_CoarsenedBlock);
 
          m_CoarsenedBlock->_Setup(CoarseBlockSize[0] + e[0] - s[0] - 1,
                                   CoarseBlockSize[1] + e[1] - s[1] - 1,
@@ -461,6 +438,50 @@ class BlockLab
       CoarseFineInterpolation(info);
       if (applybc) _apply_bc(info, t); 
    }
+ protected:
+   bool UseCoarseStencil(const BlockInfo &a, const int *b_index)
+   {
+      if (a.level == 0|| (!use_averages)) return false;
+
+      int imin[3];
+      int imax[3];
+      for (int d = 0; d < 3; d++)
+      {
+        imin[d] = (a.index[d] < b_index[d]) ? 0 : -1;
+        imax[d] = (a.index[d] > b_index[d]) ? 0 : +1;
+      }
+
+      const int aux = 1 << a.level;
+      std::array<int, 3> blocksPerDim = m_refGrid->getMaxBlocks();
+      if (is_xperiodic())
+      {
+        if (a.index[0] == 0 && b_index[0] == blocksPerDim[0] * aux - 1) imin[0] = -1;
+        if (b_index[0] == 0 && a.index[0] == blocksPerDim[0] * aux - 1) imax[0] = +1;
+      }
+      if (is_yperiodic())
+      {
+        if (a.index[1] == 0 && b_index[1] == blocksPerDim[1] * aux - 1) imin[1] = -1;
+        if (b_index[1] == 0 && a.index[1] == blocksPerDim[1] * aux - 1) imax[1] = +1;
+      }
+      if (is_zperiodic())
+      {
+        if (a.index[2] == 0 && b_index[2] == blocksPerDim[2] * aux - 1) imin[2] = -1;
+        if (b_index[2] == 0 && a.index[2] == blocksPerDim[2] * aux - 1) imax[2] = +1;
+      }
+
+      for (int i2 = imin[2]; i2 <= imax[2]; i2++)
+      for (int i1 = imin[1]; i1 <= imax[1]; i1++)
+      for (int i0 = imin[0]; i0 <= imax[0]; i0++)
+      {
+         const long long n = a.Znei_(i0, i1, i2);
+         if ((m_refGrid->Tree(a.level, n)).CheckCoarser())
+         {
+            return true;
+            break;
+         }
+      }
+      return false;
+   }
 
    void SameLevelExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
@@ -510,7 +531,7 @@ class BlockLab
       }
    }
 
- #if DIMENSION == 3
+   #if DIMENSION == 3
    ElementType AverageDown(const ElementType &e0, const ElementType &e1, 
                            const ElementType &e2, const ElementType &e3,
                            const ElementType &e4, const ElementType &e5,
@@ -536,7 +557,7 @@ class BlockLab
       R[6] = lap - dudx + dudy + dudz - dudxdy - dudxdz + dudydz;
       R[7] = lap + dudx + dudy + dudz + dudxdy + dudxdz + dudydz;
    }
- #else
+   #else
    ElementType AverageDown(const ElementType &e0, const ElementType &e1,
                            const ElementType &e2, const ElementType &e3)
    {
@@ -565,7 +586,7 @@ class BlockLab
       ElementType dudy2  = ((*C[1][0]) + (*C[1][2])) -2.0*(*C[1][1]);
       R = (*C[1][1] + (dx*dudx + dy*dudy)) + ( ((0.5*dx*dx)*dudx2+(0.5*dy*dy)*dudy2) +(dx*dy)*dudxdy );
    }
- #endif
+   #endif
 
    void FineToCoarseExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
@@ -1628,42 +1649,17 @@ class BlockLab
       }
    }
 
-   /**
-    * Get a single element from the block.
-    * stencil_start and stencil_end refer to the values passed in BlockLab::prepare().
-    * ix: Index in x-direction (stencil_start[0] <= ix < BlockType::sizeX + stencil_end[0] - 1).
-    * iy: Index in y-direction (stencil_start[1] <= iy < BlockType::sizeY + stencil_end[1] - 1).
-    * iz: Index in z-direction (stencil_start[2] <= iz < BlockType::sizeZ + stencil_end[2] - 1).
-    */
-   ElementType &operator()(int ix, int iy = 0, int iz = 0)
-   {
-      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
-      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < (int)m_cacheBlock->getSize()[1]);
-      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < (int)m_cacheBlock->getSize()[2]);
-      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
-   }
+   virtual void _apply_bc(const BlockInfo &info, const Real t = 0, bool coarse = false) {}
 
-   const ElementType &operator()(int ix, int iy = 0, int iz = 0) const
+   template <typename T>
+   void _release(T *&t)
    {
-      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
-      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < (int)m_cacheBlock->getSize()[1]);
-      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < (int)m_cacheBlock->getSize()[2]);
-      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
-   }
-
-   /** Just as BlockLab::operator() but returning a const. */
-   const ElementType &read(int ix, int iy = 0, int iz = 0) const
-   {
-      assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
-      assert(iy - m_stencilStart[1] >= 0 && iy - m_stencilStart[1] < (int)m_cacheBlock->getSize()[1]);
-      assert(iz - m_stencilStart[2] >= 0 && iz - m_stencilStart[2] < (int)m_cacheBlock->getSize()[2]);
-      return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
-   }
-
-   void release()
-   {
-      _release(m_cacheBlock);
-      _release(m_CoarsenedBlock);
+      if (t != NULL)
+      {
+         allocator<T>().destroy(t);
+         allocator<T>().deallocate(t, 1);
+      }
+      t = NULL;
    }
 
  private:

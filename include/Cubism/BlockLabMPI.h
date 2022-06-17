@@ -12,7 +12,6 @@ class BlockLabMPI : public MyBlockLab
    typedef typename MyBlockLab::Real Real;
 
  private:
-   typedef typename MyBlockLab::BlockType BlockType;
    typedef SynchronizerMPI_AMR<Real,TGrid> SynchronizerMPIType;
    SynchronizerMPIType *refSynchronizerMPI;
 
@@ -42,17 +41,10 @@ class BlockLabMPI : public MyBlockLab
    {
       MyBlockLab::load(info, t, applybc);
 
-      const size_t Length[3]  = {MyBlockLab::m_cacheBlock->getSize(0),
-                                 MyBlockLab::m_cacheBlock->getSize(1),
-                                 MyBlockLab::m_cacheBlock->getSize(2)};
-      const size_t CLength[3] = {MyBlockLab::m_CoarsenedBlock->getSize(0),
-                                 MyBlockLab::m_CoarsenedBlock->getSize(1),
-                                 MyBlockLab::m_CoarsenedBlock->getSize(2)};
-
       Real *dst  = &MyBlockLab ::m_cacheBlock    ->LinAccess(0).member(0);
       Real *dst1 = &MyBlockLab ::m_CoarsenedBlock->LinAccess(0).member(0);
 
-      refSynchronizerMPI->fetch(info, Length, CLength, dst, dst1);
+      refSynchronizerMPI->fetch(info, MyBlockLab::m_cacheBlock->getSize(), MyBlockLab::m_CoarsenedBlock->getSize(), dst, dst1);
 
       if (MyBlockLab::m_refGrid->get_world_size() > 1)
         MyBlockLab::post_load(info, t, applybc);

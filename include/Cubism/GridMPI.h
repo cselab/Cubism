@@ -12,9 +12,9 @@
 #include <set>
 #include <vector>
 
-#include "AMR_SynchronizerMPI.h"
-#include "BlockInfo.h"
 #include "StencilInfo.h"
+#include "BlockInfo.h"
+#include "AMR_SynchronizerMPI.h"
 #include "FluxCorrectionMPI.h"
 
 #include <unistd.h>
@@ -131,7 +131,7 @@ class GridMPI : public TGrid
       MPI_Barrier(worldcomm);
    }
 
-   virtual Block *avail(int m, long long n) override
+   virtual Block *avail(const int m, const long long n) override
    {
       return (TGrid::Tree(m, n).rank() == myrank) ? (Block *)TGrid::getBlockInfoAll(m, n).ptrBlock : nullptr;
    }

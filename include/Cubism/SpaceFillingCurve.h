@@ -1,12 +1,8 @@
 #pragma once
 
 #include <cassert>
-#include <cstdlib>
 #include <iostream>
 #include <math.h>
-#include <stdint.h>
-
-using namespace std;
 
 namespace cubism // AMR_CUBISM
 {
@@ -15,6 +11,7 @@ class SpaceFillingCurve
 {
   protected:
    int BX, BY, BZ;
+   int levelMax;
    bool isRegular;
    int base_level;
    std::vector < std::vector <long long> > Zsave;
@@ -129,14 +126,13 @@ class SpaceFillingCurve
    }
 
   public:
-   int levelMax;
 
    SpaceFillingCurve(){};
 
 
    SpaceFillingCurve(int a_BX, int a_BY, int a_BZ, int lmax) : BX(a_BX), BY(a_BY), BZ(a_BZ), levelMax(lmax)
    {
-      int n_max  = max(max(BX, BY), BZ);
+      int n_max  = std::max(std::max(BX, BY), BZ);
       base_level = (log(n_max) / log(2));
       if (base_level < (double)(log(n_max) / log(2))) base_level++;
 
@@ -281,9 +277,6 @@ class SpaceFillingCurve
       K = k_inverse[0][index];
       return;
    }
-
-   // return 1D index of CHILD of block (i,j,k) at level l (child is at level l+1)
-   long long child(int l, int i, int j, int k) { return forward(l + 1, 2 * i, 2 * j, 2 * k); }
 
    long long Encode(int level, long long Z, int index[3])
    {

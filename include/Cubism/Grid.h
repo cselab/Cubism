@@ -230,6 +230,12 @@ class Grid
        */
       std::sort(m_vInfo.begin(), m_vInfo.end()); //sort according to blockID_2
 
+      //The following will reserve memory for the unordered map.
+      //This will result in a thread-safe Tree(m,n) function
+      //as Octree will not change size when it is accessed by
+      //multiple threads. The number m_vInfo.size()/8 is arbitrary.
+      Octree.reserve(Octree.size() + m_vInfo.size()/8);
+
       if (CopyInfos)
          for (size_t j = 0; j < m_vInfo.size(); j++)
          {

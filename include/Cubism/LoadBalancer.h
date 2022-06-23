@@ -238,7 +238,7 @@ class LoadBalancer
             const long long Z = recv_blocks[r][i].mn[1];
 
             m_refGrid->_alloc(level, Z);
-            BlockInfo info = m_refGrid->getBlockInfoAll(level, Z);
+            BlockInfo & info = m_refGrid->getBlockInfoAll(level, Z);
             BlockType *b1  = (BlockType *)info.ptrBlock;
             assert(b1 != NULL);
             Real *a1 = &b1->data[0][0][0].member(0);

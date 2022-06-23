@@ -144,8 +144,10 @@ class Grid
    void _alloc(const int m, const long long n) // called whenever the grid is refined
    {
       allocator<Block> alloc;
-      getBlockInfoAll(m, n).ptrBlock = alloc.allocate(1);
-      m_vInfo.push_back(getBlockInfoAll(m, n));
+
+      BlockInfo & new_info = getBlockInfoAll(m, n);
+      new_info.ptrBlock = alloc.allocate(1);
+      m_vInfo.push_back(new_info);
       Tree(m, n).setrank(rank());
    }
 
@@ -624,9 +626,10 @@ class Grid
          newGroup.i_max[1] = iy_max;
          newGroup.i_max[2] = iz_max;
 
-         newGroup.origin[0] = getBlockInfoAll(I.level, n_base).origin[0];
-         newGroup.origin[1] = getBlockInfoAll(I.level, n_base).origin[1];
-         newGroup.origin[2] = getBlockInfoAll(I.level, n_base).origin[2];
+         const BlockInfo & info = getBlockInfoAll(I.level, n_base);
+         newGroup.origin[0] = info.origin[0];
+         newGroup.origin[1] = info.origin[1];
+         newGroup.origin[2] = info.origin[2];
 
          newGroup.NXX = (newGroup.i_max[0] - newGroup.i_min[0] + 1) * nX + 1;
          newGroup.NYY = (newGroup.i_max[1] - newGroup.i_min[1] + 1) * nY + 1;
@@ -720,9 +723,10 @@ class Grid
          newGroup.i_max[1] = iy_max;
          newGroup.i_max[2] = iz_max;
 
-         newGroup.origin[0] = getBlockInfoAll(I.level, n_base).origin[0];
-         newGroup.origin[1] = getBlockInfoAll(I.level, n_base).origin[1];
-         newGroup.origin[2] = getBlockInfoAll(I.level, n_base).origin[2];
+         const BlockInfo & info = getBlockInfoAll(I.level, n_base);
+         newGroup.origin[0] = info.origin[0];
+         newGroup.origin[1] = info.origin[1];
+         newGroup.origin[2] = info.origin[2];
 
          newGroup.NXX = (newGroup.i_max[0] - newGroup.i_min[0] + 1) * nX + 1;
          newGroup.NYY = (newGroup.i_max[1] - newGroup.i_min[1] + 1) * nY + 1;

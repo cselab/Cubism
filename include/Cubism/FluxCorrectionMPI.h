@@ -90,10 +90,7 @@ class FluxCorrectionMPI : public TFluxCorrection
       TFluxCorrection::m_refGrid = &grid;
       std::vector<BlockInfo> &BB = (*TFluxCorrection::m_refGrid).getBlocksInfo();
 
-      TFluxCorrection::xperiodic = grid.xperiodic;
-      TFluxCorrection::yperiodic = grid.yperiodic;
-      TFluxCorrection::zperiodic = grid.zperiodic;
-      TFluxCorrection::blocksPerDim = grid.getMaxBlocks();
+      std::array<int, 3> blocksPerDim = grid.getMaxBlocks();
 
       std::array<int, 6> icode = {1 * 2 + 3 * 1 + 9 * 1, 1 * 0 + 3 * 1 + 9 * 1,
                                   1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1,
@@ -106,9 +103,9 @@ class FluxCorrectionMPI : public TFluxCorrection
 
          const int aux = 1 << info.level;
 
-         const bool xskin = info.index[0] == 0 || info.index[0] == TFluxCorrection::blocksPerDim[0] * aux - 1;
-         const bool yskin = info.index[1] == 0 || info.index[1] == TFluxCorrection::blocksPerDim[1] * aux - 1;
-         const bool zskin = info.index[2] == 0 || info.index[2] == TFluxCorrection::blocksPerDim[2] * aux - 1;
+         const bool xskin = info.index[0] == 0 || info.index[0] == blocksPerDim[0] * aux - 1;
+         const bool yskin = info.index[1] == 0 || info.index[1] == blocksPerDim[1] * aux - 1;
+         const bool zskin = info.index[2] == 0 || info.index[2] == blocksPerDim[2] * aux - 1;
 
          const int xskip = info.index[0] == 0 ? -1 : 1;
          const int yskip = info.index[1] == 0 ? -1 : 1;
@@ -121,18 +118,14 @@ class FluxCorrectionMPI : public TFluxCorrection
          {
             const int code[3] = {icode[f] % 3 - 1, (icode[f] / 3) % 3 - 1, (icode[f] / 9) % 3 - 1};
 
-            if (!TFluxCorrection::xperiodic && code[0] == xskip && xskin) continue;
-            if (!TFluxCorrection::yperiodic && code[1] == yskip && yskin) continue;
-            if (!TFluxCorrection::zperiodic && code[2] == zskip && zskin) continue;
+            if (!grid.xperiodic && code[0] == xskip && xskin) continue;
+            if (!grid.yperiodic && code[1] == yskip && yskin) continue;
+            if (!grid.zperiodic && code[2] == zskip && zskin) continue;
             #if DIMENSION == 2
             if (code[2] != 0) continue;
             #endif
 
-            BlockInfo infoNei =
-                (*TFluxCorrection::m_refGrid)
-                    .getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-
-            if (! (*TFluxCorrection::m_refGrid).Tree(infoNei).Exists())
+            if (! (*TFluxCorrection::m_refGrid).Tree(info.level, info.Znei_(code[0], code[1], code[2])).Exists())
             {
                storeFace[abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) +
                          abs(code[2]) * (max(0, code[2]) + 4)] = true;
@@ -149,11 +142,12 @@ class FluxCorrectionMPI : public TFluxCorrection
             #endif
             int V = L[0] * L[1] * L[2];
 
-            if ( (*TFluxCorrection::m_refGrid).Tree(infoNei).CheckCoarser())
+            if ( (*TFluxCorrection::m_refGrid).Tree(info.level, info.Znei_(code[0], code[1], code[2])).CheckCoarser())
             {
+               BlockInfo & infoNei = (*TFluxCorrection::m_refGrid).getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
                const long long nCoarse = infoNei.Zparent;
-               BlockInfo &infoNeiCoarser = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level - 1, nCoarse);
-               const int infoNeiCoarserrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level - 1, nCoarse).rank();
+               BlockInfo &infoNeiCoarser = (*TFluxCorrection::m_refGrid).getBlockInfoAll(info.level - 1, nCoarse);
+               const int infoNeiCoarserrank = (*TFluxCorrection::m_refGrid).Tree(info.level - 1, nCoarse).rank();
                {
                   int code2[3] = {-code[0], -code[1], -code[2]};
                   int icode2   = (code2[0] + 1) + (code2[1] + 1) * 3 + (code2[2] + 1) * 9;
@@ -161,8 +155,9 @@ class FluxCorrectionMPI : public TFluxCorrection
                   send_buffer_size[infoNeiCoarserrank] += V;
                }
             }
-            else if ( (*TFluxCorrection::m_refGrid).Tree(infoNei).CheckFiner())
+            else if ( (*TFluxCorrection::m_refGrid).Tree(info.level, info.Znei_(code[0], code[1], code[2])).CheckFiner())
             {
+               BlockInfo & infoNei = (*TFluxCorrection::m_refGrid).getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
                int Bstep = 1;                      // face
                #if DIMENSION == 3
                for (int B = 0; B <= 3; B += Bstep) // loop over blocks that make up face
@@ -171,14 +166,12 @@ class FluxCorrectionMPI : public TFluxCorrection
                #endif 
                {
                   const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                  const long long nFine1 = infoNei.Zchild[max(code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
-                                             [max(code[1], 0) + temp * max(0, 1 - abs(code[1]))]
-                                             [max(code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
-
-                  const long long nFine = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine1).Znei_(-code[0], -code[1], -code[2]);
-                  BlockInfo &infoNeiFiner = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine);
+                  const long long nFine  = infoNei.Zchild[max(-code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
+                                                         [max(-code[1], 0) + temp    * max(0, 1 - abs(code[1]))]
+                                                         [max(-code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
                   const int infoNeiFinerrank = (*TFluxCorrection::m_refGrid).Tree(infoNei.level + 1, nFine).rank();
                   {
+                     BlockInfo &infoNeiFiner = (*TFluxCorrection::m_refGrid).getBlockInfoAll(infoNei.level + 1, nFine);
                      int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
                      recv_faces[infoNeiFinerrank].push_back(face(infoNeiFiner, info, icode2, icode[f]));
                      recv_buffer_size[infoNeiFinerrank] += V;
@@ -189,8 +182,7 @@ class FluxCorrectionMPI : public TFluxCorrection
 
          if (stored)
          {
-            TFluxCorrection::Cases.push_back(Case(storeFace, BlockType::sizeX, BlockType::sizeY, BlockType::sizeZ));
-            TFluxCorrection::Cases.back().SetupMetaData(info.level, info.Z);
+            TFluxCorrection::Cases.push_back(Case(storeFace, BlockType::sizeX, BlockType::sizeY, BlockType::sizeZ, info.level, info.Z));
          }
       }
 

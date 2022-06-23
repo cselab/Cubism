@@ -46,7 +46,6 @@ struct MyRange
     int Vr = (r.ez - r.sz) * (r.ey - r.sy) * (r.ex - r.sx);
     return (sx <= r.sx && r.ex <= ex) && (sy <= r.sy && r.ey <= ey) && (sz <= r.sz && r.ez <= ez) && (Vr < V);
   }
-  bool operator<(const MyRange &other) const { return index < other.index; }
   void Remove(const MyRange &other)
   {
     size_t s = removedIndices.size();

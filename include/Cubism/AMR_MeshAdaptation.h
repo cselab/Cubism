@@ -500,9 +500,7 @@ class MeshAdaptation
                   if (code[2] != 0) continue;
                   #endif
 
-
-                  BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-                  if (m_refGrid->Tree(infoNei).CheckFiner())
+                  if (m_refGrid->Tree(info.level, info.Znei_(code[0], code[1], code[2])).CheckFiner())
                   {
                      if (info.state == Compress)
                      {

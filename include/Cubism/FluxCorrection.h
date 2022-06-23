@@ -7,19 +7,16 @@ using namespace std;
 namespace cubism
 {
 
-template <typename TBlock, typename ElementTypeT = typename TBlock::ElementType>
+template <typename BlockType, typename ElementType = typename BlockType::ElementType>
 struct BlockCase
 {
-   typedef ElementTypeT ElementType;
-   typedef TBlock BlockType;
-
    std::vector<std::vector<ElementType>> m_pData;
    unsigned int m_vSize[3];
    bool storedFace[6];
    int level;
    long long Z;
 
-   BlockCase(bool a_storedFace[6], unsigned int nSizeX, unsigned int nSizeY, unsigned int nSizeZ)
+   BlockCase(bool a_storedFace[6], unsigned int nSizeX, unsigned int nSizeY, unsigned int nSizeZ, int m, long long n)
    {
       m_vSize[0] = nSizeX;
       m_vSize[1] = nSizeY;
@@ -43,10 +40,6 @@ struct BlockCase
          if (storedFace[2 * d]) m_pData[2 * d].resize(m_vSize[d1] * m_vSize[d2]);
          if (storedFace[2 * d + 1]) m_pData[2 * d + 1].resize(m_vSize[d1] * m_vSize[d2]);
       }
-   }
-
-   void SetupMetaData(int m, long long n)
-   {
       level = m;
       Z     = n;
    }
@@ -68,10 +61,6 @@ class FluxCorrection
    std::map<std::array<long long, 2>, Case *> MapOfCases;
    TGrid *m_refGrid;
    std::vector<Case> Cases;
-   bool xperiodic;
-   bool yperiodic;
-   bool zperiodic;
-   std::array<int, 3> blocksPerDim;
 
  public:
    virtual void prepare(TGrid &grid)
@@ -84,10 +73,7 @@ class FluxCorrection
       m_refGrid = &grid;
       std::vector<BlockInfo> & B = (*m_refGrid).getBlocksInfo();
 
-      xperiodic = grid.xperiodic;
-      yperiodic = grid.yperiodic;
-      zperiodic = grid.zperiodic;
-      blocksPerDim = (*m_refGrid).getMaxBlocks();
+      std::array<int, 3> blocksPerDim = (*m_refGrid).getMaxBlocks();
       std::array<int,6> icode = {1*2 + 3*1 + 9*1, 1*0 + 3*1 + 9*1, 1*1 + 3*2 + 9*1, 1*1 + 3*0 + 9*1, 1*1 + 3*1 + 9*2, 1*1 + 3*1 + 9*0};
 
       for (auto & info: B)
@@ -108,15 +94,14 @@ class FluxCorrection
         for (int f=0; f<6; f++)
         {
           const int code[3] = { icode[f]%3-1, (icode[f]/3)%3-1, (icode[f]/9)%3-1};
-          if (!xperiodic && code[0] == xskip && xskin) continue;
-          if (!yperiodic && code[1] == yskip && yskin) continue;
-          if (!zperiodic && code[2] == zskip && zskin) continue;
+          if (!grid.xperiodic && code[0] == xskip && xskin) continue;
+          if (!grid.yperiodic && code[1] == yskip && yskin) continue;
+          if (!grid.zperiodic && code[2] == zskip && zskin) continue;
           #if DIMENSION == 2
           if (code[2] != 0) continue;
           #endif
 
-          BlockInfo infoNei =m_refGrid->getBlockInfoAll(info.level,info.Znei_(code[0],code[1],code[2]));
-          if (!m_refGrid->Tree(infoNei).Exists())
+          if (!m_refGrid->Tree(info.level,info.Znei_(code[0],code[1],code[2])).Exists())
           {
             storeFace[ abs(code[0]) *  max(0,code[0]) + abs(code[1]) * (max(0,code[1])+2) + abs(code[2]) * (max(0,code[2])+4)  ] = true;
             stored = true;
@@ -124,8 +109,7 @@ class FluxCorrection
         }
         if (stored)
         {
-          Cases.push_back(Case(storeFace,BlockType::sizeX,BlockType::sizeY,BlockType::sizeZ));
-          Cases.back().SetupMetaData(info.level,info.Z);
+          Cases.push_back(Case(storeFace,BlockType::sizeX,BlockType::sizeY,BlockType::sizeZ,info.level,info.Z));
         }
       }
       for (size_t i = 0; i < Cases.size() ; i ++ )
@@ -156,6 +140,8 @@ class FluxCorrection
       // This assumes that the BlockCases have been filled by the user somehow...
       std::vector<BlockInfo> &B = (*m_refGrid).getBlocksInfo();
 
+      std::array<int, 3> blocksPerDim = (*m_refGrid).getMaxBlocks();
+
       std::array<int, 6> icode = {1 * 2 + 3 * 1 + 9 * 1, 1 * 0 + 3 * 1 + 9 * 1, 1 * 1 + 3 * 2 + 9 * 1, 1 * 1 + 3 * 0 + 9 * 1, 1 * 1 + 3 * 1 + 9 * 2, 1 * 1 + 3 * 1 + 9 * 0};
 
       #pragma omp parallel for
@@ -174,16 +160,14 @@ class FluxCorrection
         {
           const int code[3] = {icode[f] % 3 - 1, (icode[f] / 3) % 3 - 1, (icode[f] / 9) % 3 - 1};
 
-          if (!xperiodic && code[0] == xskip && xskin) continue;
-          if (!yperiodic && code[1] == yskip && yskin) continue;
-          if (!zperiodic && code[2] == zskip && zskin) continue;
+          if (!m_refGrid->xperiodic && code[0] == xskip && xskin) continue;
+          if (!m_refGrid->yperiodic && code[1] == yskip && yskin) continue;
+          if (!m_refGrid->zperiodic && code[2] == zskip && zskin) continue;
           #if DIMENSION == 2
           if (code[2] != 0) continue;
           #endif
 
-          BlockInfo & infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-
-          if (m_refGrid->Tree(infoNei).CheckFiner())
+          if (m_refGrid->Tree(info.level, info.Znei_(code[0], code[1], code[2])).CheckFiner())
           {
             FillCase(info, code);
 

@@ -326,13 +326,6 @@ class BlockLab
             if (TreeNei.Exists())
             {
                icodes[k++] = icode;
-               if (!coarsened)
-               {
-                  const int infoNei_index[3] ={(info.index[0]+code[0]+NX)%NX,
-                                               (info.index[1]+code[1]+NY)%NY,
-                                               (info.index[2]+code[2]+NZ)%NZ};
-                  coarsened = UseCoarseStencil(info, infoNei_index);
-               }
             }
             else if (TreeNei.CheckCoarser())
             {
@@ -354,12 +347,19 @@ class BlockLab
             if      (TreeNei.Exists()    ) SameLevelExchange   (info, code, s, e);
             else if (TreeNei.CheckFiner()) FineToCoarseExchange(info, code, s, e);
          } // icode = 0,...,26 (3D) or 9,...,17 (2D)
-         if (coarsened)
+	 if (coarsened_nei_codes_size>0)
             for (int i = 0; i < k; ++i)
             {
                const int icode = icodes[i];
                const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, icode / 9 - 1};
-               FillCoarseVersion(info, code);
+               const int infoNei_index[3] ={(info.index[0]+code[0]+NX)%NX,
+                                            (info.index[1]+code[1]+NY)%NY,
+                                            (info.index[2]+code[2]+NZ)%NZ};
+	       if (UseCoarseStencil(info, infoNei_index))
+	       {
+		       FillCoarseVersion(info, code);
+		       coarsened = true;
+	       }
             }
 
          if (m_refGrid->get_world_size() == 1)
@@ -469,16 +469,13 @@ class BlockLab
         if (b_index[2] == 0 && a.index[2] == blocksPerDim[2] * aux - 1) imax[2] = +1;
       }
 
+      for (int itest = 0; itest < coarsened_nei_codes_size; itest ++)
       for (int i2 = imin[2]; i2 <= imax[2]; i2++)
       for (int i1 = imin[1]; i1 <= imax[1]; i1++)
       for (int i0 = imin[0]; i0 <= imax[0]; i0++)
       {
-         const long long n = a.Znei_(i0, i1, i2);
-         if ((m_refGrid->Tree(a.level, n)).CheckCoarser())
-         {
-            return true;
-            break;
-         }
+	 const int icode_test = (i0+1)+3*(i1+1)+9*(i2+1);
+         if (coarsened_nei_codes[itest] == icode_test) return true; 
       }
       return false;
    }

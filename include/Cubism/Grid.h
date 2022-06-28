@@ -323,6 +323,33 @@ class Grid
       //This is used when reading data from file (possibly to restart) or when initializing the
       //simulation.
       _deallocAll();
+
+      #ifndef CUBISM_USE_MAP
+
+      BlockInfo dummy;
+      #if DIMENSION == 3
+      const int nx = dummy.blocks_per_dim(0, NX, NY, NZ);
+      const int ny = dummy.blocks_per_dim(1, NX, NY, NZ);
+      const int nz = dummy.blocks_per_dim(2, NX, NY, NZ);
+      #else
+      const int nx = dummy.blocks_per_dim(0, NX, NY);
+      const int ny = dummy.blocks_per_dim(1, NX, NY);
+      const int nz = 1;
+      #endif
+
+      BlockInfoAll.resize(levelMax);
+      Octree.resize(levelMax);
+      for (int m = 0; m < levelMax; m++)
+      {
+         const int TwoPower   = 1 << m;
+         const long long Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
+         if (m == 0) level_base.push_back(Ntot);
+         if (m > 0) level_base.push_back(level_base[m - 1] + Ntot);
+         BlockInfoAll[m].resize(Ntot, nullptr);
+         Octree[m].resize(Ntot);
+      }
+      #endif
+
       for (size_t i = 0 ; i < blocksZ.size() ; i++)
       {
          const int level   = blockslevel[i];

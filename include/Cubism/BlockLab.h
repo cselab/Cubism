@@ -46,6 +46,8 @@ class BlockLab
    std::array<int, 27> coarsened_nei_codes;
    int coarsened_nei_codes_size;
 
+   int offset[3]; // equivalent to m_stencilStart but used when a coarse block sends cells to a finer block
+
    // Extra stuff for AMR:
    Matrix3D<ElementType, allocator> *m_CoarsenedBlock; // coarsened version of given block
    int m_InterpStencilStart[3], m_InterpStencilEnd[3];       // stencil used for refinement (assumed tensorial)
@@ -201,18 +203,18 @@ class BlockLab
       assert(m_InterpStencilStart[1] <= m_InterpStencilEnd[1]);
       assert(m_InterpStencilStart[2] <= m_InterpStencilEnd[2]);
 
+      offset[0] = (m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0];
+      offset[1] = (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1];
+      offset[2] = (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2];
+
       const int e[3] = {(m_stencilEnd[0]) / 2 + 1 + m_InterpStencilEnd[0] - 1,
                         (m_stencilEnd[1]) / 2 + 1 + m_InterpStencilEnd[1] - 1,
                         (m_stencilEnd[2]) / 2 + 1 + m_InterpStencilEnd[2] - 1};
 
-      const int s[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
-                        (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
-                        (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
-
       if (m_CoarsenedBlock == NULL ||
-          (int)m_CoarsenedBlock->getSize()[0] != CoarseBlockSize[0] + e[0] - s[0] - 1 ||
-          (int)m_CoarsenedBlock->getSize()[1] != CoarseBlockSize[1] + e[1] - s[1] - 1 ||
-          (int)m_CoarsenedBlock->getSize()[2] != CoarseBlockSize[2] + e[2] - s[2] - 1)
+          (int)m_CoarsenedBlock->getSize()[0] != CoarseBlockSize[0] + e[0] - offset[0] - 1 ||
+          (int)m_CoarsenedBlock->getSize()[1] != CoarseBlockSize[1] + e[1] - offset[1] - 1 ||
+          (int)m_CoarsenedBlock->getSize()[2] != CoarseBlockSize[2] + e[2] - offset[2] - 1)
       {
          if (m_CoarsenedBlock != NULL) _release(m_CoarsenedBlock);
 
@@ -220,9 +222,9 @@ class BlockLab
 
          allocator<Matrix3D<ElementType, allocator>>().construct(m_CoarsenedBlock);
 
-         m_CoarsenedBlock->_Setup(CoarseBlockSize[0] + e[0] - s[0] - 1,
-                                  CoarseBlockSize[1] + e[1] - s[1] - 1,
-                                  CoarseBlockSize[2] + e[2] - s[2] - 1);
+         m_CoarsenedBlock->_Setup(CoarseBlockSize[0] + e[0] - offset[0] - 1,
+                                  CoarseBlockSize[1] + e[1] - offset[1] - 1,
+                                  CoarseBlockSize[2] + e[2] - offset[2] - 1);
       }
 
       #if DIMENSION == 3
@@ -234,6 +236,7 @@ class BlockLab
                         || m_stencilStart[0]< -2 || m_stencilStart[1] < -2 
                         || m_stencilEnd  [0]>  3 || m_stencilEnd  [1] >  3);
       #endif
+
    }
 
    void load(const BlockInfo & info, const Real t = 0, const bool applybc = true)
@@ -371,15 +374,12 @@ class BlockLab
 
    void post_load(const BlockInfo &info, const Real t = 0, bool applybc = true)
    {
+      const int nX = BlockType::sizeX;
+      const int nY = BlockType::sizeY;
       #if DIMENSION == 3
-         const int nX = BlockType::sizeX;
-         const int nY = BlockType::sizeY;
          const int nZ = BlockType::sizeZ;
          if (coarsened)
          {
-            const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
-                                   (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
-                                   (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
             #pragma GCC ivdep
             for (int k = 0; k < nZ / 2; k++)
             {
@@ -409,12 +409,8 @@ class BlockLab
             }
          }
       #else
-         const int nX = BlockType::sizeX;
-         const int nY = BlockType::sizeY;
          if (coarsened)
          {
-            const int offset[2] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
-                                   (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1]};
             #pragma GCC ivdep
             for (int j = 0; j < nY / 2; j++)
             {
@@ -776,10 +772,6 @@ class BlockLab
       const int nY = BlockType::sizeY;
       const int nZ = BlockType::sizeZ;
 
-      const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
-                             (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
-                             (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
-
       const int s[3] = {code[0] < 1 ? (code[0] < 0 ? offset[0] : 0) : CoarseBlockSize[0],
                         code[1] < 1 ? (code[1] < 0 ? offset[1] : 0) : CoarseBlockSize[1],
                         code[2] < 1 ? (code[2] < 0 ? offset[2] : 0) : CoarseBlockSize[2]};
@@ -859,13 +851,9 @@ class BlockLab
                          (m_stencilEnd[1]) / 2 + m_InterpStencilEnd[1],
                          (m_stencilEnd[2]) / 2 + m_InterpStencilEnd[2]};
 
-      const int sC[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
-                         (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
-                         (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
-
-      const int s[3] = {code[0] < 1 ? (code[0] < 0 ? sC[0] : 0) : CoarseBlockSize[0],
-                        code[1] < 1 ? (code[1] < 0 ? sC[1] : 0) : CoarseBlockSize[1],
-                        code[2] < 1 ? (code[2] < 0 ? sC[2] : 0) : CoarseBlockSize[2]};
+      const int s[3] = {code[0] < 1 ? (code[0] < 0 ? offset[0] : 0) : CoarseBlockSize[0],
+                        code[1] < 1 ? (code[1] < 0 ? offset[1] : 0) : CoarseBlockSize[1],
+                        code[2] < 1 ? (code[2] < 0 ? offset[2] : 0) : CoarseBlockSize[2]};
 
       const int e[3] = {code[0] < 1 ? (code[0] < 0 ? 0 : CoarseBlockSize[0]) : CoarseBlockSize[0] + eC[0] - 1,
                         code[1] < 1 ? (code[1] < 0 ? 0 : CoarseBlockSize[1]) : CoarseBlockSize[1] + eC[1] - 1,
@@ -881,14 +869,14 @@ class BlockLab
 
       const int m_vSize0         = m_CoarsenedBlock->getSize(0);
       const int m_nElemsPerSlice = m_CoarsenedBlock->getNumberOfElementsPerSlice();
-      const int my_ix            = s[0] - sC[0];
+      const int my_ix            = s[0] - offset[0];
       const int XX               = start[0];
 
       #pragma GCC ivdep
       for (int iz = s[2]; iz < e[2]; iz++)
       {
          const int ZZ     = 2 * (iz - s[2]) + start[2];
-         const int my_izx = (iz - sC[2]) * m_nElemsPerSlice + my_ix;
+         const int my_izx = (iz - offset[2]) * m_nElemsPerSlice + my_ix;
 
          #pragma GCC ivdep
          for (int iy = s[1]; iy < e[1]; iy++)
@@ -898,7 +886,7 @@ class BlockLab
                 iz < nZ / 2 - m_InterpStencilEnd[2])
                continue;
 
-            ElementType __restrict__ *ptrDest1 = &m_CoarsenedBlock->LinAccess(my_izx + (iy - sC[1]) * m_vSize0);
+            ElementType __restrict__ *ptrDest1 = &m_CoarsenedBlock->LinAccess(my_izx + (iy - offset[1]) * m_vSize0);
 
             const int YY = 2 * (iy - s[1]) + start[1];
             #if DIMENSION == 3
@@ -953,9 +941,6 @@ class BlockLab
       const int yskip  = info.index[1] == 0 ? -1 : 1;
       const int zskip  = info.index[2] == 0 ? -1 : 1;
 
-      const int offset[3] = {(m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0],
-                             (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1],
-                             (m_stencilStart[2] - 1) / 2 + m_InterpStencilStart[2]};
       
       for (int ii = 0; ii < coarsened_nei_codes_size; ++ii)
       {
@@ -984,16 +969,6 @@ class BlockLab
              code[0] < 1 ? (code[0] < 0 ? ((m_stencilStart[0] - 1) / 2) : 0) : CoarseBlockSize[0],
              code[1] < 1 ? (code[1] < 0 ? ((m_stencilStart[1] - 1) / 2) : 0) : CoarseBlockSize[1],
              code[2] < 1 ? (code[2] < 0 ? ((m_stencilStart[2] - 1) / 2) : 0) : CoarseBlockSize[2]};
-         // /*comment to silence warnings*/const int eC[3] = {
-         // /*comment to silence warnings*/code[0]<1? (code[0]<0 ? 0:nX/2 ) :
-         // nX/2+(m_stencilEnd[0])/2
-         // + 1 + 0*(m_InterpStencilEnd[0] -1),
-         // /*comment to silence warnings*/code[1]<1? (code[1]<0 ? 0:nY/2 ) :
-         // nY/2+(m_stencilEnd[1])/2
-         // + 1 + 0*(m_InterpStencilEnd[1] -1),
-         // /*comment to silence warnings*/code[2]<1? (code[2]<0 ? 0:nZ/2 ) :
-         // nZ/2+(m_stencilEnd[2])/2
-         // + 1 + 0*(m_InterpStencilEnd[2] -1)};
 
          const int bytes = (e[0] - s[0]) * sizeof(ElementType);
          if (!bytes) continue;

@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <filesystem>
 #include <sys/stat.h>
 #include "HDF5Dumper.h"
 #include "GridMPI.h"
@@ -386,6 +387,8 @@ void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string 
     filename << fname;// fname is the base filepath without file type extension
     fullpath << dpath << "/" << filename.str();
 
+    if (rank == 0) std::filesystem::remove((fullpath.str() + ".xmf").c_str());
+
     std::vector<BlockGroup> & MyGroups = grid.MyGroups;
     grid.UpdateMyGroups();
 
@@ -465,7 +468,6 @@ void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string 
         MPI_Offset offset = 0;
         MPI_Offset len    = st.size() * sizeof(char);
         MPI_File xmf;
-        MPI_File_delete((fullpath.str() + ".xmf").c_str(), MPI_INFO_NULL); // delete the xmf file is it exists
         MPI_File_open(comm, (fullpath.str() + ".xmf").c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &xmf);
         MPI_Exscan(&len, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
         MPI_File_write_at_all(xmf, offset, st.data(), st.size(), MPI_CHAR, MPI_STATUS_IGNORE);
@@ -546,7 +548,6 @@ void DumpHDF5_MPI2(TGrid &grid, typename TGrid::Real absTime, const std::string 
         H5Pclose(fapl_id);
         H5Fclose(file_id);
     }
-    
     //fullpath <<  std::setfill('0') << std::setw(10) << rank; //mike
     //Dump data
     hid_t file_id, dataset_id, fspace_id, fapl_id, mspace_id;

@@ -26,9 +26,9 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
    MeshAdaptationMPI(TGrid &grid, double Rtol, double Ctol): MeshAdaptation<TGrid,TLab>(grid,Rtol,Ctol)
    {
       bool tensorial = true;
-      const int Gx = 2;
-      const int Gy = 2;
-      const int Gz = DIMENSION == 3? 2:0;
+      const int Gx = 1;
+      const int Gy = 1;
+      const int Gz = DIMENSION == 3? 1:0;
       StencilInfo stencil(-Gx, -Gy, -Gz, Gx + 1, Gy + 1, Gz + 1, tensorial, AMR::components);
 
       kernel.stencil.sx = stencil.sx;

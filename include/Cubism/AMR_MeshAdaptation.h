@@ -40,13 +40,13 @@ class MeshAdaptation
 
       for (int i = 0 ; i < ElementType::DIM ; i++) components.push_back(i);
 
-      s[0] = -2;
-      e[0] =  3;
-      s[1] = -2;
-      e[1] =  3;
+      s[0] = -1;
+      e[0] =  2;
+      s[1] = -1;
+      e[1] =  2;
       #if DIMENSION == 3
-         s[2] = -2;
-         e[2] =  3;
+         s[2] = -1;
+         e[2] =  2;
       #else
          s[2] = 0;
          e[2] = 1;

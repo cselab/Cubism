@@ -204,6 +204,29 @@ class Grid
       }
    }
 
+   void dealloc_many(const std::vector<long long> & dealloc_IDs)
+   {
+      for (size_t j = 0; j < m_vInfo.size(); j++) m_vInfo[j].changed2 = false;
+
+      allocator<Block> alloc;
+
+      for (size_t i = 0; i < dealloc_IDs.size() ; i++)
+      for (size_t j = 0; j < m_vInfo.size()     ; j++)
+      {
+         if (m_vInfo[j].blockID_2 == dealloc_IDs[i])
+         {
+            const int m = m_vInfo[j].level;
+            const long long n = m_vInfo[j].Z;
+            m_vInfo[j].changed2 = true;
+            alloc.deallocate((Block *)getBlockInfoAll(m, n).ptrBlock, 1);
+            break;
+         }
+      }
+
+      std::erase_if(m_vInfo, [](BlockInfo & x) { return x.changed2; });
+   }
+
+
    void FindBlockInfo(const int m, const long long n, const int m_new, const long long n_new)
    {
       /*

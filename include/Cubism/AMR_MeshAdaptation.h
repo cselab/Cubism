@@ -33,6 +33,7 @@ class MeshAdaptation
    bool basic_refinement;
    double tolerance_for_refinement;
    double tolerance_for_compression;
+   std::vector<long long> dealloc_IDs;
  public:
    MeshAdaptation(TGrid &grid, const double Rtol, const double Ctol)
    {
@@ -169,6 +170,7 @@ class MeshAdaptation
       std::vector<long long> n_ref;
       std::vector<int> m_com;
       std::vector<int> m_ref;
+      dealloc_IDs.clear();
 
       std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
       for (auto &i : I)
@@ -208,6 +210,9 @@ class MeshAdaptation
          //#pragma omp atomic
          c++;
       }
+
+      m_refGrid->dealloc_many(dealloc_IDs);
+
       if (verbosity) std::cout << "Blocks refined:" << r << " blocks compressed:" << c << std::endl;
       m_refGrid->FillPos();
       delete[] labs;
@@ -274,7 +279,7 @@ class MeshAdaptation
    {
       #pragma omp critical
       {
-         m_refGrid->_dealloc(level, Z);
+         dealloc_IDs.push_back(m_refGrid->getBlockInfoAll(level, Z).blockID_2);
       }
 
       BlockInfo &parent = m_refGrid->getBlockInfoAll(level, Z);
@@ -349,12 +354,11 @@ class MeshAdaptation
                   for (int j = 0; j < ny; j += 2)
                      for (int i = 0; i < nx; i += 2)
                      {
-                        ElementType average =
+                        (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) =
                             0.125 * ( (b(i    , j    , k  ) + b(i + 1, j + 1, k + 1)) 
                                     + (b(i + 1, j    , k  ) + b(i    , j + 1, k + 1))
                                     + (b(i    , j + 1, k  ) + b(i + 1, j    , k + 1))
                                     + (b(i + 1, j + 1, k  ) + b(i    , j    , k + 1)) );
-                        (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) = average;
                      }
             }
 
@@ -365,8 +369,6 @@ class MeshAdaptation
       parent.state       = Leave;
       if (level - 2 >= 0) m_refGrid->Tree(level - 2, parent.Zparent).setCheckFiner();
 
-      #pragma omp critical
-      {
          for (int K = 0; K < 2; K++)
             for (int J = 0; J < 2; J++)
                for (int I = 0; I < 2; I++)
@@ -379,12 +381,14 @@ class MeshAdaptation
                   }
                   else
                   {
-                     m_refGrid->_dealloc(level, n);
+                     #pragma omp critical
+                     {
+                        dealloc_IDs.push_back(m_refGrid->getBlockInfoAll(level, n).blockID_2);
+                     }
                   }
                   m_refGrid->Tree(level, n).setCheckCoarser();
                   m_refGrid->getBlockInfoAll(level, n).state = Leave;
                }
-      }
       #endif
       #if DIMENSION == 2
       BlockType *Blocks[4];
@@ -419,8 +423,6 @@ class MeshAdaptation
       parent.state       = Leave;
       if (level - 2 >= 0) m_refGrid->Tree(level - 2, parent.Zparent).setCheckFiner();
 
-      #pragma omp critical
-      {
          for (int J = 0; J < 2; J++)
             for (int I = 0; I < 2; I++)
             {
@@ -431,12 +433,14 @@ class MeshAdaptation
                }
                else
                {
-                  m_refGrid->_dealloc(level, n);
+                  #pragma omp critical
+                  {
+                     dealloc_IDs.push_back(info.blockID_2);
+                  }
                }
                m_refGrid->Tree(level, n).setCheckCoarser();
                m_refGrid->getBlockInfoAll(level, n).state = Leave;
             }
-      }
       #endif
    }
 

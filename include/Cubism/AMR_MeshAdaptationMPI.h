@@ -145,6 +145,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          }
       }
 
+      AMR::dealloc_IDs.clear();
+
       //#pragma omp parallel
       {
          //#pragma omp for
@@ -170,6 +172,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          //#pragma omp atomic
          c++;
       }
+
+      AMR::m_refGrid->dealloc_many(AMR::dealloc_IDs);
 
       int temp[2] = {r, c};
       int result[2];

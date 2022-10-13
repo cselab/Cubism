@@ -240,24 +240,24 @@ class MeshAdaptation
       assert(parent.ptrBlock != NULL);
       assert(level <= m_refGrid->getlevelMax() - 1);
       #if DIMENSION == 3
-      BlockType *Blocks[8];
-      for (int k = 0; k < 2; k++)
+         BlockType *Blocks[8];
+         for (int k = 0; k < 2; k++)
          for (int j = 0; j < 2; j++)
-            for (int i = 0; i < 2; i++)
+         for (int i = 0; i < 2; i++)
+         {
+            const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
+            BlockInfo &Child   = m_refGrid->getBlockInfoAll(level + 1, nc);
+            Child.state        = Leave;
+            #pragma omp critical
             {
-               const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
-               BlockInfo &Child   = m_refGrid->getBlockInfoAll(level + 1, nc);
-               Child.state        = Leave;
-               #pragma omp critical
-               {
-                  m_refGrid->_alloc(level + 1, nc);
-                  m_refGrid->Tree(level + 1, nc).setCheckCoarser();
-               }
-               Blocks[k * 4 + j * 2 + i] = (BlockType *)Child.ptrBlock;
+               m_refGrid->_alloc(level + 1, nc);
+               m_refGrid->Tree(level + 1, nc).setCheckCoarser();
             }
+            Blocks[k * 4 + j * 2 + i] = (BlockType *)Child.ptrBlock;
+         }
       #else
-      BlockType *Blocks[4];
-      for (int j = 0; j < 2; j++)
+         BlockType *Blocks[4];
+         for (int j = 0; j < 2; j++)
          for (int i = 0; i < 2; i++)
          {
             const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
@@ -288,32 +288,29 @@ class MeshAdaptation
 
       int p[3] = {parent.index[0], parent.index[1], parent.index[2]};
       #if DIMENSION == 3
-      for (int k = 0; k < 2; k++)
+         for (int k = 0; k < 2; k++)
          for (int j = 0; j < 2; j++)
-            for (int i = 0; i < 2; i++)
-            {
-               const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
-               BlockInfo &Child   = m_refGrid->getBlockInfoAll(level + 1, nc);
-               m_refGrid->Tree(Child).setrank(m_refGrid->rank());
-
-               if (level + 2 < m_refGrid->getlevelMax())
-                  for (int i0 = 0; i0 < 2; i0++)
-                     for (int i1 = 0; i1 < 2; i1++)
-                        for (int i2 = 0; i2 < 2; i2++)
-                           m_refGrid->Tree(level + 2, Child.Zchild[i0][i1][i2]).setCheckCoarser();
-            }
-      #endif
-      #if DIMENSION == 2
-      for (int j = 0; j < 2; j++)
+         for (int i = 0; i < 2; i++)
+         {
+            const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
+            BlockInfo &Child   = m_refGrid->getBlockInfoAll(level + 1, nc);
+            m_refGrid->Tree(Child).setrank(m_refGrid->rank());
+            if (level + 2 < m_refGrid->getlevelMax())
+               for (int i0 = 0; i0 < 2; i0++)
+               for (int i1 = 0; i1 < 2; i1++)
+               for (int i2 = 0; i2 < 2; i2++)
+                  m_refGrid->Tree(level + 2, Child.Zchild[i0][i1][i2]).setCheckCoarser();
+         }
+      #else
+         for (int j = 0; j < 2; j++)
          for (int i = 0; i < 2; i++)
          {
             const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
             BlockInfo &Child   = m_refGrid->getBlockInfoAll(level + 1, nc);
             m_refGrid->Tree(Child).setrank(m_refGrid->rank());
-
             if (level + 2 < m_refGrid->getlevelMax())
                for (int i0 = 0; i0 < 2; i0++)
-                  for (int i1 = 0; i1 < 2; i1++) m_refGrid->Tree(level + 2, Child.Zchild[i0][i1][1]).setCheckCoarser();
+               for (int i1 = 0; i1 < 2; i1++) m_refGrid->Tree(level + 2, Child.Zchild[i0][i1][1]).setCheckCoarser();
          }
       #endif
    }
@@ -329,14 +326,13 @@ class MeshAdaptation
       #if DIMENSION == 3
       BlockType *Blocks[8];
       for (int K = 0; K < 2; K++)
-         for (int J = 0; J < 2; J++)
-            for (int I = 0; I < 2; I++)
-            {
-               const int blk = K * 4 + J * 2 + I;
-               const long long n =
-                   m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J, info.index[2] + K);
-               Blocks[blk] = (BlockType *)(m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
-            }
+      for (int J = 0; J < 2; J++)
+      for (int I = 0; I < 2; I++)
+      {
+         const int blk = K * 4 + J * 2 + I;
+         const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J, info.index[2] + K);
+         Blocks[blk] = (BlockType *)(m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
+      }
 
       const int nx         = BlockType::sizeX;
       const int ny         = BlockType::sizeY;
@@ -346,21 +342,21 @@ class MeshAdaptation
       const int offsetZ[2] = {0, nz / 2};
       if (basic_refinement == false)
       for (int K = 0; K < 2; K++)
-         for (int J = 0; J < 2; J++)
-            for (int I = 0; I < 2; I++)
-            {
-               BlockType &b = *Blocks[K * 4 + J * 2 + I];
-               for (int k = 0; k < nz; k += 2)
-                  for (int j = 0; j < ny; j += 2)
-                     for (int i = 0; i < nx; i += 2)
-                     {
-                        (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) =
-                            0.125 * ( (b(i    , j    , k  ) + b(i + 1, j + 1, k + 1)) 
-                                    + (b(i + 1, j    , k  ) + b(i    , j + 1, k + 1))
-                                    + (b(i    , j + 1, k  ) + b(i + 1, j    , k + 1))
-                                    + (b(i + 1, j + 1, k  ) + b(i    , j    , k + 1)) );
-                     }
-            }
+      for (int J = 0; J < 2; J++)
+      for (int I = 0; I < 2; I++)
+      {
+         BlockType &b = *Blocks[K * 4 + J * 2 + I];
+         for (int k = 0; k < nz; k += 2)
+         for (int j = 0; j < ny; j += 2)
+         for (int i = 0; i < nx; i += 2)
+         {
+            (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) =
+                0.125 * ( (b(i  , j  ,k) + b(i+1,j+1,k+1)) 
+                        + (b(i+1, j  ,k) + b(i  ,j+1,k+1))
+                        + (b(i  , j+1,k) + b(i+1,j  ,k+1))
+                        + (b(i+1, j+1,k) + b(i  ,j  ,k+1)) );
+         }
+      }
 
       const long long np = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
       BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
@@ -369,36 +365,35 @@ class MeshAdaptation
       parent.state       = Leave;
       if (level - 2 >= 0) m_refGrid->Tree(level - 2, parent.Zparent).setCheckFiner();
 
-         for (int K = 0; K < 2; K++)
-            for (int J = 0; J < 2; J++)
-               for (int I = 0; I < 2; I++)
-               {
-                  const long long n =
-                      m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J, info.index[2] + K);
-                  if (I + J + K == 0)
-                  {
-                     m_refGrid->FindBlockInfo(level, n, level - 1, np);
-                  }
-                  else
-                  {
-                     #pragma omp critical
-                     {
-                        dealloc_IDs.push_back(m_refGrid->getBlockInfoAll(level, n).blockID_2);
-                     }
-                  }
-                  m_refGrid->Tree(level, n).setCheckCoarser();
-                  m_refGrid->getBlockInfoAll(level, n).state = Leave;
-               }
+      for (int K = 0; K < 2; K++)
+      for (int J = 0; J < 2; J++)
+      for (int I = 0; I < 2; I++)
+      {
+         const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J, info.index[2] + K);
+         if (I + J + K == 0)
+         {
+            m_refGrid->FindBlockInfo(level, n, level - 1, np);
+         }
+         else
+         {
+            #pragma omp critical
+            {
+               dealloc_IDs.push_back(m_refGrid->getBlockInfoAll(level, n).blockID_2);
+            }
+         }
+         m_refGrid->Tree(level, n).setCheckCoarser();
+         m_refGrid->getBlockInfoAll(level, n).state = Leave;
+      }
       #endif
       #if DIMENSION == 2
       BlockType *Blocks[4];
       for (int J = 0; J < 2; J++)
-         for (int I = 0; I < 2; I++)
-         {
-            const int blk     = J * 2 + I;
-            const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J);
-            Blocks[blk]       = (BlockType *)(m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
-         }
+      for (int I = 0; I < 2; I++)
+      {
+         const int blk     = J * 2 + I;
+         const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J);
+         Blocks[blk]       = (BlockType *)(m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
+      }
 
       const int nx         = BlockType::sizeX;
       const int ny         = BlockType::sizeY;
@@ -406,16 +401,16 @@ class MeshAdaptation
       const int offsetY[2] = {0, ny / 2};
       if (basic_refinement == false)
       for (int J = 0; J < 2; J++)
-         for (int I = 0; I < 2; I++)
+      for (int I = 0; I < 2; I++)
+      {
+         BlockType &b = *Blocks[J * 2 + I];
+         for (int j = 0; j < ny; j += 2)
+         for (int i = 0; i < nx; i += 2)
          {
-            BlockType &b = *Blocks[J * 2 + I];
-            for (int j = 0; j < ny; j += 2)
-               for (int i = 0; i < nx; i += 2)
-               {
-                  ElementType average = 0.25 * ( (b(i, j, 0)+ b(i + 1, j + 1, 0)) + (b(i + 1, j, 0) + b(i, j + 1, 0)) );
-                  (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], 0) = average;
-               }
+            ElementType average = 0.25 * ( (b(i, j, 0)+ b(i + 1, j + 1, 0)) + (b(i + 1, j, 0) + b(i, j + 1, 0)) );
+            (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], 0) = average;
          }
+      }
       const long long np = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2);
       BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
       m_refGrid->Tree(parent.level, parent.Z).setrank(m_refGrid->rank());
@@ -423,24 +418,24 @@ class MeshAdaptation
       parent.state       = Leave;
       if (level - 2 >= 0) m_refGrid->Tree(level - 2, parent.Zparent).setCheckFiner();
 
-         for (int J = 0; J < 2; J++)
-            for (int I = 0; I < 2; I++)
+      for (int J = 0; J < 2; J++)
+      for (int I = 0; I < 2; I++)
+      {
+         const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J);
+         if (I + J == 0)
+         {
+            m_refGrid->FindBlockInfo(level, n, level - 1, np);
+         }
+         else
+         {
+            #pragma omp critical
             {
-               const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J);
-               if (I + J == 0)
-               {
-                  m_refGrid->FindBlockInfo(level, n, level - 1, np);
-               }
-               else
-               {
-                  #pragma omp critical
-                  {
-                     dealloc_IDs.push_back(info.blockID_2);
-                  }
-               }
-               m_refGrid->Tree(level, n).setCheckCoarser();
-               m_refGrid->getBlockInfoAll(level, n).state = Leave;
+               dealloc_IDs.push_back(info.blockID_2);
             }
+         }
+         m_refGrid->Tree(level, n).setCheckCoarser();
+         m_refGrid->getBlockInfoAll(level, n).state = Leave;
+      }
       #endif
    }
 

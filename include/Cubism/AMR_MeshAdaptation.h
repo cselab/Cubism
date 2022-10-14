@@ -188,26 +188,38 @@ class MeshAdaptation
             n_com.push_back(info.Z);
          }
       }
-      //#pragma omp parallel
+      #ifdef CUBISM_USE_ONETBB
+      #pragma omp parallel
+      #endif
       {
-         //#pragma omp for
+         #ifdef CUBISM_USE_ONETBB
+         #pragma omp for
+         #endif
          for (size_t i = 0; i < m_ref.size(); i++)
          {
             refine_1(m_ref[i], n_ref[i]);
-            //#pragma omp atomic
+            #ifdef CUBISM_USE_ONETBB
+            #pragma omp atomic
+            #endif
             r++;
          }
-         //#pragma omp for
+         #ifdef CUBISM_USE_ONETBB
+         #pragma omp for
+         #endif
          for (size_t i = 0; i < m_ref.size(); i++)
          {
             refine_2(m_ref[i], n_ref[i]);
          }
       }
-      //#pragma omp parallel for
+      #ifdef CUBISM_USE_ONETBB
+      #pragma omp parallel for
+      #endif
       for (size_t i = 0; i < m_com.size(); i++)
       {
          compress(m_com[i], n_com[i]);
-         //#pragma omp atomic
+         #ifdef CUBISM_USE_ONETBB
+         #pragma omp atomic
+         #endif
          c++;
       }
 

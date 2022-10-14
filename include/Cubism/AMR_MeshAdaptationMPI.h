@@ -147,16 +147,24 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
       AMR::dealloc_IDs.clear();
 
-      //#pragma omp parallel
+      #ifdef CUBISM_USE_ONETBB
+      #pragma omp parallel
+      #endif
       {
-         //#pragma omp for
+         #ifdef CUBISM_USE_ONETBB
+         #pragma omp for
+         #endif
          for (size_t i = 0; i < m_ref.size(); i++)
          {
             AMR::refine_1(m_ref[i], n_ref[i]);
-            //#pragma omp atomic
+            #ifdef CUBISM_USE_ONETBB
+            #pragma omp atomic
+            #endif
             r++;
          }
-         //#pragma omp for
+         #ifdef CUBISM_USE_ONETBB
+         #pragma omp for
+         #endif
          for (size_t i = 0; i < m_ref.size(); i++)
          {
             AMR::refine_2(m_ref[i], n_ref[i]);
@@ -165,11 +173,15 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
       Balancer->PrepareCompression();
 
-      //#pragma omp parallel for
+      #ifdef CUBISM_USE_ONETBB
+      #pragma omp parallel
+      #endif
       for (size_t i = 0; i < m_com.size(); i++)
       {
          AMR::compress(m_com[i], n_com[i]);
-         //#pragma omp atomic
+         #ifdef CUBISM_USE_ONETBB
+         #pragma omp atomic
+         #endif
          c++;
       }
 

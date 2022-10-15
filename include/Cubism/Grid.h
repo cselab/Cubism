@@ -234,8 +234,10 @@ class Grid
             break;
          }
       }
-
-      std::erase_if(m_vInfo, [](BlockInfo & x) { return x.changed2; });
+      //for c++20
+      //std::erase_if(m_vInfo, [](BlockInfo & x) { return x.changed2; });
+      //for c++17
+      m_vInfo.erase(std::remove_if(m_vInfo.begin(),m_vInfo.end(),[](const BlockInfo & x){return x.changed2;}),m_vInfo.end());
    }
 
 

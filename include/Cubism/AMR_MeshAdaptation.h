@@ -442,7 +442,7 @@ class MeshAdaptation
          {
             #pragma omp critical
             {
-               dealloc_IDs.push_back(info.blockID_2);
+               dealloc_IDs.push_back(m_refGrid->getBlockInfoAll(level, n).blockID_2);
             }
          }
          m_refGrid->Tree(level, n).setCheckCoarser();

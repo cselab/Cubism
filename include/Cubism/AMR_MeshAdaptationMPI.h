@@ -174,7 +174,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       Balancer->PrepareCompression();
 
       #ifdef CUBISM_USE_ONETBB
-      #pragma omp parallel
+      #pragma omp parallel for
       #endif
       for (size_t i = 0; i < m_com.size(); i++)
       {

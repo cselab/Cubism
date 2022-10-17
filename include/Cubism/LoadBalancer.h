@@ -29,7 +29,7 @@ class LoadBalancer
    bool movedBlocks;
 
  protected:
-   TGrid *m_refGrid;
+   TGrid *grid;
    int rank, size;
    MPI_Comm comm;
    MPI_Datatype MPI_BLOCK;
@@ -37,7 +37,7 @@ class LoadBalancer
    {
       long long mn[2];
       Real data[sizeof(BlockType) / sizeof(Real)];
-      MPI_Block(BlockInfo &info, bool Fillptr = true)
+      MPI_Block(const BlockInfo &info, const bool Fillptr = true)
       {
          mn[0] = info.level;
          mn[1] = info.Z;
@@ -48,7 +48,7 @@ class LoadBalancer
          }
       }
 
-      void prepare(BlockInfo &info, bool Fillptr = true)
+      void prepare(const BlockInfo &info, const bool Fillptr = true)
       {
          mn[0] = info.level;
          mn[1] = info.Z;
@@ -64,9 +64,8 @@ class LoadBalancer
 
    void AddBlock(const int level, const long long Z, Real * data)
    {
-      m_refGrid->_alloc(level, Z);
-      BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
-      m_refGrid->Tree(info).setrank(m_refGrid->rank());
+      grid->_alloc(level, Z);
+      BlockInfo &info = grid->getBlockInfoAll(level, Z);
       BlockType *b1 = (BlockType *)info.ptrBlock;
       assert(b1 != NULL);
       Real *a1 = &b1->data[0][0][0].member(0);
@@ -74,44 +73,44 @@ class LoadBalancer
       #if DIMENSION == 3
          int p[3];
          BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
-         if (level < m_refGrid->getlevelMax() - 1)
+         if (level < grid->getlevelMax() - 1)
             for (int k1 = 0; k1 < 2; k1++)
             for (int j1 = 0; j1 < 2; j1++)
             for (int i1 = 0; i1 < 2; i1++)
             {
-               const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1, 2 * p[2] + k1);
-               m_refGrid->Tree(level + 1, nc).setCheckCoarser();
+               const long long nc = grid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1, 2 * p[2] + k1);
+               grid->Tree(level + 1, nc).setCheckCoarser();
             }
          if (level > 0)
          {
-            const long long nf = m_refGrid->getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
-            m_refGrid->Tree(level - 1, nf).setCheckFiner();
+            const long long nf = grid->getZforward(level - 1, p[0] / 2, p[1] / 2, p[2] / 2);
+            grid->Tree(level - 1, nf).setCheckFiner();
          }
       #else
          int p[2];
          BlockInfo::inverse(Z, level, p[0], p[1]);
-         if (level < m_refGrid->getlevelMax() - 1)
+         if (level < grid->getlevelMax() - 1)
             for (int j1 = 0; j1 < 2; j1++)
             for (int i1 = 0; i1 < 2; i1++)
             {
-               const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1);
-               m_refGrid->Tree(level + 1, nc).setCheckCoarser();
+               const long long nc = grid->getZforward(level + 1, 2 * p[0] + i1, 2 * p[1] + j1);
+               grid->Tree(level + 1, nc).setCheckCoarser();
             }
          if (level > 0)
          {
-            const long long nf = m_refGrid->getZforward(level - 1, p[0] / 2, p[1] / 2);
-            m_refGrid->Tree(level - 1, nf).setCheckFiner();
+            const long long nf = grid->getZforward(level - 1, p[0] / 2, p[1] / 2);
+            grid->Tree(level - 1, nf).setCheckFiner();
          }
       #endif
    }
 
  public:
-   LoadBalancer(TGrid &grid)
+   LoadBalancer(TGrid &a_grid)
    {
-      comm = grid.getWorldComm();
+      grid   = &a_grid;
+      comm = grid->getWorldComm();
       MPI_Comm_size(comm, &size);
       MPI_Comm_rank(comm, &rank);
-      m_refGrid   = &grid;
       movedBlocks = false;
       MPI_Block dummy;
       int array_of_blocklengths[2]       = {2, sizeof(BlockType) / sizeof(Real)};
@@ -129,72 +128,66 @@ class LoadBalancer
 
    void PrepareCompression()
    {
-      m_refGrid->FillPos();
-      std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
+      grid->FillPos();
+      std::vector<BlockInfo> &I = grid->getBlocksInfo();
       std::vector<std::vector<MPI_Block>> send_blocks(size);
       std::vector<std::vector<MPI_Block>> recv_blocks(size);
 
       for (auto &b : I)
       {
-         assert(b.level >= 0);
-         assert(b.index[0] >= 0);
-         assert(b.index[1] >= 0);
-         assert(b.index[2] >= 0);
          #if DIMENSION == 3
-            const long long nBlock = m_refGrid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2), 2 * (b.index[2] / 2));
+            const long long nBlock = grid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2), 2 * (b.index[2] / 2));
          #else
-            const long long nBlock = m_refGrid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2));
+            const long long nBlock = grid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2));
          #endif
-         assert(nBlock >= 0);
-         assert(b.Z >= 0);
 
-         BlockInfo &base  = m_refGrid->getBlockInfoAll(b.level, nBlock);
-         BlockInfo &bCopy = m_refGrid->getBlockInfoAll(b.level, b.Z);
+         const BlockInfo &base  = grid->getBlockInfoAll(b.level, nBlock);
+         const BlockInfo &bCopy = grid->getBlockInfoAll(b.level, b.Z);
 
-         const int baserank = m_refGrid->Tree(b.level, nBlock).rank();
-         const int brank    = m_refGrid->Tree(b.level, b.Z).rank();
+         const int baserank = grid->Tree(b.level, nBlock).rank();
+         const int brank    = grid->Tree(b.level, b.Z).rank();
 
-         if (!m_refGrid->Tree(base).Exists()) continue;
+         if (!grid->Tree(base).Exists()) continue;
 
          if (b.Z != nBlock && base.state == Compress)
          {
             if (baserank != rank && brank == rank)
             {
                send_blocks[baserank].push_back({bCopy});
-               m_refGrid->Tree(b.level, b.Z).setrank(baserank);
+               grid->Tree(b.level, b.Z).setrank(baserank);
             }
          }
          else if (b.Z == nBlock && base.state == Compress)
          {
             #if DIMENSION ==3
                for (int k = 0; k < 2; k++)
-                  for (int j = 0; j < 2; j++)
-                     for (int i = 0; i < 2; i++)
-                     {
-                        const long long n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
-                        if (n == nBlock) continue;
-                        BlockInfo &temp    = m_refGrid->getBlockInfoAll(b.level, n);
-                        const int temprank = m_refGrid->Tree(b.level, n).rank();
-                        if (temprank != rank)
-                        {
-                           recv_blocks[temprank].push_back({temp, false});
-                           m_refGrid->Tree(b.level, n).setrank(baserank);
-                        }
-                     }
+               for (int j = 0; j < 2; j++)
+               for (int i = 0; i < 2; i++)
+               {
+                  const long long n = grid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
+                  if (n == nBlock) continue;
+                  BlockInfo &temp    = grid->getBlockInfoAll(b.level, n);
+                  const int temprank = grid->Tree(b.level, n).rank();
+                  if (temprank != rank)
+                  {
+                     recv_blocks[temprank].push_back({temp, false});
+                     grid->Tree(b.level, n).setrank(baserank);
+                  }
+               }
             #else
                for (int j = 0; j < 2; j++)
-                  for (int i = 0; i < 2; i++)
+               for (int i = 0; i < 2; i++)
+               {
+                  const long long n = grid->getZforward(b.level, b.index[0] + i, b.index[1] + j);
+                  if (n == nBlock) continue;
+                  BlockInfo &temp    = grid->getBlockInfoAll(b.level, n);
+                  const int temprank = grid->Tree(b.level, n).rank();
+                  if (temprank != rank)
                   {
-                     const long long n = m_refGrid->getZforward(b.level, b.index[0] + i, b.index[1] + j);
-                     if (n == nBlock) continue;
-                     BlockInfo &temp    = m_refGrid->getBlockInfoAll(b.level, n);
-                     const int temprank = m_refGrid->Tree(b.level, n).rank();
-                     if (temprank != rank)
-                     {
-                        recv_blocks[temprank].push_back({temp, false});
-                        m_refGrid->Tree(b.level, n).setrank(baserank);
-                     }
+                     recv_blocks[temprank].push_back({temp, false});
+                     grid->Tree(b.level, n).setrank(baserank);
                   }
+               }
             #endif
          }
       }
@@ -227,8 +220,8 @@ class LoadBalancer
       for (int r = 0; r < size; r++)
          for (int i = 0; i < (int)send_blocks[r].size(); i++)
          {
-            m_refGrid->_dealloc(send_blocks[r][i].mn[0], send_blocks[r][i].mn[1]);
-            m_refGrid->Tree(send_blocks[r][i].mn[0], send_blocks[r][i].mn[1]).setCheckCoarser();
+            grid->_dealloc(send_blocks[r][i].mn[0], send_blocks[r][i].mn[1]);
+            grid->Tree(send_blocks[r][i].mn[0], send_blocks[r][i].mn[1]).setCheckCoarser();
          }
 
       for (int r = 0; r < size; r++)
@@ -237,8 +230,8 @@ class LoadBalancer
             const int level = (int) recv_blocks[r][i].mn[0];
             const long long Z = recv_blocks[r][i].mn[1];
 
-            m_refGrid->_alloc(level, Z);
-            BlockInfo & info = m_refGrid->getBlockInfoAll(level, Z);
+            grid->_alloc(level, Z);
+            BlockInfo & info = grid->getBlockInfoAll(level, Z);
             BlockType *b1  = (BlockType *)info.ptrBlock;
             assert(b1 != NULL);
             Real *a1 = &b1->data[0][0][0].member(0);
@@ -246,28 +239,34 @@ class LoadBalancer
          }
    }
 
-   void Balance_Diffusion(bool verbose)
+   void Balance_Diffusion(const bool verbose)
    {
       movedBlocks = false;
       {
-         long long b = m_refGrid->getBlocksInfo().size();
-         long long max_b, min_b;
-         MPI_Allreduce(&b, &max_b, 1, MPI_LONG_LONG, MPI_MAX, comm);
-         MPI_Allreduce(&b, &min_b, 1, MPI_LONG_LONG, MPI_MIN, comm);
+         const long bsize = grid->getBlocksInfo().size();
+         const long b[2] = {bsize,-bsize};
+         long res[2];
+         MPI_Allreduce(b, res, 2, MPI_LONG, MPI_MAX, comm);
+         const long max_b =  res[0];
+         const long min_b = -res[1];
          const double ratio = static_cast<double>(max_b) / min_b;
          if (rank == 0 && verbose)
+         {
            std::cout << "Load imbalance ratio = " << ratio << std::endl;
-         if (ratio > 1.1 || min_b == 0)
+         }
+         //if (ratio > 1.1 || min_b == 0)
+         if (ratio > 1.01 || min_b == 0)
          {
             Balance_Global();
             return;
          }
+         //return;
       }
 
       const int right = (rank == size - 1) ? MPI_PROC_NULL : rank + 1;
       const int left  = (rank == 0) ? MPI_PROC_NULL : rank - 1;
 
-      const int my_blocks = m_refGrid->getBlocksInfo().size();
+      const int my_blocks = grid->getBlocksInfo().size();
 
       int right_blocks, left_blocks;
 
@@ -285,7 +284,7 @@ class LoadBalancer
       if (rank == size - 1) flux_right = 0;
       if (rank == 0) flux_left = 0;
 
-      std::vector<BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
+      std::vector<BlockInfo> SortedInfos = grid->getBlocksInfo();
 
       if (flux_right != 0 || flux_left != 0) std::sort(SortedInfos.begin(), SortedInfos.end());
 
@@ -338,15 +337,15 @@ class LoadBalancer
       for (int i = 0; i < flux_right; i++)
       {
          BlockInfo &info = SortedInfos[my_blocks - i - 1];
-         m_refGrid->_dealloc(info.level, info.Z);
-         m_refGrid->Tree(info.level, info.Z).setrank(right);
+         grid->_dealloc(info.level, info.Z);
+         grid->Tree(info.level, info.Z).setrank(right);
       }
 
       for (int i = 0; i < flux_left; i++)
       {
          BlockInfo &info = SortedInfos[i];
-         m_refGrid->_dealloc(info.level, info.Z);
-         m_refGrid->Tree(info.level, info.Z).setrank(left);
+         grid->_dealloc(info.level, info.Z);
+         grid->Tree(info.level, info.Z).setrank(left);
       }
 
       for (int i = 0; i < -flux_left; i++)
@@ -361,7 +360,7 @@ class LoadBalancer
       #if 0
          if (movedBlocks == true)
          {
-            int b = m_refGrid->getBlocksInfo().size();
+            int b = grid->getBlocksInfo().size();
             std::vector<int> all_b(size);
             MPI_Gather(&b, 1, MPI_INT, &all_b[0], 1, MPI_INT, 0, comm);
             if (rank == 0)
@@ -375,16 +374,16 @@ class LoadBalancer
             }
          }
       #endif
-      m_refGrid->FillPos();
+      grid->FillPos();
    }
 
    void Balance_Global()
    {
-      long long b = m_refGrid->getBlocksInfo().size();
+      const long long b = grid->getBlocksInfo().size();
       std::vector<long long> all_b(size);
       MPI_Allgather(&b, 1, MPI_LONG_LONG, all_b.data(), 1, MPI_LONG_LONG, comm);
 
-      std::vector<BlockInfo> SortedInfos = m_refGrid->getBlocksInfo();
+      std::vector<BlockInfo> SortedInfos = grid->getBlocksInfo();
       std::sort(SortedInfos.begin(), SortedInfos.end());
 
       std::vector<std::vector<MPI_Block>> send_blocks(size);
@@ -402,103 +401,102 @@ class LoadBalancer
       long long ideal_index = (total_load / size) * rank;
       ideal_index += (rank < (total_load % size)) ? rank : (total_load % size);
 
-      for (int r = 0; r < size; r++)
-         if (rank != r)
-         {
-            { // check if I need to receive blocks
-               const long long a1 = ideal_index;
-               const long long a2 = ideal_index + my_load - 1;
-               const long long b1 = index_start[r];
-               const long long b2 = index_start[r] + all_b[r] - 1;
-               const long long c1 = max(a1, b1);
-               const long long c2 = min(a2, b2);
-               if (c2 - c1 + 1 > 0) recv_blocks[r].resize(c2 - c1 + 1);
-            }
-            { // check if I need to send blocks
-               long long other_ideal_index = (total_load / size) * r;
-               other_ideal_index += (r < (total_load % size)) ? r : (total_load % size);
-               long long other_load = total_load / size;
-               if (r < (total_load % size)) other_load += 1;
-               const long long a1 = other_ideal_index;
-               const long long a2 = other_ideal_index + other_load - 1;
-               const long long b1 = index_start[rank];
-               const long long b2 = index_start[rank] + all_b[rank] - 1;
-               const long long c1 = max(a1, b1);
-               const long long c2 = min(a2, b2);
-               if (c2 - c1 + 1 > 0) send_blocks[r].resize(c2 - c1 + 1);
-            }
+      for (int r = 0; r < size; r++) if (rank != r)
+      {
+         { // check if I need to receive blocks
+            const long long a1 = ideal_index;
+            const long long a2 = ideal_index + my_load - 1;
+            const long long b1 = index_start[r];
+            const long long b2 = index_start[r] + all_b[r] - 1;
+            const long long c1 = max(a1, b1);
+            const long long c2 = min(a2, b2);
+            if (c2 - c1 + 1 > 0) recv_blocks[r].resize(c2 - c1 + 1);
          }
+         { // check if I need to send blocks
+            long long other_ideal_index = (total_load / size) * r;
+            other_ideal_index += (r < (total_load % size)) ? r : (total_load % size);
+            long long other_load = total_load / size;
+            if (r < (total_load % size)) other_load += 1;
+            const long long a1 = other_ideal_index;
+            const long long a2 = other_ideal_index + other_load - 1;
+            const long long b1 = index_start[rank];
+            const long long b2 = index_start[rank] + all_b[rank] - 1;
+            const long long c1 = max(a1, b1);
+            const long long c2 = min(a2, b2);
+            if (c2 - c1 + 1 > 0) send_blocks[r].resize(c2 - c1 + 1);
+         }
+      }
 
       int tag = 12345;
-      std::vector<MPI_Request> recv_request;
-      for (int r = 0; r < size; r++)
-         if (recv_blocks[r].size() != 0)
-         {
-            MPI_Request req{};
-            recv_request.push_back(req);
-            MPI_Irecv(recv_blocks[r].data(), recv_blocks[r].size(), MPI_BLOCK, r, tag, comm, &recv_request.back());
-         }
+      std::vector<MPI_Request> requests;
+      for (int r = 0; r < size; r++) if (recv_blocks[r].size() != 0)
+      {
+         MPI_Request req{};
+         requests.push_back(req);
+         MPI_Irecv(recv_blocks[r].data(), recv_blocks[r].size(), MPI_BLOCK, r, tag, comm, &requests.back());
+      }
 
-      std::vector<MPI_Request> send_request;
       long long counter_S = 0;
       long long counter_E = 0;
-      for (int r = 0; r < rank; r++)
-         if (send_blocks[r].size() != 0)
-         {
-            for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[counter_S + i]);
-            counter_S += send_blocks[r].size();
-            MPI_Request req{};
-            send_request.push_back(req);
-            MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &send_request.back());
-         }
-      for (int r = size-1; r > rank; r--)
-         if (send_blocks[r].size() != 0)
-         {
-            for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[SortedInfos.size() - 1 - (counter_E + i)]);
-            counter_E += send_blocks[r].size();
-            MPI_Request req{};
-            send_request.push_back(req);
-            MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &send_request.back());
-         }
+      for (int r = 0; r < rank; r++) if (send_blocks[r].size() != 0)
+      {
+         for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[counter_S + i]);
+         counter_S += send_blocks[r].size();
+         MPI_Request req{};
+         requests.push_back(req);
+         MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &requests.back());
+      }
+      for (int r = size-1; r > rank; r--) if (send_blocks[r].size() != 0)
+      {
+         for (size_t i = 0; i < send_blocks[r].size(); i++) send_blocks[r][i].prepare(SortedInfos[SortedInfos.size() - 1 - (counter_E + i)]);
+         counter_E += send_blocks[r].size();
+         MPI_Request req{};
+         requests.push_back(req);
+         MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &requests.back());
+      }
 
-      MPI_Waitall(send_request.size(), send_request.data(), MPI_STATUSES_IGNORE);
-      MPI_Waitall(recv_request.size(), recv_request.data(), MPI_STATUSES_IGNORE);
+      MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
 
       movedBlocks = true;
 
+      std::vector<long long> deallocIDs;
       counter_S = 0;
       counter_E = 0;
-      for (int r = 0; r < size; r++)
-         if (send_blocks[r].size() != 0)
+      for (int r = 0; r < size; r++) if (send_blocks[r].size() != 0)
+      {
+         if (r < rank)
          {
-            if (r < rank)
+            for (size_t i = 0; i < send_blocks[r].size(); i++)
             {
-               for (size_t i = 0; i < send_blocks[r].size(); i++)
-               {
-                  BlockInfo &info = SortedInfos[counter_S + i];
-                  m_refGrid->_dealloc(info.level, info.Z);
-                  m_refGrid->Tree(info.level, info.Z).setrank(r);
-               }
-               counter_S += send_blocks[r].size();
+               BlockInfo &info = SortedInfos[counter_S + i];
+               deallocIDs.push_back(info.blockID_2);
+               grid->Tree(info.level, info.Z).setrank(r);
             }
-            else
-            {
-               for (size_t i = 0; i < send_blocks[r].size(); i++)
-               {
-                  BlockInfo &info = SortedInfos[SortedInfos.size() - 1 - (counter_E + i)];
-                  m_refGrid->_dealloc(info.level, info.Z);
-                  m_refGrid->Tree(info.level, info.Z).setrank(r);
-               }
-               counter_E += send_blocks[r].size();
-            }
+            counter_S += send_blocks[r].size();
          }
-      for (int r = 0; r < size; r++)
-         if (recv_blocks[r].size() != 0)
+         else
          {
+            for (size_t i = 0; i < send_blocks[r].size(); i++)
+            {
+               BlockInfo &info = SortedInfos[SortedInfos.size() - 1 - (counter_E + i)];
+               deallocIDs.push_back(info.blockID_2);
+               grid->Tree(info.level, info.Z).setrank(r);
+            }
+            counter_E += send_blocks[r].size();
+         }
+      }
+      grid->dealloc_many(deallocIDs);
+
+      #pragma omp parallel
+      {
+         for (int r = 0; r < size; r++) if (recv_blocks[r].size() != 0)
+         {
+            #pragma omp for
             for (size_t i = 0; i < recv_blocks[r].size(); i++)
                AddBlock(recv_blocks[r][i].mn[0],recv_blocks[r][i].mn[1],recv_blocks[r][i].data);
          }
-      m_refGrid->FillPos();
+      }
+      grid->FillPos();
    }
 };
 

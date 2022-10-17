@@ -186,13 +186,18 @@ class FluxCorrectionMPI : public TFluxCorrection
          }
       }
 
-      for (size_t i = 0; i < TFluxCorrection::Cases.size(); i++)
+      size_t Cases_index = 0;
+      if (TFluxCorrection::Cases.size()>0)
+      for (auto &info : BB)
       {
-         TFluxCorrection::MapOfCases.insert(std::pair<std::array<long long, 2>, Case *>(
-             {TFluxCorrection::Cases[i].level, TFluxCorrection::Cases[i].Z},
-             &TFluxCorrection::Cases[i]));
-         (*TFluxCorrection::m_refGrid).getBlockInfoAll(TFluxCorrection::Cases[i].level, TFluxCorrection::Cases[i].Z).auxiliary 
-         = &TFluxCorrection::Cases[i];
+         if (TFluxCorrection::Cases[Cases_index].level == info.level &&
+             TFluxCorrection::Cases[Cases_index].Z     == info.Z)
+         {
+            TFluxCorrection::MapOfCases.insert(std::pair<std::array<long long, 2>, Case *>({TFluxCorrection::Cases[Cases_index].level, TFluxCorrection::Cases[Cases_index].Z},&TFluxCorrection::Cases[Cases_index]));
+            TFluxCorrection::m_refGrid->getBlockInfoAll(TFluxCorrection::Cases[Cases_index].level, TFluxCorrection::Cases[Cases_index].Z).auxiliary = &TFluxCorrection::Cases[Cases_index];
+            info.auxiliary = &TFluxCorrection::Cases[Cases_index];
+            Cases_index ++;
+         }
       }
 
       // 2.Sort faces
@@ -213,8 +218,7 @@ class FluxCorrectionMPI : public TFluxCorrection
          {
             face &f = recv_faces[r][k];
 
-            const int code[3] = {f.icode[1] % 3 - 1, (f.icode[1] / 3) % 3 - 1,
-                                 (f.icode[1] / 9) % 3 - 1};
+            const int code[3] = {f.icode[1] % 3 - 1, (f.icode[1] / 3) % 3 - 1, (f.icode[1] / 9) % 3 - 1};
 
             int L[3];
             L[0]  = (code[0] == 0) ? blocksize[0] / 2 : 1;
@@ -231,7 +235,6 @@ class FluxCorrectionMPI : public TFluxCorrection
             offset += V * NC;
          }
       }
-      TFluxCorrection::m_refGrid->FillPos();
    }
 
    virtual void FillBlockCases() override

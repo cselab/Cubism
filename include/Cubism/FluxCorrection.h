@@ -112,12 +112,18 @@ class FluxCorrection
           Cases.push_back(Case(storeFace,BlockType::sizeX,BlockType::sizeY,BlockType::sizeZ,info.level,info.Z));
         }
       }
-      for (size_t i = 0; i < Cases.size() ; i ++ )
+      size_t Cases_index = 0;
+      if (Cases.size()>0)
+      for (auto &info : B)
       {
-        MapOfCases.insert(  std::pair<std::array <long long,2>,Case *> ({(long long)Cases[i].level,Cases[i].Z}, &Cases[i]) );
-        m_refGrid->getBlockInfoAll(Cases[i].level,Cases[i].Z).auxiliary = &Cases[i];
+        if (Cases[Cases_index].level == info.level && Cases[Cases_index].Z == info.Z)
+        {
+          MapOfCases.insert(std::pair<std::array<long long, 2>, Case *>({Cases[Cases_index].level, Cases[Cases_index].Z},&Cases[Cases_index]));
+          m_refGrid->getBlockInfoAll(Cases[Cases_index].level, Cases[Cases_index].Z).auxiliary = &Cases[Cases_index];
+          info.auxiliary = &Cases[Cases_index];
+          Cases_index ++;
+        }
       }
-      m_refGrid->FillPos();
    }
 
    Case *GetCase(int level, long long Z)

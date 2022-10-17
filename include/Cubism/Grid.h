@@ -595,7 +595,6 @@ class Grid
       UpdateGroups          = false;
       MyGroups.clear();
       std::vector<bool> added(MyInfos.size(), false);
-      FillPos();
 
       #if DIMENSION == 3
       const unsigned int nZ = BlockType::sizeZ;

@@ -167,11 +167,7 @@ class FluxCorrection
           if (code[2] != 0) continue;
           #endif
 
-          bool checkFiner = false;
-          #pragma omp critical
-          {
-             checkFiner = m_refGrid->Tree(info.level, info.Znei_(code[0], code[1], code[2])).CheckFiner();
-          }
+          bool checkFiner = m_refGrid->Tree(info.level, info.Znei_(code[0], code[1], code[2])).CheckFiner();
 
           if (checkFiner)
           {
@@ -282,11 +278,7 @@ class FluxCorrection
                   2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])));
         #endif
 
-        int other_rank;
-        #pragma omp critical
-        {
-		other_rank = m_refGrid->Tree(info.level + 1, Z).rank();
-        }
+        const int other_rank = m_refGrid->Tree(info.level + 1, Z).rank();
         if (other_rank != rank) continue;
         auto search1 = MapOfCases.find({info.level + 1, Z});
 

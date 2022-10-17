@@ -241,9 +241,9 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             if (maxLevel || minLevel) I[i]->state = Leave;
 
             info.state = I[i]->state;
-            #pragma omp critical
+            if (info.state != Leave)
             {
-               if (info.state != Leave)
+               #pragma omp critical
                {
                   CallValidStates = true;
                   if (!Reduction) 

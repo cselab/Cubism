@@ -81,6 +81,7 @@ class MeshAdaptation
 
       #pragma omp parallel
       {
+         bool myCallValidStates = false;
          const int tid = omp_get_thread_num();
          TLab &mylab = labs[tid];
          #pragma omp for
@@ -90,10 +91,12 @@ class MeshAdaptation
             BlockInfo &info = m_refGrid->getBlockInfoAll(I[i].level, I[i].Z);
             I[i].state      = TagLoadedBlock(labs[tid], info);
             info.state      = I[i].state;
-            #pragma omp critical
-            {
-               if (info.state != Leave) CallValidStates = true;
-            }
+            if (info.state != Leave) myCallValidStates = true;
+         }
+         if (myCallValidStates)
+         {
+            #pragma omp atomic write
+            CallValidStates = true;
          }
       }
       if (CallValidStates) ValidStates();
@@ -260,11 +263,8 @@ class MeshAdaptation
             const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
             BlockInfo &Child   = m_refGrid->getBlockInfoAll(level + 1, nc);
             Child.state        = Leave;
-            #pragma omp critical
-            {
-               m_refGrid->_alloc(level + 1, nc);
-               m_refGrid->Tree(level + 1, nc).setCheckCoarser();
-            }
+            m_refGrid->_alloc(level + 1, nc);
+            m_refGrid->Tree(level + 1, nc).setCheckCoarser();
             Blocks[k * 4 + j * 2 + i] = (BlockType *)Child.ptrBlock;
          }
       #else
@@ -275,11 +275,8 @@ class MeshAdaptation
             const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
             BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
             Child.state = Leave;
-            #pragma omp critical
-            {
-               m_refGrid->_alloc(level + 1, nc);
-               m_refGrid->Tree(level + 1, nc).setCheckCoarser();
-            }
+            m_refGrid->_alloc(level + 1, nc);
+            m_refGrid->Tree(level + 1, nc).setCheckCoarser();
             Blocks[j * 2 + i] = (BlockType *)Child.ptrBlock;
          }
       #endif

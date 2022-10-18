@@ -190,6 +190,7 @@ class FluxCorrectionMPI : public TFluxCorrection
       if (TFluxCorrection::Cases.size()>0)
       for (auto &info : BB)
       {
+         if (Cases_index == TFluxCorrection::Cases.size()) break;
          if (TFluxCorrection::Cases[Cases_index].level == info.level &&
              TFluxCorrection::Cases[Cases_index].Z     == info.Z)
          {

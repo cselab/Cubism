@@ -116,6 +116,7 @@ class FluxCorrection
       if (Cases.size()>0)
       for (auto &info : B)
       {
+        if (Cases_index == Cases.size()) break;
         if (Cases[Cases_index].level == info.level && Cases[Cases_index].Z == info.Z)
         {
           MapOfCases.insert(std::pair<std::array<long long, 2>, Case *>({Cases[Cases_index].level, Cases[Cases_index].Z},&Cases[Cases_index]));

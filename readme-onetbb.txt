@@ -1,5 +1,5 @@
 To use thread-safe unordered_map from oneTBB:
-1. Run the script: ./install_oneTBB.sh
+1. Run the script: ./oneTBB_install.sh
 2. 
    export ONETBBROOT="<path to Cubism>/my_installed_onetbb"
    example:

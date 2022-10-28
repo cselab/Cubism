@@ -44,10 +44,10 @@ class FluxCorrectionMPI : public TFluxCorrection
       }
    };
 
-   GrowingVector<std::vector<Real>> send_buffer;
-   GrowingVector<std::vector<Real>> recv_buffer;
-   GrowingVector<std::vector<face>> send_faces;
-   GrowingVector<std::vector<face>> recv_faces;
+   std::vector<std::vector<Real>> send_buffer;
+   std::vector<std::vector<Real>> recv_buffer;
+   std::vector<std::vector<face>> send_faces;
+   std::vector<std::vector<face>> recv_faces;
 
  public:
    virtual void prepare(TGrid &grid) override
@@ -68,8 +68,6 @@ class FluxCorrectionMPI : public TFluxCorrection
 
       for (int r = 0; r < size; r++)
       {
-         send_buffer[r].clear();
-         recv_buffer[r].clear();
          send_faces[r].clear();
          recv_faces[r].clear();
       }

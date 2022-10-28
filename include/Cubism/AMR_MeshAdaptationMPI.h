@@ -170,8 +170,11 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
             AMR::refine_2(m_ref[i], n_ref[i]);
          }
       }
+      AMR::m_refGrid->dealloc_many(AMR::dealloc_IDs);
 
       Balancer->PrepareCompression();
+
+      AMR::dealloc_IDs.clear();
 
       #ifdef CUBISM_USE_ONETBB
       #pragma omp parallel for

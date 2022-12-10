@@ -25,6 +25,7 @@
 #include "HDF5Dumper.h"
 #include "GridMPI.h"
 #include "StencilInfo.h"
+namespace fs = std::filesystem;
 
 namespace cubism {
 
@@ -134,7 +135,6 @@ void save_buffer_to_file(const std::vector<data_type> & buffer, const int NCHANN
 }
 
 static double latestTime{-1.0};
-static int    gridCount{0};
 // The following requirements for the data TStreamer are required:
 // TStreamer::NCHANNELS        : Number of data elements (1=Scalar, 3=Vector, 9=Tensor)
 // TStreamer::operate          : Data access methods for read and write
@@ -143,7 +143,21 @@ template <typename TStreamer, typename hdf5Real, typename TGrid>
 void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
 {
     const bool SaveGrid = latestTime < absTime;
-    if (SaveGrid) gridCount ++;
+
+    int gridCount = 0;
+    for (auto &p : fs::recursive_directory_iterator(dpath))
+    {
+      if (p.path().extension() == ".h5")
+      {
+        std::string g = p.path().stem().string();
+        g.resize(4);
+        if ( g  == "grid" )
+        {
+          gridCount ++;
+        }
+      }
+    }
+
     latestTime = absTime;
 
     typedef typename TGrid::BlockType B;

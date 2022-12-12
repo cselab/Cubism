@@ -157,6 +157,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         }
       }
     }
+    if (SaveGrid == false) gridCount --;
 
     latestTime = absTime;
 

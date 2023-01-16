@@ -37,6 +37,7 @@ class MeshAdaptation
  public:
    MeshAdaptation(TGrid &grid, const double Rtol, const double Ctol)
    {
+      labs = nullptr;
       m_refGrid = &grid;
 
       for (int i = 0 ; i < ElementType::DIM ; i++) components.push_back(i);
@@ -89,7 +90,7 @@ class MeshAdaptation
          {
             mylab.load(I[i], t);
             BlockInfo &info = m_refGrid->getBlockInfoAll(I[i].level, I[i].Z);
-            I[i].state      = TagLoadedBlock(labs[tid], info);
+            I[i].state      = TagLoadedBlock(info);
             info.state      = I[i].state;
             if (info.state != Leave) myCallValidStates = true;
          }
@@ -721,10 +722,11 @@ class MeshAdaptation
       #endif
    }
 
-   virtual State TagLoadedBlock(TLab &Lab_, BlockInfo &info)
+   virtual State TagLoadedBlock(BlockInfo &info)
    {
       const int nx = BlockType::sizeX;
       const int ny = BlockType::sizeY;
+      BlockType & b = *(BlockType *)info.ptrBlock;
 
       double Linf = 0.0;
       #if DIMENSION == 3
@@ -733,16 +735,14 @@ class MeshAdaptation
          for (int j = 0; j < ny; j++)
             for (int i = 0; i < nx; i++)
             {
-               double s0 = std::fabs(Lab_(i, j, k).magnitude());
-               Linf      = max(Linf, s0);
+               Linf = max(Linf, std::fabs(b(i, j, k).magnitude()));
             }
       #endif
       #if DIMENSION == 2
       for (int j = 0; j < ny; j++)
          for (int i = 0; i < nx; i++)
          {
-            double s0 = std::fabs(Lab_(i, j).magnitude());
-            Linf      = max(Linf, s0);
+            Linf = max(Linf, std::fabs(b(i, j).magnitude()));
          }
       #endif
 

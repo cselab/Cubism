@@ -16,6 +16,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
    typedef SynchronizerMPI_AMR<Real,TGrid> SynchronizerMPIType;
 
    bool CallValidStates;
+   bool boundary_needed;
    LoadBalancer<TGrid> *Balancer;
    using AMR = MeshAdaptation<TGrid,TLab>;
 
@@ -25,6 +26,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
  public:
    MeshAdaptationMPI(TGrid &grid, double Rtol, double Ctol): MeshAdaptation<TGrid,TLab>(grid,Rtol,Ctol)
    {
+      boundary_needed = false;
       bool tensorial = true;
       const int Gx = 1;
       const int Gy = 1;
@@ -69,6 +71,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
    virtual void Tag(double t = 0) override
    {
       AMR::time = t;
+      boundary_needed = true;
 
       SynchronizerMPI_AMR<Real,TGrid> * Synch = AMR::m_refGrid->sync(kernel);
 
@@ -107,7 +110,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
    virtual void Adapt(double t = 0, bool verbosity = false, bool basic = false) override
    {
       AMR::basic_refinement = basic;
-      if (AMR::LabsPrepared == false)
+      if (AMR::LabsPrepared == false && basic == false)
       {
          SynchronizerMPI_AMR<Real,TGrid> * Synch = AMR::m_refGrid->sync(kernel);
          const int nthreads = omp_get_max_threads();
@@ -115,7 +118,8 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          for (int i = 0; i < nthreads; i++) AMR::labs[i].prepare(*AMR::m_refGrid, *Synch);
          //TODO: the line below means there's no computation & communication overlap here
          AMR::m_refGrid->boundary  = Synch->avail_halo();
-         AMR::m_refGrid->UpdateBoundary();
+         if (boundary_needed)
+           AMR::m_refGrid->UpdateBoundary();
       }
 
       int r = 0;
@@ -203,7 +207,11 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       AMR::m_refGrid->FillPos();     
       Balancer->Balance_Diffusion(verbosity);
 
-      delete[] AMR::labs;
+      if (AMR::labs != nullptr)
+      {
+         delete[] AMR::labs;
+         AMR::labs = nullptr;
+      }
 
       if ( result[0] > 0 || result[1] > 0 || Balancer->movedBlocks)
       {
@@ -236,7 +244,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
             BlockInfo &info = AMR::m_refGrid->getBlockInfoAll(I[i]->level, I[i]->Z);
 
-            I[i]->state     = TagLoadedBlock(AMR::labs[tid],info);
+            I[i]->state     = TagLoadedBlock(info);
 
             const bool maxLevel = (I[i]->state == Refine  ) && (I[i]->level == levelMax - 1);
             const bool minLevel = (I[i]->state == Compress) && (I[i]->level == 0);
@@ -260,9 +268,9 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          }
       }
    }
-   virtual State TagLoadedBlock(TLab &Lab_, BlockInfo & info) override
+   virtual State TagLoadedBlock(BlockInfo & info) override
    {
-      return AMR::TagLoadedBlock(Lab_,info);
+      return AMR::TagLoadedBlock(info);
    }
 };
 

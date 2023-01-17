@@ -140,9 +140,9 @@ static double latestTime{-1.0};
 // TStreamer::operate          : Data access methods for read and write
 // TStreamer::getAttributeName : Attribute name of the date ("Scalar", "Vector", "Tensor")
 template <typename TStreamer, typename hdf5Real, typename TGrid> 
-void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool bXMF = true)
+void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".", const bool dumpGrid = true)
 {
-    const bool SaveGrid = latestTime < absTime;
+    const bool SaveGrid = latestTime < absTime && dumpGrid;
 
     int gridCount = 0;
     for (auto &p : fs::recursive_directory_iterator(dpath))
@@ -219,7 +219,7 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
     }
     
     // Write grid meta-data
-    if (rank == 0)
+    if (rank == 0 && dumpGrid)
     {
         std::ostringstream myfilename;
         myfilename << filename.str();
@@ -253,7 +253,6 @@ void DumpHDF5_MPI(TGrid &grid, typename TGrid::Real absTime, const std::string &
         std::string st = s.str();
         FILE *xmf = 0;
         xmf = fopen((fullpath.str() + "-new.xmf").c_str(), "w");
-        //fprintf(xmf, st.c_str());
         fprintf(xmf, "%s",st.c_str());
         fclose(xmf);
     }

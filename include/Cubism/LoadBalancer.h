@@ -128,7 +128,6 @@ class LoadBalancer
 
    void PrepareCompression()
    {
-      grid->FillPos();
       std::vector<BlockInfo> &I = grid->getBlocksInfo();
       std::vector<std::vector<MPI_Block>> send_blocks(size);
       std::vector<std::vector<MPI_Block>> recv_blocks(size);
@@ -201,21 +200,15 @@ class LoadBalancer
             {
                MPI_Request req{};
                requests.push_back(req);
-               MPI_Irecv(&recv_blocks[r][0], recv_blocks[r].size(), MPI_BLOCK, r, 123450, comm, &requests.back());
+               MPI_Irecv(&recv_blocks[r][0], recv_blocks[r].size(), MPI_BLOCK, r, 2468, comm, &requests.back());
             }
             if (send_blocks[r].size() != 0)
             {
                MPI_Request req{};
                requests.push_back(req);
-               MPI_Isend(&send_blocks[r][0], send_blocks[r].size(), MPI_BLOCK, r, 123450, comm, &requests.back());
+               MPI_Isend(&send_blocks[r][0], send_blocks[r].size(), MPI_BLOCK, r, 2468, comm, &requests.back());
             }
          }
-
-      if (requests.size() != 0)
-      {
-         movedBlocks = true;
-         MPI_Waitall(requests.size(), &requests[0], MPI_STATUSES_IGNORE);
-      }
 
       for (int r = 0; r < size; r++)
          for (int i = 0; i < (int)send_blocks[r].size(); i++)
@@ -223,6 +216,12 @@ class LoadBalancer
             grid->_dealloc(send_blocks[r][i].mn[0], send_blocks[r][i].mn[1]);
             grid->Tree(send_blocks[r][i].mn[0], send_blocks[r][i].mn[1]).setCheckCoarser();
          }
+
+      if (requests.size() != 0)
+      {
+         movedBlocks = true;
+         MPI_Waitall(requests.size(), &requests[0], MPI_STATUSES_IGNORE);
+      }
 
       for (int r = 0; r < size; r++)
          for (int i = 0; i < (int)recv_blocks[r].size(); i++)
@@ -239,53 +238,49 @@ class LoadBalancer
          }
    }
 
-   void Balance_Diffusion(const bool verbose)
+   void Balance_Diffusion(const bool verbose, std::vector<long long> & block_distribution)
    {
       movedBlocks = false;
       {
-         const long bsize = grid->getBlocksInfo().size();
-         const long b[2] = {bsize,-bsize};
-         long res[2];
-         MPI_Allreduce(b, res, 2, MPI_LONG, MPI_MAX, comm);
-         const long max_b =  res[0];
-         const long min_b = -res[1];
+         long long max_b = block_distribution[0];
+         long long min_b = block_distribution[0];
+         for (auto & b : block_distribution)
+         {
+              max_b = std::max(max_b,b);
+              min_b = std::min(min_b,b);
+         }
          const double ratio = static_cast<double>(max_b) / min_b;
          if (rank == 0 && verbose)
          {
            std::cout << "Load imbalance ratio = " << ratio << std::endl;
          }
-         //if (ratio > 1.1 || min_b == 0)
          if (ratio > 1.01 || min_b == 0)
          {
-            Balance_Global();
+            Balance_Global(block_distribution);
             return;
          }
-         //return;
       }
 
       const int right = (rank == size - 1) ? MPI_PROC_NULL : rank + 1;
-      const int left  = (rank == 0) ? MPI_PROC_NULL : rank - 1;
+      const int left  = (rank == 0       ) ? MPI_PROC_NULL : rank - 1;
 
       const int my_blocks = grid->getBlocksInfo().size();
 
       int right_blocks, left_blocks;
 
       MPI_Request reqs[4];
-      MPI_Irecv(&left_blocks, 1, MPI_INT, left, 123, comm, &reqs[0]);
+      MPI_Irecv(&left_blocks , 1, MPI_INT, left , 123, comm, &reqs[0]);
       MPI_Irecv(&right_blocks, 1, MPI_INT, right, 456, comm, &reqs[1]);
-      MPI_Isend(&my_blocks, 1, MPI_INT, left, 456, comm, &reqs[2]);
-      MPI_Isend(&my_blocks, 1, MPI_INT, right, 123, comm, &reqs[3]);
+      MPI_Isend(&my_blocks   , 1, MPI_INT, left , 456, comm, &reqs[2]);
+      MPI_Isend(&my_blocks   , 1, MPI_INT, right, 123, comm, &reqs[3]);
 
       MPI_Waitall(4, &reqs[0], MPI_STATUSES_IGNORE);
 
-      int nu         = 4;
-      int flux_left  = (my_blocks - left_blocks) / nu;
-      int flux_right = (my_blocks - right_blocks) / nu;
-      if (rank == size - 1) flux_right = 0;
-      if (rank == 0) flux_left = 0;
+      const int nu         = 4;
+      const int flux_left  = (rank == 0       ) ? 0 : (my_blocks - left_blocks ) / nu;
+      const int flux_right = (rank == size - 1) ? 0 : (my_blocks - right_blocks) / nu;
 
       std::vector<BlockInfo> SortedInfos = grid->getBlocksInfo();
-
       if (flux_right != 0 || flux_left != 0) std::sort(SortedInfos.begin(), SortedInfos.end());
 
       std::vector<MPI_Block> send_left;
@@ -323,15 +318,9 @@ class LoadBalancer
       else if (flux_right < 0) // then I will receive blocks from my right rank
       {
          recv_right.resize(abs(flux_right));
-	      MPI_Request req{};
+	 MPI_Request req{};
          request.push_back(req);
          MPI_Irecv(&recv_right[0], recv_right.size(), MPI_BLOCK, right, 7890, comm, &request.back());
-      }
-
-      if (request.size() != 0)
-      {
-         movedBlocks = true;
-         MPI_Waitall(request.size(), &request[0], MPI_STATUSES_IGNORE);
       }
 
       for (int i = 0; i < flux_right; i++)
@@ -348,41 +337,25 @@ class LoadBalancer
          grid->Tree(info.level, info.Z).setrank(left);
       }
 
-      for (int i = 0; i < -flux_left; i++)
-         AddBlock(recv_left[i].mn[0],recv_left[i].mn[1],recv_left[i].data);
-
-      for (int i = 0; i < -flux_right; i++)
-         AddBlock(recv_right[i].mn[0],recv_right[i].mn[1],recv_right[i].data);
-
+      if (request.size() != 0)
+      {
+         movedBlocks = true;
+         MPI_Waitall(request.size(), &request[0], MPI_STATUSES_IGNORE);
+      }
       int temp = movedBlocks ? 1 : 0;
-      MPI_Allreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_SUM, comm);
+      MPI_Request request_reduction;
+      MPI_Iallreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_SUM, comm, &request_reduction);
+
+      for (int i = 0; i < -flux_left ; i++) AddBlock(recv_left [i].mn[0],recv_left [i].mn[1],recv_left [i].data);
+      for (int i = 0; i < -flux_right; i++) AddBlock(recv_right[i].mn[0],recv_right[i].mn[1],recv_right[i].data);
+
+      MPI_Wait(&request_reduction, MPI_STATUS_IGNORE);
       movedBlocks = (temp >= 1);
-      #if 0
-         if (movedBlocks == true)
-         {
-            int b = grid->getBlocksInfo().size();
-            std::vector<int> all_b(size);
-            MPI_Gather(&b, 1, MPI_INT, &all_b[0], 1, MPI_INT, 0, comm);
-            if (rank == 0)
-            {
-               std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
-               std::cout << " Distribution of blocks among ranks: \n";
-               for (int r = 0; r < size; r++) std::cout << all_b[r] << " | ";
-               std::cout << "\n";
-               std::cout << "&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~&~\n";
-               std::cout << std::endl;
-            }
-         }
-      #endif
       grid->FillPos();
    }
 
-   void Balance_Global()
+   void Balance_Global(std::vector<long long> & all_b)
    {
-      const long long b = grid->getBlocksInfo().size();
-      std::vector<long long> all_b(size);
-      MPI_Allgather(&b, 1, MPI_LONG_LONG, all_b.data(), 1, MPI_LONG_LONG, comm);
-
       std::vector<BlockInfo> SortedInfos = grid->getBlocksInfo();
       std::sort(SortedInfos.begin(), SortedInfos.end());
 

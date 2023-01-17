@@ -132,12 +132,16 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
       std::vector<BlockInfo> &I = AMR::m_refGrid->getBlocksInfo();
 
+      long long blocks_after = I.size();
+
       for (auto &info : I)
       {
          if (info.state == Refine)
          {
             m_ref.push_back(info.level);
             n_ref.push_back(info.Z);
+            blocks_after += (1 << DIMENSION) - 1; 
+            r++;
          }
          else if (info.state == Compress
             && info.index[0]%2 == 0
@@ -146,8 +150,21 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          {
             m_com.push_back(info.level);
             n_com.push_back(info.Z);
+            c++;
+         }
+         else if (info.state == Compress)
+         {
+            blocks_after --;
          }
       }
+      MPI_Request requests[2];
+      int temp[2] = {r, c};
+      int result[2];
+      int size;
+      MPI_Comm_size(AMR::m_refGrid->getWorldComm(),&size);
+      std::vector<long long> block_distribution(size);
+      MPI_Iallreduce(&temp, &result, 2, MPI_INT, MPI_SUM, AMR::m_refGrid->getWorldComm(),&requests[0]);
+      MPI_Iallgather(&blocks_after, 1, MPI_LONG_LONG, block_distribution.data(), 1, MPI_LONG_LONG, AMR::m_refGrid->getWorldComm(), &requests[1]);
 
       AMR::dealloc_IDs.clear();
 
@@ -161,10 +178,6 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          for (size_t i = 0; i < m_ref.size(); i++)
          {
             AMR::refine_1(m_ref[i], n_ref[i]);
-            #ifdef CUBISM_USE_ONETBB
-            #pragma omp atomic
-            #endif
-            r++;
          }
          #ifdef CUBISM_USE_ONETBB
          #pragma omp for
@@ -186,26 +199,19 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
       for (size_t i = 0; i < m_com.size(); i++)
       {
          AMR::compress(m_com[i], n_com[i]);
-         #ifdef CUBISM_USE_ONETBB
-         #pragma omp atomic
-         #endif
-         c++;
       }
 
       AMR::m_refGrid->dealloc_many(AMR::dealloc_IDs);
 
-      int temp[2] = {r, c};
-      int result[2];
-      MPI_Allreduce(&temp, &result, 2, MPI_INT, MPI_SUM, AMR::m_refGrid->getWorldComm());
+      MPI_Waitall(2,requests,MPI_STATUS_IGNORE);
       if (verbosity)
       {
          std::cout << "==============================================================\n";
          std::cout << " refined:" << result[0] << "   compressed:" << result[1] << std::endl;
-         std::cout << "==============================================================\n";
-         std::cout << std::flush;
+         std::cout << "==============================================================" << std::endl;
       }
-      AMR::m_refGrid->FillPos();     
-      Balancer->Balance_Diffusion(verbosity);
+
+      Balancer->Balance_Diffusion(verbosity,block_distribution);
 
       if (AMR::labs != nullptr)
       {

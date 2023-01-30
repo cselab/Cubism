@@ -530,10 +530,31 @@ class BlockLab
                            const ElementType &e4, const ElementType &e5,
                            const ElementType &e6, const ElementType &e7)
    {
+      #ifdef PRESERVE_SYMMETRY
+      return ConsistentAverage<ElementType>(e0,e1,e2,e3,e4,e5,e6,e7);
+      #else
       return 0.125 * (e0 + e1 + e2 + e3 + e4 + e5 + e6 + e7);
+      #endif
    }
    virtual void TestInterp(ElementType *C[3][3][3], ElementType *R, int x, int y, int z)
    {
+      #ifdef PRESERVE_SYMMETRY
+      const ElementType dudx   = 0.125*( (*C[2][1][1]) - (*C[0][1][1]) );
+      const ElementType dudy   = 0.125*( (*C[1][2][1]) - (*C[1][0][1]) );
+      const ElementType dudz   = 0.125*( (*C[1][1][2]) - (*C[1][1][0]) );
+      const ElementType dudxdy = 0.015625*(((*C[0][0][1]) + (*C[2][2][1])) - ((*C[2][0][1]) + (*C[0][2][1])));
+      const ElementType dudxdz = 0.015625*(((*C[0][1][0]) + (*C[2][1][2])) - ((*C[2][1][0]) + (*C[0][1][2])));
+      const ElementType dudydz = 0.015625*(((*C[1][0][0]) + (*C[1][2][2])) - ((*C[1][2][0]) + (*C[1][0][2])));
+      const ElementType lap    = *C[1][1][1] + 0.03125* ( ConsistentSum((*C[0][1][1]) + (*C[2][1][1]),(*C[1][0][1]) + (*C[1][2][1]),(*C[1][1][0]) + (*C[1][1][2])) -6.0*(*C[1][1][1]));
+      R[0] = lap + ( ConsistentSum((-1.0)*dudx,(-1.0)*dudy,(-1.0)*dudz) + ConsistentSum(       dudxdy,       dudxdz,       dudydz) );
+      R[1] = lap + ( ConsistentSum(       dudx,(-1.0)*dudy,(-1.0)*dudz) + ConsistentSum((-1.0)*dudxdy,(-1.0)*dudxdz,       dudydz) );
+      R[2] = lap + ( ConsistentSum((-1.0)*dudx,       dudy,(-1.0)*dudz) + ConsistentSum((-1.0)*dudxdy,       dudxdz,(-1.0)*dudydz) );
+      R[3] = lap + ( ConsistentSum(       dudx,       dudy,(-1.0)*dudz) + ConsistentSum(       dudxdy,(-1.0)*dudxdz,(-1.0)*dudydz) );
+      R[4] = lap + ( ConsistentSum((-1.0)*dudx,(-1.0)*dudy,       dudz) + ConsistentSum(       dudxdy,(-1.0)*dudxdz,(-1.0)*dudydz) );
+      R[5] = lap + ( ConsistentSum(       dudx,(-1.0)*dudy,       dudz) + ConsistentSum((-1.0)*dudxdy,       dudxdz,(-1.0)*dudydz) );
+      R[6] = lap + ( ConsistentSum((-1.0)*dudx,       dudy,       dudz) + ConsistentSum((-1.0)*dudxdy,(-1.0)*dudxdz,       dudydz) );
+      R[7] = lap + ( ConsistentSum(       dudx,       dudy,       dudz) + ConsistentSum(       dudxdy,       dudxdz,       dudydz) );
+      #else
       const ElementType dudx   = 0.125*( (*C[2][1][1]) - (*C[0][1][1]) );
       const ElementType dudy   = 0.125*( (*C[1][2][1]) - (*C[1][0][1]) );
       const ElementType dudz   = 0.125*( (*C[1][1][2]) - (*C[1][1][0]) );
@@ -549,6 +570,7 @@ class BlockLab
       R[5] = lap + dudx - dudy + dudz - dudxdy + dudxdz - dudydz;
       R[6] = lap - dudx + dudy + dudz - dudxdy - dudxdz + dudydz;
       R[7] = lap + dudx + dudy + dudz + dudxdy + dudxdz + dudydz;
+      #endif
    }
    #else
    ElementType AverageDown(const ElementType &e0, const ElementType &e1,
@@ -676,14 +698,10 @@ class BlockLab
                   #pragma GCC ivdep
                   for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
                   {
-                     ptrDest0[ee] = 0.125*(ptrSrc_00[2*ee  ]+ptrSrc_10[2*ee  ]+ptrSrc_20[2*ee  ]+ptrSrc_30[2*ee  ]
-                                          +ptrSrc_00[2*ee+1]+ptrSrc_10[2*ee+1]+ptrSrc_20[2*ee+1]+ptrSrc_30[2*ee+1]);
-                     ptrDest1[ee] = 0.125*(ptrSrc_01[2*ee  ]+ptrSrc_11[2*ee  ]+ptrSrc_21[2*ee  ]+ptrSrc_31[2*ee  ]
-                                          +ptrSrc_01[2*ee+1]+ptrSrc_11[2*ee+1]+ptrSrc_21[2*ee+1]+ptrSrc_31[2*ee+1]);
-                     ptrDest2[ee] = 0.125*(ptrSrc_02[2*ee  ]+ptrSrc_12[2*ee  ]+ptrSrc_22[2*ee  ]+ptrSrc_32[2*ee  ]
-                                          +ptrSrc_02[2*ee+1]+ptrSrc_12[2*ee+1]+ptrSrc_22[2*ee+1]+ptrSrc_32[2*ee+1]);
-                     ptrDest3[ee] = 0.125*(ptrSrc_03[2*ee  ]+ptrSrc_13[2*ee  ]+ptrSrc_23[2*ee  ]+ptrSrc_33[2*ee  ]
-                                          +ptrSrc_03[2*ee+1]+ptrSrc_13[2*ee+1]+ptrSrc_23[2*ee+1]+ptrSrc_33[2*ee+1]);
+                     ptrDest0[ee] = AverageDown(ptrSrc_00[2*ee],ptrSrc_10[2*ee],ptrSrc_20[2*ee],ptrSrc_30[2*ee],ptrSrc_00[2*ee+1],ptrSrc_10[2*ee+1],ptrSrc_20[2*ee+1],ptrSrc_30[2*ee+1]);
+                     ptrDest1[ee] = AverageDown(ptrSrc_01[2*ee],ptrSrc_11[2*ee],ptrSrc_21[2*ee],ptrSrc_31[2*ee],ptrSrc_01[2*ee+1],ptrSrc_11[2*ee+1],ptrSrc_21[2*ee+1],ptrSrc_31[2*ee+1]);
+                     ptrDest2[ee] = AverageDown(ptrSrc_02[2*ee],ptrSrc_12[2*ee],ptrSrc_22[2*ee],ptrSrc_32[2*ee],ptrSrc_02[2*ee+1],ptrSrc_12[2*ee+1],ptrSrc_22[2*ee+1],ptrSrc_32[2*ee+1]);
+                     ptrDest3[ee] = AverageDown(ptrSrc_03[2*ee],ptrSrc_13[2*ee],ptrSrc_23[2*ee],ptrSrc_33[2*ee],ptrSrc_03[2*ee+1],ptrSrc_13[2*ee+1],ptrSrc_23[2*ee+1],ptrSrc_33[2*ee+1]);
                   }
                #else
                  const ElementType *ptrSrc_00 = &b(XX,YY0  ,ZZ);
@@ -726,8 +744,7 @@ class BlockLab
                   #pragma GCC ivdep
                   for (int ee = 0; ee < (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)); ee++)
                   {
-                     ptrDest[ee] = 0.125f*(ptrSrc_0  [2*ee]+ptrSrc_1  [2*ee]+ptrSrc_2  [2*ee]+ptrSrc_3  [2*ee]
-                                          +ptrSrc_0_1[2*ee]+ptrSrc_1_1[2*ee]+ptrSrc_2_1[2*ee]+ptrSrc_3_1[2*ee]);
+                     ptrDest[ee] = AverageDown(ptrSrc_0[2*ee],ptrSrc_1[2*ee],ptrSrc_2[2*ee],ptrSrc_3[2*ee],ptrSrc_0_1[2*ee],ptrSrc_1_1[2*ee],ptrSrc_2_1[2*ee],ptrSrc_3_1[2*ee]);
                   }
                #else
                   const ElementType * ptrSrc_0 = &b(XX, YY    , ZZ);
@@ -1074,369 +1091,146 @@ class BlockLab
                         if (code[0] != 0) //X-face
                         {
                            ElementType x1D,x2D,mixed;
-                           if (yinner && zinner)
+
+                           int YP,YM,ZP,ZM;
+                           double mixed_coef = 1.0;
+                           if (yinner)
                            {
-                              x1D = dy_coef[6] *  m_CoarsenedBlock->Access(XX,YY-1,ZZ  ) +
-                                    dy_coef[7] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ  ) +
-                                    dy_coef[8] *  m_CoarsenedBlock->Access(XX,YY+1,ZZ  );
-                              x2D = dz_coef[6] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ-1) +
-                                    dz_coef[7] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ  ) +
-                                    dz_coef[8] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ+1);
-                              mixed = dy*dz*0.25*(m_CoarsenedBlock->Access(XX,YY-1,ZZ-1)
-                                                 +m_CoarsenedBlock->Access(XX,YY+1,ZZ+1)
-                                                 -m_CoarsenedBlock->Access(XX,YY+1,ZZ-1)
-                                                 -m_CoarsenedBlock->Access(XX,YY-1,ZZ+1));
+                              x1D = (dy_coef[6]*m_CoarsenedBlock->Access(XX,YY-1,ZZ) +dy_coef[8]*m_CoarsenedBlock->Access(XX,YY+1,ZZ))+ dy_coef[7]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              YP = YY+1;
+                              YM = YY-1;
+                              mixed_coef *= 0.5;
                            }
-                           else if (yinner)
+                           else if (ystart)
                            {
-                              x1D = dy_coef[6] * m_CoarsenedBlock->Access(XX,YY-1,ZZ) +
-                                    dy_coef[7] * m_CoarsenedBlock->Access(XX,YY  ,ZZ) +
-                                    dy_coef[8] * m_CoarsenedBlock->Access(XX,YY+1,ZZ);
-                              if (zstart)
-                              {
-                                 x2D = dz_coef[0] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ+2) +
-                                       dz_coef[1] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ+1) +
-                                       dz_coef[2] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                                 mixed = dy*dz*0.5 *(m_CoarsenedBlock->Access(XX,YY-1,ZZ  )
-                                                    +m_CoarsenedBlock->Access(XX,YY+1,ZZ+1)
-                                                    -m_CoarsenedBlock->Access(XX,YY+1,ZZ  )
-                                                    -m_CoarsenedBlock->Access(XX,YY-1,ZZ+1));
-                              }
-                              else
-                              {
-                                 x2D = dz_coef[3] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ-2) +
-                                       dz_coef[4] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ-1) +
-                                       dz_coef[5] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                                 mixed = dy*dz*0.5 *(m_CoarsenedBlock->Access(XX,YY-1,ZZ-1)
-                                                    +m_CoarsenedBlock->Access(XX,YY+1,ZZ  )
-                                                    -m_CoarsenedBlock->Access(XX,YY+1,ZZ-1)
-                                                    -m_CoarsenedBlock->Access(XX,YY-1,ZZ  ));
-                              }
+                              x1D = (dy_coef[0]*m_CoarsenedBlock->Access(XX,YY+2,ZZ) + dy_coef[1]*m_CoarsenedBlock->Access(XX,YY+1,ZZ)) + dy_coef[2]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              YP = YY+1;
+                              YM = YY;
                            }
-                           else if (zinner)
+                           else
                            {
-                              x2D = dz_coef[6] * m_CoarsenedBlock->Access(XX,YY,ZZ-1) +
-                                    dz_coef[7] * m_CoarsenedBlock->Access(XX,YY,ZZ  ) +
-                                    dz_coef[8] * m_CoarsenedBlock->Access(XX,YY,ZZ+1);
-                              if (ystart)
-                              {
-                                 x1D = dy_coef[0] *  m_CoarsenedBlock->Access(XX,YY+2,ZZ  ) +
-                                       dy_coef[1] *  m_CoarsenedBlock->Access(XX,YY+1,ZZ  ) +
-                                       dy_coef[2] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                                 mixed = dy*dz*0.5 *(m_CoarsenedBlock->Access(XX,YY  ,ZZ-1)
-                                                    +m_CoarsenedBlock->Access(XX,YY+1,ZZ+1)
-                                                    -m_CoarsenedBlock->Access(XX,YY+1,ZZ-1)
-                                                    -m_CoarsenedBlock->Access(XX,YY  ,ZZ+1));
-                              }
-                              else
-                              {
-                                 x1D = dy_coef[3] *  m_CoarsenedBlock->Access(XX,YY-2,ZZ  ) +
-                                       dy_coef[4] *  m_CoarsenedBlock->Access(XX,YY-1,ZZ  ) +
-                                       dy_coef[5] *  m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                                 mixed = dy*dz*0.5 *(m_CoarsenedBlock->Access(XX,YY-1,ZZ-1)
-                                                    +m_CoarsenedBlock->Access(XX,YY  ,ZZ+1)
-                                                    -m_CoarsenedBlock->Access(XX,YY  ,ZZ-1)
-                                                    -m_CoarsenedBlock->Access(XX,YY-1,ZZ+1));
-                              }
+                              x1D = (dy_coef[3]*m_CoarsenedBlock->Access(XX,YY-2,ZZ) + dy_coef[4]*m_CoarsenedBlock->Access(XX,YY-1,ZZ)) + dy_coef[5]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              YP = YY;
+                              YM = YY-1;
+                           }
+                           if (zinner)
+                           {
+                              x2D = (dz_coef[6]*m_CoarsenedBlock->Access(XX,YY,ZZ-1) + dz_coef[8]*m_CoarsenedBlock->Access(XX,YY,ZZ+1))+ dz_coef[7]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              ZP = ZZ+1;
+                              ZM = ZZ-1;
+                              mixed_coef *= 0.5;
                            }
                            else if (zstart)
                            {
-                              x2D = dz_coef[0] * m_CoarsenedBlock->Access(XX,YY,ZZ+2) +
-                                    dz_coef[1] * m_CoarsenedBlock->Access(XX,YY,ZZ+1) +
-                                    dz_coef[2] * m_CoarsenedBlock->Access(XX,YY,ZZ  );
-                              if (ystart)
-                              {
-                                 x1D = dy_coef[0] * m_CoarsenedBlock->Access(XX,YY+2,ZZ  ) +
-                                       dy_coef[1] * m_CoarsenedBlock->Access(XX,YY+1,ZZ  ) +
-                                       dy_coef[2] * m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                                 mixed = dy*dz*    (m_CoarsenedBlock->Access(XX,YY  ,ZZ  )
-                                                   +m_CoarsenedBlock->Access(XX,YY+1,ZZ+1)
-                                                   -m_CoarsenedBlock->Access(XX,YY+1,ZZ  )
-                                                   -m_CoarsenedBlock->Access(XX,YY  ,ZZ+1));
-                              }
-                              else
-                              {
-                                 x1D = dy_coef[3] * m_CoarsenedBlock->Access(XX,YY-2,ZZ  ) +
-                                       dy_coef[4] * m_CoarsenedBlock->Access(XX,YY-1,ZZ  ) +
-                                       dy_coef[5] * m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                                 mixed = dy*dz*    (m_CoarsenedBlock->Access(XX,YY-1,ZZ  )
-                                                   +m_CoarsenedBlock->Access(XX,YY  ,ZZ+1)
-                                                   -m_CoarsenedBlock->Access(XX,YY  ,ZZ  )
-                                                   -m_CoarsenedBlock->Access(XX,YY-1,ZZ+1));
-                              }
+                              x2D = (dz_coef[0]*m_CoarsenedBlock->Access(XX,YY,ZZ+2) + dz_coef[1]*m_CoarsenedBlock->Access(XX,YY,ZZ+1)) + dz_coef[2]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              ZP = ZZ+1;
+                              ZM = ZZ;
                            }
-                           else if (ystart) // and !zstart
+                           else
                            {
-                              x1D = dy_coef[0] * m_CoarsenedBlock->Access(XX,YY+2,ZZ  ) +
-                                    dy_coef[1] * m_CoarsenedBlock->Access(XX,YY+1,ZZ  ) +
-                                    dy_coef[2] * m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                              x2D = dz_coef[3] * m_CoarsenedBlock->Access(XX,YY  ,ZZ-2) +
-                                    dz_coef[4] * m_CoarsenedBlock->Access(XX,YY  ,ZZ-1) +
-                                    dz_coef[5] * m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                              mixed = dy*dz*    (m_CoarsenedBlock->Access(XX,YY  ,ZZ-1)
-                                                +m_CoarsenedBlock->Access(XX,YY+1,ZZ  )
-                                                -m_CoarsenedBlock->Access(XX,YY+1,ZZ-1)
-                                                -m_CoarsenedBlock->Access(XX,YY  ,ZZ  ));
+                              x2D = (dz_coef[3]*m_CoarsenedBlock->Access(XX,YY,ZZ-2) + dz_coef[4]*m_CoarsenedBlock->Access(XX,YY,ZZ-1)) + dz_coef[5]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              ZP = ZZ;
+                              ZM = ZZ-1;
                            }
-                           else // !ystart and !zstart
-                           {
-                              x1D = dy_coef[3] * m_CoarsenedBlock->Access(XX,YY-2,ZZ  ) +
-                                    dy_coef[4] * m_CoarsenedBlock->Access(XX,YY-1,ZZ  ) +
-                                    dy_coef[5] * m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                              x2D = dz_coef[3] * m_CoarsenedBlock->Access(XX,YY  ,ZZ-2) +
-                                    dz_coef[4] * m_CoarsenedBlock->Access(XX,YY  ,ZZ-1) +
-                                    dz_coef[5] * m_CoarsenedBlock->Access(XX,YY  ,ZZ  );
-                              mixed = dy*dz*    (m_CoarsenedBlock->Access(XX,YY  ,ZZ  )
-                                                +m_CoarsenedBlock->Access(XX,YY-1,ZZ-1)
-                                                -m_CoarsenedBlock->Access(XX,YY-1,ZZ  )
-                                                -m_CoarsenedBlock->Access(XX,YY  ,ZZ-1));
-                           }
-                           a = x1D + x2D + mixed;
+                           mixed = mixed_coef*dy*dz*((m_CoarsenedBlock->Access(XX,YM,ZM)+m_CoarsenedBlock->Access(XX,YP,ZP))-(m_CoarsenedBlock->Access(XX,YP,ZM)+m_CoarsenedBlock->Access(XX,YM,ZP)));
+                           a = (x1D + x2D) + mixed;
                         }
                         else if (code[1] != 0) //Y-face
                         {
                            ElementType x1D,x2D,mixed;
-                           if (xinner && zinner)
+
+                           int XP,XM,ZP,ZM;
+                           double mixed_coef = 1.0;
+                           if (xinner)
                            {
-                              x1D = dx_coef[6] *  m_CoarsenedBlock->Access(XX-1,YY,ZZ  ) +
-                                    dx_coef[7] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ  ) +
-                                    dx_coef[8] *  m_CoarsenedBlock->Access(XX+1,YY,ZZ  );
-                              x2D = dz_coef[6] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ-1) +
-                                    dz_coef[7] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ  ) +
-                                    dz_coef[8] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ+1);
-                              mixed = dx*dz*0.25*(m_CoarsenedBlock->Access(XX-1,YY,ZZ-1)
-                                                 +m_CoarsenedBlock->Access(XX+1,YY,ZZ+1)
-                                                 -m_CoarsenedBlock->Access(XX+1,YY,ZZ-1)
-                                                 -m_CoarsenedBlock->Access(XX-1,YY,ZZ+1));
+                              x1D = (dx_coef[6]*m_CoarsenedBlock->Access(XX-1,YY,ZZ)  + dx_coef[8]*m_CoarsenedBlock->Access(XX+1,YY,ZZ)) + dx_coef[7]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              XP = XX+1;
+                              XM = XX-1;
+                              mixed_coef *= 0.5;
                            }
-                           else if (xinner)
+                           else if (xstart)
                            {
-                              x1D = dx_coef[6] * m_CoarsenedBlock->Access(XX-1,YY,ZZ) +
-                                    dx_coef[7] * m_CoarsenedBlock->Access(XX  ,YY,ZZ) +
-                                    dx_coef[8] * m_CoarsenedBlock->Access(XX+1,YY,ZZ);
-                              if (zstart)
-                              {
-                                 x2D = dz_coef[0] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ+2) +
-                                       dz_coef[1] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ+1) +
-                                       dz_coef[2] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                                 mixed = dx*dz*0.5 *(m_CoarsenedBlock->Access(XX-1,YY,ZZ  )
-                                                    +m_CoarsenedBlock->Access(XX+1,YY,ZZ+1)
-                                                    -m_CoarsenedBlock->Access(XX+1,YY,ZZ  )
-                                                    -m_CoarsenedBlock->Access(XX-1,YY,ZZ+1));
-                              }
-                              else
-                              {
-                                 x2D = dz_coef[3] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ-2) +
-                                       dz_coef[4] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ-1) +
-                                       dz_coef[5] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                                 mixed = dx*dz*0.5 *(m_CoarsenedBlock->Access(XX-1,YY,ZZ-1)
-                                                    +m_CoarsenedBlock->Access(XX+1,YY,ZZ  )
-                                                    -m_CoarsenedBlock->Access(XX+1,YY,ZZ-1)
-                                                    -m_CoarsenedBlock->Access(XX-1,YY,ZZ  ));
-                              }
+                              x1D = (dx_coef[0]*m_CoarsenedBlock->Access(XX+2,YY,ZZ) + dx_coef[1]*m_CoarsenedBlock->Access(XX+1,YY,ZZ)) + dx_coef[2]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              XP = XX+1;
+                              XM = XX;
                            }
-                           else if (zinner)
+                           else
                            {
-                              x2D = dz_coef[6] * m_CoarsenedBlock->Access(XX,YY,ZZ-1) +
-                                    dz_coef[7] * m_CoarsenedBlock->Access(XX,YY,ZZ  ) +
-                                    dz_coef[8] * m_CoarsenedBlock->Access(XX,YY,ZZ+1);
-                              if (xstart)
-                              {
-                                 x1D = dx_coef[0] *  m_CoarsenedBlock->Access(XX+2,YY,ZZ  ) +
-                                       dx_coef[1] *  m_CoarsenedBlock->Access(XX+1,YY,ZZ  ) +
-                                       dx_coef[2] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                                 mixed = dx*dz*0.5 *(m_CoarsenedBlock->Access(XX  ,YY,ZZ-1)
-                                                    +m_CoarsenedBlock->Access(XX+1,YY,ZZ+1)
-                                                    -m_CoarsenedBlock->Access(XX+1,YY,ZZ-1)
-                                                    -m_CoarsenedBlock->Access(XX  ,YY,ZZ+1));
-                              }
-                              else
-                              {
-                                 x1D = dx_coef[3] *  m_CoarsenedBlock->Access(XX-2,YY,ZZ  ) +
-                                       dx_coef[4] *  m_CoarsenedBlock->Access(XX-1,YY,ZZ  ) +
-                                       dx_coef[5] *  m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                                 mixed = dx*dz*0.5 *(m_CoarsenedBlock->Access(XX-1,YY,ZZ-1)
-                                                    +m_CoarsenedBlock->Access(XX  ,YY,ZZ+1)
-                                                    -m_CoarsenedBlock->Access(XX  ,YY,ZZ-1)
-                                                    -m_CoarsenedBlock->Access(XX-1,YY,ZZ+1));
-                              }
+                              x1D = (dx_coef[3]*m_CoarsenedBlock->Access(XX-2,YY,ZZ) + dx_coef[4]*m_CoarsenedBlock->Access(XX-1,YY,ZZ)) + dx_coef[5]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              XP = XX;
+                              XM = XX-1;
+                           }
+                           if (zinner)
+                           {
+                              x2D = (dz_coef[6]*m_CoarsenedBlock->Access(XX,YY,ZZ-1) + dz_coef[8]*m_CoarsenedBlock->Access(XX,YY,ZZ+1))+ dz_coef[7]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              ZP = ZZ+1;
+                              ZM = ZZ-1;
+                              mixed_coef *= 0.5;
                            }
                            else if (zstart)
                            {
-                              x2D = dz_coef[0] * m_CoarsenedBlock->Access(XX,YY,ZZ+2) +
-                                    dz_coef[1] * m_CoarsenedBlock->Access(XX,YY,ZZ+1) +
-                                    dz_coef[2] * m_CoarsenedBlock->Access(XX,YY,ZZ  );
-                              if (xstart)
-                              {
-                                 x1D = dx_coef[0] * m_CoarsenedBlock->Access(XX+2,YY,ZZ  ) +
-                                       dx_coef[1] * m_CoarsenedBlock->Access(XX+1,YY,ZZ  ) +
-                                       dx_coef[2] * m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                                 mixed = dx*dz*    (m_CoarsenedBlock->Access(XX  ,YY,ZZ  )
-                                                   +m_CoarsenedBlock->Access(XX+1,YY,ZZ+1)
-                                                   -m_CoarsenedBlock->Access(XX+1,YY,ZZ  )
-                                                   -m_CoarsenedBlock->Access(XX  ,YY,ZZ+1));
-                              }
-                              else
-                              {
-                                 x1D = dx_coef[3] * m_CoarsenedBlock->Access(XX-2,YY,ZZ  ) +
-                                       dx_coef[4] * m_CoarsenedBlock->Access(XX-1,YY,ZZ  ) +
-                                       dx_coef[5] * m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                                 mixed = dx*dz*    (m_CoarsenedBlock->Access(XX-1,YY,ZZ  )
-                                                   +m_CoarsenedBlock->Access(XX  ,YY,ZZ+1)
-                                                   -m_CoarsenedBlock->Access(XX  ,YY,ZZ  )
-                                                   -m_CoarsenedBlock->Access(XX-1,YY,ZZ+1));
-                              }
+                              x2D = (dz_coef[0]*m_CoarsenedBlock->Access(XX,YY,ZZ+2) + dz_coef[1]*m_CoarsenedBlock->Access(XX,YY,ZZ+1)) + dz_coef[2]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              ZP = ZZ+1;
+                              ZM = ZZ;
                            }
-                           else if (xstart) // and !zstart
+                           else
                            {
-                              x1D = dx_coef[0] * m_CoarsenedBlock->Access(XX+2,YY,ZZ  ) +
-                                    dx_coef[1] * m_CoarsenedBlock->Access(XX+1,YY,ZZ  ) +
-                                    dx_coef[2] * m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                              x2D = dz_coef[3] * m_CoarsenedBlock->Access(XX  ,YY,ZZ-2) +
-                                    dz_coef[4] * m_CoarsenedBlock->Access(XX  ,YY,ZZ-1) +
-                                    dz_coef[5] * m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                              mixed = dx*dz*    (m_CoarsenedBlock->Access(XX  ,YY,ZZ-1)
-                                                +m_CoarsenedBlock->Access(XX+1,YY,ZZ  )
-                                                -m_CoarsenedBlock->Access(XX+1,YY,ZZ-1)
-                                                -m_CoarsenedBlock->Access(XX  ,YY,ZZ  ));
+                              x2D = (dz_coef[3]*m_CoarsenedBlock->Access(XX,YY,ZZ-2) + dz_coef[4]*m_CoarsenedBlock->Access(XX,YY,ZZ-1)) + dz_coef[5]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              ZP = ZZ;
+                              ZM = ZZ-1;
                            }
-                           else // !xstart and !zstart
-                           {
-                              x1D = dx_coef[3] * m_CoarsenedBlock->Access(XX-2,YY,ZZ  ) +
-                                    dx_coef[4] * m_CoarsenedBlock->Access(XX-1,YY,ZZ  ) +
-                                    dx_coef[5] * m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                              x2D = dz_coef[3] * m_CoarsenedBlock->Access(XX  ,YY,ZZ-2) +
-                                    dz_coef[4] * m_CoarsenedBlock->Access(XX  ,YY,ZZ-1) +
-                                    dz_coef[5] * m_CoarsenedBlock->Access(XX  ,YY,ZZ  );
-                              mixed = dx*dz*    (m_CoarsenedBlock->Access(XX  ,YY,ZZ  )
-                                                +m_CoarsenedBlock->Access(XX-1,YY,ZZ-1)
-                                                -m_CoarsenedBlock->Access(XX-1,YY,ZZ  )
-                                                -m_CoarsenedBlock->Access(XX  ,YY,ZZ-1));
-                           }
-                           a = x1D + x2D + mixed;                     
+                           mixed = mixed_coef*dx*dz*((m_CoarsenedBlock->Access(XM,YY,ZM)+m_CoarsenedBlock->Access(XP,YY,ZP))-(m_CoarsenedBlock->Access(XP,YY,ZM)+m_CoarsenedBlock->Access(XM,YY,ZP)));
+                           a = (x1D + x2D) + mixed;
                         }
                         else if (code[2] != 0) //Z-face
                         {
                            ElementType x1D,x2D,mixed;
-                           if (xinner && yinner)
+
+                           int XP,XM,YP,YM;
+                           double mixed_coef = 1.0;
+                           if (xinner)
                            {
-                              x1D = dx_coef[6] *  m_CoarsenedBlock->Access(XX-1,YY  ,ZZ) +
-                                    dx_coef[7] *  m_CoarsenedBlock->Access(XX  ,YY  ,ZZ) +
-                                    dx_coef[8] *  m_CoarsenedBlock->Access(XX+1,YY  ,ZZ);
-                              x2D = dy_coef[6] *  m_CoarsenedBlock->Access(XX  ,YY-1,ZZ) +
-                                    dy_coef[7] *  m_CoarsenedBlock->Access(XX  ,YY  ,ZZ) +
-                                    dy_coef[8] *  m_CoarsenedBlock->Access(XX  ,YY+1,ZZ);
-                              mixed = dx*dy*0.25*(m_CoarsenedBlock->Access(XX-1,YY-1,ZZ)
-                                                 +m_CoarsenedBlock->Access(XX+1,YY+1,ZZ)
-                                                 -m_CoarsenedBlock->Access(XX+1,YY-1,ZZ)
-                                                 -m_CoarsenedBlock->Access(XX-1,YY+1,ZZ));
+                              x1D = (dx_coef[6]*m_CoarsenedBlock->Access(XX-1,YY,ZZ)  + dx_coef[8]*m_CoarsenedBlock->Access(XX+1,YY,ZZ)) + dx_coef[7]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              XP = XX+1;
+                              XM = XX-1;
+                              mixed_coef *= 0.5;
                            }
-                           else if (xinner)
+                           else if (xstart)
                            {
-                              x1D = dx_coef[6] * m_CoarsenedBlock->Access(XX-1,YY,ZZ) +
-                                    dx_coef[7] * m_CoarsenedBlock->Access(XX  ,YY,ZZ) +
-                                    dx_coef[8] * m_CoarsenedBlock->Access(XX+1,YY,ZZ);
-                              if (ystart)
-                              {
-                                 x2D = dy_coef[0] *  m_CoarsenedBlock->Access(XX  ,YY+2,ZZ) +
-                                       dy_coef[1] *  m_CoarsenedBlock->Access(XX  ,YY+1,ZZ) +
-                                       dy_coef[2] *  m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                                 mixed = dx*dy*0.5 *(m_CoarsenedBlock->Access(XX-1,YY  ,ZZ)
-                                                    +m_CoarsenedBlock->Access(XX+1,YY+1,ZZ)
-                                                    -m_CoarsenedBlock->Access(XX+1,YY  ,ZZ)
-                                                    -m_CoarsenedBlock->Access(XX-1,YY+1,ZZ));
-                              }
-                              else
-                              {
-                                 x2D = dy_coef[3] *  m_CoarsenedBlock->Access(XX  ,YY-2,ZZ) +
-                                       dy_coef[4] *  m_CoarsenedBlock->Access(XX  ,YY-1,ZZ) +
-                                       dy_coef[5] *  m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                                 mixed = dx*dy*0.5 *(m_CoarsenedBlock->Access(XX-1,YY-1,ZZ)
-                                                    +m_CoarsenedBlock->Access(XX+1,YY  ,ZZ)
-                                                    -m_CoarsenedBlock->Access(XX+1,YY-1,ZZ)
-                                                    -m_CoarsenedBlock->Access(XX-1,YY  ,ZZ));
-                              }
+                              x1D = (dx_coef[0]*m_CoarsenedBlock->Access(XX+2,YY,ZZ) + dx_coef[1]*m_CoarsenedBlock->Access(XX+1,YY,ZZ)) + dx_coef[2]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              XP = XX+1;
+                              XM = XX;
                            }
-                           else if (yinner)
+                           else
                            {
-                              x2D = dy_coef[6] * m_CoarsenedBlock->Access(XX,YY-1,ZZ) +
-                                    dy_coef[7] * m_CoarsenedBlock->Access(XX,YY  ,ZZ) +
-                                    dy_coef[8] * m_CoarsenedBlock->Access(XX,YY+1,ZZ);
-                              if (xstart)
-                              {
-                                 x1D = dx_coef[0] *  m_CoarsenedBlock->Access(XX+2,YY  ,ZZ) +
-                                       dx_coef[1] *  m_CoarsenedBlock->Access(XX+1,YY  ,ZZ) +
-                                       dx_coef[2] *  m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                                 mixed = dx*dy*0.5 *(m_CoarsenedBlock->Access(XX  ,YY-1,ZZ)
-                                                    +m_CoarsenedBlock->Access(XX+1,YY+1,ZZ)
-                                                    -m_CoarsenedBlock->Access(XX+1,YY-1,ZZ)
-                                                    -m_CoarsenedBlock->Access(XX  ,YY+1,ZZ));
-                              }
-                              else
-                              {
-                                 x1D = dx_coef[3] *  m_CoarsenedBlock->Access(XX-2,YY  ,ZZ) +
-                                       dx_coef[4] *  m_CoarsenedBlock->Access(XX-1,YY  ,ZZ) +
-                                       dx_coef[5] *  m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                                 mixed = dx*dy*0.5 *(m_CoarsenedBlock->Access(XX-1,YY-1,ZZ)
-                                                    +m_CoarsenedBlock->Access(XX  ,YY+1,ZZ)
-                                                    -m_CoarsenedBlock->Access(XX  ,YY-1,ZZ)
-                                                    -m_CoarsenedBlock->Access(XX-1,YY+1,ZZ));
-                              }
+                              x1D = (dx_coef[3]*m_CoarsenedBlock->Access(XX-2,YY,ZZ) + dx_coef[4]*m_CoarsenedBlock->Access(XX-1,YY,ZZ)) + dx_coef[5]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              XP = XX;
+                              XM = XX-1;
+                           }
+                           if (yinner)
+                           {
+                              x1D = (dy_coef[6]*m_CoarsenedBlock->Access(XX,YY-1,ZZ) +dy_coef[8]*m_CoarsenedBlock->Access(XX,YY+1,ZZ))+ dy_coef[7]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              YP = YY+1;
+                              YM = YY-1;
+                              mixed_coef *= 0.5;
                            }
                            else if (ystart)
                            {
-                              x2D = dy_coef[0] * m_CoarsenedBlock->Access(XX,YY+2,ZZ) +
-                                    dy_coef[1] * m_CoarsenedBlock->Access(XX,YY+1,ZZ) +
-                                    dy_coef[2] * m_CoarsenedBlock->Access(XX,YY  ,ZZ);
-                              if (xstart)
-                              {
-                                 x1D = dx_coef[0] * m_CoarsenedBlock->Access(XX+2,YY  ,ZZ) +
-                                       dx_coef[1] * m_CoarsenedBlock->Access(XX+1,YY  ,ZZ) +
-                                       dx_coef[2] * m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                                 mixed = dx*dy*    (m_CoarsenedBlock->Access(XX  ,YY  ,ZZ)
-                                                   +m_CoarsenedBlock->Access(XX+1,YY+1,ZZ)
-                                                   -m_CoarsenedBlock->Access(XX+1,YY  ,ZZ)
-                                                   -m_CoarsenedBlock->Access(XX  ,YY+1,ZZ));
-                              }
-                              else
-                              {
-                                 x1D = dx_coef[3] * m_CoarsenedBlock->Access(XX-2,YY  ,ZZ) +
-                                       dx_coef[4] * m_CoarsenedBlock->Access(XX-1,YY  ,ZZ) +
-                                       dx_coef[5] * m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                                 mixed = dx*dy*    (m_CoarsenedBlock->Access(XX-1,YY  ,ZZ)
-                                                   +m_CoarsenedBlock->Access(XX  ,YY+1,ZZ)
-                                                   -m_CoarsenedBlock->Access(XX  ,YY  ,ZZ)
-                                                   -m_CoarsenedBlock->Access(XX-1,YY+1,ZZ));
-                              }
+                              x1D = (dy_coef[0]*m_CoarsenedBlock->Access(XX,YY+2,ZZ) + dy_coef[1]*m_CoarsenedBlock->Access(XX,YY+1,ZZ)) + dy_coef[2]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              YP = YY+1;
+                              YM = YY;
                            }
-                           else if (xstart) // and !ystart
+                           else
                            {
-                              x1D = dx_coef[0] * m_CoarsenedBlock->Access(XX+2,YY  ,ZZ) +
-                                    dx_coef[1] * m_CoarsenedBlock->Access(XX+1,YY  ,ZZ) +
-                                    dx_coef[2] * m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                              x2D = dy_coef[3] * m_CoarsenedBlock->Access(XX  ,YY-2,ZZ) +
-                                    dy_coef[4] * m_CoarsenedBlock->Access(XX  ,YY-1,ZZ) +
-                                    dy_coef[5] * m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                              mixed = dx*dy*    (m_CoarsenedBlock->Access(XX  ,YY-1,ZZ)
-                                                +m_CoarsenedBlock->Access(XX+1,YY  ,ZZ)
-                                                -m_CoarsenedBlock->Access(XX+1,YY-1,ZZ)
-                                                -m_CoarsenedBlock->Access(XX  ,YY  ,ZZ));
+                              x1D = (dy_coef[3]*m_CoarsenedBlock->Access(XX,YY-2,ZZ) + dy_coef[4]*m_CoarsenedBlock->Access(XX,YY-1,ZZ)) + dy_coef[5]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              YP = YY;
+                              YM = YY-1;
                            }
-                           else // !xstart and !ystart
-                           {
-                              x1D = dx_coef[3] * m_CoarsenedBlock->Access(XX-2,YY  ,ZZ) +
-                                    dx_coef[4] * m_CoarsenedBlock->Access(XX-1,YY  ,ZZ) +
-                                    dx_coef[5] * m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                              x2D = dy_coef[3] * m_CoarsenedBlock->Access(XX  ,YY-2,ZZ) +
-                                    dy_coef[4] * m_CoarsenedBlock->Access(XX  ,YY-1,ZZ) +
-                                    dy_coef[5] * m_CoarsenedBlock->Access(XX  ,YY  ,ZZ);
-                              mixed = dx*dy*    (m_CoarsenedBlock->Access(XX  ,YY  ,ZZ)
-                                                +m_CoarsenedBlock->Access(XX-1,YY-1,ZZ)
-                                                -m_CoarsenedBlock->Access(XX-1,YY  ,ZZ)
-                                                -m_CoarsenedBlock->Access(XX  ,YY-1,ZZ));
-                           }
-                           a = x1D + x2D + mixed;
+
+                           mixed = mixed_coef*dx*dy*((m_CoarsenedBlock->Access(XM,YM,ZZ)+m_CoarsenedBlock->Access(XP,YP,ZZ))-(m_CoarsenedBlock->Access(XP,YM,ZZ)+m_CoarsenedBlock->Access(XM,YP,ZZ)));
+                           a = (x1D + x2D) + mixed;
                         }
+
                         const auto & b = m_cacheBlock->Access(ix - m_stencilStart[0] + (-3*code[0]+1)/2 - x*abs(code[0]),
                                                               iy - m_stencilStart[1] + (-3*code[1]+1)/2 - y*abs(code[1]),
                                                               iz - m_stencilStart[2] + (-3*code[2]+1)/2 - z*abs(code[2]));
@@ -1445,8 +1239,9 @@ class BlockLab
                                                               iz - m_stencilStart[2] + (-5*code[2]+1)/2 - z*abs(code[2]));
                         const int ccc  = code[0] + code[1] + code[2];
                         const int xyz  = abs(code[0])*x+abs(code[1])*y+abs(code[2])*z;
-                        if (ccc == 1)     a = (xyz==0)?(1.0/15.0)*(8.0*a+10.0*b-3.0*c):(1.0/15.0)*(24.0*a-15.0*b+6*c);
-                        else /*(ccc=-1)*/ a = (xyz==1)?(1.0/15.0)*(8.0*a+10.0*b-3.0*c):(1.0/15.0)*(24.0*a-15.0*b+6*c);
+
+                        if (ccc == 1)     a = (xyz==0)?(1.0/15.0)*(8.0*a+(10.0*b-3.0*c)):(1.0/15.0)*(24.0*a+(-15.0*b+6*c));
+                        else /*(ccc=-1)*/ a = (xyz==1)?(1.0/15.0)*(8.0*a+(10.0*b-3.0*c)):(1.0/15.0)*(24.0*a+(-15.0*b+6*c));
                      }
                   }
                }

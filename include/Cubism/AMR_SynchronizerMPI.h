@@ -8,6 +8,7 @@
 #include "GrowingVector.h"
 #include "PUPkernelsMPI.h"
 #include "StencilInfo.h"
+#include "ConsistentOperations.h"
 
 namespace cubism
 {
@@ -718,14 +719,25 @@ class SynchronizerMPI_AMR
             for (int ix = s[0]; ix < e[0]; ix += xStep)
             {
               const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + min(0, code[0]) * nX : ix;
-              dst[pos] = 0.125 *(src[XX  +(YY  +(ZZ  )*nY)*nX] +
-                                 src[XX  +(YY  +(ZZ+1)*nY)*nX] +
-                                 src[XX  +(YY+1+(ZZ  )*nY)*nX] +
-                                 src[XX  +(YY+1+(ZZ+1)*nY)*nX] +
-                                 src[XX+1+(YY  +(ZZ  )*nY)*nX] +
-                                 src[XX+1+(YY  +(ZZ+1)*nY)*nX] +
-                                 src[XX+1+(YY+1+(ZZ  )*nY)*nX] +
+              #ifdef PRESERVE_SYMMETRY
+              dst[pos] = ConsistentAverage( src[XX  +(YY  +(ZZ  )*nY)*nX],
+                                            src[XX  +(YY  +(ZZ+1)*nY)*nX],
+                                            src[XX  +(YY+1+(ZZ  )*nY)*nX],
+                                            src[XX  +(YY+1+(ZZ+1)*nY)*nX],
+                                            src[XX+1+(YY  +(ZZ  )*nY)*nX],
+                                            src[XX+1+(YY  +(ZZ+1)*nY)*nX],
+                                            src[XX+1+(YY+1+(ZZ  )*nY)*nX],
+                                            src[XX+1+(YY+1+(ZZ+1)*nY)*nX]);
+              #else
+              dst[pos] = 0.125 *(src[XX  +(YY  +(ZZ  )*nY)*nX],
+                                 src[XX  +(YY  +(ZZ+1)*nY)*nX],
+                                 src[XX  +(YY+1+(ZZ  )*nY)*nX],
+                                 src[XX  +(YY+1+(ZZ+1)*nY)*nX],
+                                 src[XX+1+(YY  +(ZZ  )*nY)*nX],
+                                 src[XX+1+(YY  +(ZZ+1)*nY)*nX],
+                                 src[XX+1+(YY+1+(ZZ  )*nY)*nX],
                                  src[XX+1+(YY+1+(ZZ+1)*nY)*nX]);
+              #endif
               pos ++;
             }
           }
@@ -745,6 +757,16 @@ class SynchronizerMPI_AMR
               for (int c = 0; c < NC; c++)
               {
                 int comp = stencil.selcomponents[c];
+                  #ifdef PRESERVE_SYMMETRY
+                  dst[pos] = ConsistentAverage( (*(src + gptfloats * ((XX    ) + ((YY    ) + (ZZ    )*nY) * nX) + comp)),
+                                                (*(src + gptfloats * ((XX    ) + ((YY    ) + (ZZ + 1)*nY) * nX) + comp)),
+                                                (*(src + gptfloats * ((XX    ) + ((YY + 1) + (ZZ    )*nY) * nX) + comp)),
+                                                (*(src + gptfloats * ((XX    ) + ((YY + 1) + (ZZ + 1)*nY) * nX) + comp)),
+                                                (*(src + gptfloats * ((XX + 1) + ((YY    ) + (ZZ    )*nY) * nX) + comp)),
+                                                (*(src + gptfloats * ((XX + 1) + ((YY    ) + (ZZ + 1)*nY) * nX) + comp)),
+                                                (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ    )*nY) * nX) + comp)),
+                                                (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ + 1)*nY) * nX) + comp)));
+                  #else
                   dst[pos] = 0.125 *
                           ((*(src + gptfloats * ((XX) + ((YY) + (ZZ)*nY) * nX) + comp)) +
                            (*(src + gptfloats * ((XX) + ((YY) + (ZZ + 1) * nY) * nX) + comp)) +
@@ -754,6 +776,7 @@ class SynchronizerMPI_AMR
                            (*(src + gptfloats * ((XX + 1) + ((YY) + (ZZ + 1) * nY) * nX) + comp)) +
                            (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ)*nY) * nX) + comp)) +
                            (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ + 1) * nY) * nX) + comp)));
+                  #endif
                 pos++;
               }
             }
@@ -819,6 +842,16 @@ class SynchronizerMPI_AMR
           {
             int comp = stencil.selcomponents[c];
             #if DIMENSION == 3
+              #ifdef PRESERVE_SYMMETRY
+              dst[pos] = ConsistentAverage( (*(src + gptfloats * ((XX    ) + ((YY    ) + (ZZ    )*nY) * nX) + comp)),
+                                            (*(src + gptfloats * ((XX    ) + ((YY    ) + (ZZ + 1)*nY) * nX) + comp)),
+                                            (*(src + gptfloats * ((XX    ) + ((YY + 1) + (ZZ    )*nY) * nX) + comp)),
+                                            (*(src + gptfloats * ((XX    ) + ((YY + 1) + (ZZ + 1)*nY) * nX) + comp)),
+                                            (*(src + gptfloats * ((XX + 1) + ((YY    ) + (ZZ    )*nY) * nX) + comp)),
+                                            (*(src + gptfloats * ((XX + 1) + ((YY    ) + (ZZ + 1)*nY) * nX) + comp)),
+                                            (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ    )*nY) * nX) + comp)),
+                                            (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ + 1)*nY) * nX) + comp)));
+              #else
               dst[pos] = 0.125 *
                 ((*(src + gptfloats * ((XX) + ((YY) + (ZZ)*nY) * nX) + comp)) +
                  (*(src + gptfloats * ((XX) + ((YY) + (ZZ + 1) * nY) * nX) + comp)) +
@@ -828,6 +861,7 @@ class SynchronizerMPI_AMR
                  (*(src + gptfloats * ((XX + 1) + ((YY) + (ZZ + 1) * nY) * nX) + comp)) +
                  (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ)*nY) * nX) + comp)) +
                  (*(src + gptfloats * ((XX + 1) + ((YY + 1) + (ZZ + 1) * nY) * nX) + comp)));
+              #endif
             #else
               dst[pos] = 0.25 *
                       (((*(src + gptfloats*(XX  +(YY  )*nX) + comp)) +

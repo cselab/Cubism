@@ -360,11 +360,19 @@ class MeshAdaptation
          for (int j = 0; j < ny; j += 2)
          for (int i = 0; i < nx; i += 2)
          {
+          #ifdef PRESERVE_SYMMETRY
+            const ElementType B1 = b(i  ,j  ,k  ) + b(i+1,j+1,k+1);
+            const ElementType B2 = b(i+1,j  ,k  ) + b(i  ,j+1,k+1);
+            const ElementType B3 = b(i  ,j+1,k  ) + b(i+1,j  ,k+1);
+            const ElementType B4 = b(i  ,j  ,k+1) + b(i+1,j+1,k  );
+            (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) = 0.125*ConsistentSum<ElementType>(B1,B2,B3,B4);
+          #else
             (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], k / 2 + offsetZ[K]) =
                 0.125 * ( (b(i  , j  ,k) + b(i+1,j+1,k+1)) 
                         + (b(i+1, j  ,k) + b(i  ,j+1,k+1))
                         + (b(i  , j+1,k) + b(i+1,j  ,k+1))
                         + (b(i+1, j+1,k) + b(i  ,j  ,k+1)) );
+          #endif
          }
       }
 
@@ -671,16 +679,27 @@ class MeshAdaptation
                         const int x = i / 2 + offsetX[I];
                         const int y = j / 2 + offsetY[J];
                         const int z = k / 2 + offsetZ[K];
-                        ElementType dudx  = 0.5 * (Lab(x+1,y,z) - Lab(x-1,y,z));
-                        ElementType dudy  = 0.5 * (Lab(x,y+1,z) - Lab(x,y-1,z));
-                        ElementType dudz  = 0.5 * (Lab(x,y,z+1) - Lab(x,y,z-1));
-                        ElementType dudx2 = (Lab(x+1,y,z)  + Lab(x-1,y,z)) - 2.0*Lab(x,y,z);
-                        ElementType dudy2 = (Lab(x,y+1,z)  + Lab(x,y-1,z)) - 2.0*Lab(x,y,z);
-                        ElementType dudz2 = (Lab(x,y,z+1)  + Lab(x,y,z-1)) - 2.0*Lab(x,y,z);
-                        ElementType dudxdy = 0.25*((Lab(x+1,y+1,z)+Lab(x-1,y-1,z)) - (Lab(x+1,y-1,z)+Lab(x-1,y+1,z)));
-                        ElementType dudxdz = 0.25*((Lab(x+1,y,z+1)+Lab(x-1,y,z-1)) - (Lab(x+1,y,z-1)+Lab(x-1,y,z+1)));
-                        ElementType dudydz = 0.25*((Lab(x,y+1,z+1)+Lab(x,y-1,z-1)) - (Lab(x,y+1,z-1)+Lab(x,y-1,z+1)));
+                        const ElementType dudx  = 0.5 * (Lab(x+1,y,z) - Lab(x-1,y,z));
+                        const ElementType dudy  = 0.5 * (Lab(x,y+1,z) - Lab(x,y-1,z));
+                        const ElementType dudz  = 0.5 * (Lab(x,y,z+1) - Lab(x,y,z-1));
+                        const ElementType dudx2 = (Lab(x+1,y,z)  + Lab(x-1,y,z)) - 2.0*Lab(x,y,z);
+                        const ElementType dudy2 = (Lab(x,y+1,z)  + Lab(x,y-1,z)) - 2.0*Lab(x,y,z);
+                        const ElementType dudz2 = (Lab(x,y,z+1)  + Lab(x,y,z-1)) - 2.0*Lab(x,y,z);
+                        const ElementType dudxdy = 0.25*((Lab(x+1,y+1,z)+Lab(x-1,y-1,z)) - (Lab(x+1,y-1,z)+Lab(x-1,y+1,z)));
+                        const ElementType dudxdz = 0.25*((Lab(x+1,y,z+1)+Lab(x-1,y,z-1)) - (Lab(x+1,y,z-1)+Lab(x-1,y,z+1)));
+                        const ElementType dudydz = 0.25*((Lab(x,y+1,z+1)+Lab(x,y-1,z-1)) - (Lab(x,y+1,z-1)+Lab(x,y-1,z+1)));
 
+                        #ifdef PRESERVE_SYMMETRY
+                        const ElementType d2 = 0.03125 * ConsistentSum<ElementType>(dudx2,dudy2,dudz2);
+                        b(i  , j  , k  ) = Lab(x,y,z) + (0.25*ConsistentSum<ElementType>(-(1.0)*dudx,-(1.0)*dudy,-(1.0)*dudz) + d2) + 0.0625*ConsistentSum(       dudxdy,       dudxdz,       dudydz);
+                        b(i+1, j  , k  ) = Lab(x,y,z) + (0.25*ConsistentSum<ElementType>(       dudx,-(1.0)*dudy,-(1.0)*dudz) + d2) + 0.0625*ConsistentSum(-(1.0)*dudxdy,-(1.0)*dudxdz,       dudydz);
+                        b(i  , j+1, k  ) = Lab(x,y,z) + (0.25*ConsistentSum<ElementType>(-(1.0)*dudx,       dudy,-(1.0)*dudz) + d2) + 0.0625*ConsistentSum(-(1.0)*dudxdy,       dudxdz,-(1.0)*dudydz);
+                        b(i+1, j+1, k  ) = Lab(x,y,z) + (0.25*ConsistentSum<ElementType>(       dudx,       dudy,-(1.0)*dudz) + d2) + 0.0625*ConsistentSum(       dudxdy,-(1.0)*dudxdz,-(1.0)*dudydz);
+                        b(i  , j  , k+1) = Lab(x,y,z) + (0.25*ConsistentSum<ElementType>(-(1.0)*dudx,-(1.0)*dudy,       dudz) + d2) + 0.0625*ConsistentSum(       dudxdy,-(1.0)*dudxdz,-(1.0)*dudydz);
+                        b(i+1, j  , k+1) = Lab(x,y,z) + (0.25*ConsistentSum<ElementType>(       dudx,-(1.0)*dudy,       dudz) + d2) + 0.0625*ConsistentSum(-(1.0)*dudxdy,       dudxdz,-(1.0)*dudydz);
+                        b(i  , j+1, k+1) = Lab(x,y,z) + (0.25*ConsistentSum<ElementType>(-(1.0)*dudx,       dudy,       dudz) + d2) + 0.0625*ConsistentSum(-(1.0)*dudxdy,-(1.0)*dudxdz,       dudydz);
+                        b(i+1, j+1, k+1) = Lab(x,y,z) + (0.25*ConsistentSum<ElementType>(       dudx,       dudy,       dudz) + d2) + 0.0625*ConsistentSum(       dudxdy,       dudxdz,       dudydz);
+                        #else
                         b(i  , j  , k  ) = Lab(x,y,z) + 0.25*(-(1.0)* dudx - dudy - dudz) + 0.03125 *(dudx2+dudy2+dudz2) + 0.0625*(       dudxdy + dudxdz + dudydz);
                         b(i+1, j  , k  ) = Lab(x,y,z) + 0.25*(        dudx - dudy - dudz) + 0.03125 *(dudx2+dudy2+dudz2) + 0.0625*(-(1.0)*dudxdy - dudxdz + dudydz);
                         b(i  , j+1, k  ) = Lab(x,y,z) + 0.25*(-(1.0)* dudx + dudy - dudz) + 0.03125 *(dudx2+dudy2+dudz2) + 0.0625*(-(1.0)*dudxdy + dudxdz - dudydz);
@@ -689,6 +708,7 @@ class MeshAdaptation
                         b(i+1, j  , k+1) = Lab(x,y,z) + 0.25*(        dudx - dudy + dudz) + 0.03125 *(dudx2+dudy2+dudz2) + 0.0625*(-(1.0)*dudxdy + dudxdz - dudydz);
                         b(i  , j+1, k+1) = Lab(x,y,z) + 0.25*(-(1.0)* dudx + dudy + dudz) + 0.03125 *(dudx2+dudy2+dudz2) + 0.0625*(-(1.0)*dudxdy - dudxdz + dudydz);
                         b(i+1, j+1, k+1) = Lab(x,y,z) + 0.25*(        dudx + dudy + dudz) + 0.03125 *(dudx2+dudy2+dudz2) + 0.0625*(       dudxdy + dudxdz + dudydz);
+                        #endif
                      }
             }
       #else

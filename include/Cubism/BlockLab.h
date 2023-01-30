@@ -940,7 +940,9 @@ class BlockLab
          }
       }
    }
-
+   #ifdef PRESERVE_SYMMETRY
+   __attribute__((optimize("-O1")))
+   #endif
    void CoarseFineInterpolation(const BlockInfo &info)
    {
       const int nX         = BlockType::sizeX;

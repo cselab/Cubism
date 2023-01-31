@@ -729,13 +729,13 @@ class SynchronizerMPI_AMR
                                             src[XX+1+(YY+1+(ZZ  )*nY)*nX],
                                             src[XX+1+(YY+1+(ZZ+1)*nY)*nX]);
               #else
-              dst[pos] = 0.125 *(src[XX  +(YY  +(ZZ  )*nY)*nX],
-                                 src[XX  +(YY  +(ZZ+1)*nY)*nX],
-                                 src[XX  +(YY+1+(ZZ  )*nY)*nX],
-                                 src[XX  +(YY+1+(ZZ+1)*nY)*nX],
-                                 src[XX+1+(YY  +(ZZ  )*nY)*nX],
-                                 src[XX+1+(YY  +(ZZ+1)*nY)*nX],
-                                 src[XX+1+(YY+1+(ZZ  )*nY)*nX],
+              dst[pos] = 0.125 *(src[XX  +(YY  +(ZZ  )*nY)*nX]+
+                                 src[XX  +(YY  +(ZZ+1)*nY)*nX]+
+                                 src[XX  +(YY+1+(ZZ  )*nY)*nX]+
+                                 src[XX  +(YY+1+(ZZ+1)*nY)*nX]+
+                                 src[XX+1+(YY  +(ZZ  )*nY)*nX]+
+                                 src[XX+1+(YY  +(ZZ+1)*nY)*nX]+
+                                 src[XX+1+(YY+1+(ZZ  )*nY)*nX]+
                                  src[XX+1+(YY+1+(ZZ+1)*nY)*nX]);
               #endif
               pos ++;

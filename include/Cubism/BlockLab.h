@@ -1211,20 +1211,20 @@ class BlockLab
                            }
                            if (yinner)
                            {
-                              x1D = (dy_coef[6]*m_CoarsenedBlock->Access(XX,YY-1,ZZ) +dy_coef[8]*m_CoarsenedBlock->Access(XX,YY+1,ZZ))+ dy_coef[7]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              x2D = (dy_coef[6]*m_CoarsenedBlock->Access(XX,YY-1,ZZ) +dy_coef[8]*m_CoarsenedBlock->Access(XX,YY+1,ZZ))+ dy_coef[7]*m_CoarsenedBlock->Access(XX,YY,ZZ);
                               YP = YY+1;
                               YM = YY-1;
                               mixed_coef *= 0.5;
                            }
                            else if (ystart)
                            {
-                              x1D = (dy_coef[0]*m_CoarsenedBlock->Access(XX,YY+2,ZZ) + dy_coef[1]*m_CoarsenedBlock->Access(XX,YY+1,ZZ)) + dy_coef[2]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              x2D = (dy_coef[0]*m_CoarsenedBlock->Access(XX,YY+2,ZZ) + dy_coef[1]*m_CoarsenedBlock->Access(XX,YY+1,ZZ)) + dy_coef[2]*m_CoarsenedBlock->Access(XX,YY,ZZ);
                               YP = YY+1;
                               YM = YY;
                            }
                            else
                            {
-                              x1D = (dy_coef[3]*m_CoarsenedBlock->Access(XX,YY-2,ZZ) + dy_coef[4]*m_CoarsenedBlock->Access(XX,YY-1,ZZ)) + dy_coef[5]*m_CoarsenedBlock->Access(XX,YY,ZZ);
+                              x2D = (dy_coef[3]*m_CoarsenedBlock->Access(XX,YY-2,ZZ) + dy_coef[4]*m_CoarsenedBlock->Access(XX,YY-1,ZZ)) + dy_coef[5]*m_CoarsenedBlock->Access(XX,YY,ZZ);
                               YP = YY;
                               YM = YY-1;
                            }

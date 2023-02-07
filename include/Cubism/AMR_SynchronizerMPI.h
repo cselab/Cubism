@@ -233,19 +233,19 @@ struct StencilManager
 
         Coarse_Range.sx = s[0] + max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2;
         Coarse_Range.sy = s[1] + max(code[1], 0) * nY / 2 + (1 - abs(code[1])) * base[1] * nY / 2 - code[1] * nY + CoarseEdge[1] * code[1] * nY / 2;
-	      #if DIMENSION == 3
+        #if DIMENSION == 3
         Coarse_Range.sz = s[2] + max(code[2], 0) * nZ / 2 + (1 - abs(code[2])) * base[2] * nZ / 2 - code[2] * nZ + CoarseEdge[2] * code[2] * nZ / 2;
-	      #else
+        #else
         Coarse_Range.sz = 0;
-	      #endif
+        #endif
 
         Coarse_Range.ex = e[0] + max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2;
         Coarse_Range.ey = e[1] + max(code[1], 0) * nY / 2 + (1 - abs(code[1])) * base[1] * nY / 2 - code[1] * nY + CoarseEdge[1] * code[1] * nY / 2;
-	      #if DIMENSION == 3
+        #if DIMENSION == 3
         Coarse_Range.ez = e[2] + max(code[2], 0) * nZ / 2 + (1 - abs(code[2])) * base[2] * nZ / 2 - code[2] * nZ + CoarseEdge[2] * code[2] * nZ / 2;
-	      #else
+        #else
         Coarse_Range.ez = 1;
-	      #endif
+        #endif
 
         return Coarse_Range;
       }
@@ -434,8 +434,7 @@ class SynchronizerMPI_AMR
   std::vector<GrowingVector<Real>> send_buffer; // send_buffer[i] contains data to send to rank i
   std::vector<GrowingVector<Real>> recv_buffer; // recv_buffer[i] will receive data from rank i
 
-  std::vector<MPI_Request> send_requests; // requests for non-blocking sends
-  std::vector<MPI_Request> recv_requests; // requests for non-blocking receives
+  std::vector<MPI_Request> requests; // requests for non-blocking sends/receives
 
   std::vector<int> send_buffer_size; // sizes of send_buffer (communicated before actual data)
   std::vector<int> recv_buffer_size; // sizes of recv_buffer (communicated before actual data)
@@ -1188,8 +1187,7 @@ class SynchronizerMPI_AMR
 
    std::vector<BlockInfo *> & avail_halo()
    {
-      MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
-      MPI_Waitall(recv_requests.size(), recv_requests.data(), MPI_STATUSES_IGNORE);
+      MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
       return halo_blocks;
    }
 
@@ -1266,14 +1264,13 @@ class SynchronizerMPI_AMR
 
       std::sort(stencil.selcomponents.begin(), stencil.selcomponents.end());
 
-      send_requests.clear();
-      recv_requests.clear();
+      requests.clear();
 
       //Post receive requests first
       for (auto r : Neighbors) if (recv_buffer_size[r] > 0)
       {
-        recv_requests.resize(recv_requests.size() + 1);
-        MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &recv_requests.back());
+        requests.resize(requests.size() + 1);
+        MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &requests.back());
       }
 
       // Pack data
@@ -1303,8 +1300,8 @@ class SynchronizerMPI_AMR
       //Do the sends
       for (auto r : Neighbors) if (send_buffer_size[r] > 0)
       {
-        send_requests.resize(send_requests.size() + 1);
-        MPI_Isend(&send_buffer[r][0], send_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &send_requests.back());
+        requests.resize(requests.size() + 1);
+        MPI_Isend(&send_buffer[r][0], send_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &requests.back());
       }
       UnpacksManager.MapIDs();
    }

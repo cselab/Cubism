@@ -244,20 +244,19 @@ class GridMPI : public TGrid
          }
       }
 
-      std::vector<MPI_Request> send_requests;
-      std::vector<MPI_Request> recv_requests;
+      std::vector<MPI_Request> requests;
 
       long long dummy = 0;
       for (int r : Neighbors)
          if (r != rank)
          {
-            send_requests.resize(send_requests.size() + 1);
+            requests.resize(requests.size() + 1);
             if (send_buffer[r].size() != 0)
                MPI_Isend(&send_buffer[r][0], send_buffer[r].size(), MPI_LONG_LONG, r, 123, worldcomm,
-                         &send_requests[send_requests.size() - 1]);
+                         &requests[requests.size() - 1]);
             else
             {
-               MPI_Isend(&dummy, 1, MPI_LONG_LONG, r, 123, worldcomm, &send_requests[send_requests.size() - 1]);
+               MPI_Isend(&dummy, 1, MPI_LONG_LONG, r, 123, worldcomm, &requests[requests.size() - 1]);
             }
          }
 
@@ -272,14 +271,13 @@ class GridMPI : public TGrid
             if (recv_size > 0)
             {
                recv_buffer[r].resize(recv_size);
-               recv_requests.resize(recv_requests.size() + 1);
+               requests.resize(requests.size() + 1);
                MPI_Irecv(&recv_buffer[r][0], recv_buffer[r].size(), MPI_LONG_LONG, r, 123, worldcomm,
-                         &recv_requests[recv_requests.size() - 1]);
+                         &requests[requests.size() - 1]);
             }
          }
 
-      MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
-      MPI_Waitall(recv_requests.size(), recv_requests.data(), MPI_STATUSES_IGNORE);
+      MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
 
       for (int r = 0; r < size; r++)
          if (recv_buffer[r].size() > 1)
@@ -379,40 +377,37 @@ class GridMPI : public TGrid
       std::vector<std::vector<long long>> recv_buffer(myNeighbors.size());
       std::vector<std::vector<long long>> send_buffer(myNeighbors.size());
       std::vector<int> recv_size(myNeighbors.size());
-      std::vector<MPI_Request> send_size_requests(myNeighbors.size());
-      std::vector<MPI_Request> recv_size_requests(myNeighbors.size());
+
+      std::vector<MPI_Request> size_requests(2*myNeighbors.size());
+
       int mysize = (int)myData.size();
       int kk     = 0;
       for (auto r : myNeighbors)
       {
-         MPI_Irecv(&recv_size[kk], 1, MPI_INT, r, timestamp, worldcomm, &recv_size_requests[kk]);
-         MPI_Isend(&mysize, 1, MPI_INT, r, timestamp, worldcomm, &send_size_requests[kk]);
+         MPI_Irecv(&recv_size[kk], 1, MPI_INT, r, timestamp, worldcomm, &size_requests[2*kk  ]);
+         MPI_Isend(&mysize       , 1, MPI_INT, r, timestamp, worldcomm, &size_requests[2*kk+1]);
          kk++;
       }
-      MPI_Waitall(recv_size_requests.size(), recv_size_requests.data(), MPI_STATUSES_IGNORE);
-      MPI_Waitall(send_size_requests.size(), send_size_requests.data(), MPI_STATUSES_IGNORE);
-
       kk = 0;
       for (size_t j = 0; j < myNeighbors.size(); j++)
       {
-         recv_buffer[kk].resize(recv_size[kk]);
          send_buffer[kk].resize(myData.size());
          for (size_t i = 0; i < myData.size(); i++) send_buffer[kk][i] = myData[i];
          kk++;
       }
-      std::vector<MPI_Request> send_requests(myNeighbors.size());
-      std::vector<MPI_Request> recv_requests(myNeighbors.size());
+
+      MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);
+      std::vector<MPI_Request> requests(2*myNeighbors.size());
       kk = 0;
       for (auto r : myNeighbors)
       {
-         MPI_Irecv(recv_buffer[kk].data(), recv_buffer[kk].size(), MPI_LONG_LONG, r, timestamp, worldcomm,
-                   &recv_requests[kk]);
-         MPI_Isend(send_buffer[kk].data(), send_buffer[kk].size(), MPI_LONG_LONG, r, timestamp, worldcomm,
-                   &send_requests[kk]);
+         recv_buffer[kk].resize(recv_size[kk]);
+         MPI_Irecv(recv_buffer[kk].data(), recv_buffer[kk].size(), MPI_LONG_LONG, r, timestamp, worldcomm, &requests[2*kk  ]);
+         MPI_Isend(send_buffer[kk].data(), send_buffer[kk].size(), MPI_LONG_LONG, r, timestamp, worldcomm, &requests[2*kk+1]);
          kk++;
       }
-      MPI_Waitall(recv_requests.size(), recv_requests.data(), MPI_STATUSES_IGNORE);
-      MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
+      MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+
       kk = -1;
       const int increment = UpdateIDs ? 3 : 2;
       for (auto r : myNeighbors)

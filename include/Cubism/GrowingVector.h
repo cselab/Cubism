@@ -5,6 +5,10 @@
 namespace cubism
 {
 
+//This class is similar to std::vector. However, the stored data does not decrease in size, it can
+//only increase. The use of this class instead of std::vector in AMR_Synchronizer resulted in 
+//faster performance.
+
 template <typename T>
 class GrowingVector
 {

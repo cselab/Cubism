@@ -13,7 +13,7 @@
   #include "SpaceFillingCurve2D.h"
 #endif
 
-namespace cubism // AMR_CUBISM
+namespace cubism
 {
 
 enum State : signed char
@@ -25,21 +25,27 @@ enum State : signed char
 
 struct BlockInfo
 {
-   long long blockID, blockID_2;
-   long long Z;                 // Z-order curve index of this block
-   long long Znei[3][3][3];     // Z-order curve index of 26 neighboring boxes (Znei[1][1][1] = Z)
-   long long halo_block_id;
-   long long Zparent;           // Z-order curve index of parent block (after comression)
-   long long Zchild[2][2][2];   // Z-order curve index of blocks that replace this one during refinement
-   double h;                    // grid spacing
-   double origin[3];            //(x,y,z) of block's origin
-   int index[3];                //(i,j,k) coordinates of block at given refinement level
-   int level;                   // refinement level
-   void *ptrBlock{nullptr};     // Pointer to data stored in user-defined Block
-   void *auxiliary;             // Pointer to blockcase
-   bool changed2;
-   State state;                 // Refine/Compress/Leave this block
+   long long blockID;        // all n BlockInfos owned by one rank have blockID=0,1,...,n-1
+   long long blockID_2;      // unique index of each BlockInfo, based on its refinement level and Z-order curve index
+   long long Z;              // Z-order curve index of this block
+   long long Znei[3][3][3];  // Z-order curve index of 26 neighboring boxes (Znei[1][1][1] = Z)
+   long long halo_block_id;  // all m blocks at the boundary of a rank are numbered by halo_block_id=0,1,...,m-1
+   long long Zparent;        // Z-order curve index of parent block (after comression)
+   long long Zchild[2][2][2];// Z-order curve index of blocks that replace this one during refinement
+   double h;                 // grid spacing
+   double origin[3];         //(x,y,z) of block's origin
+   int index[3];             //(i,j,k) coordinates of block at given refinement level
+   int level;                // refinement level
+   void *ptrBlock{nullptr};  // Pointer to data stored in user-defined Block
+   void *auxiliary;          // Pointer to blockcase
+   bool changed2;            // =true if block will be refined/compressed; used to update State of neighbouring blocks among ranks
+   State state;              // Refine/Compress/Leave this block
 
+   //All blocks are organized in a single Octree/Quadtree, regardless of the number of fields/variables used
+   //(and the number of Grids). For this reason, we only need one instance of SpaceFillingCurve.
+   //We do this through the following static functions.
+
+   //Static function used to initialize static SFC
    static int levelMax(int l = 0)
    {
       static int lmax = l;
@@ -47,25 +53,51 @@ struct BlockInfo
    }
 
    #if DIMENSION == 3
+      //Static function used to initialize static SFC
       static int blocks_per_dim(int i, int nx = 0, int ny = 0, int nz = 0)
       {
          static int a[3] = {nx, ny, nz};
          return a[i];
       }
    
+      //Pointer to single instance of SFC used
       static SpaceFillingCurve *SFC()
       {
          static SpaceFillingCurve Zcurve(blocks_per_dim(0), blocks_per_dim(1), blocks_per_dim(2), levelMax());
          return &Zcurve;
       }
    
+      //wrappers to access the functions of the single SFC we use
       static long long forward(int level, int ix, int iy, int iz) { return (*SFC()).forward(level, ix, iy, iz); }
    
       static long long Encode(int level, long long Z, int index[3]) { return (*SFC()).Encode(level, Z, index); }
    
       static void inverse(long long Z, int l, int &i, int &j, int &k) { (*SFC()).inverse(Z, l, i, j, k); }
+   #else
+      //Static function used to initialize static SFC (same as above but in 2D)
+      static int blocks_per_dim(int i, int nx = 0, int ny = 0)
+      {
+         static int a[2] = {nx, ny};
+         return a[i];
+      }
+   
+      //Pointer to single instance of SFC used (same as above but in 2D)
+      static SpaceFillingCurve2D *SFC()
+      {
+         static SpaceFillingCurve2D Zcurve(blocks_per_dim(0), blocks_per_dim(1), levelMax());
+         return &Zcurve;
+      }
+   
+      //wrappers to access the functions of the single SFC we use (same as above but in 2D)
+      static long long forward(int level, int ix, int iy) { return (*SFC()).forward(level, ix, iy); }
+   
+      static long long Encode(int level, long long Z, int index[2]) { return (*SFC()).Encode(level, Z, index); }
+   
+      static void inverse(long long Z, int l, int &i, int &j) { (*SFC()).inverse(Z, l, i, j); }
+   #endif
 
-
+   #if DIMENSION == 3
+      //return position (x,y,z) in 3D, given indices of grid point
       template <typename T>
       inline void pos(T p[3], int ix, int iy, int iz) const
       {
@@ -80,26 +112,8 @@ struct BlockInfo
          pos(result.data(), ix, iy, iz);
          return result;
       }
-
    #else
-      static int blocks_per_dim(int i, int nx = 0, int ny = 0)
-      {
-         static int a[2] = {nx, ny};
-         return a[i];
-      }
-   
-      static SpaceFillingCurve2D *SFC()
-      {
-         static SpaceFillingCurve2D Zcurve(blocks_per_dim(0), blocks_per_dim(1), levelMax());
-         return &Zcurve;
-      }
-   
-      static long long forward(int level, int ix, int iy) { return (*SFC()).forward(level, ix, iy); }
-   
-      static long long Encode(int level, long long Z, int index[2]) { return (*SFC()).Encode(level, Z, index); }
-   
-      static void inverse(long long Z, int l, int &i, int &j) { (*SFC()).inverse(Z, l, i, j); }
-
+      //return position (x,y) in 2D, given indices of grid point
       template <typename T>
       inline void pos(T p[2], int ix, int iy) const
       {
@@ -113,13 +127,15 @@ struct BlockInfo
          pos(result.data(), ix, iy);
          return result;
       }
-
    #endif
 
-   BlockInfo(){};
-
+   //used to order/sort blocks based on blockID_2, which is only a function of Z and level
    bool operator<(const BlockInfo &other) const { return (blockID_2 < other.blockID_2); }
 
+   //constructor will do nothing, 'setup' needs to be called instead
+   BlockInfo(){};
+
+   //Provide level, grid spacing, (x,y,z) origin and Z-index to setup/initialize a blockinfo
    void setup(const int a_level, const double a_h, const double a_origin[3], const long long a_Z)
    {
       level     = a_level;
@@ -135,6 +151,7 @@ struct BlockInfo
 
       const int TwoPower = 1 << level;
 
+      //Now we also set the indices of the neighbouring blocks, parent block and child blocks.
       #if DIMENSION == 3
          inverse(Z, level, index[0], index[1], index[2]);
 
@@ -171,6 +188,7 @@ struct BlockInfo
       blockID   = blockID_2;
    }
 
+   //used for easier access of Znei[][][]
    long long Znei_(const int i, const int j, const int k) const
    {
       assert(abs(i) <= 1);

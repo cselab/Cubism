@@ -32,6 +32,8 @@ class LoadBalancer
    TGrid *grid;
    int rank, size;
    MPI_Comm comm;
+
+   //MPI datatype and auxiliary struct used to send/receive blocks among ranks
    MPI_Datatype MPI_BLOCK;
    struct MPI_Block
    {
@@ -62,14 +64,20 @@ class LoadBalancer
       MPI_Block() {}
    };
 
+   //Allocate a block at a given level and Z-index and fill it with received data
    void AddBlock(const int level, const long long Z, Real * data)
    {
+      //1. Allocate the block from the grid
       grid->_alloc(level, Z);
+
+      //2. Fill the block with data received
       BlockInfo &info = grid->getBlockInfoAll(level, Z);
       BlockType *b1 = (BlockType *)info.ptrBlock;
       assert(b1 != NULL);
       Real *a1 = &b1->data[0][0][0].member(0);
       std::memcpy(a1, data, sizeof(BlockType));
+
+      //3. Update status of children and parent block of newly allocated block
       #if DIMENSION == 3
          int p[3];
          BlockInfo::inverse(Z, level, p[0], p[1], p[2]);
@@ -107,12 +115,13 @@ class LoadBalancer
  public:
    LoadBalancer(TGrid &a_grid)
    {
-      grid   = &a_grid;
+      grid = &a_grid;
       comm = grid->getWorldComm();
       MPI_Comm_size(comm, &size);
       MPI_Comm_rank(comm, &rank);
       movedBlocks = false;
-      MPI_Block dummy;
+
+      //Create MPI datatype to send/receive blocks (data) + two integers (their level and Z-index)
       int array_of_blocklengths[2]       = {2, sizeof(BlockType) / sizeof(Real)};
       MPI_Aint array_of_displacements[2] = {0, 2 * sizeof(long long)};
       MPI_Datatype array_of_types[2];
@@ -132,23 +141,28 @@ class LoadBalancer
       std::vector<std::vector<MPI_Block>> send_blocks(size);
       std::vector<std::vector<MPI_Block>> recv_blocks(size);
 
+      //Loop over blocks
       for (auto &b : I)
       {
          #if DIMENSION == 3
-            const long long nBlock = grid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2), 2 * (b.index[2] / 2));
+         const long long nBlock = grid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2), 2 * (b.index[2] / 2));
          #else
-            const long long nBlock = grid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2));
+         const long long nBlock = grid->getZforward(b.level, 2 * (b.index[0] / 2), 2 * (b.index[1] / 2));
          #endif
 
-         const BlockInfo &base  = grid->getBlockInfoAll(b.level, nBlock);
-         const BlockInfo &bCopy = grid->getBlockInfoAll(b.level, b.Z);
+         const BlockInfo &base = grid->getBlockInfoAll(b.level, nBlock);
 
+         //If the 'base' block does not exist, no compression will take place. Continue to next block.
+         //By now, if 'base' block is marked for compression it means that the remaining 7 (3, in 2D)
+         //blocks will also need compression, so we check if base.state == Compress.
+         if (!grid->Tree(base).Exists() || base.state != Compress) continue;
+
+         const BlockInfo &bCopy = grid->getBlockInfoAll(b.level, b.Z);
          const int baserank = grid->Tree(b.level, nBlock).rank();
          const int brank    = grid->Tree(b.level, b.Z).rank();
 
-         if (!grid->Tree(base).Exists()) continue;
-
-         if (b.Z != nBlock && base.state == Compress)
+         //if 'b' is NOT the 'base' block we send it to the rank that owns the 'base' block.
+         if (b.Z != nBlock)
          {
             if (baserank != rank && brank == rank)
             {
@@ -156,43 +170,34 @@ class LoadBalancer
                grid->Tree(b.level, b.Z).setrank(baserank);
             }
          }
-         else if (b.Z == nBlock && base.state == Compress)
+         //if 'b' is the 'base' block we collect the remaining 7 (3, in 2D) blocks that will be compressed with it.
+         else
          {
             #if DIMENSION ==3
-               for (int k = 0; k < 2; k++)
-               for (int j = 0; j < 2; j++)
-               for (int i = 0; i < 2; i++)
-               {
-                  const long long n = grid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
-                  if (n == nBlock) continue;
-                  BlockInfo &temp    = grid->getBlockInfoAll(b.level, n);
-                  const int temprank = grid->Tree(b.level, n).rank();
-                  if (temprank != rank)
-                  {
-                     recv_blocks[temprank].push_back({temp, false});
-                     grid->Tree(b.level, n).setrank(baserank);
-                  }
-               }
-            #else
-               for (int j = 0; j < 2; j++)
-               for (int i = 0; i < 2; i++)
-               {
-                  const long long n = grid->getZforward(b.level, b.index[0] + i, b.index[1] + j);
-                  if (n == nBlock) continue;
-                  BlockInfo &temp    = grid->getBlockInfoAll(b.level, n);
-                  const int temprank = grid->Tree(b.level, n).rank();
-                  if (temprank != rank)
-                  {
-                     recv_blocks[temprank].push_back({temp, false});
-                     grid->Tree(b.level, n).setrank(baserank);
-                  }
-               }
+            for (int k = 0; k < 2; k++)
             #endif
+            for (int j = 0; j < 2; j++)
+            for (int i = 0; i < 2; i++)
+            {
+               #if DIMENSION ==3
+               const long long n = grid->getZforward(b.level, b.index[0] + i, b.index[1] + j, b.index[2] + k);
+               #else
+               const long long n = grid->getZforward(b.level, b.index[0] + i, b.index[1] + j);
+               #endif
+               if (n == nBlock) continue;
+               BlockInfo &temp    = grid->getBlockInfoAll(b.level, n);
+               const int temprank = grid->Tree(b.level, n).rank();
+               if (temprank != rank)
+               {
+                  recv_blocks[temprank].push_back({temp, false});
+                  grid->Tree(b.level, n).setrank(baserank);
+               }
+            }
          }
       }
 
+      //1/4 Perform the sends/receives of blocks
       std::vector<MPI_Request> requests;
-
       for (int r = 0; r < size; r++)
          if (r != rank)
          {
@@ -210,6 +215,7 @@ class LoadBalancer
             }
          }
 
+      //2/4 Do some work while sending/receiving. Here we deallocate the blocks we sent.
       for (int r = 0; r < size; r++)
          for (int i = 0; i < (int)send_blocks[r].size(); i++)
          {
@@ -217,18 +223,19 @@ class LoadBalancer
             grid->Tree(send_blocks[r][i].mn[0], send_blocks[r][i].mn[1]).setCheckCoarser();
          }
 
+      //3/4 Wait for communication to complete
       if (requests.size() != 0)
       {
          movedBlocks = true;
          MPI_Waitall(requests.size(), &requests[0], MPI_STATUSES_IGNORE);
       }
 
+      //4/4 Allocate the blocks we received and copy data to them.
       for (int r = 0; r < size; r++)
          for (int i = 0; i < (int)recv_blocks[r].size(); i++)
          {
             const int level = (int) recv_blocks[r][i].mn[0];
             const long long Z = recv_blocks[r][i].mn[1];
-
             grid->_alloc(level, Z);
             BlockInfo & info = grid->getBlockInfoAll(level, Z);
             BlockType *b1  = (BlockType *)info.ptrBlock;
@@ -318,7 +325,7 @@ class LoadBalancer
       else if (flux_right < 0) // then I will receive blocks from my right rank
       {
          recv_right.resize(abs(flux_right));
-	 MPI_Request req{};
+	      MPI_Request req{};
          request.push_back(req);
          MPI_Irecv(&recv_right[0], recv_right.size(), MPI_BLOCK, right, 7890, comm, &request.back());
       }
@@ -356,12 +363,15 @@ class LoadBalancer
 
    void Balance_Global(std::vector<long long> & all_b)
    {
+      //Redistribute all blocks evenly, along the 1D Hilbert curve.
+      //all_b[i] = # of blocks currently owned by rank i.
+
+      //sort blocks according to Z-index and level on the Hilbert curve.
       std::vector<BlockInfo> SortedInfos = grid->getBlocksInfo();
       std::sort(SortedInfos.begin(), SortedInfos.end());
 
-      std::vector<std::vector<MPI_Block>> send_blocks(size);
-      std::vector<std::vector<MPI_Block>> recv_blocks(size);
-
+      //compute the total number of blocks (total_load) and how many blocks each rank should have,
+      //for a balanced load distribution
       long long total_load = 0;
       for (int r = 0; r < size; r++) total_load += all_b[r];
       long long my_load = total_load / size;
@@ -374,6 +384,10 @@ class LoadBalancer
       long long ideal_index = (total_load / size) * rank;
       ideal_index += (rank < (total_load % size)) ? rank : (total_load % size);
 
+      //now check the actual block distribution and mark the blocks that should not be owned by a
+      //particular rank and should instead be sent to another rank.
+      std::vector<std::vector<MPI_Block>> send_blocks(size);
+      std::vector<std::vector<MPI_Block>> recv_blocks(size);
       for (int r = 0; r < size; r++) if (rank != r)
       {
          { // check if I need to receive blocks
@@ -400,6 +414,7 @@ class LoadBalancer
          }
       }
 
+      //perform the sends and receives of blocks
       int tag = 12345;
       std::vector<MPI_Request> requests;
       for (int r = 0; r < size; r++) if (recv_blocks[r].size() != 0)
@@ -428,10 +443,11 @@ class LoadBalancer
          MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &requests.back());
       }
 
-      MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+      //no need to wait here, do some work first!
+      //MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
 
+      //do some work while sending/receiving, by deallocating the blocks that are being sent
       movedBlocks = true;
-
       std::vector<long long> deallocIDs;
       counter_S = 0;
       counter_E = 0;
@@ -460,6 +476,10 @@ class LoadBalancer
       }
       grid->dealloc_many(deallocIDs);
 
+      //wait for communication
+      MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+
+      //allocate received blocks
       #pragma omp parallel
       {
          for (int r = 0; r < size; r++) if (recv_blocks[r].size() != 0)

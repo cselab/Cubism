@@ -1141,13 +1141,11 @@ class SynchronizerMPI_AMR
     UnpacksManager._allocate(halo_blocks.size(), lengths.data());
   }
 
- public:
-
-   SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, TGrid * _grid) : stencil(a_stencil), Cstencil(a_Cstencil),
-        UnpacksManager(_grid->getWorldComm()), SM(a_stencil, a_Cstencil, TGrid::Block::sizeX, TGrid::Block::sizeY, TGrid::Block::sizeZ),
-        gptfloats(sizeof(typename TGrid::Block::ElementType) / sizeof(Real)), NC(a_stencil.selcomponents.size())
-
-   {
+  public:
+    SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, TGrid * _grid) : stencil(a_stencil), Cstencil(a_Cstencil),
+    UnpacksManager(_grid->getWorldComm()), SM(a_stencil, a_Cstencil, TGrid::Block::sizeX, TGrid::Block::sizeY, TGrid::Block::sizeZ),
+    gptfloats(sizeof(typename TGrid::Block::ElementType) / sizeof(Real)), NC(a_stencil.selcomponents.size())
+    {
       grid = _grid; 
       use_averages = (grid->FiniteDifferences == false || stencil.tensorial
                      || stencil.sx< -2 || stencil.sy < -2 || stencil.sz < -2
@@ -1168,6 +1166,8 @@ class SynchronizerMPI_AMR
       send_buffer.resize(size);
       recv_buffer.resize(size);
 
+      std::sort(stencil.selcomponents.begin(), stencil.selcomponents.end());
+
       if (sizeof(Real) == sizeof(double))
       {
         MPIREAL = MPI_DOUBLE;
@@ -1181,26 +1181,26 @@ class SynchronizerMPI_AMR
         MPIREAL = MPI_FLOAT;
         assert(sizeof(Real) == sizeof(float));
       }
-   }
+    }
 
-   std::vector<BlockInfo *> & avail_inner() { return inner_blocks; }
+    std::vector<BlockInfo *> & avail_inner() { return inner_blocks; }
 
-   std::vector<BlockInfo *> & avail_halo()
-   {
+    std::vector<BlockInfo *> & avail_halo()
+    {
       MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
       return halo_blocks;
-   }
+    }
 
-   void _Setup()
-   {
+    void _Setup()
+    {
       const int timestamp = grid->getTimeStamp();
 
       DefineInterfaces();
 
+      //communicate send/recv buffer sizes with neighbors
       std::vector<MPI_Request> size_requests(2 * Neighbors.size());
       std::vector<int> temp_send(size);
       std::vector<int> temp_recv(size);
-
       for (int r = 0; r < size; r++)
       {
         send_buffer[r].resize(send_buffer_size[r] * NC);
@@ -1215,10 +1215,10 @@ class SynchronizerMPI_AMR
         k += 2;
       }
 
+      //communicate packs meta-data (stencil sizes, ranges etc.)
       UnpacksManager.SendPacks(Neighbors, timestamp);
 
       ToBeAveragedDown.resize(size);
-
       for (int r = 0; r < size; r++)
       {
         send_packinfos[r].clear();
@@ -1250,20 +1250,18 @@ class SynchronizerMPI_AMR
       }
       MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);
       MPI_Waitall(UnpacksManager.pack_requests.size(), UnpacksManager.pack_requests.data(), MPI_STATUSES_IGNORE);
+      UnpacksManager.MapIDs();
 
       for (auto r : Neighbors)
       {
         recv_buffer_size[r] = temp_recv[r] / NC;
         recv_buffer[r].resize(recv_buffer_size[r] * NC);
       }
-   }
+    }
 
-   void sync()
-   {
+    void sync()
+    {
       const int timestamp = grid->getTimeStamp();
-
-      std::sort(stencil.selcomponents.begin(), stencil.selcomponents.end());
-
       requests.clear();
 
       //Post receive requests first
@@ -1303,20 +1301,20 @@ class SynchronizerMPI_AMR
         requests.resize(requests.size() + 1);
         MPI_Isend(&send_buffer[r][0], send_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &requests.back());
       }
-      UnpacksManager.MapIDs();
-   }
+    }
 
-   const StencilInfo & getstencil() const { return stencil; }
+    const StencilInfo & getstencil() const { return stencil; }
 
-   const StencilInfo & getCstencil() const { return Cstencil; }
+    const StencilInfo & getCstencil() const { return Cstencil; }
 
-   void fetch(const BlockInfo &info, const unsigned int Length[3], const unsigned int CLength[3], Real *cacheBlock, Real *coarseBlock)
-   {
+    void fetch(const BlockInfo &info, const unsigned int Length[3], const unsigned int CLength[3], Real *cacheBlock, Real *coarseBlock)
+    {
+      //fetch received data for blocks that are neighbors with 'info' but are owned by another rank
       const int id = info.halo_block_id;
       if (id < 0) return;
 
+      //loop over all unpacks that correspond to block with this halo_block_id
       UnPackInfo **unpacks = UnpacksManager.unpacks[id].data();
-
       for (size_t jj = 0; jj < UnpacksManager.sizes[id]; jj++)
       {
         const UnPackInfo &unpack = *unpacks[jj];
@@ -1325,6 +1323,8 @@ class SynchronizerMPI_AMR
 
         const int otherrank = unpack.rank;
 
+        //Based on the current unpack's icode, regions starting from 's' and ending to 'e' of the
+        //current block will be filled with ghost cells. 
         const int s[3] = {code[0] < 1 ? (code[0] < 0 ? stencil.sx : 0) : nX,
                           code[1] < 1 ? (code[1] < 0 ? stencil.sy : 0) : nY,
                           code[2] < 1 ? (code[2] < 0 ? stencil.sz : 0) : nZ};
@@ -1332,123 +1332,97 @@ class SynchronizerMPI_AMR
                           code[1] < 1 ? (code[1] < 0 ? 0 : nY) : nY + stencil.ey - 1,
                           code[2] < 1 ? (code[2] < 0 ? 0 : nZ) : nZ + stencil.ez - 1};
 
-         if (unpack.level == info.level)
-         {
-            Real *dst = cacheBlock + ((s[2] - stencil.sz) * Length[0] * Length[1] +
-                                      (s[1] - stencil.sy) * Length[0] +
-                                       s[0] - stencil.sx                      ) * gptfloats;
+        if (unpack.level == info.level) //same level neighbors
+        {
+          Real *dst = cacheBlock + ((s[2] - stencil.sz) * Length[0] * Length[1] + (s[1] - stencil.sy) * Length[0] + s[0] - stencil.sx) * gptfloats;
 
-            unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], 
-                             gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
-                             unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX, unpack.LY, 
-                             0               , 0               , 0               , unpack.lx, unpack.ly, unpack.lz, 
-                             Length[0],Length[1], Length[2]);
+          unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], 
+                           gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
+                           unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX, unpack.LY, 
+                           0               , 0               , 0               , unpack.lx, unpack.ly, unpack.lz, 
+                           Length[0],Length[1], Length[2]);
 
-            if (unpack.CoarseVersionOffset >= 0)
+          if (unpack.CoarseVersionOffset >= 0) //same level neighbors exchange averaged down ghosts
+          {
+            const int offset[3] = {(stencil.sx - 1) / 2 + Cstencil.sx, (stencil.sy - 1) / 2 + Cstencil.sy, (stencil.sz - 1) / 2 + Cstencil.sz};
+            const int sC[3] = {code[0] < 1 ? (code[0] < 0 ? offset[0] : 0) : nX / 2,
+                               code[1] < 1 ? (code[1] < 0 ? offset[1] : 0) : nY / 2,
+                               code[2] < 1 ? (code[2] < 0 ? offset[2] : 0) : nZ / 2};
+            Real *dst1 = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] + (sC[1] - offset[1]) * CLength[0] + sC[0] - offset[0]) * gptfloats;
+
+            int L[3];
+            SM.CoarseStencilLength((-code[0]+1)+3*(-code[1]+1)+9*(-code[2]+1), L);
+
+            unpack_subregion(
+            &recv_buffer[otherrank][unpack.offset + unpack.CoarseVersionOffset], &dst1[0],
+            gptfloats, &stencil.selcomponents[0], stencil.selcomponents.size(),
+            unpack.CoarseVersionsrcxstart, unpack.CoarseVersionsrcystart,
+            unpack.CoarseVersionsrczstart, unpack.CoarseVersionLX, unpack.CoarseVersionLY,
+            0,0,0,L[0],L[1],L[2],CLength[0],CLength[1],CLength[2]);
+          }
+        }
+        else if (unpack.level < info.level)
+        {
+          const int offset[3] = {(stencil.sx - 1) / 2 + Cstencil.sx, (stencil.sy - 1) / 2 + Cstencil.sy, (stencil.sz - 1) / 2 + Cstencil.sz};
+          const int sC[3] = {code[0] < 1 ? (code[0] < 0 ? offset[0] : 0) : nX / 2,
+                             code[1] < 1 ? (code[1] < 0 ? offset[1] : 0) : nY / 2,
+                             code[2] < 1 ? (code[2] < 0 ? offset[2] : 0) : nZ / 2};
+          Real *dst = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] + sC[0] - offset[0] + (sC[1] - offset[1]) * CLength[0]) *gptfloats;
+          unpack_subregion(
+          &recv_buffer[otherrank][unpack.offset], &dst[0], 
+          gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
+          unpack.srcxstart,unpack.srcystart,unpack.srczstart,unpack.LX,unpack.LY, 
+          0,0,0,unpack.lx,unpack.ly,unpack.lz,CLength[0],CLength[1], CLength[2]);
+        }
+        else
+        {
+          int B;
+          if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3)) B = 0; // corner
+          else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2))   // edge
+          {
+            int t;
+            if      (code[0] == 0) t = unpack.index_0 - 2 * info.index[0];
+            else if (code[1] == 0) t = unpack.index_1 - 2 * info.index[1];
+            else                   t = unpack.index_2 - 2 * info.index[2];
+            assert(t == 0 || t == 1);
+            B = (t == 1) ? 3:0;
+          }
+          else
+          {
+            int Bmod, Bdiv;
+            if (abs(code[0]) == 1)
             {
-               const int offset[3] = {(stencil.sx - 1) / 2 + Cstencil.sx,
-                                      (stencil.sy - 1) / 2 + Cstencil.sy,
-                                      (stencil.sz - 1) / 2 + Cstencil.sz};
-
-               const int sC[3] = {
-                                  code[0] < 1 ? (code[0] < 0 ? (stencil.sx - 1) / 2 + Cstencil.sx : 0) : nX / 2,
-                                  code[1] < 1 ? (code[1] < 0 ? (stencil.sy - 1) / 2 + Cstencil.sy : 0) : nY / 2,
-                                  code[2] < 1 ? (code[2] < 0 ? (stencil.sz - 1) / 2 + Cstencil.sz : 0) : nZ / 2};
-
-               Real *dst1 = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] +
-                                           (sC[1] - offset[1]) * CLength[0] + sC[0] - offset[0]) * gptfloats;
-
-               int L[3];
-               SM.CoarseStencilLength((-code[0]+1)+3*(-code[1]+1)+9*(-code[2]+1), L);
-
-               unpack_subregion(
-                   &recv_buffer[otherrank][unpack.offset + unpack.CoarseVersionOffset], &dst1[0],
-                   gptfloats, &stencil.selcomponents[0], stencil.selcomponents.size(),
-                   unpack.CoarseVersionsrcxstart, unpack.CoarseVersionsrcystart,
-                   unpack.CoarseVersionsrczstart, unpack.CoarseVersionLX, unpack.CoarseVersionLY, 0,
-                   0, 0, L[0], L[1], L[2], CLength[0], CLength[1], CLength[2]);
+              Bmod = unpack.index_1 - 2 * info.index[1];
+              Bdiv = unpack.index_2 - 2 * info.index[2];
             }
-         }
-         else if (unpack.level < info.level)
-         {
-            const int sC[3] = {code[0] < 1 ? (code[0] < 0 ? ((stencil.sx - 1) / 2 + Cstencil.sx) : 0) : nX / 2,
-                               code[1] < 1 ? (code[1] < 0 ? ((stencil.sy - 1) / 2 + Cstencil.sy) : 0) : nY / 2,
-                               code[2] < 1 ? (code[2] < 0 ? ((stencil.sz - 1) / 2 + Cstencil.sz) : 0) : nZ / 2};
-
-            const int offset[3] = {(stencil.sx - 1) / 2 + Cstencil.sx,
-                                   (stencil.sy - 1) / 2 + Cstencil.sy,
-                                   (stencil.sz - 1) / 2 + Cstencil.sz};
-
-            Real *dst = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] + sC[0] - offset[0] + (sC[1] - offset[1]) * CLength[0]) *gptfloats;
-            unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], 
-                             gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
-                             unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX, unpack.LY, 
-                                            0,                0,                0, unpack.lx, unpack.ly, unpack.lz, 
-                             CLength[0],CLength[1], CLength[2]);
-         }
-         else
-         {
-            int B;
-            if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3)) B = 0; // corner
-            else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2))   // edge
+            else if (abs(code[1]) == 1)
             {
-               int t;
-               if (code[0] == 0)
-               {
-                  t = unpack.index_0 - 2 * info.index[0];
-               }
-               else if (code[1] == 0)
-               {
-                  t = unpack.index_1 - 2 * info.index[1];
-               }
-               else // if (code[2] ==0)
-               {
-                  t = unpack.index_2 - 2 * info.index[2];
-               }
-
-               assert(t == 0 || t == 1);
-
-               if (t == 1) B = 3;
-               else        B = 0;
+              Bmod = unpack.index_0 - 2 * info.index[0];
+              Bdiv = unpack.index_2 - 2 * info.index[2];
             }
             else
             {
-               int Bmod, Bdiv;
-               if (abs(code[0]) == 1)
-               {
-                  Bmod = unpack.index_1 - 2 * info.index[1];
-                  Bdiv = unpack.index_2 - 2 * info.index[2];
-               }
-               else if (abs(code[1]) == 1)
-               {
-                  Bmod = unpack.index_0 - 2 * info.index[0];
-                  Bdiv = unpack.index_2 - 2 * info.index[2];
-               }
-               else
-               {
-                  Bmod = unpack.index_0 - 2 * info.index[0];
-                  Bdiv = unpack.index_1 - 2 * info.index[1];
-               }
-
-               B = 2 * Bdiv + Bmod;
+              Bmod = unpack.index_0 - 2 * info.index[0];
+              Bdiv = unpack.index_1 - 2 * info.index[1];
             }
-            const int aux1 = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-
-            Real *dst = cacheBlock + (
+            B = 2 * Bdiv + Bmod;
+          }
+          
+          const int aux1 = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
+          Real *dst = cacheBlock + (
                  (abs(code[2]) * (s[2] - stencil.sz) + (1 - abs(code[2])) * (- stencil.sz + (B / 2) * (e[2] - s[2]) / 2)) * Length[0]*Length[1] +
                  (abs(code[1]) * (s[1] - stencil.sy) + (1 - abs(code[1])) * (- stencil.sy + aux1    * (e[1] - s[1]) / 2)) * Length[0] +
                   abs(code[0]) * (s[0] - stencil.sx) + (1 - abs(code[0])) * (- stencil.sx + (B % 2) * (e[0] - s[0]) / 2)
                 ) * gptfloats;
 
-            unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
-                   &stencil.selcomponents[0], stencil.selcomponents.size(),
-                   unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX,
-                   unpack.LY, 0, 0, 0, unpack.lx, unpack.ly, unpack.lz, Length[0],
-                   Length[1], Length[2]);
-
-         }
+          unpack_subregion(
+          &recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
+          &stencil.selcomponents[0],stencil.selcomponents.size(),
+          unpack.srcxstart,unpack.srcystart,unpack.srczstart,unpack.LX,unpack.LY, 
+          0, 0, 0, unpack.lx, unpack.ly, unpack.lz, Length[0],Length[1], Length[2]);
+        }
       }
-   }
+    }
 };
 
 }//namespace cubism

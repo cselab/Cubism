@@ -24,46 +24,8 @@
 #include <string>
 #include <sstream>
 #include <string>
-#include "sys/types.h"
-#include "sys/sysinfo.h"
 
 namespace cubism {
-
-static inline void memory_usage(std::string msg)
-{
-  static int counter = 0;
-  struct sysinfo memInfo;
-  sysinfo (&memInfo);
-  int rank;
-  int size;
-  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  MPI_Comm_size(MPI_COMM_WORLD,&size);
-  long long totalPhysMem = memInfo.totalram;
-  long long physMemUsed = memInfo.totalram - memInfo.freeram;
-  long long freeMem     = memInfo.freeram;
-  totalPhysMem *= memInfo.mem_unit;
-  physMemUsed  *= memInfo.mem_unit;
-  freeMem      *= memInfo.mem_unit;
-  MPI_Allreduce(MPI_IN_PLACE,&totalPhysMem,1,MPI_LONG_LONG,MPI_SUM,MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE,&physMemUsed ,1,MPI_LONG_LONG,MPI_SUM,MPI_COMM_WORLD);
-  MPI_Allreduce(MPI_IN_PLACE,&freeMem     ,1,MPI_LONG_LONG,MPI_SUM,MPI_COMM_WORLD);
-  if (rank == 0)
-  {
-   std::cout << msg;// << std::endl;
-   std::cout << "totalPhysMem = " << totalPhysMem /(size*1024*1024) << " MB" << std::endl;
-   std::cout << "--->physMemUsed  = " << physMemUsed  /(size*1024*1024) << " MB" << std::endl;
-   std::cout << "--->freeMem  = " << freeMem  /(size*1024*1024) << " MB" << std::endl;
-   std::cout << std::endl;
-
-   std::stringstream s;
-   s << counter << " " << to_string(physMemUsed  /(size*1024)) << " \n";
-   std::string st = s.str();
-   std::ofstream out("memory",std::ios_base::app);
-   out << st;
-   out.close();
-   counter ++;
-  }
-}
 
 template <typename TGrid>
 class GridMPI : public TGrid

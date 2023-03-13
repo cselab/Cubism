@@ -183,8 +183,6 @@ class BlockLab
 
          m_cacheBlock = allocator<Matrix3D<ElementType, allocator>>().allocate(1);
 
-         allocator<Matrix3D<ElementType, allocator>>().construct(m_cacheBlock);
-
          m_cacheBlock->_Setup(BlockType::sizeX + m_stencilEnd[0] - m_stencilStart[0] - 1,
                               BlockType::sizeY + m_stencilEnd[1] - m_stencilStart[1] - 1,
                               BlockType::sizeZ + m_stencilEnd[2] - m_stencilStart[2] - 1);
@@ -219,8 +217,6 @@ class BlockLab
          if (m_CoarsenedBlock != NULL) _release(m_CoarsenedBlock);
 
          m_CoarsenedBlock = allocator<Matrix3D<ElementType, allocator>>().allocate(1);
-
-         allocator<Matrix3D<ElementType, allocator>>().construct(m_CoarsenedBlock);
 
          m_CoarsenedBlock->_Setup(CoarseBlockSize[0] + e[0] - offset[0] - 1,
                                   CoarseBlockSize[1] + e[1] - offset[1] - 1,
@@ -826,10 +822,10 @@ class BlockLab
          #pragma GCC ivdep
          for (int iy = s[1]; iy < e[1]-mod; iy += 4)
          {
-            ElementType __restrict__ *ptrDest0 = &m_CoarsenedBlock->LinAccess(my_izx + (iy + 0 - offset[1]) * m_vSize0);
-            ElementType __restrict__ *ptrDest1 = &m_CoarsenedBlock->LinAccess(my_izx + (iy + 1 - offset[1]) * m_vSize0);
-            ElementType __restrict__ *ptrDest2 = &m_CoarsenedBlock->LinAccess(my_izx + (iy + 2 - offset[1]) * m_vSize0);
-            ElementType __restrict__ *ptrDest3 = &m_CoarsenedBlock->LinAccess(my_izx + (iy + 3 - offset[1]) * m_vSize0);
+            ElementType * __restrict__ ptrDest0 = &m_CoarsenedBlock->LinAccess(my_izx + (iy + 0 - offset[1]) * m_vSize0);
+            ElementType * __restrict__ ptrDest1 = &m_CoarsenedBlock->LinAccess(my_izx + (iy + 1 - offset[1]) * m_vSize0);
+            ElementType * __restrict__ ptrDest2 = &m_CoarsenedBlock->LinAccess(my_izx + (iy + 2 - offset[1]) * m_vSize0);
+            ElementType * __restrict__ ptrDest3 = &m_CoarsenedBlock->LinAccess(my_izx + (iy + 3 - offset[1]) * m_vSize0);
             const ElementType *ptrSrc0 = &b(s[0] + start[0], iy + 0 + start[1], iz + start[2]);
             const ElementType *ptrSrc1 = &b(s[0] + start[0], iy + 1 + start[1], iz + start[2]);
             const ElementType *ptrSrc2 = &b(s[0] + start[0], iy + 2 + start[1], iz + start[2]);
@@ -903,7 +899,7 @@ class BlockLab
                 iz < nZ / 2 - m_InterpStencilEnd[2])
                continue;
 
-            ElementType __restrict__ *ptrDest1 = &m_CoarsenedBlock->LinAccess(my_izx + (iy - offset[1]) * m_vSize0);
+            ElementType * __restrict__ ptrDest1 = &m_CoarsenedBlock->LinAccess(my_izx + (iy - offset[1]) * m_vSize0);
 
             const int YY = 2 * (iy - s[1]) + start[1];
             #if DIMENSION == 3
@@ -1425,7 +1421,6 @@ class BlockLab
    {
       if (t != NULL)
       {
-         allocator<T>().destroy(t);
          allocator<T>().deallocate(t, 1);
       }
       t = NULL;

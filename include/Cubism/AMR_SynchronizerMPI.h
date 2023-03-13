@@ -571,7 +571,7 @@ class SynchronizerMPI_AMR
     void RemoveDuplicates(const int r, std::vector<Interface> & f, int & total_size)
     {
       bool skip_needed = false;
-      const int NC = Synch_ptr->getstencil().selcomponents.size();
+      const int nc = Synch_ptr->getstencil().selcomponents.size();
 
       C.clear();
       for (size_t i=0; i<positions[r].size();i++)
@@ -613,11 +613,11 @@ class SynchronizerMPI_AMR
             f[k].infos[0]->index[2], f[k].infos[1]->blockID_2};
           
         f[k].dis = offsets[r];
-        offsets[r] += V*NC;
+        offsets[r] += V*nc;
         if (f[k].CoarseStencil)
         {
-          offsets[r] += Vc*NC; 
-          info.CoarseVersionOffset = V*NC;                                       
+          offsets[r] += Vc*nc;
+          info.CoarseVersionOffset = V*nc;
           info.CoarseVersionLX = Lc[0];
           info.CoarseVersionLY = Lc[1];
         }                   

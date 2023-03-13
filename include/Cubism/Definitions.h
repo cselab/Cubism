@@ -123,8 +123,6 @@ struct ScalarElement
   inline void set(const Real v) { s = v; }
   inline void copy(const ScalarElement& c) { s = c.s; }
 
-  ScalarElement& operator=(const ScalarElement& c) = default;
-
   ScalarElement &operator*=(const Real a)
   {
     this->s*=a;
@@ -517,7 +515,7 @@ class BlockLabNeumann: public cubism::BlockLab<BlockType,allocator>
   BlockLabNeumann(const BlockLabNeumann&) = delete;
   BlockLabNeumann& operator=(const BlockLabNeumann&) = delete;
 
-  void _apply_bc(const cubism::BlockInfo& info, const Real t=0, const bool coarse = false)
+  void _apply_bc(const cubism::BlockInfo& info, const Real t=0, const bool coarse = false) override
   {
     if (DIM == 2)
     {

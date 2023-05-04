@@ -1,128 +1,252 @@
 #pragma once
-#include "BlockInfo.h"
-#include "BlockLab.h"
-#include "Grid.h"
-#include "Matrix3D.h"
 
-#include <algorithm>
-#include <cstring>
-#include <omp.h>
-#include <string>
+#include "BlockInfo.h"
+#include "LoadBalancer.h"
 
 namespace cubism
 {
 
-template <typename TGrid, typename TLab>
+template <typename TLab>
 class MeshAdaptation
 {
  protected:
-   typedef typename TGrid::BlockType BlockType;
+   typedef typename TLab::GridType TGrid;
+   typedef typename TGrid::Block BlockType;
    typedef typename TGrid::BlockType::ElementType ElementType;
-   TGrid *m_refGrid;
-   int s[3];
-   int e[3];
-   bool istensorial{true};
-   int Is[3];
-   int Ie[3];
-   std::vector<int> components;
+   typedef SynchronizerMPI_AMR<Real,TGrid> SynchronizerMPIType;
+
+   struct stencilWrapper{StencilInfo stencil;};
+   stencilWrapper kernel;
+
+   bool CallValidStates;
+   bool boundary_needed;
+   LoadBalancer<TGrid> *Balancer;
+   TGrid *grid;
    TLab *labs;
    double time;
    bool LabsPrepared;
-   bool flag;
-   bool CallValidStates;
    bool basic_refinement;
    double tolerance_for_refinement;
    double tolerance_for_compression;
    std::vector<long long> dealloc_IDs;
+
  public:
-   MeshAdaptation(TGrid &grid, const double Rtol, const double Ctol)
+   MeshAdaptation(TGrid &g, double Rtol, double Ctol)
    {
       labs = nullptr;
-      m_refGrid = &grid;
+      grid = &g;
 
-      for (int i = 0 ; i < ElementType::DIM ; i++) components.push_back(i);
-
-      s[0] = -1;
-      e[0] =  2;
-      s[1] = -1;
-      e[1] =  2;
-      #if DIMENSION == 3
-         s[2] = -1;
-         e[2] =  2;
-      #else
-         s[2] = 0;
-         e[2] = 1;
-      #endif
-      Is[0] = s[0]; Is[1] = s[1]; Is[2] = s[2];
-      Ie[0] = e[0]; Ie[1] = e[1]; Ie[2] = e[2];
-      istensorial = true;
       tolerance_for_refinement  = Rtol;
       tolerance_for_compression = Ctol;
-      flag = true;
+
+      boundary_needed = false;
+
+      constexpr int Gx = 1;
+      constexpr int Gy = 1;
+      constexpr int Gz = DIMENSION == 3? 1:0;
+      kernel.stencil.sx = -Gx;
+      kernel.stencil.sy = -Gy;
+      kernel.stencil.sz = -Gz;
+      kernel.stencil.ex = Gx+1;
+      kernel.stencil.ey = Gy+1;
+      kernel.stencil.ez = Gz+1;
+      kernel.stencil.tensorial = true;
+      for (int i = 0 ; i < ElementType::DIM ; i++)
+         kernel.stencil.selcomponents.push_back(i);
+
+      Balancer = new LoadBalancer<TGrid>(*grid);
    }
 
-   virtual ~MeshAdaptation() {}
+   virtual ~MeshAdaptation() {delete Balancer;}
 
-   virtual void Tag(double t = 0)
+   void Tag(double t = 0)
    {
       time = t;
+      boundary_needed = true;
 
-      vector<BlockInfo> & I = m_refGrid->getBlocksInfo();
+      SynchronizerMPI_AMR<Real,TGrid> * Synch = grid->sync(kernel);
 
       const int nthreads = omp_get_max_threads();
-
       labs = new TLab[nthreads];
+      for (int i = 0; i < nthreads; i++) labs[i].prepare(*grid, Synch->getstencil());
 
-      for (int i = 0; i < nthreads; i++)
-         labs[i].prepare(*m_refGrid, {s[0],s[1],s[2],e[0],e[1],e[2],istensorial,components},Is, Ie);
+      CallValidStates = false;
+      bool Reduction = false;
+      MPI_Request Reduction_req;
+      int tmp;
+
+      std::vector<BlockInfo * > & inner = Synch->avail_inner();
+      TagBlocksVector(inner, Reduction, Reduction_req, tmp);
+
+      std::vector<BlockInfo * > & halo  = Synch->avail_halo();
+      TagBlocksVector(halo , Reduction, Reduction_req, tmp);
 
       LabsPrepared = true;
 
-      CallValidStates = false;
-
-      #pragma omp parallel
+      if (!Reduction)
       {
-         bool myCallValidStates = false;
-         const int tid = omp_get_thread_num();
-         TLab &mylab = labs[tid];
-         #pragma omp for
-         for (size_t i = 0; i < I.size(); i++)
+         tmp = CallValidStates ? 1 : 0;
+         Reduction = true;
+         MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, grid->getWorldComm(),&Reduction_req);
+      }
+
+      MPI_Wait(&Reduction_req,MPI_STATUS_IGNORE);
+      CallValidStates     = (tmp > 0);
+
+      grid->boundary = halo;
+
+      if (CallValidStates) ValidStates();
+   }
+
+   void Adapt(double t = 0, bool verbosity = false, bool basic = false)
+   {
+      basic_refinement = basic;
+      if (LabsPrepared == false && basic == false)
+      {
+         SynchronizerMPI_AMR<Real,TGrid> * Synch = grid->sync(kernel);
+         const int nthreads = omp_get_max_threads();
+         labs = new TLab[nthreads];
+         for (int i = 0; i < nthreads; i++) labs[i].prepare(*grid, Synch->getstencil());
+         //TODO: the line below means there's no computation & communication overlap here
+         grid->boundary  = Synch->avail_halo();
+         if (boundary_needed)
+           grid->UpdateBoundary();
+      }
+
+      int r = 0;
+      int c = 0;
+
+      std::vector<int> m_com;
+      std::vector<int> m_ref;
+      std::vector<long long> n_com;
+      std::vector<long long> n_ref;
+
+      std::vector<BlockInfo> &I = grid->getBlocksInfo();
+
+      long long blocks_after = I.size();
+
+      for (auto &info : I)
+      {
+         if (info.state == Refine)
          {
-            mylab.load(I[i], t);
-            BlockInfo &info = m_refGrid->getBlockInfoAll(I[i].level, I[i].Z);
-            I[i].state      = TagLoadedBlock(info);
-            info.state      = I[i].state;
-            if (info.state != Leave) myCallValidStates = true;
+            m_ref.push_back(info.level);
+            n_ref.push_back(info.Z);
+            blocks_after += (1 << DIMENSION) - 1; 
+            r++;
          }
-         if (myCallValidStates)
+         else if (info.state == Compress
+            && info.index[0]%2 == 0
+            && info.index[1]%2 == 0
+            && info.index[2]%2 == 0)
          {
-            #pragma omp atomic write
-            CallValidStates = true;
+            m_com.push_back(info.level);
+            n_com.push_back(info.Z);
+            c++;
+         }
+         else if (info.state == Compress)
+         {
+            blocks_after --;
          }
       }
-      if (CallValidStates) ValidStates();
+      MPI_Request requests[2];
+      int temp[2] = {r, c};
+      int result[2];
+      int size;
+      MPI_Comm_size(grid->getWorldComm(),&size);
+      std::vector<long long> block_distribution(size);
+      MPI_Iallreduce(&temp, &result, 2, MPI_INT, MPI_SUM, grid->getWorldComm(),&requests[0]);
+      MPI_Iallgather(&blocks_after, 1, MPI_LONG_LONG, block_distribution.data(), 1, MPI_LONG_LONG, grid->getWorldComm(), &requests[1]);
+
+      dealloc_IDs.clear();
+
+      #ifdef CUBISM_USE_ONETBB
+      #pragma omp parallel
+      #endif
+      {
+         #ifdef CUBISM_USE_ONETBB
+         #pragma omp for
+         #endif
+         for (size_t i = 0; i < m_ref.size(); i++)
+         {
+            refine_1(m_ref[i], n_ref[i]);
+         }
+         #ifdef CUBISM_USE_ONETBB
+         #pragma omp for
+         #endif
+         for (size_t i = 0; i < m_ref.size(); i++)
+         {
+            refine_2(m_ref[i], n_ref[i]);
+         }
+      }
+      grid->dealloc_many(dealloc_IDs);
+
+      Balancer->PrepareCompression();
+
+      dealloc_IDs.clear();
+
+      #ifdef CUBISM_USE_ONETBB
+      #pragma omp parallel for
+      #endif
+      for (size_t i = 0; i < m_com.size(); i++)
+      {
+         compress(m_com[i], n_com[i]);
+      }
+
+      grid->dealloc_many(dealloc_IDs);
+
+      MPI_Waitall(2,requests,MPI_STATUS_IGNORE);
+      if (verbosity)
+      {
+         std::cout << "==============================================================\n";
+         std::cout << " refined:" << result[0] << "   compressed:" << result[1] << std::endl;
+         std::cout << "==============================================================" << std::endl;
+      }
+
+      Balancer->Balance_Diffusion(verbosity,block_distribution);
+
+      if (labs != nullptr)
+      {
+         delete[] labs;
+         labs = nullptr;
+      }
+
+      if ( result[0] > 0 || result[1] > 0 || Balancer->movedBlocks)
+      {
+         grid->UpdateFluxCorrection = true;
+         grid->UpdateGroups = true;
+
+         grid->UpdateBlockInfoAll_States(false);
+
+         auto it = grid->SynchronizerMPIs.begin();
+         while (it != grid->SynchronizerMPIs.end())
+         {
+            (*it->second)._Setup();
+            it++;
+         }
+      }
+      LabsPrepared = false;
    }
 
    void TagLike(const std::vector<BlockInfo> & I1)
    {
-      std::vector<BlockInfo> &I2 = m_refGrid->getBlocksInfo();
+      std::vector<BlockInfo> &I2 = grid->getBlocksInfo();
       for (size_t i1 = 0; i1 < I2.size(); i1++)
       {
          BlockInfo &ary0      = I2[i1];
-         BlockInfo &info      = m_refGrid->getBlockInfoAll(ary0.level, ary0.Z);
+         BlockInfo &info      = grid->getBlockInfoAll(ary0.level, ary0.Z);
          for (int i = 2 * (info.index[0] / 2); i <= 2 * (info.index[0] / 2) + 1; i++)
          for (int j = 2 * (info.index[1] / 2); j <= 2 * (info.index[1] / 2) + 1; j++)
          #if DIMENSION == 3
          for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
          {
-            const long long n = m_refGrid->getZforward(info.level, i, j, k);
-            BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, n);
+            const long long n = grid->getZforward(info.level, i, j, k);
+            BlockInfo &infoNei = grid->getBlockInfoAll(info.level, n);
             infoNei.state = Leave;
          }
          #else
          {
-            const long long n = m_refGrid->getZforward(info.level, i, j);
-            BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, n);
+            const long long n = grid->getZforward(info.level, i, j);
+            BlockInfo &infoNei = grid->getBlockInfoAll(info.level, n);
             infoNei.state = Leave;
          }
          #endif
@@ -134,7 +258,7 @@ class MeshAdaptation
       {
          const BlockInfo & info1 = I1[i];
          BlockInfo & info2 = I2[i];
-         BlockInfo & info3 = m_refGrid->getBlockInfoAll(info2.level, info2.Z);
+         BlockInfo & info3 = grid->getBlockInfoAll(info2.level, info2.Z);
          info2.state = info1.state;
          info3.state = info1.state;
          if (info2.state == Compress)
@@ -143,110 +267,61 @@ class MeshAdaptation
             const int j2 = 2 * (info2.index[1] / 2);
             #if DIMENSION == 3
             const int k2 = 2 * (info2.index[2] / 2);
-            const long long n = m_refGrid->getZforward(info2.level, i2, j2, k2);
+            const long long n = grid->getZforward(info2.level, i2, j2, k2);
             #else
-            const long long n = m_refGrid->getZforward(info2.level, i2, j2);
+            const long long n = grid->getZforward(info2.level, i2, j2);
             #endif
-            BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info2.level, n);
+            BlockInfo &infoNei = grid->getBlockInfoAll(info2.level, n);
             infoNei.state = Compress;
          }
       }
       LabsPrepared = false;
    }
 
-   virtual void Adapt(double t = 0, bool verbosity = false, bool basic = false)
+ protected:
+   void TagBlocksVector(std::vector<BlockInfo *> & I, bool & Reduction, MPI_Request & Reduction_req, int & tmp)
    {
-      basic_refinement = basic;
-      if (LabsPrepared == false)
-      {
-         const int nthreads = omp_get_max_threads();
-         labs = new TLab[nthreads];
-         for (int i = 0; i < nthreads; i++)
-            labs[i].prepare(*m_refGrid, {s[0],s[1],s[2],e[0],e[1],e[2],istensorial,components},Is, Ie);
-      }
-
-      // Refinement/compression of blocks
-      /*************************************************/
-      int r = 0;
-      int c = 0;
-
-      std::vector<long long> n_com;
-      std::vector<long long> n_ref;
-      std::vector<int> m_com;
-      std::vector<int> m_ref;
-      dealloc_IDs.clear();
-
-      std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
-      for (auto &i : I)
-      {
-         BlockInfo &info = m_refGrid->getBlockInfoAll(i.level, i.Z);
-         if (info.state == Refine)
-         {
-            m_ref.push_back(info.level);
-            n_ref.push_back(info.Z);
-         }
-         else if (info.state == Compress && info.index[0]%2 == 0
-            && info.index[1]%2 == 0 && info.index[2]%2 == 0)
-         {
-            m_com.push_back(info.level);
-            n_com.push_back(info.Z);
-         }
-      }
-      #ifdef CUBISM_USE_ONETBB
+      const int levelMax = grid->getlevelMax();
       #pragma omp parallel
-      #endif
       {
-         #ifdef CUBISM_USE_ONETBB
-         #pragma omp for
-         #endif
-         for (size_t i = 0; i < m_ref.size(); i++)
+         const int tid = omp_get_thread_num();
+         #pragma omp for schedule(dynamic, 1)
+         for (size_t i = 0; i < I.size(); i++)
          {
-            refine_1(m_ref[i], n_ref[i]);
-            #ifdef CUBISM_USE_ONETBB
-            #pragma omp atomic
-            #endif
-            r++;
-         }
-         #ifdef CUBISM_USE_ONETBB
-         #pragma omp for
-         #endif
-         for (size_t i = 0; i < m_ref.size(); i++)
-         {
-            refine_2(m_ref[i], n_ref[i]);
-         }
-      }
-      #ifdef CUBISM_USE_ONETBB
-      #pragma omp parallel for
-      #endif
-      for (size_t i = 0; i < m_com.size(); i++)
-      {
-         compress(m_com[i], n_com[i]);
-         #ifdef CUBISM_USE_ONETBB
-         #pragma omp atomic
-         #endif
-         c++;
-      }
+            labs[tid].load(*I[i], time);
 
-      m_refGrid->dealloc_many(dealloc_IDs);
+            BlockInfo &info = grid->getBlockInfoAll(I[i]->level, I[i]->Z);
 
-      if (verbosity) std::cout << "Blocks refined:" << r << " blocks compressed:" << c << std::endl;
-      m_refGrid->FillPos();
-      delete[] labs;
-      if (r>0 || c>0 || CallValidStates)
-      {
-         m_refGrid->UpdateGroups         = true;
-         m_refGrid->UpdateFluxCorrection = true;
-         flag                            = false;
+            I[i]->state     = TagLoadedBlock(info);
+
+            const bool maxLevel = (I[i]->state == Refine  ) && (I[i]->level == levelMax - 1);
+            const bool minLevel = (I[i]->state == Compress) && (I[i]->level == 0);
+
+            if (maxLevel || minLevel) I[i]->state = Leave;
+
+            info.state = I[i]->state;
+            if (info.state != Leave)
+            {
+               #pragma omp critical
+               {
+                  CallValidStates = true;
+                  if (!Reduction) 
+                  {
+                     tmp = 1;
+                     Reduction = true;
+                     MPI_Iallreduce(MPI_IN_PLACE, &tmp, 1, MPI_INT, MPI_SUM, grid->getWorldComm(),&Reduction_req);
+                  }
+               }
+            }
+         }
       }
-      LabsPrepared = false;
    }
 
- protected:
    void refine_1(const int level, const long long Z)
    {
       const int tid = omp_get_thread_num();
 
-      BlockInfo &parent = m_refGrid->getBlockInfoAll(level, Z);
+      BlockInfo &parent = grid->getBlockInfoAll(level, Z);
       parent.state      = Leave;
       if (basic_refinement == false)
          labs[tid].load(parent, time, true);
@@ -254,18 +329,18 @@ class MeshAdaptation
       const int p[3] = {parent.index[0], parent.index[1], parent.index[2]};
 
       assert(parent.ptrBlock != NULL);
-      assert(level <= m_refGrid->getlevelMax() - 1);
+      assert(level <= grid->getlevelMax() - 1);
       #if DIMENSION == 3
          BlockType *Blocks[8];
          for (int k = 0; k < 2; k++)
          for (int j = 0; j < 2; j++)
          for (int i = 0; i < 2; i++)
          {
-            const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
-            BlockInfo &Child   = m_refGrid->getBlockInfoAll(level + 1, nc);
+            const long long nc = grid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
+            BlockInfo &Child   = grid->getBlockInfoAll(level + 1, nc);
             Child.state        = Leave;
-            m_refGrid->_alloc(level + 1, nc);
-            m_refGrid->Tree(level + 1, nc).setCheckCoarser();
+            grid->_alloc(level + 1, nc);
+            grid->Tree(level + 1, nc).setCheckCoarser();
             Blocks[k * 4 + j * 2 + i] = (BlockType *)Child.ptrBlock;
          }
       #else
@@ -273,27 +348,27 @@ class MeshAdaptation
          for (int j = 0; j < 2; j++)
          for (int i = 0; i < 2; i++)
          {
-            const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
-            BlockInfo &Child = m_refGrid->getBlockInfoAll(level + 1, nc);
+            const long long nc = grid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
+            BlockInfo &Child = grid->getBlockInfoAll(level + 1, nc);
             Child.state = Leave;
-            m_refGrid->_alloc(level + 1, nc);
-            m_refGrid->Tree(level + 1, nc).setCheckCoarser();
+            grid->_alloc(level + 1, nc);
+            grid->Tree(level + 1, nc).setCheckCoarser();
             Blocks[j * 2 + i] = (BlockType *)Child.ptrBlock;
          }
       #endif
       if (basic_refinement == false)
-         RefineBlocks(Blocks, parent);
+         RefineBlocks(Blocks);
    }
 
    void refine_2(const int level, const long long Z)
    {
       #pragma omp critical
       {
-         dealloc_IDs.push_back(m_refGrid->getBlockInfoAll(level, Z).blockID_2);
+         dealloc_IDs.push_back(grid->getBlockInfoAll(level, Z).blockID_2);
       }
 
-      BlockInfo &parent = m_refGrid->getBlockInfoAll(level, Z);
-      m_refGrid->Tree(parent).setCheckFiner();
+      BlockInfo &parent = grid->getBlockInfoAll(level, Z);
+      grid->Tree(parent).setCheckFiner();
       parent.state = Leave;
 
       int p[3] = {parent.index[0], parent.index[1], parent.index[2]};
@@ -302,25 +377,26 @@ class MeshAdaptation
          for (int j = 0; j < 2; j++)
          for (int i = 0; i < 2; i++)
          {
-            const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
-            BlockInfo &Child   = m_refGrid->getBlockInfoAll(level + 1, nc);
-            m_refGrid->Tree(Child).setrank(m_refGrid->rank());
-            if (level + 2 < m_refGrid->getlevelMax())
+            const long long nc = grid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j, 2 * p[2] + k);
+            BlockInfo &Child   = grid->getBlockInfoAll(level + 1, nc);
+            grid->Tree(Child).setrank(grid->rank());
+            if (level + 2 < grid->getlevelMax())
                for (int i0 = 0; i0 < 2; i0++)
                for (int i1 = 0; i1 < 2; i1++)
                for (int i2 = 0; i2 < 2; i2++)
-                  m_refGrid->Tree(level + 2, Child.Zchild[i0][i1][i2]).setCheckCoarser();
+                  grid->Tree(level + 2, Child.Zchild[i0][i1][i2]).setCheckCoarser();
          }
       #else
          for (int j = 0; j < 2; j++)
          for (int i = 0; i < 2; i++)
          {
-            const long long nc = m_refGrid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
-            BlockInfo &Child   = m_refGrid->getBlockInfoAll(level + 1, nc);
-            m_refGrid->Tree(Child).setrank(m_refGrid->rank());
-            if (level + 2 < m_refGrid->getlevelMax())
+            const long long nc = grid->getZforward(level + 1, 2 * p[0] + i, 2 * p[1] + j);
+            BlockInfo &Child   = grid->getBlockInfoAll(level + 1, nc);
+            grid->Tree(Child).setrank(grid->rank());
+            if (level + 2 < grid->getlevelMax())
                for (int i0 = 0; i0 < 2; i0++)
-               for (int i1 = 0; i1 < 2; i1++) m_refGrid->Tree(level + 2, Child.Zchild[i0][i1][1]).setCheckCoarser();
+               for (int i1 = 0; i1 < 2; i1++) 
+                  grid->Tree(level + 2, Child.Zchild[i0][i1][1]).setCheckCoarser();
          }
       #endif
    }
@@ -329,7 +405,7 @@ class MeshAdaptation
    {
       assert(level > 0);
 
-      BlockInfo &info = m_refGrid->getBlockInfoAll(level, Z);
+      BlockInfo &info = grid->getBlockInfoAll(level, Z);
 
       assert(info.state == Compress);
 
@@ -340,8 +416,8 @@ class MeshAdaptation
       for (int I = 0; I < 2; I++)
       {
          const int blk = K * 4 + J * 2 + I;
-         const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J, info.index[2] + K);
-         Blocks[blk] = (BlockType *)(m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
+         const long long n = grid->getZforward(level, info.index[0] + I, info.index[1] + J, info.index[2] + K);
+         Blocks[blk] = (BlockType *)(grid->getBlockInfoAll(level, n)).ptrBlock;
       }
 
       const int nx         = BlockType::sizeX;
@@ -376,31 +452,31 @@ class MeshAdaptation
          }
       }
 
-      const long long np = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
-      BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
-      m_refGrid->Tree(parent.level, parent.Z).setrank(m_refGrid->rank());
+      const long long np = grid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2, info.index[2] / 2);
+      BlockInfo &parent  = grid->getBlockInfoAll(level - 1, np);
+      grid->Tree(parent.level, parent.Z).setrank(grid->rank());
       parent.ptrBlock    = info.ptrBlock;
       parent.state       = Leave;
-      if (level - 2 >= 0) m_refGrid->Tree(level - 2, parent.Zparent).setCheckFiner();
+      if (level - 2 >= 0) grid->Tree(level - 2, parent.Zparent).setCheckFiner();
 
       for (int K = 0; K < 2; K++)
       for (int J = 0; J < 2; J++)
       for (int I = 0; I < 2; I++)
       {
-         const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J, info.index[2] + K);
+         const long long n = grid->getZforward(level, info.index[0] + I, info.index[1] + J, info.index[2] + K);
          if (I + J + K == 0)
          {
-            m_refGrid->FindBlockInfo(level, n, level - 1, np);
+            grid->FindBlockInfo(level, n, level - 1, np);
          }
          else
          {
             #pragma omp critical
             {
-               dealloc_IDs.push_back(m_refGrid->getBlockInfoAll(level, n).blockID_2);
+               dealloc_IDs.push_back(grid->getBlockInfoAll(level, n).blockID_2);
             }
          }
-         m_refGrid->Tree(level, n).setCheckCoarser();
-         m_refGrid->getBlockInfoAll(level, n).state = Leave;
+         grid->Tree(level, n).setCheckCoarser();
+         grid->getBlockInfoAll(level, n).state = Leave;
       }
       #endif
       #if DIMENSION == 2
@@ -409,8 +485,8 @@ class MeshAdaptation
       for (int I = 0; I < 2; I++)
       {
          const int blk     = J * 2 + I;
-         const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J);
-         Blocks[blk]       = (BlockType *)(m_refGrid->getBlockInfoAll(level, n)).ptrBlock;
+         const long long n = grid->getZforward(level, info.index[0] + I, info.index[1] + J);
+         Blocks[blk]       = (BlockType *)(grid->getBlockInfoAll(level, n)).ptrBlock;
       }
 
       const int nx         = BlockType::sizeX;
@@ -429,44 +505,44 @@ class MeshAdaptation
             (*Blocks[0])(i / 2 + offsetX[I], j / 2 + offsetY[J], 0) = average;
          }
       }
-      const long long np = m_refGrid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2);
-      BlockInfo &parent  = m_refGrid->getBlockInfoAll(level - 1, np);
-      m_refGrid->Tree(parent.level, parent.Z).setrank(m_refGrid->rank());
+      const long long np = grid->getZforward(level - 1, info.index[0] / 2, info.index[1] / 2);
+      BlockInfo &parent  = grid->getBlockInfoAll(level - 1, np);
+      grid->Tree(parent.level, parent.Z).setrank(grid->rank());
       parent.ptrBlock    = info.ptrBlock;
       parent.state       = Leave;
-      if (level - 2 >= 0) m_refGrid->Tree(level - 2, parent.Zparent).setCheckFiner();
+      if (level - 2 >= 0) grid->Tree(level - 2, parent.Zparent).setCheckFiner();
 
       for (int J = 0; J < 2; J++)
       for (int I = 0; I < 2; I++)
       {
-         const long long n = m_refGrid->getZforward(level, info.index[0] + I, info.index[1] + J);
+         const long long n = grid->getZforward(level, info.index[0] + I, info.index[1] + J);
          if (I + J == 0)
          {
-            m_refGrid->FindBlockInfo(level, n, level - 1, np);
+            grid->FindBlockInfo(level, n, level - 1, np);
          }
          else
          {
             #pragma omp critical
             {
-               dealloc_IDs.push_back(m_refGrid->getBlockInfoAll(level, n).blockID_2);
+               dealloc_IDs.push_back(grid->getBlockInfoAll(level, n).blockID_2);
             }
          }
-         m_refGrid->Tree(level, n).setCheckCoarser();
-         m_refGrid->getBlockInfoAll(level, n).state = Leave;
+         grid->Tree(level, n).setCheckCoarser();
+         grid->getBlockInfoAll(level, n).state = Leave;
       }
       #endif
    }
 
-   virtual void ValidStates()
+   void ValidStates()
    {
-      const std::array<int, 3> blocksPerDim = m_refGrid->getMaxBlocks();
+      const std::array<int, 3> blocksPerDim = grid->getMaxBlocks();
       const int levelMin              = 0;
-      const int levelMax              = m_refGrid->getlevelMax();
-      const bool xperiodic            = m_refGrid->xperiodic;
-      const bool yperiodic            = m_refGrid->yperiodic;
-      const bool zperiodic            = m_refGrid->zperiodic;
+      const int levelMax              = grid->getlevelMax();
+      const bool xperiodic            = grid->xperiodic;
+      const bool yperiodic            = grid->yperiodic;
+      const bool zperiodic            = grid->zperiodic;
 
-      std::vector<BlockInfo> &I = m_refGrid->getBlocksInfo();
+      std::vector<BlockInfo> &I = grid->getBlocksInfo();
 
       #pragma omp parallel for
       for (size_t j = 0; j < I.size(); j++)
@@ -476,12 +552,12 @@ class MeshAdaptation
          if ((info.state == Refine && info.level == levelMax - 1) || (info.state == Compress && info.level == levelMin))
          {
             info.state                                             = Leave;
-            (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+            (grid->getBlockInfoAll(info.level, info.Z)).state = Leave;
          }
          if (info.state != Leave)
          {
             info.changed2                                             = true;
-            (m_refGrid->getBlockInfoAll(info.level, info.Z)).changed2 = info.changed2;
+            (grid->getBlockInfoAll(info.level, info.Z)).changed2 = info.changed2;
          }
       }
 
@@ -517,12 +593,12 @@ class MeshAdaptation
                   if (code[2] != 0) continue;
                   #endif
 
-                  if (m_refGrid->Tree(info.level, info.Znei_(code[0], code[1], code[2])).CheckFiner())
+                  if (grid->Tree(info.level, info.Znei_(code[0], code[1], code[2])).CheckFiner())
                   {
                      if (info.state == Compress)
                      {
                         info.state                                             = Leave;
-                        (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+                        (grid->getBlockInfoAll(info.level, info.Z)).state = Leave;
                      }
                      // if (info.level == levelMax - 1) break;
 
@@ -543,18 +619,18 @@ class MeshAdaptation
                         const int jNei = 2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1]));
                         #if DIMENSION == 3
                            const int kNei = 2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2]));
-                           const long long zzz = m_refGrid->getZforward(m + 1, iNei, jNei, kNei);
+                           const long long zzz = grid->getZforward(m + 1, iNei, jNei, kNei);
                         #else
-                           const long long zzz = m_refGrid->getZforward(m + 1, iNei, jNei);
+                           const long long zzz = grid->getZforward(m + 1, iNei, jNei);
                         #endif
-                        BlockInfo &FinerNei = m_refGrid->getBlockInfoAll(m + 1, zzz);
+                        BlockInfo &FinerNei = grid->getBlockInfoAll(m + 1, zzz);
                         State NeiState      = FinerNei.state;
                         if (NeiState == Refine)
                         {
                            info.state                                                = Refine;
-                           (m_refGrid->getBlockInfoAll(info.level, info.Z)).state    = Refine;
+                           (grid->getBlockInfoAll(info.level, info.Z)).state    = Refine;
                            info.changed2                                             = true;
-                           (m_refGrid->getBlockInfoAll(info.level, info.Z)).changed2 = true;
+                           (grid->getBlockInfoAll(info.level, info.Z)).changed2 = true;
                            break;
                         }
                      }
@@ -563,7 +639,7 @@ class MeshAdaptation
             }
          }
 
-         m_refGrid->UpdateBoundary(clean_boundary);
+         grid->UpdateBoundary(clean_boundary);
          clean_boundary = false;
          if (m == levelMin) break;
 
@@ -592,11 +668,11 @@ class MeshAdaptation
                   if (code[2] != 0) continue;
                   #endif
 
-                  BlockInfo &infoNei = m_refGrid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-                  if (m_refGrid->Tree(infoNei).Exists() && infoNei.state == Refine)
+                  BlockInfo &infoNei = grid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+                  if (grid->Tree(infoNei).Exists() && infoNei.state == Refine)
                   {
                      info.state                                             = Leave;
-                     (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+                     (grid->getBlockInfoAll(info.level, info.Z)).state = Leave;
                      break;
                   }
                }
@@ -615,18 +691,18 @@ class MeshAdaptation
          for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
          {
             #if DIMENSION == 3
-               const long long n = m_refGrid->getZforward(m, i, j, k);
+               const long long n = grid->getZforward(m, i, j, k);
             #else
-               const long long n = m_refGrid->getZforward(m, i, j);
+               const long long n = grid->getZforward(m, i, j);
             #endif
-            BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
-            if (m_refGrid->Tree(infoNei).Exists() == false || infoNei.state != Compress)
+            BlockInfo &infoNei = grid->getBlockInfoAll(m, n);
+            if (grid->Tree(infoNei).Exists() == false || infoNei.state != Compress)
             {
                found = true;
                if (info.state == Compress)
                {
                   info.state                                             = Leave;
-                  (m_refGrid->getBlockInfoAll(info.level, info.Z)).state = Leave;
+                  (grid->getBlockInfoAll(info.level, info.Z)).state = Leave;
                }
                break;
             }
@@ -637,20 +713,22 @@ class MeshAdaptation
             for (int k = 2 * (info.index[2] / 2); k <= 2 * (info.index[2] / 2) + 1; k++)
             {
                #if DIMENSION == 3
-                  const long long n = m_refGrid->getZforward(m, i, j, k);
+                  const long long n = grid->getZforward(m, i, j, k);
                #else
-                  const long long n = m_refGrid->getZforward(m, i, j);
+                  const long long n = grid->getZforward(m, i, j);
                #endif
-               BlockInfo &infoNei = m_refGrid->getBlockInfoAll(m, n);
-               if (m_refGrid->Tree(infoNei).Exists() && infoNei.state == Compress) infoNei.state = Leave;
+               BlockInfo &infoNei = grid->getBlockInfoAll(m, n);
+               if (grid->Tree(infoNei).Exists() && infoNei.state == Compress) infoNei.state = Leave;
             }
       }
    }
+
    ////////////////////////////////////////////////////////////////////////////////////////////////
    // Virtual functions that can be overwritten by user
    ////////////////////////////////////////////////////////////////////////////////////////////////
 
-   virtual void RefineBlocks(BlockType *B[8], BlockInfo parent)
+   //How cells are interpolated after refinement
+   virtual void RefineBlocks(BlockType *B[8])
    {
       int tid      = omp_get_thread_num();
       const int nx = BlockType::sizeX;
@@ -742,6 +820,7 @@ class MeshAdaptation
       #endif
    }
 
+   //Refinement criterion
    virtual State TagLoadedBlock(BlockInfo &info)
    {
       const int nx = BlockType::sizeX;
@@ -773,4 +852,5 @@ class MeshAdaptation
       return Leave;
    }
 };
+
 } // namespace cubism

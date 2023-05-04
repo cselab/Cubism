@@ -77,7 +77,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
 
       const int nthreads = omp_get_max_threads();
       AMR::labs = new TLab[nthreads];
-      for (int i = 0; i < nthreads; i++) AMR::labs[i].prepare(*AMR::m_refGrid, *Synch);
+      for (int i = 0; i < nthreads; i++) AMR::labs[i].prepare(*AMR::m_refGrid, Synch->getstencil());
 
       CallValidStates = false;
       bool Reduction = false;
@@ -115,7 +115,7 @@ class MeshAdaptationMPI : public MeshAdaptation<TGrid,TLab>
          SynchronizerMPI_AMR<Real,TGrid> * Synch = AMR::m_refGrid->sync(kernel);
          const int nthreads = omp_get_max_threads();
          AMR::labs = new TLab[nthreads];
-         for (int i = 0; i < nthreads; i++) AMR::labs[i].prepare(*AMR::m_refGrid, *Synch);
+         for (int i = 0; i < nthreads; i++) AMR::labs[i].prepare(*AMR::m_refGrid, Synch->getstencil());
          //TODO: the line below means there's no computation & communication overlap here
          AMR::m_refGrid->boundary  = Synch->avail_halo();
          if (boundary_needed)

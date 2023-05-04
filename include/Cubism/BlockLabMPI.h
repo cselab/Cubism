@@ -1,56 +1,44 @@
 #pragma once
 
-#include "GridMPI.h"
+#include "BlockLab.h"
 #include "AMR_SynchronizerMPI.h"
 
-namespace cubism {
+namespace cubism
+{
 
-template <typename MyBlockLab, typename TGrid>
+template <typename MyBlockLab>
 class BlockLabMPI : public MyBlockLab
 {
  public:
-   typedef typename MyBlockLab::Real Real;
+  using GridType = typename MyBlockLab::GridType;
+  using BlockType = typename GridType::BlockType;
+  using ElementType = typename BlockType::ElementType;
+  using Real = typename ElementType::RealType;
 
  private:
-   typedef SynchronizerMPI_AMR<Real,TGrid> SynchronizerMPIType;
-   SynchronizerMPIType *refSynchronizerMPI;
+  typedef SynchronizerMPI_AMR<Real,GridType> SynchronizerMPIType;
+  SynchronizerMPIType *refSynchronizerMPI;
 
  public:
-   void prepare(TGrid &grid, int startX, int endX, int startY, int endY,
-                int startZ, int endZ, const bool _istensorial, 
-                int IstartX = 0, int IendX = 0,
-                int IstartY = 0, int IendY = 0, 
-                int IstartZ = 0, int IendZ = 0)
-   {
-    std::cout << "BlockLabMPI should call prepare with a SynchronizerMPI. You should not be here." << std::endl;
-    MPI_Abort(grid.getWorldComm(),1);
-   }
+  virtual void prepare(GridType &grid, const StencilInfo & stencil, const int Istencil_start[3]=default_start, const int Istencil_end[3]=default_end) override
+  {
+    auto itSynchronizerMPI = grid.SynchronizerMPIs.find(stencil);
+    refSynchronizerMPI = itSynchronizerMPI->second;
+    MyBlockLab::prepare(grid, stencil);
+  }
 
-   void prepare( TGrid &grid, SynchronizerMPIType &synchronizer)
-   {
-      refSynchronizerMPI   = &synchronizer;
-      StencilInfo stencil  = refSynchronizerMPI->getstencil();
-      StencilInfo Cstencil = refSynchronizerMPI->getCstencil();
-      assert(stencil.isvalid());
-      MyBlockLab::prepare(grid, stencil.sx, stencil.ex, stencil.sy, stencil.ey, stencil.sz,
-                          stencil.ez, stencil.tensorial, Cstencil.sx, Cstencil.ex, Cstencil.sy,
-                          Cstencil.ey, Cstencil.sz, Cstencil.ez);
-   }
+  virtual void load(const BlockInfo &info, const Real t = 0, const bool applybc = true) override
+  {
+    MyBlockLab::load(info, t, applybc);
 
-   void load(const BlockInfo &info, const Real t = 0, const bool applybc = true)
-   {
-      MyBlockLab::load(info, t, applybc);
+    Real *dst  = (Real *)&MyBlockLab ::m_cacheBlock    ->LinAccess(0);
+    Real *dst1 = (Real *)&MyBlockLab ::m_CoarsenedBlock->LinAccess(0);
 
-      Real *dst  = &MyBlockLab ::m_cacheBlock    ->LinAccess(0).member(0);
-      Real *dst1 = &MyBlockLab ::m_CoarsenedBlock->LinAccess(0).member(0);
+    refSynchronizerMPI->fetch(info, MyBlockLab::m_cacheBlock->getSize(), MyBlockLab::m_CoarsenedBlock->getSize(), dst, dst1);
 
-      refSynchronizerMPI->fetch(info, MyBlockLab::m_cacheBlock->getSize(), MyBlockLab::m_CoarsenedBlock->getSize(), dst, dst1);
-
-      if (MyBlockLab::m_refGrid->get_world_size() > 1)
-        MyBlockLab::post_load(info, t, applybc);
-   }
-
-   void release() { MyBlockLab::release(); }
+    if (MyBlockLab::m_refGrid->get_world_size() > 1)
+      MyBlockLab::post_load(info, t, applybc);
+  }
 };
 
 }//namespace cubism

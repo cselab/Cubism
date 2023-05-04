@@ -1,12 +1,12 @@
 #pragma once
 
-#include "Grid.h"
 #include "Matrix3D.h"
+#include "StencilInfo.h"
 #include <cstring>
 #include <math.h>
 #include <string>
 
-namespace cubism // AMR_CUBISM
+namespace cubism
 {
 #define memcpy2(a, b, c) memcpy((a), (b), (c))
 
@@ -27,12 +27,14 @@ namespace cubism // AMR_CUBISM
    with grid spacing h and h/4 are allowed). Refinement ratio is (of course) 2.
 */
 
-template <typename BlockType, template <typename X> class allocator = std::allocator,
-          typename ElementType = typename BlockType::ElementType>
+template <typename TGrid, template <typename X> class allocator = std::allocator>
 class BlockLab
 {
  public:
-   typedef typename ElementType::RealType Real; // Element type MUST provide `RealType`.
+   using GridType = TGrid;
+   using BlockType = typename GridType::BlockType;
+   using ElementType = typename BlockType::ElementType;
+   using Real = typename ElementType::RealType;
 
  protected:
    Matrix3D<ElementType, allocator> *m_cacheBlock; // This is filled by the Blocklab
@@ -40,7 +42,7 @@ class BlockLab
    bool istensorial;
    bool use_averages;
 
-   Grid<BlockType, allocator> *m_refGrid;
+   GridType *m_refGrid;
    int NX, NY, NZ;
    std::array<BlockType *, 27> myblocks;
    std::array<int, 27> coarsened_nei_codes;
@@ -126,53 +128,38 @@ class BlockLab
       _release(m_CoarsenedBlock);
    }
 
-   void prepare(Grid<BlockType, allocator> &grid, int startX, int endX, int startY, int endY,
-                int startZ, int endZ, const bool _istensorial, int IstartX = default_start[0], int IendX = default_end[0],
-                int IstartY = default_start[1], int IendY = default_end[1], int IstartZ = default_start[2], int IendZ = default_end[2])
+   virtual void prepare(GridType &grid, const StencilInfo & stencil, const int Istencil_start[3]=default_start, const int Istencil_end[3]=default_end)
    {
-      const int ss[3]  = {startX, startY, startZ};
-      const int se[3]  = {endX, endY, endZ};
-      const int Iss[3] = {IstartX, IstartY, IstartZ};
-      const int Ise[3] = {IendX, IendY, IendZ};
-      prepare(grid, ss, se, _istensorial, Iss, Ise);
-   }
+      istensorial = stencil.tensorial;
+      coarsened   = false;
+      m_stencilStart[0] = stencil.sx;
+      m_stencilStart[1] = stencil.sy;
+      m_stencilStart[2] = stencil.sz;
+      m_stencilEnd  [0] = stencil.ex;
+      m_stencilEnd  [1] = stencil.ey;
+      m_stencilEnd  [2] = stencil.ez;
 
-   /**
-    * Prepare the extended block.
-    * @param collection    Collection of blocks in the grid (e.g. result of
-    * Grid::getBlockCollection()).
-    * @param boundaryInfo  Info on the boundaries of the grid (e.g. result of
-    * Grid::getBoundaryInfo()).
-    * @param stencil_start Maximal stencil used for computations at lower boundary.
-    *                      Defines how many ghosts we will get in extended block.
-    * @param stencil_end   Maximal stencil used for computations at lower boundary.
-    *                      Defines how many ghosts we will get in extended block.
-    */
-   void prepare(Grid<BlockType, allocator> &grid, const int stencil_start[3],
-                const int stencil_end[3], const bool _istensorial,
-                const int Istencil_start[3]=default_start,
-                const int Istencil_end[3]=default_end)
-   {
-      istensorial = _istensorial;
+      m_InterpStencilStart[0] = Istencil_start[0];
+      m_InterpStencilStart[1] = Istencil_start[1];
+      m_InterpStencilStart[2] = Istencil_start[2];
+      m_InterpStencilEnd  [0] = Istencil_end  [0];
+      m_InterpStencilEnd  [1] = Istencil_end  [1];
+      m_InterpStencilEnd  [2] = Istencil_end  [2];
 
-      m_stencilStart[0] = stencil_start[0];
-      m_stencilStart[1] = stencil_start[1];
-      m_stencilStart[2] = stencil_start[2];
-      m_stencilEnd[0]   = stencil_end[0];
-      m_stencilEnd[1]   = stencil_end[1];
-      m_stencilEnd[2]   = stencil_end[2];
+      assert(m_InterpStencilStart[0] <= m_InterpStencilEnd[0]);
+      assert(m_InterpStencilStart[1] <= m_InterpStencilEnd[1]);
+      assert(m_InterpStencilStart[2] <= m_InterpStencilEnd[2]);
+      assert(stencil.sx              <= stencil.ex           );
+      assert(stencil.sy              <= stencil.ey           );
+      assert(stencil.sz              <= stencil.ez           );
+      assert(stencil.sx              >= -BlockType::sizeX    );
+      assert(stencil.sy              >= -BlockType::sizeY    );
+      assert(stencil.sz              >= -BlockType::sizeZ    );
+      assert(stencil.ex              <  2*BlockType::sizeX   );
+      assert(stencil.ey              <  2*BlockType::sizeY   );
+      assert(stencil.ez              <  2*BlockType::sizeZ   );
 
       m_refGrid = &grid;
-
-      assert(stencil_start[0] >= -BlockType::sizeX);
-      assert(stencil_start[1] >= -BlockType::sizeY);
-      assert(stencil_start[2] >= -BlockType::sizeZ);
-      assert(stencil_end[0] < BlockType::sizeX * 2);
-      assert(stencil_end[1] < BlockType::sizeY * 2);
-      assert(stencil_end[2] < BlockType::sizeZ * 2);
-      assert(stencil_start[0] <= stencil_end[0]);
-      assert(stencil_start[1] <= stencil_end[1]);
-      assert(stencil_start[2] <= stencil_end[2]);
 
       if (m_cacheBlock == NULL ||
           (int)m_cacheBlock->getSize()[0] != (int)BlockType::sizeX + m_stencilEnd[0] - m_stencilStart[0] - 1 ||
@@ -190,18 +177,6 @@ class BlockLab
                               BlockType::sizeZ + m_stencilEnd[2] - m_stencilStart[2] - 1);
       }
 
-      coarsened               = false;
-      m_InterpStencilStart[0] = Istencil_start[0];
-      m_InterpStencilStart[1] = Istencil_start[1];
-      m_InterpStencilStart[2] = Istencil_start[2];
-
-      m_InterpStencilEnd[0] = Istencil_end[0];
-      m_InterpStencilEnd[1] = Istencil_end[1];
-      m_InterpStencilEnd[2] = Istencil_end[2];
-
-      assert(m_InterpStencilStart[0] <= m_InterpStencilEnd[0]);
-      assert(m_InterpStencilStart[1] <= m_InterpStencilEnd[1]);
-      assert(m_InterpStencilStart[2] <= m_InterpStencilEnd[2]);
 
       offset[0] = (m_stencilStart[0] - 1) / 2 + m_InterpStencilStart[0];
       offset[1] = (m_stencilStart[1] - 1) / 2 + m_InterpStencilStart[1];
@@ -239,7 +214,7 @@ class BlockLab
 
    }
 
-   void load(const BlockInfo & info, const Real t = 0, const bool applybc = true)
+   virtual void load(const BlockInfo & info, const Real t = 0, const bool applybc = true)
    {
       const int nX                    = BlockType::sizeX;
       const int nY                    = BlockType::sizeY;
@@ -372,6 +347,7 @@ class BlockLab
       }
    }
 
+ protected:
    void post_load(const BlockInfo &info, const Real t = 0, bool applybc = true)
    {
       const int nX = BlockType::sizeX;
@@ -434,7 +410,7 @@ class BlockLab
       CoarseFineInterpolation(info);
       if (applybc) _apply_bc(info, t); 
    }
- protected:
+
    bool UseCoarseStencil(const BlockInfo &a, const int *b_index)
    {
       if (a.level == 0|| (!use_averages)) return false;

@@ -1,5 +1,6 @@
 #pragma once
 #include "ConsistentOperations.h"
+#include "StencilInfo.h"
 
 namespace cubism {
 
@@ -9,12 +10,15 @@ void compute(Kernel &&kernel, TGrid *g, TGrid_corr *g_corr = nullptr)
     if (g_corr != nullptr) g_corr->Corrector.prepare(*g_corr);
 
     cubism::SynchronizerMPI_AMR<typename TGrid::Real,TGrid>& Synch = *(g->sync(kernel));
+
+    const StencilInfo & stencil = Synch.getstencil();
+
     std::vector<cubism::BlockInfo*> *inner = &Synch.avail_inner();
     std::vector<cubism::BlockInfo*> *halo;
     #pragma omp parallel
     {
         Lab lab;
-        lab.prepare(*g, Synch);
+        lab.prepare(*g, stencil);
 
         #pragma omp for nowait
         for (const cubism::BlockInfo *I : *inner)
@@ -59,14 +63,18 @@ static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool
 
     SynchronizerMPI_AMR<Real,TGrid2>& Synch2 = * grid2.sync(kernel2);
 
+    const StencilInfo & stencil = Synch.getstencil();
+    const StencilInfo & stencil2 = Synch2.getstencil();
+
+
     const int nthreads = omp_get_max_threads();
     LabMPI * labs = new LabMPI[nthreads];
     LabMPI2 * labs2 = new LabMPI2[nthreads];
     #pragma omp parallel for schedule(static, 1)
     for(int i = 0; i < nthreads; ++i)
     {
-        labs[i].prepare(grid, Synch);
-        labs2[i].prepare(grid2, Synch2);
+        labs[i].prepare(grid, stencil);
+        labs2[i].prepare(grid2, stencil2);
     }
 
     std::vector<BlockInfo*> & avail0  = Synch .avail_inner();
@@ -375,15 +383,15 @@ struct GridBlock
   GridBlock& operator=(const GridBlock&) = delete;
 };
 
-template<typename BlockType, int dim, template<typename X> class allocator=std::allocator>
-class BlockLabNeumann: public cubism::BlockLab<BlockType,allocator>
+template<typename TGrid, int dim, template<typename X> class allocator=std::allocator>
+class BlockLabNeumann: public cubism::BlockLab<TGrid,allocator>
 {
   /*
    * Apply 2nd order Neumann boundary condition: du/dn_{i+1/2} = 0 => u_{i} = u_{i+1}
    */
-  static constexpr int sizeX = BlockType::sizeX;
-  static constexpr int sizeY = BlockType::sizeY;
-  static constexpr int sizeZ = BlockType::sizeZ;
+  static constexpr int sizeX = TGrid::BlockType::sizeX;
+  static constexpr int sizeY = TGrid::BlockType::sizeY;
+  static constexpr int sizeZ = TGrid::BlockType::sizeZ;
   static constexpr int DIM = dim;
  protected:
   // Apply bc on face of direction dir and side side (0 or 1):
@@ -505,8 +513,8 @@ class BlockLabNeumann: public cubism::BlockLab<BlockType,allocator>
   }
 
  public:
-  typedef typename BlockType::ElementType ElementTypeBlock;
-  typedef typename BlockType::ElementType ElementType;
+  typedef typename TGrid::BlockType::ElementType ElementTypeBlock;
+  typedef typename TGrid::BlockType::ElementType ElementType;
   virtual bool is_xperiodic() override { return false; }
   virtual bool is_yperiodic() override { return false; }
   virtual bool is_zperiodic() override { return false; }

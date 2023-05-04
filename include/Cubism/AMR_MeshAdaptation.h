@@ -74,7 +74,7 @@ class MeshAdaptation
       labs = new TLab[nthreads];
 
       for (int i = 0; i < nthreads; i++)
-         labs[i].prepare(*m_refGrid, s[0], e[0], s[1], e[1], s[2], e[2], istensorial, Is[0], Ie[0], Is[1], Ie[1], Is[2], Ie[2]);
+         labs[i].prepare(*m_refGrid, {s[0],s[1],s[2],e[0],e[1],e[2],istensorial,components},Is, Ie);
 
       LabsPrepared = true;
 
@@ -162,7 +162,7 @@ class MeshAdaptation
          const int nthreads = omp_get_max_threads();
          labs = new TLab[nthreads];
          for (int i = 0; i < nthreads; i++)
-            labs[i].prepare(*m_refGrid, s[0], e[0], s[1], e[1], s[2], e[2], true, Is[0], Ie[0], Is[1], Ie[1], Is[2], Ie[2]);
+            labs[i].prepare(*m_refGrid, {s[0],s[1],s[2],e[0],e[1],e[2],istensorial,components},Is, Ie);
       }
 
       // Refinement/compression of blocks

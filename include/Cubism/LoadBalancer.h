@@ -10,30 +10,31 @@
 namespace cubism
 {
 
+/** Takes care of load-balancing of Blocks.
+ * This class will redistribute Blocks among different MPI ranks for two reasons:
+ * 1) Eight (in 3D) or four (in 2D) blocks need to be compressed to one, but they are owned by
+ *    different ranks. PrepareCompression() will collect them all to one rank, so that 
+ *    they can be compressed.
+ * 2) There is a load imbalance after the grid is refined or compressed. If the imbalance is 
+ *    not great (load imbalance ratio < 1.1), a 1D-diffusion based scheme is used to redistribute
+ *    blocks along the 1D Space-Filling-Curve. Otherwise, all blocks are simply evenly 
+ *    redistributed among all ranks.
+ */
 template <typename TGrid>
 class LoadBalancer
 {
-   /*
-    * This class will redistribute Blocks among different MPI ranks for two reasons:
-    * 1) Eight (in 3D) or four (in 2D) blocks need to be compressed to one, but they are owned by
-    *    different ranks. PrepareCompression() will collect them all to one rank, so that 
-    *    they can be compressed.
-    * 2) There is a load imbalance after the grid is refined or compressed. If the imbalance is 
-    *    not great (load imbalance ratio < 1.1), a 1D-diffusion based scheme is used to redistribute
-    *    blocks along the 1D Space-Filling-Curve. Otherwise, all blocks are simply evenly 
-    *    redistributed among all ranks.
-    */
  public:
    typedef typename TGrid::Block BlockType;
    typedef typename TGrid::Block::ElementType ElementType;
-   bool movedBlocks;
+   bool movedBlocks;///< =true if load-balancing is performed when Balance_Diffusion of Balance_Global is called
 
  protected:
-   TGrid *grid;
-   int rank, size;
-   MPI_Comm comm;
+   TGrid *grid;/// grid where load balancing will be performed
+   int rank;///< MPI process ID
+   int size;///< total number of MPI processes
+   MPI_Comm comm;///< MPI communicator
 
-   //MPI datatype and auxiliary struct used to send/receive blocks among ranks
+   ///MPI datatype and auxiliary struct used to send/receive blocks among ranks
    MPI_Datatype MPI_BLOCK;
    struct MPI_Block
    {
@@ -64,7 +65,7 @@ class LoadBalancer
       MPI_Block() {}
    };
 
-   //Allocate a block at a given level and Z-index and fill it with received data
+   ///Allocate a block at a given level and Z-index and fill it with received data
    void AddBlock(const int level, const long long Z, Real * data)
    {
       //1. Allocate the block from the grid
@@ -113,6 +114,7 @@ class LoadBalancer
    }
 
  public:
+   /// Constructor
    LoadBalancer(TGrid &a_grid)
    {
       grid = &a_grid;
@@ -133,8 +135,10 @@ class LoadBalancer
       MPI_Type_commit(&MPI_BLOCK);
    }
 
+   /// Destructor
    ~LoadBalancer() { MPI_Type_free(&MPI_BLOCK); }
 
+   /// Compression of eight blocks requires all of them to be owned by one rank; this function collects all groups of 8 blocks to be compressed to a single rank.
    void PrepareCompression()
    {
       std::vector<BlockInfo> &I = grid->getBlocksInfo();
@@ -245,6 +249,7 @@ class LoadBalancer
          }
    }
 
+   /// Redistributes blocks with diffusion algorithm along the 1D Space-Filling Hilbert Curve; block_distribution[i] is the number of blocks owned by rank i, for i=0,...,#of ranks -1
    void Balance_Diffusion(const bool verbose, std::vector<long long> & block_distribution)
    {
       movedBlocks = false;
@@ -361,6 +366,7 @@ class LoadBalancer
       grid->FillPos();
    }
 
+   /// Redistributes all blocks evenly, along the 1D Space-Filling Hilbert Curve; all_b[i] is the number of blocks owned by rank i, for i=0,...,#of ranks -1
    void Balance_Global(std::vector<long long> & all_b)
    {
       //Redistribute all blocks evenly, along the 1D Hilbert curve.

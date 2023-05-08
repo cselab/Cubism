@@ -11,36 +11,32 @@
 #include "BlockInfo.h"
 #include "FluxCorrection.h"
 
-namespace cubism // AMR_CUBISM
+namespace cubism
 {
 
+/** When dumping a Grid, blocks are grouped into larger rectangular regions
+ *  of uniform resolution. These regions (BlockGroups) have blocks with the 
+ *  same level and with various Space-filling-curve coordinates Z.
+ *  They have NXX x NYY x NZZ grid points, grid spacing h, an origin and a
+ *  minimum and maximum index (indices of bottom left and top right blocks).
+ */
 struct BlockGroup
 {
-   /*
-    * When dumping the Grid, blocks are grouped into larger rectangular regions
-    * of uniform resolution. These regions (BlockGroups) have blocks with the 
-    * same level and with various Space-filling-curve coordinates Z.
-    * They have NXX x NYY x NZZ grid points, grid spacing h, an origin and a
-    * minimum and maximum index (indices of bottom left and top right blocks).
-    */
-   int i_min[3];
-   int i_max[3];
-   int level;
-   std::vector<long long> Z;
-   size_t ID;
-   double origin[3];
-   double h;
-   int NXX;
-   int NYY;
-   int NZZ;
+   int i_min[3]; ///< min (i,j,k) index of a block of this group
+   int i_max[3]; ///< max (i,j,k) index of a block of this group
+   int level; ///< refinement level
+   std::vector<long long> Z; ///< Z-order indices of blocks of this group
+   size_t ID; ///< unique group number
+   double origin[3]; ///< Coordinates (x,y,z) of origin
+   double h; ///< Grid spacing of the group
+   int NXX; ///< Grid points of the group in the x-direction
+   int NYY; ///< Grid points of the group in the y-direction
+   int NZZ; ///< Grid points of the group in the z-direction
 };
 
+///Single integer used to recognize if a Block exists in the Grid and by which MPI rank it is owned. 
 struct TreePosition
 {
-   /*
-    * Single integer used to recognize if a Block exists in the Grid and
-    * by which MPI rank it is owned. 
-    */
    int position{-3};
    bool CheckCoarser() const { return position == -2; }
    bool CheckFiner() const { return position == -1; }
@@ -51,60 +47,58 @@ struct TreePosition
    void setCheckFiner() { position = -1; }
 };
 
+/** Holds the GridBlocks and their meta-data (BlockInfos).
+ * This class provides information about the current state of the Octree of blocks in the 
+ * simulation. The user can request if a particular block is present in the Octree or if its parent/
+ * children block(s) are present instead. This class also provides access to the raw data from the
+ * simulation.
+ */
 template <typename Block, template <typename X> class allocator = std::allocator>
 class Grid
 {
-   /*
-    * This class holds the blocks and their meta-data (BlockInfos).
-    * The BlockInfoAll and Octree objects hold information for the blocks owned by this rank
-    * and its neighboring ranks (when running with MPI).
-    */
  public:
    typedef Block BlockType;
-   using ElementType = typename Block::ElementType; //Blocks hold ElementTypes
-   typedef typename Block::RealType Real; // Block MUST provide `RealType`.
+   using ElementType = typename Block::ElementType; ///<Blocks hold ElementTypes
+   typedef typename Block::RealType Real; ///< Blocks must provide `RealType`.
 
-   #ifdef CUBISM_USE_MAP
-    #ifdef CUBISM_USE_ONETBB
-      tbb::concurrent_unordered_map<long long, BlockInfo *> BlockInfoAll;
-      tbb::concurrent_unordered_map<long long, TreePosition> Octree;
-    #else
-      std::unordered_map<long long, BlockInfo *> BlockInfoAll;
-      std::unordered_map<long long, TreePosition> Octree;
-    #endif
+   #ifdef CUBISM_USE_ONETBB
+   tbb::concurrent_unordered_map<long long, BlockInfo *> BlockInfoAll;
+   tbb::concurrent_unordered_map<long long, TreePosition> Octree;
    #else
-   std::vector<std::vector<BlockInfo *>> BlockInfoAll;
-   std::vector<std::vector<TreePosition>> Octree;
+   /** A map from unique BlockInfo IDs to pointers to BlockInfos, so all the blocks in the Octree.
+    *  Should be accessed through function 'getBlockInfoAll'. If a Block does not belong to this
+    *  rank and it is not adjacent to it, this map should not return something meaningful.
+    */
+   std::unordered_map<long long, BlockInfo *> BlockInfoAll;
+   /** A map from unique BlockInfo IDs to pointers to integers that encode whether a BlockInfo is
+    * present in the Octree (and to which rank it belongs to) or not.
+    */
+   std::unordered_map<long long, TreePosition> Octree;
    #endif
 
-   std::vector<BlockInfo> m_vInfo;   // meta-data for blocks that belong to this rank
-   const int NX;                     // Total # of blocks for level 0 in X-direction
-   const int NY;                     // Total # of blocks for level 0 in Y-direction
-   const int NZ;                     // Total # of blocks for level 0 in Z-direction
-   const double maxextent;           // Maximum domain extent
-   const int levelMax;               // Maximum refinement level allowed
-   const int levelStart;             // Initial refinement level
-   const bool xperiodic;             // grid periodicity in x-direction
-   const bool yperiodic;             // grid periodicity in y-direction
-   const bool zperiodic;             // grid periodicity in z-direction
-   std::vector<BlockGroup> MyGroups; // used for dumping data
-   std::vector<long long> level_base;// auxiliary array used when searching is std::unordered_map
-   bool UpdateFluxCorrection{true};  // FluxCorrection updates only when grid is refined/compressed
-   bool UpdateGroups{true};          // (inactive) BlockGroups updated only when this is true
-   bool FiniteDifferences{true};     // used by BlockLab, to determine what kind of coarse-fine 
-                                     // interface interpolation to make.
-                                     // true means that biased stencils will be used to 
-                                     // get an O(h^3) approximation
-   FluxCorrection<Grid,Block> CorrectorGrid; // used for AMR flux-corrections at coarse-fine 
-                                             // interfaces
+   std::vector<BlockInfo> m_vInfo;   ///< meta-data for blocks that belong to this rank
+   const int NX;                     ///< Total # of blocks for level 0 in X-direction
+   const int NY;                     ///< Total # of blocks for level 0 in Y-direction
+   const int NZ;                     ///< Total # of blocks for level 0 in Z-direction
+   const double maxextent;           ///< Maximum domain extent
+   const int levelMax;               ///< Maximum refinement level allowed
+   const int levelStart;             ///< Initial refinement level
+   const bool xperiodic;             ///< grid periodicity in x-direction
+   const bool yperiodic;             ///< grid periodicity in y-direction
+   const bool zperiodic;             ///< grid periodicity in z-direction
+   std::vector<BlockGroup> MyGroups; ///< used for dumping data
+   std::vector<long long> level_base;///< auxiliary array used when searching is std::unordered_map
+   bool UpdateFluxCorrection{true};  ///< FluxCorrection updates only when grid is refined/compressed
+   bool UpdateGroups{true};          ///< (inactive) BlockGroups updated only when this is true
+   bool FiniteDifferences{true};     ///< used by BlockLab, to determine what kind of coarse-fine interface interpolation to make.true means that biased stencils will be used to get an O(h^3) approximation
+   FluxCorrection<Grid,Block> CorrectorGrid; ///< used for AMR flux-corrections at coarse-fine interfaces
 
-
+   ///Get the TreePosition of block with Z-order index 'm', at refinement level 'n'.
    TreePosition &Tree(const int m, const long long n)
    {
       /*
        * Return the position in the Octree of a Block at level m and SFC coordinate n.
        */
-      #ifdef CUBISM_USE_MAP
       const long long aux = level_base[m] + n;
       const auto retval   = Octree.find(aux);
       if (retval == Octree.end())
@@ -126,14 +120,14 @@ class Grid
       {
          return retval->second;
       }
-      #else
-      return Octree[m][n];
-      #endif
    }
+   ///Get the TreePosition of block with BlockInfo 'info'.
    TreePosition &Tree(BlockInfo &info) { return Tree(info.level, info.Z); }
+   ///Get the TreePosition of block with BlockInfo 'info'.
    TreePosition &Tree(const BlockInfo &info) { return Tree(info.level, info.Z); }
 
-   void _alloc() // called in class constructor
+   ///Called in constructor to allocate all blocks at level=levelStart.
+   void _alloc()
    {
       const int m        = levelStart;
       const int TwoPower = 1 << m;
@@ -153,7 +147,8 @@ class Grid
       FillPos();
    }
 
-   void _alloc(const int m, const long long n) // called whenever the grid is refined
+   ///Called to allocate a block with Z-order index 'm' at refinement level 'n', when the grid is refined.
+   void _alloc(const int m, const long long n)
    {
       allocator<Block> alloc;
 
@@ -166,7 +161,8 @@ class Grid
       Tree(m, n).setrank(rank());
    }
 
-   void _deallocAll() // called in class destructor
+   ///Called in destructor to deallocate all blocks.
+   void _deallocAll()
    {
       allocator<Block> alloc;
       for (size_t i = 0; i < m_vInfo.size(); i++)
@@ -175,7 +171,6 @@ class Grid
          const long long n = m_vInfo[i].Z;
          alloc.deallocate((Block *)getBlockInfoAll(m, n).ptrBlock, 1);
       }
-      #ifdef CUBISM_USE_MAP
       std::vector<long long> aux;
       for (auto & m: BlockInfoAll)
          aux.push_back(m.first);
@@ -187,25 +182,13 @@ class Grid
             delete retval->second;
          }
       }
-      #else
-      for (int m = 0; m < levelMax; m++)
-      {
-         const long long nmax = getMaxBlocks()[0] * getMaxBlocks()[1] * getMaxBlocks()[2] * pow(1 << m, DIMENSION);
-         for (long long n = 0; n < nmax; n++)
-         {
-            if (Tree(m, n).position != -3)
-            {
-               delete BlockInfoAll[m][n];
-            }
-         }
-      }
-      #endif
       m_vInfo.clear();
       BlockInfoAll.clear();
       Octree.clear();
    }
 
-   void _dealloc(const int m, const long long n) // called whenever the grid is compressed
+   ///Called to deallocate a block with Z-order index 'm' at refinement level 'n', when the grid is compressed.
+   void _dealloc(const int m, const long long n)
    {
       allocator<Block> alloc;
       alloc.deallocate((Block *)getBlockInfoAll(m, n).ptrBlock, 1);
@@ -219,6 +202,7 @@ class Grid
       }
    }
 
+   ///Called to deallocate many blocks with blockIDs in the vector 'dealloc_IDs'
    void dealloc_many(const std::vector<long long> & dealloc_IDs)
    {
       for (size_t j = 0; j < m_vInfo.size(); j++) m_vInfo[j].changed2 = false;
@@ -244,14 +228,13 @@ class Grid
    }
 
 
+   /** Used when Block at level m_new with SFC coordinate n_new is added to the Grid
+    *  as a result of compression of Block (m,n). Sets the state of the newly added 
+    *  Block. It also replaces BlockInfo(m,n) and Block(m,n) with 
+    *  BlockInfo(m_new,n_new) and Block(m_new,n_new).
+    */
    void FindBlockInfo(const int m, const long long n, const int m_new, const long long n_new)
    {
-      /*
-       * Used when Block at level m_new with SFC coordinate n_new is added to the Grid
-       * as a result of compression of Block (m,n). Sets the state of the newly added 
-       * Block. It also replaces BlockInfo(m,n) and Block(m,n) with 
-       * BlockInfo(m_new,n_new) and Block(m_new,n_new).
-       */
       for (size_t j = 0; j < m_vInfo.size(); j++)
          if (m == m_vInfo[j].level && n == m_vInfo[j].Z)
          {
@@ -262,14 +245,13 @@ class Grid
          }
    }
 
+   /** The data in BlockInfoAll is always correct (states, blockIDs etc.), but this 
+    * is not the case for m_vInfo, whose content might be outdated
+    * after grid refinement/compression or exchange of blocks between different 
+    * ranks. This function updates their content.
+    */
    virtual void FillPos(bool CopyInfos = true)
    {
-      /*
-       * The data in BlockInfoAll is always correct (states, blockIDs etc.), but this 
-       * is not the case for m_vInfo, whose content might be outdated
-       * after grid refinement/compression or exchange of blocks between different 
-       * ranks. This function updates their content.
-       */
       std::sort(m_vInfo.begin(), m_vInfo.end()); //sort according to blockID_2
 
       #ifndef CUBISM_USE_ONETBB
@@ -303,6 +285,7 @@ class Grid
          }
    }
 
+   /// Constructor; provided arguments are explained in the members of this class.
    Grid(const unsigned int _NX, 
         const unsigned int _NY = 1,
         const unsigned int _NZ = 1,
@@ -328,7 +311,6 @@ class Grid
       #endif
       const int lvlMax = dummy.levelMax(levelMax);
 
-      #ifdef CUBISM_USE_MAP
       for (int m = 0; m < lvlMax; m++)
       {
          const int TwoPower   = 1 << m;
@@ -336,61 +318,25 @@ class Grid
          if (m == 0) level_base.push_back(Ntot);
          if (m > 0) level_base.push_back(level_base[m - 1] + Ntot);
       }
-      #else
-      BlockInfoAll.resize(lvlMax);
-      Octree.resize(lvlMax);
-      for (int m = 0; m < lvlMax; m++)
-      {
-         const int TwoPower   = 1 << m;
-         const long long Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
-         if (m == 0) level_base.push_back(Ntot);
-         if (m > 0) level_base.push_back(level_base[m - 1] + Ntot);
-         BlockInfoAll[m].resize(Ntot, nullptr);
-         Octree[m].resize(Ntot);
-      }
-      #endif
       if (AllocateBlocks) _alloc();
    }
 
+   /// Destructor
    virtual ~Grid() { _deallocAll(); }
 
+   /// Returns GridBlock at level 'm' with Z-index 'n'
    virtual Block *avail(const int m, const long long n) { return (Block *)getBlockInfoAll(m, n).ptrBlock; }
 
+   /// Returns MPI ranks of this Grid
    virtual int rank() const { return 0; }
 
+   /**Given two vectors with the SFC coordinate (Z) and the level of each block, this function
+   * will erase the current structure of the grid and create a new one, with the given blocks.
+   * This is used when reading data from file (possibly to restart) or when initializing the
+   * simulation.*/
    virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<short int> & blockslevel)
    {
-      //Given two vectors with the SFC coordinate (Z) and the level of each block, this function
-      //will erase the current structure of the grid and create a new one, with the given blocks.
-      //This is used when reading data from file (possibly to restart) or when initializing the
-      //simulation.
       _deallocAll();
-
-      #ifndef CUBISM_USE_MAP
-
-      BlockInfo dummy;
-      #if DIMENSION == 3
-      const int nx = dummy.blocks_per_dim(0, NX, NY, NZ);
-      const int ny = dummy.blocks_per_dim(1, NX, NY, NZ);
-      const int nz = dummy.blocks_per_dim(2, NX, NY, NZ);
-      #else
-      const int nx = dummy.blocks_per_dim(0, NX, NY);
-      const int ny = dummy.blocks_per_dim(1, NX, NY);
-      const int nz = 1;
-      #endif
-
-      BlockInfoAll.resize(levelMax);
-      Octree.resize(levelMax);
-      for (int m = 0; m < levelMax; m++)
-      {
-         const int TwoPower   = 1 << m;
-         const long long Ntot = nx * ny * nz * pow(TwoPower, DIMENSION);
-         if (m == 0) level_base.push_back(Ntot);
-         if (m > 0) level_base.push_back(level_base[m - 1] + Ntot);
-         BlockInfoAll[m].resize(Ntot, nullptr);
-         Octree[m].resize(Ntot);
-      }
-      #endif
 
       for (size_t i = 0 ; i < blocksZ.size() ; i++)
       {
@@ -439,6 +385,7 @@ class Grid
    }
 
    #if DIMENSION == 3
+   /// Returns Z-index of GridBlock with indices ijk (ix,iy,iz) at level 'level' 
    long long getZforward(const int level, const int i, const int j, const int k) const
    {
       const int TwoPower = 1 << level;
@@ -447,12 +394,17 @@ class Grid
       const int iz       = (k + TwoPower * NZ) % (NZ * TwoPower);
       return BlockInfo::forward(level, ix, iy, iz);
    }
+
+   /// Returns GridBlock with indices ijk (ix,iy,iz) at level 'm' 
    Block *avail1(const int ix, const int iy, const int iz, const int m)
    {
       const long long n = getZforward(m, ix, iy, iz);
       return avail(m, n);
    }
+
    #else // DIMENSION = 2
+
+   /// Returns Z-index of GridBlock with indices ij (ix,iy) at level 'level' 
    long long getZforward(const int level, const int i, const int j) const
    {
       const int TwoPower = 1 << level;
@@ -460,19 +412,26 @@ class Grid
       const int iy       = (j + TwoPower * NY) % (NY * TwoPower);
       return BlockInfo::forward(level, ix, iy);
    }
+
+   /// Returns GridBlock with indices ij (ix,iy) at level 'm' 
    Block *avail1(const int ix, const int iy, const int m)
    {
       const long long n = getZforward(m, ix, iy);
       return avail(m, n);
    }
+
    #endif
 
+   /// Used to iterate though all blocks (ID=0,...,m_vInfo.size()-1)
    Block &operator()(const long long ID)
    {
       return *(Block *)m_vInfo[ID].ptrBlock;
    }
 
+   /// Returns the number of blocks at refinement level 0
    std::array<int, 3> getMaxBlocks() const { return {NX, NY, NZ}; }
+
+   /// Returns the number of blocks at refinement level 'levelMax-1'
    std::array<int, 3> getMaxMostRefinedBlocks() const
    {
       return {
@@ -481,22 +440,24 @@ class Grid
        DIMENSION == 3 ? (NZ << (levelMax - 1)) : 1,
       };
    }
+
+   /// Returns the number of grid points at refinement level 'levelMax-1'
    std::array<int, 3> getMaxMostRefinedCells() const
    {
       const auto b = getMaxMostRefinedBlocks();
       return {b[0] * Block::sizeX, b[1] * Block::sizeY, b[2] * Block::sizeZ};
    }
 
+   /// Returns the maximum refinement level allowed
    inline int getlevelMax() const { return levelMax; }
 
+   /**
+    * Access BlockInfo at level m with Space-Filling-Curve coordinate n.
+    * If the BlockInfo has not been allocated (not found in the std::unordered_map), 
+    * allocate it as well.
+    */
    BlockInfo &getBlockInfoAll(const int m, const long long n)
    {
-      /*
-       * Access BlockInfo at level m with Space-Filling-Curve coordinate n.
-       * If the BlockInfo has not been allocated (not found in the std::unordered_map), 
-       * allocate it as well.
-       */
-      #ifdef CUBISM_USE_MAP
       const long long aux = level_base[m] + n;
       const auto retval   = BlockInfoAll.find(aux);
       if (retval != BlockInfoAll.end())
@@ -533,50 +494,21 @@ class Grid
          }
          return getBlockInfoAll(m, n);
       }
-      #else
-      if (BlockInfoAll[m][n] != nullptr)
-      {
-         return *BlockInfoAll[m][n];
-      }
-      else
-      {
-         #ifndef CUBISM_USE_ONETBB
-         #pragma omp critical
-         #endif
-         {
-            if (BlockInfoAll[m][n] == nullptr)
-            {
-               BlockInfo *dummy = new BlockInfo();
-               const int TwoPower     = 1 << m;
-               const double h0 = (maxextent / std::max(NX * Block::sizeX, std::max(NY * Block::sizeY, NZ * Block::sizeZ)));
-               const double h  = h0 / TwoPower;
-               double origin[3];
-               int i, j, k;
-               #if DIMENSION == 3
-               BlockInfo::inverse(n, m, i, j, k);
-               #else
-               BlockInfo::inverse(n, m, i, j);
-               k = 0;
-               #endif
-               origin[0] = i * Block::sizeX * h;
-               origin[1] = j * Block::sizeY * h;
-               origin[2] = k * Block::sizeZ * h;
-               dummy->setup(m, h, origin, n);
-               BlockInfoAll[m][n] = dummy;
-            }
-         }
-         return *BlockInfoAll[m][n];
-      }
-      #endif
    }
 
+   /// Returns the vector of BlockInfos of this Grid
    std::vector<BlockInfo> &getBlocksInfo() { return m_vInfo; }
+
+   /// Returns the vector of BlockInfos of this Grid
    const std::vector<BlockInfo> &getBlocksInfo() const { return m_vInfo; }
 
+   /// Returns the total number of MPI processes
    virtual int get_world_size() const { return 1; }
 
-   virtual void UpdateBoundary(bool clean=false){} //does nothing for a single node (no MPI)
+   /// Does nothing for a single rank (no MPI)
+   virtual void UpdateBoundary(bool clean=false){}
 
+   /// Used to create BlockGroups, when the Grid is to be dumped to a file
    void UpdateMyGroups()
    {
       /*

@@ -27,6 +27,8 @@
 
 namespace cubism {
 
+/** Similar to Grid, but with functionalities for multiple MPI processes.
+ */
 template <typename TGrid>
 class GridMPI : public TGrid
 {
@@ -37,14 +39,16 @@ class GridMPI : public TGrid
    typedef SynchronizerMPI_AMR<Real, GridMPI<TGrid>> SynchronizerMPIType;
 
    //MPI related variables
-   size_t timestamp; //used as message tag during communication
-   MPI_Comm worldcomm;
-   int myrank;
-   int world_size;
+   size_t timestamp; ///<used as message tag during communication
+   MPI_Comm worldcomm; ///< MPI communicator
+   int myrank; ///< MPI process ID
+   int world_size; ///< total number of MPI processes
 
-   std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs;
+   std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs; ///< map of Syncronizers need for halo cell exchange
    FluxCorrectionMPI<FluxCorrection<GridMPI<TGrid>,Block>,GridMPI<TGrid>> Corrector;
+   std::vector<BlockInfo *> boundary; ///< BlockInfos of adjacent ranks
 
+   /// Constructor, same as the one from Grid.
    GridMPI(const int nX, 
            const int nY = 1,
            const int nZ = 1,
@@ -84,6 +88,7 @@ class GridMPI : public TGrid
       MPI_Barrier(worldcomm);
    }
 
+   /// Destructor.
    virtual ~GridMPI() override
    {
       for (auto it = SynchronizerMPIs.begin(); it != SynchronizerMPIs.end(); ++it) delete it->second;
@@ -93,12 +98,13 @@ class GridMPI : public TGrid
       MPI_Barrier(worldcomm);
    }
 
+   /// Return pointer to block at level 'm' with Z-index 'n' or nullptr if this block is not owned by this rank.
    virtual Block *avail(const int m, const long long n) override
    {
       return (TGrid::Tree(m, n).rank() == myrank) ? (Block *)TGrid::getBlockInfoAll(m, n).ptrBlock : nullptr;
    }
 
-   std::vector<BlockInfo *> boundary;
+   /// Communicate the state (refine/compress/leave) of all blocks in the boundaries of this rank; Used when the mesh is refined, to make sure we all adjacent blocks do not differ by more than one refinement level.
    virtual void UpdateBoundary(bool clean=false) override
    {
       const auto blocksPerDim = TGrid::getMaxBlocks();
@@ -251,6 +257,7 @@ class GridMPI : public TGrid
             }
    };
 
+   /// Called after grid refinement/compression, to update the Octree with the new block states and rank ownership.
    void UpdateBlockInfoAll_States(bool UpdateIDs = false)
    {
       std::vector<int> myNeighbors = FindMyNeighbors();
@@ -418,6 +425,7 @@ class GridMPI : public TGrid
       }
    }
 
+   /// Returns a vector with the process IDs (ranks) or neighboring GridMPIs.
    std::vector<int> FindMyNeighbors()
    {
       std::vector<int> myNeighbors;
@@ -472,6 +480,7 @@ class GridMPI : public TGrid
       return myNeighbors;
    }
 
+   /// Check if a rectangle with bottom left point l1 and top right point h1 intersects with a rectangle with bottom left point l2 and top right point h2; used when determining neighboring processes. 
    bool Intersect(double *l1, double *h1, double *l2, double *h2)
    {
       const double h0 =
@@ -528,30 +537,26 @@ class GridMPI : public TGrid
       return false;
    }
 
-   template <typename Processing>
-   SynchronizerMPIType *sync(const Processing &p)
+   /** Returns a SynchronizerMPI_AMR for a given stencil of points.
+    *  Each stencil needed in the simulation has its own SynchronizerMPI_AMR. All Synchronizers are
+    *  owned by GridMPI in a map between the stencils and them. 
+    */
+   SynchronizerMPIType *sync(const StencilInfo &stencil)
    {
-      assert(p.stencil.isvalid());
+      assert(stencil.isvalid());
 
-      // temporarily hardcoded Cstencil
-      StencilInfo Cstencil = p.stencil;
-      Cstencil.sx          = -1;
-      Cstencil.sy          = -1;
-      Cstencil.sz          = DIMENSION == 3 ? -1:0;
-      Cstencil.ex          = 2;
-      Cstencil.ey          = 2;
-      Cstencil.ez          = DIMENSION == 3 ? 2:1;
-      Cstencil.tensorial   = true;
+      //Hardcoded stencil for coarse-fine interpolation: +-1 points.
+      StencilInfo Cstencil(-1,-1,DIMENSION == 3 ? -1:0, 2,2, DIMENSION == 3 ?  2:1, true, stencil.selcomponents);
 
       SynchronizerMPIType *queryresult = nullptr;
 
-      typename std::map<StencilInfo, SynchronizerMPIType *>::iterator itSynchronizerMPI = SynchronizerMPIs.find(p.stencil);
+      typename std::map<StencilInfo, SynchronizerMPIType *>::iterator itSynchronizerMPI = SynchronizerMPIs.find(stencil);
 
       if (itSynchronizerMPI == SynchronizerMPIs.end())
       {
-         queryresult = new SynchronizerMPIType(p.stencil, Cstencil, this);
+         queryresult = new SynchronizerMPIType(stencil, Cstencil, this);
          queryresult->_Setup();
-         SynchronizerMPIs[p.stencil] = queryresult;
+         SynchronizerMPIs[stencil] = queryresult;
       }
       else
       {
@@ -564,14 +569,7 @@ class GridMPI : public TGrid
       return queryresult;
    }
 
-   template <typename Processing>
-   const SynchronizerMPIType &get_SynchronizerMPI(Processing &p) const
-   {
-      assert((SynchronizerMPIs.find(p.stencil) != SynchronizerMPIs.end()));
-
-      return *SynchronizerMPIs.find(p.stencil)->second;
-   }
-
+   /// same as Grid::initialize_blocks, with additional initialization for Synchronizers needed for halo cell exchange between different processes.
    virtual void initialize_blocks(const std::vector<long long> & blocksZ, const std::vector<short int> & blockslevel) override
    {
       TGrid::initialize_blocks(blocksZ,blockslevel);
@@ -580,12 +578,16 @@ class GridMPI : public TGrid
         (*it->second)._Setup();
    }
 
+   /// Return the ID of this MPI process.
    virtual int rank() const override { return myrank; }
 
+   /// Returns a tag value that is used when sending/receiving data with MPI.
    size_t getTimeStamp() const { return timestamp; }
 
+   /// Return the MPI communicator of the simulation.
    MPI_Comm getWorldComm() const { return worldcomm; }
 
+   /// Return the total number of MPI processes.
    virtual int get_world_size() const override { return world_size; }
 };
 

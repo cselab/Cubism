@@ -9,7 +9,7 @@ void compute(Kernel &&kernel, TGrid *g, TGrid_corr *g_corr = nullptr)
 {
     if (g_corr != nullptr) g_corr->Corrector.prepare(*g_corr);
 
-    cubism::SynchronizerMPI_AMR<typename TGrid::Real,TGrid>& Synch = *(g->sync(kernel));
+    cubism::SynchronizerMPI_AMR<typename TGrid::Real,TGrid>& Synch = *(g->sync(kernel.stencil));
 
     const StencilInfo & stencil = Synch.getstencil();
 
@@ -42,14 +42,14 @@ void compute(Kernel &&kernel, TGrid *g, TGrid_corr *g_corr = nullptr)
     if (g_corr != nullptr) g_corr->Corrector.FillBlockCases();
 }
 
-//HACKY and ugly solution to get two BlockLabs from two different Grids
+//Get two BlockLabs from two different Grids
 template <typename Kernel, typename TGrid, typename LabMPI, typename TGrid2, typename LabMPI2, typename TGrid_corr = TGrid>
 static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool applyFluxCorrection = false, TGrid_corr * corrected_grid = nullptr)
 {
     if (applyFluxCorrection)
         corrected_grid->Corrector.prepare(*corrected_grid);
  
-    SynchronizerMPI_AMR<Real,TGrid >& Synch  = * grid .sync(kernel);
+    SynchronizerMPI_AMR<Real,TGrid >& Synch  = * grid .sync(kernel.stencil);
     Kernel kernel2 = kernel;
     kernel2.stencil.sx = kernel2.stencil2.sx;
     kernel2.stencil.sy = kernel2.stencil2.sy;
@@ -61,7 +61,7 @@ static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool
     kernel2.stencil.selcomponents.clear();
     kernel2.stencil.selcomponents = kernel2.stencil2.selcomponents;
 
-    SynchronizerMPI_AMR<Real,TGrid2>& Synch2 = * grid2.sync(kernel2);
+    SynchronizerMPI_AMR<Real,TGrid2>& Synch2 = * grid2.sync(kernel2.stencil);
 
     const StencilInfo & stencil = Synch.getstencil();
     const StencilInfo & stencil2 = Synch2.getstencil();
@@ -121,14 +121,20 @@ static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool
         corrected_grid->Corrector.FillBlockCases();
 }
 
-
+///Example of a gridpoint element that is merely a scalar quantity of type 'Real' (double/float).
 template <typename Real=double>
 struct ScalarElement
 {
-  using RealType = Real;
-  Real s = 0;
+  using RealType = Real; ///< definition of 'RealType', needed by BlockLab
+  Real s = 0; ///< scalar quantity
+
+  ///set scalar to zero
   inline void clear() { s = 0; }
+
+  ///set scalar to a value
   inline void set(const Real v) { s = v; }
+
+  ///copy a ScalarElement
   inline void copy(const ScalarElement& c) { s = c.s; }
 
   ScalarElement &operator*=(const Real a)
@@ -194,7 +200,7 @@ struct ScalarElement
   static constexpr int DIM = 1;
 };
 
-//used for dumping
+/// used for dumping a ScalarElement
 struct StreamerScalar
 {
   static constexpr int NCHANNELS = 1;
@@ -207,17 +213,23 @@ struct StreamerScalar
   static const char * getAttributeName() { return "Scalar"; }
 };
 
+///Example of a gridpoint element that is a vector quantity of type 'Real' (double/float); 'dim' are the number of dimensions of the vector
 template <int dim, typename Real=double>
 struct VectorElement
 {
-  using RealType = Real;
+  using RealType = Real;  ///< definition of 'RealType', needed by BlockLab
   static constexpr int DIM = dim;
-  Real u[DIM];
+  Real u[DIM]; ///< vector quantity
 
   VectorElement() { clear(); }
 
+  ///set vector components to zero
   inline void clear() { for(int i=0; i<DIM; ++i) u[i] = 0; }
+
+  ///set vector components to a number
   inline void set(const Real v) { for(int i=0; i<DIM; ++i) u[i] = v; }
+
+  ///set copy one VectorElement to another
   inline void copy(const VectorElement& c) {
     for(int i=0; i<DIM; ++i) u[i] = c.u[i];
   }
@@ -327,7 +339,7 @@ struct VectorElement
   }
 };
 
-//used for dumping
+/// used for dumping a VectorElement
 struct StreamerVector
 {
   static constexpr int NCHANNELS = 3;
@@ -340,6 +352,7 @@ struct StreamerVector
   static const char * getAttributeName() { return "Vector"; }
 };
 
+/// array of blocksize^dim gridpoints of type 'TElement'.
 template <int blocksize, int dim, typename TElement>
 struct GridBlock
 {
@@ -354,27 +367,32 @@ struct GridBlock
 
   ElementType data[sizeZ][sizeY][sizeX];
 
+  ///set 'data' to zero (call 'clear()' of each TElement)
   inline void clear() {
       ElementType * const entry = &data[0][0][0];
       for(int i=0; i<sizeX*sizeY*sizeZ; ++i) entry[i].clear();
   }
 
+  ///set 'data' to a value (call 'set()' of each TElement)
   inline void set(const Real v) {
       ElementType * const entry = &data[0][0][0];
       for(int i=0; i<sizeX*sizeY*sizeZ; ++i) entry[i].set(v);
   }
 
+  ///copy one GridBlock to another  (call 'copy()' of each TElement)
   inline void copy(const GridBlock<blocksize,dim,ElementType>& c) {
       ElementType * const entry = &data[0][0][0];
       const ElementType * const source = &c.data[0][0][0];
       for(int i=0; i<sizeX*sizeY*sizeZ; ++i) entry[i].copy(source[i]);
   }
 
+  ///Access an element of this GridBlock (const.)
   const ElementType& operator()(int ix, int iy=0, int iz=0) const {
       assert(ix>=0 && iy>=0 && iz>=0 && ix<sizeX && iy<sizeY && iz<sizeZ);
       return data[iz][iy][ix];
   }
 
+  ///Access an element of this GridBlock
   ElementType& operator()(int ix, int iy=0, int iz=0) {
       assert(ix>=0 && iy>=0 && iz>=0 && ix<sizeX && iy<sizeY && iz<sizeZ);
       return data[iz][iy][ix];

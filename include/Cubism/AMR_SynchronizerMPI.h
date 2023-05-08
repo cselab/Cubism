@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "BlockInfo.h"
-#include "GrowingVector.h"
 #include "PUPkernelsMPI.h"
 #include "StencilInfo.h"
 #include "ConsistentOperations.h"
@@ -13,13 +12,75 @@
 namespace cubism
 {
 
+/** \brief Auxiliary class for SynchronizerMPI_AMR; similar to std::vector however, the stored data 
+ * does not decrease in size, it can only increase (the use of this class instead of std::vector 
+ * in AMR_Synchronizer resulted in faster performance). */
+template <typename T>
+class GrowingVector
+{
+   size_t pos;
+   size_t s;
+
+ public:
+   std::vector<T> v;
+   GrowingVector() { pos = 0; }
+   GrowingVector(size_t size) { resize(size); }
+   GrowingVector(size_t size, T value) { resize(size, value); }
+
+   void resize(size_t new_size, T value)
+   {
+      v.resize(new_size, value);
+      s = new_size;
+   }
+   void resize(size_t new_size)
+   {
+      v.resize(new_size);
+      s = new_size;
+   }
+
+   size_t size() { return s; }
+
+   void clear()
+   {
+      pos = 0;
+      s   = 0;
+   }
+
+   void push_back(T value)
+   {
+      if (pos < v.size()) v[pos] = value;
+      else
+         v.push_back(value);
+      pos++;
+      s++;
+   }
+
+   T *data() { return v.data(); }
+
+   T &operator[](size_t i) { return v[i]; }
+
+   T &back() { return v[pos - 1]; }
+
+   void EraseAll()
+   {
+      v.clear();
+      pos = 0;
+      s   = 0;
+   }
+
+   ~GrowingVector() { v.clear(); }
+};
+
+/** \brief Auxiliary struct for SynchronizerMPI_AMR; describes how two adjacent blocks touch.*/
 struct Interface
 {
-  BlockInfo *infos[2];
-  int icode[2];
-  bool CoarseStencil;
-  bool ToBeKept;
-  int dis;
+  BlockInfo *infos[2]; ///< the two blocks of the interface
+  int icode[2]; ///< Two integers from 0 to 26. Each integer can be decoded to a 3-digit number ABC. icode[0] = 1-10 (A=1,B=-1,C=0) means Block 1 is at the +x,-y side of Block 0.
+  bool CoarseStencil; ///< =true if the blocks need to exchange cells of their parent blocks
+  bool ToBeKept; ///< false if this inteface is a subset of another inteface that will be sent anyway
+  int dis; ///< auxiliary variable
+
+  ///Class constructor
   Interface(BlockInfo &i0, BlockInfo &i1, const int a_icode0, const int a_icode1)
   {
     infos[0] = &i0;
@@ -32,21 +93,34 @@ struct Interface
   }
 };
 
+/** Auxiliary struct for SynchronizerMPI_AMR; similar to StencilInfo.
+ * It is possible that the halo cells needed by two or more blocks overlap. To avoid sending the
+ * same data twice, this struct has the option to keep track of other MyRanges that are contained 
+ * in it and do not need to be sent/received.
+ */
 struct MyRange
 {
-  std::vector<int> removedIndices;
-  int index;
-  int sx, sy, sz, ex, ey, ez;
-  bool needed{true};
-  bool avg_down{true};
+  std::vector<int> removedIndices; ///< keep track of all 'index' from other MyRange instances that are contained in this one
+  int index; ///< index of this instance of MyRange
+  int sx; ///< stencil start in x-direction
+  int sy; ///< stencil start in y-direction
+  int sz; ///< stencil start in z-direction
+  int ex; ///< stencil end in x-direction
+  int ey; ///< stencil end in y-direction
+  int ez; ///< stencil end in z-direction
+  bool needed{true}; ///< set to false if this MyRange is contained in another
+  bool avg_down{true}; ///< set to true if gridpoints of this MyRange will be averaged down for coarse stencil interpolation
 
-  bool contains(MyRange r) const
+  /// check if another MyRange is contained here
+  bool contains(MyRange & r) const
   {
     if (avg_down != r.avg_down) return false;
     int V  = (ez - sz) * (ey - sy) * (ex - sx);
     int Vr = (r.ez - r.sz) * (r.ey - r.sy) * (r.ex - r.sx);
     return (sx <= r.sx && r.ex <= ex) && (sy <= r.sy && r.ey <= ey) && (sz <= r.sz && r.ez <= ez) && (Vr < V);
   }
+
+  /// keep track of indices of other MyRanges that are contained here
   void Remove(const MyRange &other)
   {
     size_t s = removedIndices.size();
@@ -55,41 +129,55 @@ struct MyRange
   }
 };
 
+/** Auxiliary struct for SynchronizerMPI_AMR; Meta-data of buffers sent among processes.
+ *  Data is received in one contiguous buffer. This struct helps unpack the buffer and put data 
+ *  in the correct locations.
+ */
 struct UnPackInfo
 {
-  int offset;
-  int lx;
-  int ly;
-  int lz;
-  int srcxstart;
-  int srcystart;
-  int srczstart;
-  int LX;
-  int LY;
-  int CoarseVersionOffset;
+  int offset; ///< Offset in the buffer where the data related to this UnPackInfo starts.
+  int lx; ///< Total size of data in x-direction 
+  int ly; ///< Total size of data in y-direction 
+  int lz; ///< Total size of data in z-direction 
+  int srcxstart; ///< Where in x-direction to start receiving data
+  int srcystart; ///< Where in y-direction to start receiving data
+  int srczstart; ///< Where in z-direction to start receiving data
+  int LX; 
+  int LY; 
+  int CoarseVersionOffset; ///< Offset in the buffer where the coarsened data related to this UnPackInfo starts.
   int CoarseVersionLX;
   int CoarseVersionLY;
-  int CoarseVersionsrcxstart;
-  int CoarseVersionsrcystart;
-  int CoarseVersionsrczstart;
-  int level;
-  int icode;
-  int rank;
-  int index_0;
-  int index_1;
-  int index_2;
-  long long IDreceiver;
+  int CoarseVersionsrcxstart; ///< Where in x-direction to start receiving coarsened data
+  int CoarseVersionsrcystart; ///< Where in y-direction to start receiving coarsened data
+  int CoarseVersionsrczstart; ///< Where in z-direction to start receiving coarsened data
+  int level; ///< refinement level of data
+  int icode; ///< Integer from 0 to 26, can be decoded to a 3-digit number ABC. icode = 1-10 (A=1,B=-1,C=0) means Block 1 is at the +x,-y side of Block 0.
+  int rank; ///< rank from which this data is received
+  int index_0; ///< index of Block in x-direction that sent this data
+  int index_1; ///< index of Block in y-direction that sent this data
+  int index_2; ///< index of Block in z-direction that sent this data
+  long long IDreceiver; ///< unique blockID2 of receiver
 };
 
+/** Auxiliary struct for SynchronizerMPI_AMR; keeps track of stencil and range sizes that need to be sent/received.
+ *  For a block in 3D, there are a total of 26 possible directions that might require halo cells.
+ *  There are also four types of halo cells to exchange, based on the refinement level of the two
+ *  neighboring blocks: 1)same level 2)coarse-fine 3)fine-coarse 4)same level that also need to 
+ *  exchange averaged down data, in order to perform coarse-fine interpolation for other blocks.
+ *  This class creates 4 x 26 (actually 4 x 27) MyRange instances, based on a given StencilInfo.
+ */
 struct StencilManager
 {
-  const StencilInfo stencil;
-  const StencilInfo Cstencil;
-  int nX,nY,nZ;
-  int sLength[3 * 27 * 3];
-  std::array<MyRange, 3 * 27> AllStencils;
-  MyRange Coarse_Range;
+  const StencilInfo stencil; ///< stencil to send/receive
+  const StencilInfo Cstencil; ///< stencil used by BlockLab for coarse-fine interpolation
+  int nX; ///< Block size if x-direction
+  int nY; ///< Block size if y-direction
+  int nZ; ///< Block size if z-direction
+  int sLength[3 * 27 * 3]; ///< Length of all possible stencils to send/receive
+  std::array<MyRange, 3 * 27> AllStencils; ///< All possible stencils to send/receive
+  MyRange Coarse_Range; ///< range for Cstencil
 
+  /// Class constructor
   StencilManager(StencilInfo a_stencil, StencilInfo a_Cstencil, int a_nX, int a_nY, int a_nZ): stencil(a_stencil), Cstencil(a_Cstencil), nX(a_nX), nY(a_nY), nZ(a_nZ)
   {
     const int sC[3]   = {(stencil.sx - 1) / 2 + Cstencil.sx  , (stencil.sy - 1) / 2 + Cstencil.sy  , (stencil.sz - 1) / 2 + Cstencil.sz};
@@ -148,12 +236,16 @@ struct StencilManager
       sLength[3 * (icode + 2 * 27) + 2] = range2.ez-range2.sz;
     }
   }
+
+  /// Return stencil XxYxZ dimensions for Cstencil, based on integer icode
   void CoarseStencilLength(const int icode, int *L) const
   {
     L[0] = sLength[3 * (icode + 2 * 27) + 0];
     L[1] = sLength[3 * (icode + 2 * 27) + 1];
     L[2] = sLength[3 * (icode + 2 * 27) + 2];
   }
+
+  /// Return stencil XxYxZ dimensions for Cstencil, based on integer icode and refinement level of sender/receiver
   void DetermineStencilLength(const int level_sender, const int level_receiver, const int icode, int *L)
   {
     if (level_sender == level_receiver)
@@ -175,6 +267,8 @@ struct StencilManager
       L[2] = sLength[3 * (icode + 2 * 27) +2];
     }
   }
+
+  /// Determine which stencil to send, based on interface type of two blocks
   MyRange &DetermineStencil(const Interface &f, bool CoarseVersion = false)
   {
     if (CoarseVersion)
@@ -252,6 +346,7 @@ struct StencilManager
     }
   }
 
+  /// Fix MyRange classes that contain other MyRange classes, in order to avoid sending the same data twice
   void __FixDuplicates(const Interface &f, const Interface &f_dup, int lx, int ly, int lz, int lx_dup, int ly_dup, int lz_dup, int &sx, int &sy, int &sz)
   {
     const BlockInfo &receiver     = *f.infos[1];
@@ -273,6 +368,8 @@ struct StencilManager
       sz = range_dup.sz - range.sz;
     }
   }
+
+  /// Fix MyRange classes that contain other MyRange classes, in order to avoid sending the same data twice
   void __FixDuplicates2(const Interface &f, const Interface &f_dup, int &sx, int &sy, int &sz)
   {
     if (f.infos[0]->level != f.infos[1]->level || f_dup.infos[0]->level != f_dup.infos[1]->level) return;
@@ -284,18 +381,23 @@ struct StencilManager
    }
 };
 
+/** \brief Auxiliary struct for SynchronizerMPI_AMR; manages how UnpackInfos are sent
+ * 
+ */
 struct UnpacksManagerStruct
 {
-  size_t blocks;
-  size_t *sizes;
-  int size;
-  std::vector<GrowingVector<UnPackInfo>> manyUnpacks;
-  std::vector<GrowingVector<UnPackInfo>> manyUnpacks_recv; 
-  GrowingVector<GrowingVector<UnPackInfo *>> unpacks;
-  std::vector<MPI_Request> pack_requests;
-  std::vector<std::array<long long int, 2>> MapOfInfos;
-  MPI_Datatype MPI_PACK;
-  MPI_Comm comm;
+  size_t blocks; ///< number of boundary blocks that will receive UnPackInfos
+  size_t *sizes; ///< sizes[i] is the number of UnPackInfos for block with blockID=i
+  int size; ///< number of MPI processes
+  std::vector<GrowingVector<UnPackInfo>> manyUnpacks; ///< UnPackInfos this rank will send; manyUnpacks_recv[i] are the UnPackInfos sent to rank i
+  std::vector<GrowingVector<UnPackInfo>> manyUnpacks_recv; ///< UnPackInfos this rank will receive; manyUnpacks_recv[i] are the UnPackInfos received from rank i
+  GrowingVector<GrowingVector<UnPackInfo *>> unpacks; ///< vector of vectors of UnPackInfos; unpacks[i] contains all UnPackInfos needed for a block with blockID=i
+  std::vector<MPI_Request> pack_requests; ///< MPI requests for non-blocking communication of UnPackInfos
+  std::vector<std::array<long long int, 2>> MapOfInfos; ///< Pairs of halo block IDs (0,1,...,number of halo blocks-1) and unique blockIDs
+  MPI_Datatype MPI_PACK; ///< Custom MPI datatype to send an UnPackInfo
+  MPI_Comm comm; ///< MPI communicator
+
+  ///Constructor.
   UnpacksManagerStruct(MPI_Comm a_comm)
   {
     comm = a_comm;
@@ -340,6 +442,8 @@ struct UnpacksManagerStruct
     MPI_Type_create_struct(22, array_of_blocklengths, array_of_displacements, array_of_types,&MPI_PACK);
     MPI_Type_commit(&MPI_PACK);
   }
+
+  ///Reset the arrays of this struct.
   void clear()
   {
     if (sizes != nullptr)
@@ -356,7 +460,11 @@ struct UnpacksManagerStruct
     }
     MapOfInfos.clear();
   }
+
+  ///Destructor.
   ~UnpacksManagerStruct() { clear(); MPI_Type_free(&MPI_PACK);}
+
+  ///Allocate a number of UnPackInfos for each halo block
   void _allocate(size_t a_blocks, size_t *L)
   {
     blocks = a_blocks;
@@ -368,6 +476,8 @@ struct UnpacksManagerStruct
       unpacks[i].resize(L[i]);
     }
   }
+
+  ///Add a received UnPackInfo to the list of UnPackInfos for block with blockID=block_id
   void add(UnPackInfo &info, const size_t block_id)
   {
     assert(block_id < blocks);
@@ -375,6 +485,8 @@ struct UnpacksManagerStruct
     unpacks[block_id][sizes[block_id]] = &info;
     sizes[block_id]++;
   }
+
+  /// Send UnPackInfos to neighboring ranks
   void SendPacks(std::set<int> Neighbor, const int timestamp)
   {
     pack_requests.clear();
@@ -394,6 +506,8 @@ struct UnpacksManagerStruct
       MPI_Irecv(manyUnpacks_recv[r].data(), manyUnpacks_recv[r].size(), MPI_PACK, r, timestamp, comm, &pack_requests.back());           
     }
   }
+
+  /// Take received UnPackInfos and reorganise them based on the block they correspond to
   void MapIDs()
   {
     if (pack_requests.size() == 0) return;
@@ -414,53 +528,88 @@ struct UnpacksManagerStruct
   }
 };
 
+/**
+ *  @brief Class responsible for halo cell exchange between different MPI processes.
+ *  This class works together with BlockLabMPI to fill the halo cells needed for each GridBlock. To
+ *  overlap communication and computation, it distinguishes between 'inner' blocks and 'halo' 
+ *  blocks. Inner blocks do not need halo cells from other MPI processes, so they can be immediately
+ *  filled; halo blocks are at the boundary of a rank and require cells owned by other ranks. This
+ *  class will initiate communication for halo blocks and will provide an array with pointers to
+ *  inner blocks. While waiting for communication to complete, the user can operate on inner blocks,
+ *  which allows for communication-computation overlap.
+ * 
+ *  An instance of this class is constructed by providing the StencilInfo (aka the stencil) for a
+ *  particular computation, in the class constructor. Then, for a fixed mesh configuration, one call
+ *  to '_Setup()' is required. This identifies the boundaries of each rank, its neighbors and the
+ *  types of interfaces (faces/edges/corners) shared by two blocks that belong to two different 
+ *  ranks. '_Setup()' will then have to be called again only when the mesh changes (this call is
+ *  done by the MeshAdaptation class).
+ * 
+ *  To use this class and send/receive halo cells, the 'sync()' function needs to be called. This 
+ *  initiates communication and MPI 'sends' and 'receives'. Once called, the inner and halo blocks
+ *  (with their halo cells) can be accessed through 'avail_inner' and 'avail_halo'. Note that 
+ *  calling 'avail_halo' will result in waiting time, for the communication of halo cells to 
+ *  complete. Therefore, 'avail_inner' should be called first, while communication is performed in
+ *  the background. Once the inner blocks are processed, 'avail_halo' should be used to process the
+ *  outer/halo blocks.
+ * 
+ *  @tparam Real: type of data to be sent/received (double/float etc.)
+ *  @tparam TGrid: type of grid to operate on (should be GridMPI)
+ */ 
 template <typename Real, typename TGrid>
 class SynchronizerMPI_AMR
 {
-  MPI_Comm comm;
-  int rank, size;
+  MPI_Comm comm;        ///< MPI communicator, same as the communicator from 'grid'
+  int rank;             ///< MPI process ID, same as the ID from 'grid'
+  int size;             ///< total number of processes, same as number from 'grid'
+  StencilInfo stencil;  ///< stencil associated with kernel (advection,diffusion etc.)
+  StencilInfo Cstencil; ///< stencil required to do coarse-fine interpolation
+  TGrid * grid;         ///< grid which owns blocks that need ghost cells 
+  int nX;               ///< size of each block in x-direction
+  int nY;               ///< size of each block in y-direction
+  int nZ;               ///< size of each block in z-direction
+  MPI_Datatype MPIREAL; ///< MPI datatype matching template parameter 'Real'
 
-  StencilInfo stencil;  // stencil associated with kernel (advection,diffusion etc.)
-  StencilInfo Cstencil; // stencil required to do coarse->fine interpolation
+  std::vector<BlockInfo *> inner_blocks; ///< will contain inner blocks with loaded ghost cells
+  std::vector<BlockInfo *>  halo_blocks; ///< will contain outer blocks with loaded ghost cells
 
-  TGrid * grid;         // grid which owns blocks that need ghost cells 
-  int nX,nY,nZ;         // each block is nX x nY x nZ grid points
+  std::vector<GrowingVector<Real>> send_buffer; ///< send_buffer[i] contains data to send to rank i
+  std::vector<GrowingVector<Real>> recv_buffer; ///< recv_buffer[i] will receive data from rank i
 
-  MPI_Datatype MPIREAL; // datatype that will be sent/received
+  std::vector<MPI_Request> requests; ///< requests for non-blocking sends/receives
 
-  std::vector<BlockInfo *> inner_blocks; // will contain inner blocks with loaded ghost cells
-  std::vector<BlockInfo *>  halo_blocks; // will contain outer blocks with loaded ghost cells
+  std::vector<int> send_buffer_size; ///< sizes of send_buffer (communicated before actual data)
+  std::vector<int> recv_buffer_size; ///< sizes of recv_buffer (communicated before actual data)
 
-  std::vector<GrowingVector<Real>> send_buffer; // send_buffer[i] contains data to send to rank i
-  std::vector<GrowingVector<Real>> recv_buffer; // recv_buffer[i] will receive data from rank i
-
-  std::vector<MPI_Request> requests; // requests for non-blocking sends/receives
-
-  std::vector<int> send_buffer_size; // sizes of send_buffer (communicated before actual data)
-  std::vector<int> recv_buffer_size; // sizes of recv_buffer (communicated before actual data)
-
-  std::set<int> Neighbors; // neighboring MPI ranks 
+  std::set<int> Neighbors; ///< IDs of neighboring MPI processes 
 
   UnpacksManagerStruct UnpacksManager;
   StencilManager SM;
 
-  const unsigned int gptfloats; // = sizeof(Element)/sizeof(Real)
-  const int NC;                 // = number of components to send/receive for the ghosts
+  const unsigned int gptfloats; ///< number of Reals (doubles/float) each Element from Grid has
+  const int NC;                 ///< number of components from each Element to send/receive
 
-  // meta-data for the parts of a particular block that will be sent to another rank
+  /// meta-data for the parts of a particular block that will be sent to another rank
   struct PackInfo
   {
-    Real *block, *pack;
-    int sx, sy, sz, ex, ey, ez;
+    Real *block; ///< Pointer to the first element of the block whose data will be sent
+    Real *pack;  ///< Pointer to the buffer where the block's elements will be copied
+    int sx; ///< Start of the block's subset that will be sent (in x-direction)
+    int sy; ///< Start of the block's subset that will be sent (in y-direction)
+    int sz; ///< Start of the block's subset that will be sent (in z-direction)
+    int ex; ///< End of the block's subset that will be sent (in x-direction)
+    int ey; ///< End of the block's subset that will be sent (in y-direction)
+    int ez; ///< End of the block's subset that will be sent (in z-direction)
   };
-  std::vector<GrowingVector<PackInfo>> send_packinfos;
+  std::vector<GrowingVector<PackInfo>> send_packinfos; ///< vector of vectors of PackInfos; send_packinfos[i] contains all the PackInfos to send to rank i
 
-  std::vector<GrowingVector<Interface>> send_interfaces;
+  std::vector<GrowingVector<Interface>> send_interfaces;  ///< vector of vectors of Interfaces; send_interfaces[i] contains all the Interfaces between this rank and rank i
 
-  std::vector<std::vector<int>> ToBeAveragedDown;
+  std::vector<std::vector<int>> ToBeAveragedDown; ///< vector of vectors of Interfaces that need to be averaged down when sent
 
-  bool use_averages;
+  bool use_averages;///< if true, fine blocks average down their cells to provide halo cells for coarse blocks (2nd order accurate). If false, they perform a 3rd-order accurate interpolation instead (which is the accuracy needed to compute 2nd derivatives).
 
+  ///Auxiliary struct used to avoid sending the same data twice
   struct DuplicatesManager
   {
     struct cube //could be more efficient, fix later
@@ -551,7 +700,7 @@ class SynchronizerMPI_AMR
     std::vector<int> offsets;
     int size;
 
-    SynchronizerMPI_AMR * Synch_ptr;
+    SynchronizerMPI_AMR * Synch_ptr; ///< pointer to the SynchronizerMPI_AMR for which to remove duplicate data
 
     std::vector< GrowingVector <int>> positions;
 
@@ -568,6 +717,7 @@ class SynchronizerMPI_AMR
       positions[r].push_back(index);
     }
 
+    ///Remove duplicate data to be sent to rank 'r'/
     void RemoveDuplicates(const int r, std::vector<Interface> & f, int & total_size)
     {
       bool skip_needed = false;
@@ -649,6 +799,7 @@ class SynchronizerMPI_AMR
     }
   };
 
+  /// Check if blocks on the same refinement level need to exchange averaged down cells that will be used for coarse-fine interpolation.
   bool UseCoarseStencil(const Interface &f)
   {
     BlockInfo &a = *f.infos[0];
@@ -693,6 +844,7 @@ class SynchronizerMPI_AMR
     return retval;
   }
 
+  /// Auxiliary function to average down data
   void AverageDownAndFill(Real * __restrict__ dst, const BlockInfo *const info, const int code[3])
   {
     const int s[3] = {code[0] < 1 ? (code[0] < 0 ? stencil.sx : 0) : nX,
@@ -808,6 +960,7 @@ class SynchronizerMPI_AMR
     #endif  
   }
 
+  /// Auxiliary function to average down data
   void AverageDownAndFill2(Real *dst, const BlockInfo *const info, const int code[3])
   {
     const int eC[3] = {(stencil.ex) / 2 + Cstencil.ex, (stencil.ey) / 2 + Cstencil.ey, (stencil.ez) / 2 + Cstencil.ez};
@@ -877,6 +1030,7 @@ class SynchronizerMPI_AMR
     #endif
   }
 
+  ///Auxiliary function called from '_Setup()' which will identify the boundary blocks and the type of interface they have with other processes.
   void DefineInterfaces()
   {
     Neighbors.clear();
@@ -1142,6 +1296,7 @@ class SynchronizerMPI_AMR
   }
 
   public:
+    //constructor
     SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, TGrid * _grid) : stencil(a_stencil), Cstencil(a_Cstencil),
     UnpacksManager(_grid->getWorldComm()), SM(a_stencil, a_Cstencil, TGrid::Block::sizeX, TGrid::Block::sizeY, TGrid::Block::sizeZ),
     gptfloats(sizeof(typename TGrid::Block::ElementType) / sizeof(Real)), NC(a_stencil.selcomponents.size())
@@ -1183,14 +1338,17 @@ class SynchronizerMPI_AMR
       }
     }
 
+    ///Returns vector of pointers to inner blocks.
     std::vector<BlockInfo *> & avail_inner() { return inner_blocks; }
 
+    ///Returns vector of pointers to halo blocks.
     std::vector<BlockInfo *> & avail_halo()
     {
       MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
       return halo_blocks;
     }
 
+    ///Needs to be called whenever the grid changes because of refinement/compression
     void _Setup()
     {
       const int timestamp = grid->getTimeStamp();
@@ -1259,6 +1417,7 @@ class SynchronizerMPI_AMR
       }
     }
 
+    ///Needs to be called to initiate communication and halo cells exchange.
     void sync()
     {
       const int timestamp = grid->getTimeStamp();
@@ -1303,10 +1462,10 @@ class SynchronizerMPI_AMR
       }
     }
 
+    ///Get the StencilInfo of this Synchronizer
     const StencilInfo & getstencil() const { return stencil; }
 
-    const StencilInfo & getCstencil() const { return Cstencil; }
-
+    ///Used by BlockLabMPI, to get the data from the receive buffers owned by the Synchronizer and put them in its working copy of a GridBlock plus its halo cells. 
     void fetch(const BlockInfo &info, const unsigned int Length[3], const unsigned int CLength[3], Real *cacheBlock, Real *coarseBlock)
     {
       //fetch received data for blocks that are neighbors with 'info' but are owned by another rank

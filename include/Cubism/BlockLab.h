@@ -61,13 +61,13 @@ class BlockLab
    int CoarseBlockSize[3];///< size of coarsened block (NX/2,NY/2,NZ/2)
 
    ///Coefficients used with upwind/central stencil of points with 3rd order interpolation of halo cells from fine to coarse blocks
-   const double d_coef_plus[9] = {-0.09375, 0.4375,0.15625,  //starting point (+2,+1,0)
-                                   0.15625,-0.5625,0.90625,  //last point     (-2,-1,0)
-                                  -0.09375, 0.4375,0.15625}; //central point  (-1,0,+1)
+   constexpr double d_coef_plus[9] = {-0.09375, 0.4375,0.15625,  //starting point (+2,+1,0)
+                                       0.15625,-0.5625,0.90625,  //last point     (-2,-1,0)
+                                      -0.09375, 0.4375,0.15625}; //central point  (-1,0,+1)
    ///Coefficients used with upwind/central stencil of points with 3rd order interpolation of halo cells from fine to coarse blocks
-   const double d_coef_minus[9]= { 0.15625,-0.5625, 0.90625, //starting point (+2,+1,0)
-                                  -0.09375, 0.4375, 0.15625, //last point     (-2,-1,0)
-                                   0.15625, 0.4375,-0.09375};//central point  (-1,0,+1)
+   constexpr double d_coef_minus[9]= { 0.15625,-0.5625, 0.90625, //starting point (+2,+1,0)
+                                      -0.09375, 0.4375, 0.15625, //last point     (-2,-1,0)
+                                       0.15625, 0.4375,-0.09375};//central point  (-1,0,+1)
 
  public:
    ///Constructor.
@@ -108,9 +108,9 @@ class BlockLab
    /**
     * Get a single element from the block.
     * stencil_start and stencil_end refer to the values passed in BlockLab::prepare().
-    * ix: Index in x-direction (stencil_start[0] <= ix < BlockType::sizeX + stencil_end[0] - 1).
-    * iy: Index in y-direction (stencil_start[1] <= iy < BlockType::sizeY + stencil_end[1] - 1).
-    * iz: Index in z-direction (stencil_start[2] <= iz < BlockType::sizeZ + stencil_end[2] - 1).
+    * @param ix: Index in x-direction (stencil_start[0] <= ix < BlockType::sizeX + stencil_end[0] - 1).
+    * @param iy: Index in y-direction (stencil_start[1] <= iy < BlockType::sizeY + stencil_end[1] - 1).
+    * @param iz: Index in z-direction (stencil_start[2] <= iz < BlockType::sizeZ + stencil_end[2] - 1).
     */
    ElementType &operator()(int ix, int iy = 0, int iz = 0)
    {
@@ -145,7 +145,14 @@ class BlockLab
       _release(m_CoarsenedBlock);
    }
 
-   //// Prepares the BlockLab for a given 'grid' and stencil of points and allocates arrays if needed.
+   /** Prepares the BlockLab for a given 'grid' and stencil of points.
+    *  Allocates memory (if not already allocated) for the arrays that will hold the copy of a 
+    *  GridBlock plus its halo cells. 
+    * @param grid: the Grid/GridMPI with all the GridBlocks that will need halo cells
+    * @param stencil: the StencilInfo for the halo cells
+    * @param  Istencil_start: the starts of the stencil used for coarse-fine interpolation of halo cells, set to -1 for the default interpolation.
+    * @param  Istencil_end: the ends of the stencil used for coarse-fine interpolation of halo cells, set to +2 for the default interpolation.
+    */
    virtual void prepare(GridType &grid, const StencilInfo & stencil, const int Istencil_start[3]=default_start, const int Istencil_end[3]=default_end)
    {
       istensorial = stencil.tensorial;
@@ -232,11 +239,14 @@ class BlockLab
 
    }
 
-   /** Provide a prepared BlockLab the BlockInfo for which a working copy of points+halo cells is
-    *  needed. Once called, the user can use the () operators to access the halo cells. For derived
+   /** Provide a prepared BlockLab (working copy of gridpoints+halo cells).
+    *  Once called, the user can use the () operators to access the halo cells. For derived
     *  instances of BlockLab, the time 't' can also be provided, in order to enforce time-dependent
     *  boundary conditions.
-    * */
+    * @param info: the BlockInfo for the GridBlock that needs halo cells.
+    * @param t: (optional) current time, for time-dependent boundary conditions
+    * @param applybc: (optional, default is true) apply boundary conditions or not (assume periodic if not)
+    */
    virtual void load(const BlockInfo & info, const Real t = 0, const bool applybc = true)
    {
       const int nX                    = BlockType::sizeX;

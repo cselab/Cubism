@@ -7,18 +7,31 @@
 namespace cubism // AMR_CUBISM
 {
 
+/** 
+ * @brief Hilbert Space-Filling Curve(SFC) in 2D.
+ * 
+ * The Quadtree of GridBlocks of a simulation is traversed by an SFC.
+ * Each node of the Quadtree (aka each GridBlock) is associated with 
+ * (i) a refinement level 
+ * (ii) indices (i,j) that indicate its coordinates in a uniform grid of the same refinement level
+ * (iii) a Z-order index which is a unique integer along an SFC that would traverse a uniform grid 
+ * of the same refinement level
+ * (iv) a unique integer (blockID_2). This class provides trasformations from each of these 
+ *  attributes to the others.
+ */
 class SpaceFillingCurve2D
 {
  protected:
-   int BX, BY;
-   int levelMax;
-   bool isRegular;
-   int base_level;
-   std::vector < std::vector <long long> > Zsave;
-   std::vector< std::vector<int> > i_inverse;
-   std::vector< std::vector<int> > j_inverse;
+   int BX; ///< number of blocks in the x-direction at the coarsest level
+   int BY; ///< number of blocks in the y-direction at the coarsest level
+   int levelMax; ///< maximum level allowed
+   bool isRegular; ///< true if BX,BY,BZ are powers of 2
+   int base_level; ///< minimum (starting) level (determined from BX,BY,BZ)
+   std::vector < std::vector <long long> > Zsave; ///< option to save block indices instead of computing them every time
+   std::vector< std::vector<int> > i_inverse; ///< option to save blocks i index instead of computing it every time
+   std::vector< std::vector<int> > j_inverse; ///< option to save blocks j index instead of computing it every time
 
-   //convert (x,y) to index
+   /// convert (x,y) to index
    long long AxestoTranspose(const int *X_in, int b) const
    {
       int x = X_in[0];
@@ -35,7 +48,7 @@ class SpaceFillingCurve2D
       return d;
    }
 
-   //convert index to (x,y)
+   /// convert index to (x,y)
    void TransposetoAxes(long long index, int *X, int b) const 
    {
        // position, #bits, dimension
@@ -53,7 +66,7 @@ class SpaceFillingCurve2D
        }
    }
 
-   //rotate/flip a quadrant appropriately
+   /// rotate/flip a quadrant appropriately
    void rot(long long n, int *x, int *y, long long rx, long long ry) const
    {
        if (ry == 0) {
@@ -82,12 +95,8 @@ class SpaceFillingCurve2D
       i_inverse.resize(lmax);
       j_inverse.resize(lmax);
       Zsave.resize(lmax);
-      #ifdef CUBISM_USE_MAP
-      for (int l = 0 ; l < 1 ; l++)
-      #else
-      for (int l = 0 ; l < lmax ; l++)
-      #endif
       {
+        const int l = 0
         const int aux = pow( pow(2,l) , 2);
         i_inverse[l].resize(BX*BY*aux,-1);
         j_inverse[l].resize(BX*BY*aux,-1);
@@ -116,15 +125,12 @@ class SpaceFillingCurve2D
       }
     }
 
-   // space-filling curve (i,j,k) --> 1D index (given level l)
+   /// space-filling curve (i,j) --> 1D index (given level l)
    long long forward(const int l, const int i, const int j) //const
    {
       const int aux = 1 << l;
 
       if (l>=levelMax) return 0;
-      #ifndef CUBISM_USE_MAP
-        if (Zsave[l][ j*aux*BX + i ] != -1) return Zsave[l][  j*aux*BX + i ];
-      #endif
       long long retval;
       if (!isRegular)
       {
@@ -139,37 +145,18 @@ class SpaceFillingCurve2D
         const int c2_a[2] = {i,j};
         retval = AxestoTranspose(c2_a, l + base_level);
       }
-      #ifndef CUBISM_USE_MAP
-        i_inverse[l][retval] = i;
-        j_inverse[l][retval] = j;
-        Zsave[l][j*aux*BX + i] = retval;
-      #endif
       return retval;
    }
 
+   /// space-filling curve Z-index --> (i,j) (given level l)
    void inverse(long long Z, int l, int &i, int &j)
    {
-      #ifndef CUBISM_USE_MAP
-        if (i_inverse[l][Z] != -1)
-        {
-          assert(i_inverse[l][Z] != -1 && j_inverse[l][Z] != -1);
-          i = i_inverse[l][Z];
-          j = j_inverse[l][Z];
-          return;
-        }
-      #endif
       if (isRegular)
       {
         int X[2] = {0, 0};
         TransposetoAxes(Z, X, l + base_level);
         i = X[0];
         j = X[1];
-        #ifndef CUBISM_USE_MAP
-          int aux   = 1 << l;
-          i_inverse[l][Z] = i;
-          j_inverse[l][Z] = j;
-          Zsave[l][j*aux*BX + i] = Z;
-        #endif
       }
       else
       {
@@ -182,21 +169,19 @@ class SpaceFillingCurve2D
         index_to_IJ(index,I,J);
         i = X[0] + I*aux;
         j = X[1] + J*aux;
-        #ifndef CUBISM_USE_MAP
-          i_inverse[l][Z] = i;
-          j_inverse[l][Z] = j;
-          Zsave[l][j*aux*BX + i ] = Z;
-        #endif
       }
       return;
    }
 
+   /// space-filling curve (i,j) --> 1D index (at level 0)
    long long IJ_to_index(int I, int J)
    {
      //int index = (J + K * BY) * BX + I;
      long long index = Zsave[0][J*BX + I];
      return index;
    }
+
+   /// space-filling curve Z-index --> (i,j) (at level 0)
    void index_to_IJ(long long index, int & I, int & J)
    {
       I = i_inverse[0][index];
@@ -204,6 +189,7 @@ class SpaceFillingCurve2D
       return;
    }
 
+   /// convert Z-index, level and ij index to single unique number
    long long Encode(int level, long long Z, int index[2])
    {
       int lmax   = levelMax;

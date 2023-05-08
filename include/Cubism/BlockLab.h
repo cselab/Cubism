@@ -18,52 +18,59 @@ namespace cubism
     const int default_start [3] = {-1,-1,0};
     const int default_end   [3] = {2,2,1}; 
 #endif
-/*
-   Working copy of Block + Ghosts.
-   Data of original block is copied (!) here. So when changing something in
-   the lab we are not changing the original data.
-   Works for (inner) blocks on the same rank. The blocks may have a different resolution; however
-   two adjacent blocks are assumed to differ by at most one level of resolution (no adjacent blocks
-   with grid spacing h and h/4 are allowed). Refinement ratio is (of course) 2.
-*/
 
+/** \brief Copy of a Gridblock plus halo cells.*/
+/** This class provides the user a copy of a Gridblock that is extended by a layer of halo cells.
+ *  To define one instance of it, the user needs to provide a 'TGrid' type in the template 
+ *  parameters. From this, the BlockType and ElementType and inferred, which are the GridBlock
+ *  class and Element type stored at each gridpoint of the mesh.
+ *  To use a BlockLab, the user first needs to call 'prepare', which will provide the BlockLab with
+ *  the stencil of points needed for a particular computation. To get an array of a particular
+ *  GridBlock (+halo cells), the user should call 'load' and provide it with the BlockInfo that is
+ *  associated with the GridBlock of interest. Once this is done, gridpoints in the GridBlock and
+ *  halo cells can be accessed with the (x,y,z) operator. For example, (-1,0,0) would access a 
+ *  halo cell in the -x direction.
+ */
 template <typename TGrid, template <typename X> class allocator = std::allocator>
 class BlockLab
 {
  public:
-   using GridType = TGrid;
-   using BlockType = typename GridType::BlockType;
-   using ElementType = typename BlockType::ElementType;
-   using Real = typename ElementType::RealType;
+   using GridType = TGrid; ///< should be a 'Grid', 'GridMPI' or derived class 
+   using BlockType = typename GridType::BlockType; ///< GridBlock type used by TGrid
+   using ElementType = typename BlockType::ElementType; ///< Element type used by GridBlock type
+   using Real = typename ElementType::RealType; ///< Number type used by Element (double/float etc.)
 
  protected:
-   Matrix3D<ElementType, allocator> *m_cacheBlock; // This is filled by the Blocklab
-   int m_stencilStart[3], m_stencilEnd[3];
-   bool istensorial;
-   bool use_averages;
+   Matrix3D<ElementType, allocator> *m_cacheBlock; ///< working array of GridBlock + halo cells.
+   int m_stencilStart[3]; ///< starts of stencil for halo cells
+   int m_stencilEnd[3]; ///< ends of stencil fom halo cells
+   bool istensorial;///< whether the stencil is tensorial or not (see also StencilInfo struct)
+   bool use_averages;///< if true, fine blocks average down their cells to provide halo cells for coarse blocks (2nd order accurate). If false, they perform a 3rd-order accurate interpolation instead (which is the accuracy needed to compute 2nd derivatives).
+   GridType *m_refGrid;///< Point to TGrid instance
+   int NX;///< GridBlock size in the x-direction.
+   int NY;///< GridBlock size in the y-direction.
+   int NZ;///< GridBlock size in the z-direction.
+   std::array<BlockType *, 27> myblocks;///< Pointers to neighboring blocks of a GridBlock
+   std::array<int, 27> coarsened_nei_codes;///< If a neighbor is at a coarser level, store it here
+   int coarsened_nei_codes_size;///< Number of coarser neighbors
+   int offset[3];///< like m_stencilStart but used when a coarse block sends cells to a finer block
+   Matrix3D<ElementType, allocator> *m_CoarsenedBlock;///< coarsened version of given block
+   int m_InterpStencilStart[3];///< stencil starts used for refinement (assumed tensorial)
+   int m_InterpStencilEnd[3];///< stencil ends used for refinement (assumed tensorial)
+   bool coarsened;///< true if block has at least one coarser neighbor
+   int CoarseBlockSize[3];///< size of coarsened block (NX/2,NY/2,NZ/2)
 
-   GridType *m_refGrid;
-   int NX, NY, NZ;
-   std::array<BlockType *, 27> myblocks;
-   std::array<int, 27> coarsened_nei_codes;
-   int coarsened_nei_codes_size;
-
-   int offset[3]; // equivalent to m_stencilStart but used when a coarse block sends cells to a finer block
-
-   // Extra stuff for AMR:
-   Matrix3D<ElementType, allocator> *m_CoarsenedBlock; // coarsened version of given block
-   int m_InterpStencilStart[3], m_InterpStencilEnd[3];       // stencil used for refinement (assumed tensorial)
-   bool coarsened;                                           // will be true if block has at least one coarser neighbor
-   int CoarseBlockSize[3];                                   // size of coarsened block (nX/2,nY/2,nZ/2)
+   ///Coefficients used with upwind/central stencil of points with 3rd order interpolation of halo cells from fine to coarse blocks
    const double d_coef_plus[9] = {-0.09375, 0.4375,0.15625,  //starting point (+2,+1,0)
                                    0.15625,-0.5625,0.90625,  //last point     (-2,-1,0)
                                   -0.09375, 0.4375,0.15625}; //central point  (-1,0,+1)
-
+   ///Coefficients used with upwind/central stencil of points with 3rd order interpolation of halo cells from fine to coarse blocks
    const double d_coef_minus[9]= { 0.15625,-0.5625, 0.90625, //starting point (+2,+1,0)
                                   -0.09375, 0.4375, 0.15625, //last point     (-2,-1,0)
                                    0.15625, 0.4375,-0.09375};//central point  (-1,0,+1)
 
  public:
+   ///Constructor.
    BlockLab(): m_cacheBlock(nullptr), m_refGrid(nullptr),m_CoarsenedBlock(nullptr)
    {
       m_stencilStart[0] = m_stencilStart[1] = m_stencilStart[2] = 0;
@@ -79,11 +86,19 @@ class BlockLab
       if (CoarseBlockSize[2] == 0) CoarseBlockSize[2] = 1;
    }
 
+   ///Return a name for this BlockLab. Useful for derived instances with custom boundary conditions.
    virtual std::string name() const { return "BlockLab"; }
+
+   ///true if boundary conditions are periodic in x-direction
    virtual bool is_xperiodic() { return true; }
+
+   ///true if boundary conditions are periodic in y-direction
    virtual bool is_yperiodic() { return true; }
+
+   ///true if boundary conditions are periodic in z-direction
    virtual bool is_zperiodic() { return true; }
 
+   ///Destructor.
    ~BlockLab()
    {
       _release(m_cacheBlock);
@@ -105,6 +120,7 @@ class BlockLab
       return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
    }
 
+   /// Just as BlockLab::operator() but const.
    const ElementType &operator()(int ix, int iy = 0, int iz = 0) const
    {
       assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
@@ -113,7 +129,7 @@ class BlockLab
       return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
    }
 
-   /** Just as BlockLab::operator() but returning a const. */
+   /// Just as BlockLab::operator() but returning a const.
    const ElementType &read(int ix, int iy = 0, int iz = 0) const
    {
       assert(ix - m_stencilStart[0] >= 0 && ix - m_stencilStart[0] < (int)m_cacheBlock->getSize()[0]);
@@ -122,12 +138,14 @@ class BlockLab
       return m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1], iz - m_stencilStart[2]);
    }
 
+   /// Deallocate memory (used in destructor).
    void release()
    {
       _release(m_cacheBlock);
       _release(m_CoarsenedBlock);
    }
 
+   //// Prepares the BlockLab for a given 'grid' and stencil of points and allocates arrays if needed.
    virtual void prepare(GridType &grid, const StencilInfo & stencil, const int Istencil_start[3]=default_start, const int Istencil_end[3]=default_end)
    {
       istensorial = stencil.tensorial;
@@ -214,6 +232,11 @@ class BlockLab
 
    }
 
+   /** Provide a prepared BlockLab the BlockInfo for which a working copy of points+halo cells is
+    *  needed. Once called, the user can use the () operators to access the halo cells. For derived
+    *  instances of BlockLab, the time 't' can also be provided, in order to enforce time-dependent
+    *  boundary conditions.
+    * */
    virtual void load(const BlockInfo & info, const Real t = 0, const bool applybc = true)
    {
       const int nX                    = BlockType::sizeX;
@@ -348,6 +371,7 @@ class BlockLab
    }
 
  protected:
+   /// Called from 'load', to enforce boundary conditions and coarse-fine interpolation.
    void post_load(const BlockInfo &info, const Real t = 0, bool applybc = true)
    {
       const int nX = BlockType::sizeX;
@@ -411,6 +435,7 @@ class BlockLab
       if (applybc) _apply_bc(info, t); 
    }
 
+   /// Check if blocks on the same refinement level need to exchange averaged down cells that will be used for coarse-fine interpolation.
    bool UseCoarseStencil(const BlockInfo &a, const int *b_index)
    {
       if (a.level == 0|| (!use_averages)) return false;
@@ -452,6 +477,7 @@ class BlockLab
       return false;
    }
 
+   /// Exchange halo cells for blocks on the same refinement level.
    void SameLevelExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
       const int bytes = (e[0] - s[0]) * sizeof(ElementType);
@@ -501,6 +527,7 @@ class BlockLab
    }
 
    #if DIMENSION == 3
+   /// Average down eight elements (3D)
    ElementType AverageDown(const ElementType &e0, const ElementType &e1, 
                            const ElementType &e2, const ElementType &e3,
                            const ElementType &e4, const ElementType &e5,
@@ -512,6 +539,8 @@ class BlockLab
       return 0.125 * (e0 + e1 + e2 + e3 + e4 + e5 + e6 + e7);
       #endif
    }
+
+   /// Coarse-fine interpolation function, based on interpolation stencil of +-1 point.
    virtual void TestInterp(ElementType *C[3][3][3], ElementType *R, int x, int y, int z)
    {
       #ifdef PRESERVE_SYMMETRY
@@ -549,23 +578,30 @@ class BlockLab
       #endif
    }
    #else
+   /// Average down four elements (2D)
    ElementType AverageDown(const ElementType &e0, const ElementType &e1,
                            const ElementType &e2, const ElementType &e3)
    {
       return 0.25 * ((e0 + e3) + (e1 + e2));
    }  
+
+   /// Auxiliary function for 3rd order coarse-fine interpolation
    void LI(ElementType & a, ElementType b, ElementType c)
    {
       auto kappa = ((4.0/15.0)*a+(6.0/15.0)*c)+(-10.0/15.0)*b;
       auto lambda = (b - c) - kappa;
       a = (4.0*kappa+2.0*lambda)+c;
    }
+
+   /// Auxiliary function for 3rd order coarse-fine interpolation
    void LE(ElementType & a, ElementType b, ElementType c)
    {
       auto kappa = ((4.0/15.0)*a+(6.0/15.0)*c)+(-10.0/15.0)*b;
       auto lambda = (b - c) - kappa;
       a = (9.0*kappa+3.0*lambda)+c;
    }
+
+   /// Coarse-fine interpolation function, based on interpolation stencil of +-1 point (2D).
    virtual void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y)
    {
       const double dx = 0.25*(2*x-1);
@@ -579,6 +615,7 @@ class BlockLab
    }
    #endif
 
+   /// Exchange halo cells from fine to coarse blocks.
    void FineToCoarseExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
       const int bytes = (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)) * sizeof(ElementType);
@@ -738,6 +775,7 @@ class BlockLab
       } // B
    }
 
+   /// Exchange halo cells from coarse to fine blocks.
    void CoarseFineExchange(const BlockInfo &info, const int *const code)
    {
       // Coarse neighbors send their cells. Those are stored in m_CoarsenedBlock and are later used
@@ -825,6 +863,7 @@ class BlockLab
       }
    }
 
+   /// Fill coarsened version of a block, used for fine-coarse interpolation.
    void FillCoarseVersion(const BlockInfo &info, const int *const code)
    {
       // If a neighboring block is on the same level it might need to average down some cells and
@@ -916,6 +955,8 @@ class BlockLab
          }
       }
    }
+
+   /// Perform fine-coarse interpolation, after filling coarsened version of block.
    #ifdef PRESERVE_SYMMETRY
    __attribute__((optimize("-O1")))
    #endif
@@ -1394,8 +1435,10 @@ class BlockLab
       }
    }
 
+   /// Enforce boundary conditions.
    virtual void _apply_bc(const BlockInfo &info, const Real t = 0, bool coarse = false) {}
 
+   /// Deallocate memory.
    template <typename T>
    void _release(T *&t)
    {

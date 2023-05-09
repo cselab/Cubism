@@ -612,14 +612,16 @@ class SynchronizerMPI_AMR
   ///Auxiliary struct used to avoid sending the same data twice
   struct DuplicatesManager
   {
-    struct cube //could be more efficient, fix later
+    ///Auxiliary struct to detect and remove duplicate Interfaces
+    struct cube //could be more efficient
     {
-      GrowingVector <MyRange> compass [27];
+      GrowingVector <MyRange> compass [27]; ///< All possible MyRange stencil that will be exchanged
 
       void clear() { for (int i=0;i<27;i++) compass[i].clear(); }
 
       cube(){}
         
+      ///Returns the MyRange objects that will be kept
       std::vector<MyRange *> keepEl()
       {
         std::vector<MyRange *> retval;
@@ -630,6 +632,7 @@ class SynchronizerMPI_AMR
         return retval;
       }
 
+      ///Will return the indices of the removed MyRange objects (in v)
       void __needed(std::vector<int> & v)
       {
         static constexpr std::array <int,3> faces_and_edges [18] = {
@@ -697,27 +700,28 @@ class SynchronizerMPI_AMR
     };
     cube C;
 
-    std::vector<int> offsets;
-    int size;
-
+    std::vector<int> offsets; ///< As the send buffer for each rank is being filled, offset[i] is the current offset where sent data is located in the send buffer.
     SynchronizerMPI_AMR * Synch_ptr; ///< pointer to the SynchronizerMPI_AMR for which to remove duplicate data
+    std::vector< GrowingVector <int>> positions;///< positions[i][j ]contains the offset of Interface j in the send buffer to rank i
 
-    std::vector< GrowingVector <int>> positions;
-
-    DuplicatesManager(int a_size, SynchronizerMPI_AMR & Synch)
+    DuplicatesManager(SynchronizerMPI_AMR & Synch)
     {
-      size = a_size;
-      positions.resize(size);
+      positions.resize(Synch.size);
+      offsets.resize(Synch.size,0);
       Synch_ptr = & Synch;
-      offsets.resize(size,0);
     }
 
+    ///Adds an element to 'positions[r]'
     void Add(const int r,const int index)
     {
       positions[r].push_back(index);
     }
 
-    ///Remove duplicate data to be sent to rank 'r'/
+    /**Remove duplicate data that will be sent to one rank.
+     * @param r: the rank where the data will be sent
+     * @param f: all the Interfaces between rank r and this rank
+     * @param total_size: eventual size of the send buffer to rank r, after duplicate Interfaces are removed.
+     */
     void RemoveDuplicates(const int r, std::vector<Interface> & f, int & total_size)
     {
       bool skip_needed = false;
@@ -1278,7 +1282,7 @@ class SynchronizerMPI_AMR
       grid->getBlockInfoAll(info.level, info.Z).halo_block_id = info.halo_block_id;
     } // i-loop
 
-    DuplicatesManager DM(size, *(this));
+    DuplicatesManager DM(*(this));
     for (size_t i = 0; i < interface_ranks_and_positions.size(); i++)
     {
       const BlockInfo &info = *halo_blocks[i];

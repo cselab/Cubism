@@ -65,18 +65,30 @@ class Grid
    tbb::concurrent_unordered_map<long long, BlockInfo *> BlockInfoAll;
    tbb::concurrent_unordered_map<long long, TreePosition> Octree;
    #else
-   /** A map from unique BlockInfo IDs to pointers to BlockInfos, so all the blocks in the Octree.
+
+   /** A map from unique BlockInfo IDs to pointers to BlockInfos.
     *  Should be accessed through function 'getBlockInfoAll'. If a Block does not belong to this
     *  rank and it is not adjacent to it, this map should not return something meaningful.
     */
    std::unordered_map<long long, BlockInfo *> BlockInfoAll;
-   /** A map from unique BlockInfo IDs to pointers to integers that encode whether a BlockInfo is
-    * present in the Octree (and to which rank it belongs to) or not.
+
+   /** A map from unique BlockInfo IDs to pointers to integers (TreePositions) that encode whether 
+    *  a BlockInfo is present in the Octree (and to which rank it belongs to) or not. This is a 
+    *  seperate object from BlockInfoAll because all the information we need for some blocks is 
+    *  merely whether they exist or not (i.e. we don't need their grid spacing or other meta-data)
+    *  held by BlockInfos.
     */
    std::unordered_map<long long, TreePosition> Octree;
    #endif
 
-   std::vector<BlockInfo> m_vInfo;   ///< meta-data for blocks that belong to this rank
+   /** Meta-data for blocks that belong to this rank.
+    *  This vector holds all the BlockInfos for blocks that belong to this rank. When the mesh 
+    *  changes, the contents of this vector become outdated and need to be updated. This is done
+    *  through the FillPos() function. This array should be used when iterating over the blocks 
+    *  owned by a Grid.
+    */ 
+   std::vector<BlockInfo> m_vInfo;
+
    const int NX;                     ///< Total # of blocks for level 0 in X-direction
    const int NY;                     ///< Total # of blocks for level 0 in Y-direction
    const int NZ;                     ///< Total # of blocks for level 0 in Z-direction
@@ -227,11 +239,14 @@ class Grid
       m_vInfo.erase(std::remove_if(m_vInfo.begin(),m_vInfo.end(),[](const BlockInfo & x){return x.changed2;}),m_vInfo.end());
    }
 
-
    /** Used when Block at level m_new with SFC coordinate n_new is added to the Grid
     *  as a result of compression of Block (m,n). Sets the state of the newly added 
     *  Block. It also replaces BlockInfo(m,n) and Block(m,n) with 
     *  BlockInfo(m_new,n_new) and Block(m_new,n_new).
+    * @param m: Refinement level of the GridBlock that is compressed.
+    * @param n: Z-order index of the GridBlock that is compressed.
+    * @param m_new: Refinement level of the GridBlock that will replace the compressed GridBlock.
+    * @param n_new: Z-order index of the GridBlock that will replace the compressed GridBlock.
     */
    void FindBlockInfo(const int m, const long long n, const int m_new, const long long n_new)
    {
@@ -249,6 +264,7 @@ class Grid
     * is not the case for m_vInfo, whose content might be outdated
     * after grid refinement/compression or exchange of blocks between different 
     * ranks. This function updates their content.
+    * @param CopyInfos: set to true if the correct BlockInfos from BlockInfoAll should be copied to m_vInfo. Otherwise only selected variables are copied.
     */
    virtual void FillPos(bool CopyInfos = true)
    {
@@ -285,7 +301,18 @@ class Grid
          }
    }
 
-   /// Constructor; provided arguments are explained in the members of this class.
+   /** Constructor.
+    * @param _NX: total number of blocks in the x-direction, at the coarsest refinement level.
+    * @param _NY: total number of blocks in the y-direction, at the coarsest refinement level.
+    * @param _NZ: total number of blocks in the z-direction, at the coarsest refinement level.
+    * @param _maxextent: maximum extent of the simulation (largest side of the rectangular domain).
+    * @param _levelStart: refinement level where all allocated GridBlocks will be
+    * @param _levelMax: maximum refinement level allowed
+    * @param AllocateBlocks: true if GridBlocks should be allocated (false if they are allocated by a derived class)
+    * @param a_xperiodic: true if the domain is periodic in the x-direction
+    * @param a_yperiodic: true if the domain is periodic in the y-direction
+    * @param a_zperiodic: true if the domain is periodic in the z-direction
+    */
    Grid(const unsigned int _NX, 
         const unsigned int _NY = 1,
         const unsigned int _NZ = 1,

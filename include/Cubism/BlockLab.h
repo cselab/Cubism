@@ -30,6 +30,8 @@ namespace cubism
  *  associated with the GridBlock of interest. Once this is done, gridpoints in the GridBlock and
  *  halo cells can be accessed with the (x,y,z) operator. For example, (-1,0,0) would access a 
  *  halo cell in the -x direction.
+ *  @tparam TGrid: the kind of Grid/GridMPI halo cells are needed for
+ *  @tparam allocator: a class responsible for allocation of memory for this BlockLab
  */
 template <typename TGrid, template <typename X> class allocator = std::allocator>
 class BlockLab
@@ -61,13 +63,13 @@ class BlockLab
    int CoarseBlockSize[3];///< size of coarsened block (NX/2,NY/2,NZ/2)
 
    ///Coefficients used with upwind/central stencil of points with 3rd order interpolation of halo cells from fine to coarse blocks
-   constexpr double d_coef_plus[9] = {-0.09375, 0.4375,0.15625,  //starting point (+2,+1,0)
-                                       0.15625,-0.5625,0.90625,  //last point     (-2,-1,0)
-                                      -0.09375, 0.4375,0.15625}; //central point  (-1,0,+1)
+   const double d_coef_plus[9] = {-0.09375, 0.4375,0.15625,  //starting point (+2,+1,0)
+                                   0.15625,-0.5625,0.90625,  //last point     (-2,-1,0)
+                                  -0.09375, 0.4375,0.15625}; //central point  (-1,0,+1)
    ///Coefficients used with upwind/central stencil of points with 3rd order interpolation of halo cells from fine to coarse blocks
-   constexpr double d_coef_minus[9]= { 0.15625,-0.5625, 0.90625, //starting point (+2,+1,0)
-                                      -0.09375, 0.4375, 0.15625, //last point     (-2,-1,0)
-                                       0.15625, 0.4375,-0.09375};//central point  (-1,0,+1)
+   const double d_coef_minus[9]= { 0.15625,-0.5625, 0.90625, //starting point (+2,+1,0)
+                                  -0.09375, 0.4375, 0.15625, //last point     (-2,-1,0)
+                                   0.15625, 0.4375,-0.09375};//central point  (-1,0,+1)
 
  public:
    ///Constructor.
@@ -358,7 +360,7 @@ class BlockLab
             if      (TreeNei.Exists()    ) SameLevelExchange   (info, code, s, e);
             else if (TreeNei.CheckFiner()) FineToCoarseExchange(info, code, s, e);
          } // icode = 0,...,26 (3D) or 9,...,17 (2D)
-	 if (coarsened_nei_codes_size>0)
+	      if (coarsened_nei_codes_size>0)
             for (int i = 0; i < k; ++i)
             {
                const int icode = icodes[i];
@@ -366,11 +368,11 @@ class BlockLab
                const int infoNei_index[3] ={(info.index[0]+code[0]+NX)%NX,
                                             (info.index[1]+code[1]+NY)%NY,
                                             (info.index[2]+code[2]+NZ)%NZ};
-	       if (UseCoarseStencil(info, infoNei_index))
-	       {
-		       FillCoarseVersion(info, code);
-		       coarsened = true;
-	       }
+	            if (UseCoarseStencil(info, infoNei_index))
+	            {
+		            FillCoarseVersion(info, code);
+		            coarsened = true;
+	            }
             }
 
          if (m_refGrid->get_world_size() == 1)
@@ -381,7 +383,17 @@ class BlockLab
    }
 
  protected:
-   /// Called from 'load', to enforce boundary conditions and coarse-fine interpolation.
+   /** Called from 'load', to enforce boundary conditions and coarse-fine interpolation.
+    *  To interpolate halo cells from neighboring coarser blocks, the BlockLab first fills a 
+    *  coarsened version of the GridBlock that requires the halo cells. This coarsened version is
+    *  filled with grid points from the coarse neighbors and with averaged down values of this
+    *  GridBlock's gridpoints. Averaging down happens in this function, followed by the 
+    *  interpolation. Boundary conditions from derived versions of this class are also enforced.
+    *  Default boundary conditions are periodic.
+    * @param info: the BlockInfo for the GridBlock that needs halo cells.
+    * @param t: (optional) current time, for time-dependent boundary conditions
+    * @param applybc: (optional, default is true) apply boundary conditions or not (assume periodic if not)
+    */
    void post_load(const BlockInfo &info, const Real t = 0, bool applybc = true)
    {
       const int nX = BlockType::sizeX;
@@ -445,7 +457,15 @@ class BlockLab
       if (applybc) _apply_bc(info, t); 
    }
 
-   /// Check if blocks on the same refinement level need to exchange averaged down cells that will be used for coarse-fine interpolation.
+   /** Check if blocks on the same refinement level need to exchange averaged down cells.
+    *  To perform coarse-fine interpolation, the BlockLab creates a coarsened version of the 
+    *  GridBlock that needs halo cells. Filling this coarsened version can require averaged down
+    *  values from GridBlocks of the same resolution, which would create a large enough stencil
+    *  of coarse values to perform the interpolation. Whether or not this is needed is determined
+    *  by this function.
+    * @param info: the BlockInfo for the GridBlock that needs halo cells.
+    * @param b_index: the (i,j,k) index coordinates of the block that is adjacent to 'info'.
+    */  
    bool UseCoarseStencil(const BlockInfo &a, const int *b_index)
    {
       if (a.level == 0|| (!use_averages)) return false;
@@ -487,7 +507,12 @@ class BlockLab
       return false;
    }
 
-   /// Exchange halo cells for blocks on the same refinement level.
+   /** Exchange halo cells for blocks on the same refinement level.
+    * @param info: the BlockInfo for the GridBlock that needs halo cells.
+    * @param code: pointer to three integers, one for each spatial direction. Possible values of each integer are -1,0,+1, based on the relative position of the neighboring block and 'info'
+    * @param s: the starts of the part of 'info' that will be filled
+    * @param e: the ends of the part of 'info' that will be filled
+    */
    void SameLevelExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
       const int bytes = (e[0] - s[0]) * sizeof(ElementType);
@@ -550,7 +575,17 @@ class BlockLab
       #endif
    }
 
-   /// Coarse-fine interpolation function, based on interpolation stencil of +-1 point.
+   /** Coarse-fine interpolation function, based on interpolation stencil of +-1 point.
+    *  This function evaluates a third-order Taylor expansion by using a stencil of +-1 points 
+    *  around the coarse grid point that will be replaced by eight finer ones. This function can
+    *  be overwritten by derived versions of BlockLab, to enable a custom interpolation. The +-1
+    *  points used here come from the 'interpolation stencil' passed to BlockLab.
+    *  @param C: pointer to the +-1 points around the coarse point (27 values in total)
+    *  @param R: pointer to the eight refined points around the coarse point 
+    *  @param x: deprecated parameter, used only in the 2D version of this function 
+    *  @param y: deprecated parameter, used only in the 2D version of this function 
+    *  @param z: deprecated parameter, used only in the 2D version of this function 
+    */
    virtual void TestInterp(ElementType *C[3][3][3], ElementType *R, int x, int y, int z)
    {
       #ifdef PRESERVE_SYMMETRY
@@ -611,7 +646,16 @@ class BlockLab
       a = (9.0*kappa+3.0*lambda)+c;
    }
 
-   /// Coarse-fine interpolation function, based on interpolation stencil of +-1 point (2D).
+   /** Coarse-fine interpolation function, based on interpolation stencil of +-1 point.
+    *  This function evaluates a third-order Taylor expansion by using a stencil of +-1 points 
+    *  around the coarse grid point that will be replaced by eight finer ones. This function can
+    *  be overwritten by derived versions of BlockLab, to enable a custom interpolation. The +-1
+    *  points used here come from the 'interpolation stencil' passed to BlockLab.
+    *  @param C: pointer to the +-1 points around the coarse point (9 values in total)
+    *  @param R: pointer to the one refined points around the coarse point 
+    *  @param x: delta x of the point to be interpolated (+1 or -1).
+    *  @param y: delta y of the point to be interpolated (+1 or -1).
+    */
    virtual void TestInterp(ElementType *C[3][3], ElementType &R, int x, int y)
    {
       const double dx = 0.25*(2*x-1);
@@ -625,7 +669,12 @@ class BlockLab
    }
    #endif
 
-   /// Exchange halo cells from fine to coarse blocks.
+   /** Exchange halo cells from fine to coarse blocks.
+    * @param info: the BlockInfo for the GridBlock that needs halo cells.
+    * @param code: pointer to three integers, one for each spatial direction. Possible values of each integer are -1,0,+1, based on the relative position of the neighboring block and 'info'
+    * @param s: the starts of the part of 'info' that will be filled
+    * @param e: the ends of the part of 'info' that will be filled
+    */
    void FineToCoarseExchange(const BlockInfo &info, const int *const code, const int *const s, const int *const e)
    {
       const int bytes = (abs(code[0]) * (e[0] - s[0]) + (1 - abs(code[0])) * ((e[0] - s[0]) / 2)) * sizeof(ElementType);
@@ -785,7 +834,10 @@ class BlockLab
       } // B
    }
 
-   /// Exchange halo cells from coarse to fine blocks.
+   /** Exchange halo cells from coarse to fine blocks.
+    * @param info: the BlockInfo for the GridBlock that needs halo cells.
+    * @param code: pointer to three integers, one for each spatial direction. Possible values of each integer are -1,0,+1, based on the relative position of the neighboring block and 'info'
+    */
    void CoarseFineExchange(const BlockInfo &info, const int *const code)
    {
       // Coarse neighbors send their cells. Those are stored in m_CoarsenedBlock and are later used
@@ -873,7 +925,13 @@ class BlockLab
       }
    }
 
-   /// Fill coarsened version of a block, used for fine-coarse interpolation.
+   /** Fill coarsened version of a block, used for fine-coarse interpolation.
+    * Each block will create a coarsened version of itself, with averaged down values. This version
+    * is also filled with gridpoints for halo cells that are received from coarser neighbors. It is
+    * then used to interpolate fine cells at coarse-fine interfaces.
+    * @param info: the BlockInfo for the GridBlock that needs halo cells.
+    * @param code: pointer to three integers, one for each spatial direction. Possible values of each integer are -1,0,+1, based on the relative position of the neighboring block and 'info'
+    */
    void FillCoarseVersion(const BlockInfo &info, const int *const code)
    {
       // If a neighboring block is on the same level it might need to average down some cells and

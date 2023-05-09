@@ -19,6 +19,7 @@ namespace cubism
  *    not great (load imbalance ratio < 1.1), a 1D-diffusion based scheme is used to redistribute
  *    blocks along the 1D Space-Filling-Curve. Otherwise, all blocks are simply evenly 
  *    redistributed among all ranks.
+ * @tparam TGrid: the type of GridMPI to perform load-balancing for
  */
 template <typename TGrid>
 class LoadBalancer
@@ -29,28 +30,28 @@ class LoadBalancer
    bool movedBlocks;///< =true if load-balancing is performed when Balance_Diffusion of Balance_Global is called
 
  protected:
-   TGrid *grid;/// grid where load balancing will be performed
-   int rank;///< MPI process ID
-   int size;///< total number of MPI processes
-   MPI_Comm comm;///< MPI communicator
+   TGrid *grid;///< grid where load balancing will be performed
 
    ///MPI datatype and auxiliary struct used to send/receive blocks among ranks
    MPI_Datatype MPI_BLOCK;
    struct MPI_Block
    {
-      long long mn[2];
-      Real data[sizeof(BlockType) / sizeof(Real)];
+      long long mn[2]; ///< level and Z-order index of a BlockInfo
+      Real data[sizeof(BlockType) / sizeof(Real)]; ///< buffer array of data to send/receive 
+
+      /** Constructor; calls 'prepare'.
+       * @param info: BlockInfo for block to be sent/received.
+       * @param Fillptr: true if we want the data of the GridBlock to be copied to this MPI_Block.
+       */
       MPI_Block(const BlockInfo &info, const bool Fillptr = true)
       {
-         mn[0] = info.level;
-         mn[1] = info.Z;
-         if (Fillptr)
-         {
-            Real *aux = &((BlockType *)info.ptrBlock)->data[0][0][0].member(0);
-            std::memcpy(&data[0], aux, sizeof(BlockType));
-         }
+         prepare(info,Fillptr);
       }
 
+      /** Prepare the MPI_Block with data from a GridBlock.
+       * @param info: BlockInfo for block to be sent/received.
+       * @param Fillptr: true if we want the data of the GridBlock to be copied to this MPI_Block.
+       */
       void prepare(const BlockInfo &info, const bool Fillptr = true)
       {
          mn[0] = info.level;
@@ -118,9 +119,6 @@ class LoadBalancer
    LoadBalancer(TGrid &a_grid)
    {
       grid = &a_grid;
-      comm = grid->getWorldComm();
-      MPI_Comm_size(comm, &size);
-      MPI_Comm_rank(comm, &rank);
       movedBlocks = false;
 
       //Create MPI datatype to send/receive blocks (data) + two integers (their level and Z-index)
@@ -141,6 +139,9 @@ class LoadBalancer
    /// Compression of eight blocks requires all of them to be owned by one rank; this function collects all groups of 8 blocks to be compressed to a single rank.
    void PrepareCompression()
    {
+      const int size = grid->get_world_size();
+      const int rank = grid->rank();
+
       std::vector<BlockInfo> &I = grid->getBlocksInfo();
       std::vector<std::vector<MPI_Block>> send_blocks(size);
       std::vector<std::vector<MPI_Block>> recv_blocks(size);
@@ -209,13 +210,13 @@ class LoadBalancer
             {
                MPI_Request req{};
                requests.push_back(req);
-               MPI_Irecv(&recv_blocks[r][0], recv_blocks[r].size(), MPI_BLOCK, r, 2468, comm, &requests.back());
+               MPI_Irecv(&recv_blocks[r][0], recv_blocks[r].size(), MPI_BLOCK, r, 2468, grid->getWorldComm(), &requests.back());
             }
             if (send_blocks[r].size() != 0)
             {
                MPI_Request req{};
                requests.push_back(req);
-               MPI_Isend(&send_blocks[r][0], send_blocks[r].size(), MPI_BLOCK, r, 2468, comm, &requests.back());
+               MPI_Isend(&send_blocks[r][0], send_blocks[r].size(), MPI_BLOCK, r, 2468, grid->getWorldComm(), &requests.back());
             }
          }
 
@@ -252,6 +253,9 @@ class LoadBalancer
    /// Redistributes blocks with diffusion algorithm along the 1D Space-Filling Hilbert Curve; block_distribution[i] is the number of blocks owned by rank i, for i=0,...,#of ranks -1
    void Balance_Diffusion(const bool verbose, std::vector<long long> & block_distribution)
    {
+      const int size = grid->get_world_size();
+      const int rank = grid->rank();
+
       movedBlocks = false;
       {
          long long max_b = block_distribution[0];
@@ -281,10 +285,10 @@ class LoadBalancer
       int right_blocks, left_blocks;
 
       MPI_Request reqs[4];
-      MPI_Irecv(&left_blocks , 1, MPI_INT, left , 123, comm, &reqs[0]);
-      MPI_Irecv(&right_blocks, 1, MPI_INT, right, 456, comm, &reqs[1]);
-      MPI_Isend(&my_blocks   , 1, MPI_INT, left , 456, comm, &reqs[2]);
-      MPI_Isend(&my_blocks   , 1, MPI_INT, right, 123, comm, &reqs[3]);
+      MPI_Irecv(&left_blocks , 1, MPI_INT, left , 123, grid->getWorldComm(), &reqs[0]);
+      MPI_Irecv(&right_blocks, 1, MPI_INT, right, 456, grid->getWorldComm(), &reqs[1]);
+      MPI_Isend(&my_blocks   , 1, MPI_INT, left , 456, grid->getWorldComm(), &reqs[2]);
+      MPI_Isend(&my_blocks   , 1, MPI_INT, right, 123, grid->getWorldComm(), &reqs[3]);
 
       MPI_Waitall(4, &reqs[0], MPI_STATUSES_IGNORE);
 
@@ -309,14 +313,14 @@ class LoadBalancer
          for (int i = 0; i < flux_left; i++) send_left[i].prepare(SortedInfos[i]);
          MPI_Request req{};
          request.push_back(req);
-         MPI_Isend(&send_left[0], send_left.size(), MPI_BLOCK, left, 7890, comm, &request.back());
+         MPI_Isend(&send_left[0], send_left.size(), MPI_BLOCK, left, 7890, grid->getWorldComm(), &request.back());
       }
       else if (flux_left < 0) // then I will receive blocks from my left rank
       {
          recv_left.resize(abs(flux_left));
          MPI_Request req{};
          request.push_back(req);
-         MPI_Irecv(&recv_left[0], recv_left.size(), MPI_BLOCK, left, 4560, comm, &request.back());
+         MPI_Irecv(&recv_left[0], recv_left.size(), MPI_BLOCK, left, 4560, grid->getWorldComm(), &request.back());
       }
       if (flux_right > 0) // then I will send blocks to my right rank
       {
@@ -325,14 +329,14 @@ class LoadBalancer
          for (int i = 0; i < flux_right; i++) send_right[i].prepare(SortedInfos[my_blocks - i - 1]);
          MPI_Request req{};
          request.push_back(req);
-         MPI_Isend(&send_right[0], send_right.size(), MPI_BLOCK, right, 4560, comm, &request.back());
+         MPI_Isend(&send_right[0], send_right.size(), MPI_BLOCK, right, 4560, grid->getWorldComm(), &request.back());
       }
       else if (flux_right < 0) // then I will receive blocks from my right rank
       {
          recv_right.resize(abs(flux_right));
 	      MPI_Request req{};
          request.push_back(req);
-         MPI_Irecv(&recv_right[0], recv_right.size(), MPI_BLOCK, right, 7890, comm, &request.back());
+         MPI_Irecv(&recv_right[0], recv_right.size(), MPI_BLOCK, right, 7890, grid->getWorldComm(), &request.back());
       }
 
       for (int i = 0; i < flux_right; i++)
@@ -356,7 +360,7 @@ class LoadBalancer
       }
       int temp = movedBlocks ? 1 : 0;
       MPI_Request request_reduction;
-      MPI_Iallreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_SUM, comm, &request_reduction);
+      MPI_Iallreduce(MPI_IN_PLACE, &temp, 1, MPI_INT, MPI_SUM, grid->getWorldComm(), &request_reduction);
 
       for (int i = 0; i < -flux_left ; i++) AddBlock(recv_left [i].mn[0],recv_left [i].mn[1],recv_left [i].data);
       for (int i = 0; i < -flux_right; i++) AddBlock(recv_right[i].mn[0],recv_right[i].mn[1],recv_right[i].data);
@@ -369,6 +373,9 @@ class LoadBalancer
    /// Redistributes all blocks evenly, along the 1D Space-Filling Hilbert Curve; all_b[i] is the number of blocks owned by rank i, for i=0,...,#of ranks -1
    void Balance_Global(std::vector<long long> & all_b)
    {
+      const int size = grid->get_world_size();
+      const int rank = grid->rank();
+
       //Redistribute all blocks evenly, along the 1D Hilbert curve.
       //all_b[i] = # of blocks currently owned by rank i.
 
@@ -427,7 +434,7 @@ class LoadBalancer
       {
          MPI_Request req{};
          requests.push_back(req);
-         MPI_Irecv(recv_blocks[r].data(), recv_blocks[r].size(), MPI_BLOCK, r, tag, comm, &requests.back());
+         MPI_Irecv(recv_blocks[r].data(), recv_blocks[r].size(), MPI_BLOCK, r, tag, grid->getWorldComm(), &requests.back());
       }
 
       long long counter_S = 0;
@@ -438,7 +445,7 @@ class LoadBalancer
          counter_S += send_blocks[r].size();
          MPI_Request req{};
          requests.push_back(req);
-         MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &requests.back());
+         MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, grid->getWorldComm(), &requests.back());
       }
       for (int r = size-1; r > rank; r--) if (send_blocks[r].size() != 0)
       {
@@ -446,7 +453,7 @@ class LoadBalancer
          counter_E += send_blocks[r].size();
          MPI_Request req{};
          requests.push_back(req);
-         MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, comm, &requests.back());
+         MPI_Isend(send_blocks[r].data(), send_blocks[r].size(), MPI_BLOCK, r, tag, grid->getWorldComm(), &requests.back());
       }
 
       //no need to wait here, do some work first!

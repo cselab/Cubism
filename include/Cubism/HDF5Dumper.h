@@ -33,6 +33,32 @@ template <> inline hid_t get_hdf5_type<long double>() { return H5T_NATIVE_LDOUBL
 
 namespace cubism {
 
+/// used for dumping a ScalarElement
+struct StreamerScalar
+{
+  static constexpr int NCHANNELS = 1;
+  template <typename TBlock, typename T>
+  static inline void operate(TBlock& b, const int ix, const int iy, const int iz, T output[NCHANNELS])
+  {
+   output[0] = b(ix,iy,iz).s;
+  }
+  static std::string prefix() { return std::string(""); }
+  static const char * getAttributeName() { return "Scalar"; }
+};
+
+/// used for dumping a VectorElement
+struct StreamerVector
+{
+  static constexpr int NCHANNELS = 3;
+  template <typename TBlock, typename T>
+  static void operate(TBlock& b, const int ix, const int iy, const int iz, T output[NCHANNELS])
+  {
+    for (int i = 0; i < TBlock::ElementType::DIM; i++) output[i] = b(ix,iy,iz).u[i];
+  }
+  static std::string prefix() { return std::string(""); }
+  static const char * getAttributeName() { return "Vector"; }
+};
+
 template<typename TStreamer, typename hdf5Real, typename TGrid>
 void DumpHDF5_uniform(const TGrid &grid, const typename TGrid::Real absTime, const std::string &fname, const std::string &dpath = ".")
 {

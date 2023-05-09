@@ -96,7 +96,7 @@ class SpaceFillingCurve2D
       j_inverse.resize(lmax);
       Zsave.resize(lmax);
       {
-        const int l = 0
+        const int l = 0;
         const int aux = pow( pow(2,l) , 2);
         i_inverse[l].resize(BX*BY*aux,-1);
         j_inverse[l].resize(BX*BY*aux,-1);

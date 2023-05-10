@@ -13,15 +13,14 @@ namespace cubism
  * This class can replace the coarse fluxes stored at BlockCases with the sum of the
  * fine fluxes (also stored at BlockCases). This ensures conservation of the quantity 
  * whose flux we compute.
-
  * @tparam TFluxCorrection The single-node version from which this class inherits
- * @tparam TGrid The user-defined Grid/GridMPI
  */
 
-template <typename TFluxCorrection, typename TGrid>
+template <typename TFluxCorrection>
 class FluxCorrectionMPI : public TFluxCorrection
 {
  public:
+   using TGrid = typename TFluxCorrection::GridType;
    typedef typename TFluxCorrection::ElementType ElementType;
    typedef typename TFluxCorrection::Real Real;
    typedef typename TFluxCorrection::BlockType BlockType;

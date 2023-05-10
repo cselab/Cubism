@@ -45,7 +45,7 @@ class GridMPI : public TGrid
    int world_size; ///< total number of MPI processes
 
    std::map<StencilInfo, SynchronizerMPIType *> SynchronizerMPIs; ///< map of Syncronizers need for halo cell exchange
-   FluxCorrectionMPI<FluxCorrection<GridMPI<TGrid>,Block>,GridMPI<TGrid>> Corrector;
+   FluxCorrectionMPI<FluxCorrection<GridMPI<TGrid>>> Corrector;
    std::vector<BlockInfo *> boundary; ///< BlockInfos of adjacent ranks
 
    /// Constructor, same as the one from Grid.

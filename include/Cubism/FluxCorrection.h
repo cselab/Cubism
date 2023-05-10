@@ -71,11 +71,12 @@ struct BlockCase
  * @tparam TGrid The user-defined Grid/GridMPI
  * @tparam BlockType The user-defined GridBlock used by TGrid
  */
-template <typename TGrid, typename TBlock>
+template <typename TGrid>
 class FluxCorrection
 {
  public:
-   typedef TBlock BlockType;
+   using GridType = TGrid; ///< should be a 'Grid', 'GridMPI' or derived class 
+   typedef typename GridType::BlockType BlockType;
    typedef typename BlockType::ElementType ElementType;
    typedef typename ElementType::RealType Real;
    typedef BlockCase<BlockType> Case;
@@ -286,7 +287,7 @@ class FluxCorrection
               const int N1 = CoarseCase.m_vSize[d1];
               if (d == 0)
               {
-                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+                const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
                 for (int i1 = 0; i1 < N1; i1 ++)
                 for (int i2 = 0; i2 < N2; i2 ++)
                 {
@@ -296,7 +297,7 @@ class FluxCorrection
               }
               else if (d == 1)
               {
-                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+                const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
                 for (int i1 = 0; i1 < N1; i1 ++)
                 for (int i2 = 0; i2 < N2; i2 ++)
                 {
@@ -306,7 +307,7 @@ class FluxCorrection
               }
               else
               {
-                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeZ - 1;
+                const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeZ - 1;
                 for (int i1 = 0; i1 < N1; i1 ++)
                 for (int i2 = 0; i2 < N2; i2 ++)
                 {

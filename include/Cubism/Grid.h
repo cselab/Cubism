@@ -103,7 +103,7 @@ class Grid
    bool UpdateFluxCorrection{true};  ///< FluxCorrection updates only when grid is refined/compressed
    bool UpdateGroups{true};          ///< (inactive) BlockGroups updated only when this is true
    bool FiniteDifferences{true};     ///< used by BlockLab, to determine what kind of coarse-fine interface interpolation to make.true means that biased stencils will be used to get an O(h^3) approximation
-   FluxCorrection<Grid,Block> CorrectorGrid; ///< used for AMR flux-corrections at coarse-fine interfaces
+   FluxCorrection<Grid> CorrectorGrid; ///< used for AMR flux-corrections at coarse-fine interfaces
 
    ///Get the TreePosition of block with Z-order index 'm', at refinement level 'n'.
    TreePosition &Tree(const int m, const long long n)

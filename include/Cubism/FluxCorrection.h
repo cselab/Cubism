@@ -320,7 +320,7 @@ class FluxCorrection
               assert(d!=2);
               if (d == 0)
               {
-                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeX - 1;
+                const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeX - 1;
                 for (int i2 = 0; i2 < N2; i2 ++)
                 {
                   block(j,i2) += CoarseFace[i2];
@@ -329,7 +329,7 @@ class FluxCorrection
               }
               else //if (d == 1)
               {
-                const int j = (myFace % 2 == 0) ? 0 : TBlock::sizeY - 1;
+                const int j = (myFace % 2 == 0) ? 0 : BlockType::sizeY - 1;
                 for (int i2 = 0; i2 < N2; i2 ++)
                 {
                   block(i2,j) += CoarseFace[i2];

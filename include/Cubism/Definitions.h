@@ -1,6 +1,8 @@
 #pragma once
 #include "ConsistentOperations.h"
 #include "StencilInfo.h"
+#include "BlockLab.h"
+#include "AMR_SynchronizerMPI.h"
 
 namespace cubism {
 
@@ -49,7 +51,7 @@ static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool
     if (applyFluxCorrection)
         corrected_grid->Corrector.prepare(*corrected_grid);
  
-    SynchronizerMPI_AMR<Real,TGrid >& Synch  = * grid .sync(kernel.stencil);
+    SynchronizerMPI_AMR<typename TGrid::Real,TGrid >& Synch  = * grid .sync(kernel.stencil);
     Kernel kernel2 = kernel;
     kernel2.stencil.sx = kernel2.stencil2.sx;
     kernel2.stencil.sy = kernel2.stencil2.sy;
@@ -61,7 +63,7 @@ static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool
     kernel2.stencil.selcomponents.clear();
     kernel2.stencil.selcomponents = kernel2.stencil2.selcomponents;
 
-    SynchronizerMPI_AMR<Real,TGrid2>& Synch2 = * grid2.sync(kernel2.stencil);
+    SynchronizerMPI_AMR<typename TGrid::Real,TGrid2>& Synch2 = * grid2.sync(kernel2.stencil);
 
     const StencilInfo & stencil = Synch.getstencil();
     const StencilInfo & stencil2 = Synch2.getstencil();
@@ -348,7 +350,7 @@ struct GridBlock
   }
 
   ///set 'data' to a value (call 'set()' of each TElement)
-  inline void set(const Real v) {
+  inline void set(const RealType v) {
       ElementType * const entry = &data[0][0][0];
       for(int i=0; i<sizeX*sizeY*sizeZ; ++i) entry[i].set(v);
   }
@@ -512,6 +514,7 @@ class BlockLabNeumann: public cubism::BlockLab<TGrid,allocator>
  public:
   typedef typename TGrid::BlockType::ElementType ElementTypeBlock;
   typedef typename TGrid::BlockType::ElementType ElementType;
+   using Real = typename ElementType::RealType; ///< Number type used by Element (double/float etc.)
   ///Will return 'false' as the boundary conditions are not periodic for this BlockLab.
   virtual bool is_xperiodic() override { return false; }
   ///Will return 'false' as the boundary conditions are not periodic for this BlockLab.

@@ -23,6 +23,19 @@ enum State : signed char
    Compress = -1
 };
 
+///Single integer used to recognize if a Block exists in the Grid and by which MPI rank it is owned. 
+struct TreePosition
+{
+   int position{-3};
+   bool CheckCoarser() const { return position == -2; }
+   bool CheckFiner() const { return position == -1; }
+   bool Exists() const { return position >= 0; }
+   int rank() const { return position; }
+   void setrank(const int r) { position = r; }
+   void setCheckCoarser() { position = -2; }
+   void setCheckFiner() { position = -1; }
+};
+
 /** @brief Meta-data for each GridBlock.
  * 
  * This struct holds information such as the grid spacing and the level of refinement of each 

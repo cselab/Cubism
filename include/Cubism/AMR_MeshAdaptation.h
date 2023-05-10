@@ -2,6 +2,8 @@
 
 #include "BlockInfo.h"
 #include "LoadBalancer.h"
+#include "StencilInfo.h"
+#include "AMR_SynchronizerMPI.h"
 
 namespace cubism
 {
@@ -36,6 +38,7 @@ class MeshAdaptation
    typedef typename TLab::GridType TGrid;
    typedef typename TGrid::Block BlockType;
    typedef typename TGrid::BlockType::ElementType ElementType;
+   typedef typename TGrid::BlockType::ElementType::RealType Real;
    typedef SynchronizerMPI_AMR<Real,TGrid> SynchronizerMPIType;
 
    StencilInfo stencil;///< stencil of +-1 point, needed for 2nd-order refinement interpolation
@@ -701,10 +704,10 @@ class MeshAdaptation
                      #endif
                      {
                         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                        const int iNei = 2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0]));
-                        const int jNei = 2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1]));
+                        const int iNei = 2 * info.index[0] + std::max(code[0], 0) + code[0] + (B % 2) * std::max(0, 1 - abs(code[0]));
+                        const int jNei = 2 * info.index[1] + std::max(code[1], 0) + code[1] + aux * std::max(0, 1 - abs(code[1]));
                         #if DIMENSION == 3
-                           const int kNei = 2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2]));
+                           const int kNei = 2 * info.index[2] + std::max(code[2], 0) + code[2] + (B / 2) * std::max(0, 1 - abs(code[2]));
                            const long long zzz = grid->getZforward(m + 1, iNei, jNei, kNei);
                         #else
                            const long long zzz = grid->getZforward(m + 1, iNei, jNei);
@@ -934,14 +937,14 @@ class MeshAdaptation
          for (int j = 0; j < ny; j++)
             for (int i = 0; i < nx; i++)
             {
-               Linf = max(Linf, std::fabs(b(i, j, k).magnitude()));
+               Linf = std::max(Linf, std::fabs(b(i, j, k).magnitude()));
             }
       #endif
       #if DIMENSION == 2
       for (int j = 0; j < ny; j++)
          for (int i = 0; i < nx; i++)
          {
-            Linf = max(Linf, std::fabs(b(i, j).magnitude()));
+            Linf = std::max(Linf, std::fabs(b(i, j).magnitude()));
          }
       #endif
 

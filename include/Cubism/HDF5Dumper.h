@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iomanip> // std::setfill, std::setw
+#include "Grid.h"
 
 #include <hdf5.h>
 

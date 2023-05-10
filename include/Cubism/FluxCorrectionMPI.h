@@ -2,7 +2,6 @@
 
 #include "FluxCorrection.h"
 #include <omp.h>
-using namespace std;
 
 namespace cubism
 {
@@ -68,7 +67,7 @@ class FluxCorrectionMPI : public TFluxCorrection
       const int icode   = F.icode[1];
       const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
 
-      const int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
+      const int myFace = abs(code[0]) * std::max(0, code[0]) + abs(code[1]) * (std::max(0, code[1]) + 2) + abs(code[2]) * (std::max(0, code[2]) + 4);
       std::array<long long, 2> temp = {(long long)info.level, info.Z};
       auto search             = TFluxCorrection::MapOfCases.find(temp);
       assert(search != TFluxCorrection::MapOfCases.end());
@@ -84,19 +83,19 @@ class FluxCorrectionMPI : public TFluxCorrection
 
          #if DIMENSION == 3
             const long long Z = (*TFluxCorrection::grid).getZforward(info.level + 1,
-                                     2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
-                                     2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])),
-                                     2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2])));
+                                     2 * info.index[0] + std::max(code[0], 0) + code[0] + (B % 2) * std::max(0, 1 - abs(code[0])),
+                                     2 * info.index[1] + std::max(code[1], 0) + code[1] + aux * std::max(0, 1 - abs(code[1])),
+                                     2 * info.index[2] + std::max(code[2], 0) + code[2] + (B / 2) * std::max(0, 1 - abs(code[2])));
          #else
             const long long Z = (*TFluxCorrection::grid).getZforward(info.level + 1,
-                            2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
-                            2 * info.index[1] + max(code[1], 0) + code[1] + aux * max(0, 1 - abs(code[1])));
+                            2 * info.index[0] + std::max(code[0], 0) + code[0] + (B % 2) * std::max(0, 1 - abs(code[0])),
+                            2 * info.index[1] + std::max(code[1], 0) + code[1] + aux * std::max(0, 1 - abs(code[1])));
          #endif
          if (Z != F.infos[0]->Z) continue;
 
          const int d  = myFace / 2;
-         const int d1 = max((d + 1) % 3, (d + 2) % 3);
-         const int d2 = min((d + 1) % 3, (d + 2) % 3);
+         const int d1 = std::max((d + 1) % 3, (d + 2) % 3);
+         const int d2 = std::min((d + 1) % 3, (d + 2) % 3);
          const int N1 = CoarseCase.m_vSize[d1];
          const int N2 = CoarseCase.m_vSize[d2];
 
@@ -138,7 +137,7 @@ class FluxCorrectionMPI : public TFluxCorrection
       if (abs(code[1]) != codey) return;
       if (abs(code[2]) != codez) return;
 
-      const int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
+      const int myFace = abs(code[0]) * std::max(0, code[0]) + abs(code[1]) * (std::max(0, code[1]) + 2) + abs(code[2]) * (std::max(0, code[2]) + 4);
       std::array<long long, 2> temp = {(long long)info.level, info.Z};
       auto search             = TFluxCorrection::MapOfCases.find(temp);
       assert(search != TFluxCorrection::MapOfCases.end());
@@ -146,11 +145,11 @@ class FluxCorrectionMPI : public TFluxCorrection
       std::vector<ElementType> &CoarseFace = CoarseCase.m_pData[myFace];
 
       const int d  = myFace / 2;
-      const int d2 = min((d + 1) % 3, (d + 2) % 3);
+      const int d2 = std::min((d + 1) % 3, (d + 2) % 3);
       const int N2 = CoarseCase.m_vSize[d2];
       BlockType &block = *(BlockType *)info.ptrBlock;
       #if DIMENSION == 3
-         const int d1 = max((d + 1) % 3, (d + 2) % 3);
+         const int d1 = std::max((d + 1) % 3, (d + 2) % 3);
          const int N1 = CoarseCase.m_vSize[d1];
          if (d == 0)
          {
@@ -283,8 +282,8 @@ class FluxCorrectionMPI : public TFluxCorrection
 
             if (! (*TFluxCorrection::grid).Tree(info.level, info.Znei_(code[0], code[1], code[2])).Exists())
             {
-               storeFace[abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) +
-                         abs(code[2]) * (max(0, code[2]) + 4)] = true;
+               storeFace[abs(code[0]) * std::max(0, code[0]) + abs(code[1]) * (std::max(0, code[1]) + 2) +
+                         abs(code[2]) * (std::max(0, code[2]) + 4)] = true;
                stored                                          = true;
             }
 
@@ -322,9 +321,9 @@ class FluxCorrectionMPI : public TFluxCorrection
                #endif 
                {
                   const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                  const long long nFine  = infoNei.Zchild[max(-code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
-                                                         [max(-code[1], 0) + temp    * max(0, 1 - abs(code[1]))]
-                                                         [max(-code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
+                  const long long nFine  = infoNei.Zchild[std::max(-code[0], 0) + (B % 2) * std::max(0, 1 - abs(code[0]))]
+                                                         [std::max(-code[1], 0) + temp    * std::max(0, 1 - abs(code[1]))]
+                                                         [std::max(-code[2], 0) + (B / 2) * std::max(0, 1 - abs(code[2]))];
                   const int infoNeiFinerrank = (*TFluxCorrection::grid).Tree(infoNei.level + 1, nFine).rank();
                   {
                      BlockInfo &infoNeiFiner = (*TFluxCorrection::grid).getBlockInfoAll(infoNei.level + 1, nFine);
@@ -419,15 +418,15 @@ class FluxCorrectionMPI : public TFluxCorrection
 
             int icode         = f.icode[0];
             const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
-            const int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) +
-                               abs(code[2]) * (max(0, code[2]) + 4);
+            const int myFace = abs(code[0]) * std::max(0, code[0]) + abs(code[1]) * (std::max(0, code[1]) + 2) +
+                               abs(code[2]) * (std::max(0, code[2]) + 4);
             std::vector<ElementType> &FineFace = FineCase.m_pData[myFace];
 
             const int d  = myFace / 2;
-            const int d2 = min((d + 1) % 3, (d + 2) % 3);
+            const int d2 = std::min((d + 1) % 3, (d + 2) % 3);
             const int N2 = FineCase.m_vSize[d2];
             #if DIMENSION == 3
-            const int d1 = max((d + 1) % 3, (d + 2) % 3);
+            const int d1 = std::max((d + 1) % 3, (d + 2) % 3);
             const int N1 = FineCase.m_vSize[d1];
                for (int i1 = 0; i1 < N1; i1 += 2)
                for (int i2 = 0; i2 < N2; i2 += 2)

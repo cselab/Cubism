@@ -1,10 +1,12 @@
 #pragma once
 
+#include "BlockInfo.h"
 #include "Matrix3D.h"
 #include "StencilInfo.h"
 #include <cstring>
 #include <math.h>
 #include <string>
+#include <array>
 
 namespace cubism
 {
@@ -718,25 +720,25 @@ class BlockLab
          const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
          #if DIMENSION == 3
-            BlockType *b_ptr = m_refGrid->avail1(2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
-                                                 2 * info.index[1] + max(code[1], 0) + code[1] + aux     * max(0, 1 - abs(code[1])),
-                                                 2 * info.index[2] + max(code[2], 0) + code[2] + (B / 2) * max(0, 1 - abs(code[2])),
+            BlockType *b_ptr = m_refGrid->avail1(2 * info.index[0] + std::max(code[0], 0) + code[0] + (B % 2) * std::max(0, 1 - abs(code[0])),
+                                                 2 * info.index[1] + std::max(code[1], 0) + code[1] + aux     * std::max(0, 1 - abs(code[1])),
+                                                 2 * info.index[2] + std::max(code[2], 0) + code[2] + (B / 2) * std::max(0, 1 - abs(code[2])),
                                                  info.level + 1);
          #else
-            BlockType *b_ptr = m_refGrid->avail1(2 * info.index[0] + max(code[0], 0) + code[0] + (B % 2) * max(0, 1 - abs(code[0])),
-                                                 2 * info.index[1] + max(code[1], 0) + code[1] + aux     * max(0, 1 - abs(code[1])),
+            BlockType *b_ptr = m_refGrid->avail1(2 * info.index[0] + std::max(code[0], 0) + code[0] + (B % 2) * std::max(0, 1 - abs(code[0])),
+                                                 2 * info.index[1] + std::max(code[1], 0) + code[1] + aux     * std::max(0, 1 - abs(code[1])),
                                                  info.level + 1);
          #endif
          if (b_ptr == nullptr) continue;
          BlockType &b = *b_ptr;
 
          const int my_ix = abs(code[0]) * (s[0] - m_stencilStart[0]) + (1 - abs(code[0])) * (s[0] - m_stencilStart[0] + (B % 2) * (e[0] - s[0]) / 2);
-         const int XX = s[0] - code[0] * nX + min(0, code[0]) * (e[0] - s[0]);
+         const int XX = s[0] - code[0] * nX + std::min(0, code[0]) * (e[0] - s[0]);
 
          #pragma GCC ivdep
          for (int iz = s[2]; iz < e[2]; iz += zStep)
          {
-            const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
+            const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + std::min(0, code[2]) * nZ : iz;
             const int my_izx = (abs(code[2]) * (iz - m_stencilStart[2]) + (1 - abs(code[2])) * (iz / 2 - m_stencilStart[2] + (B / 2) * (e[2] - s[2]) / 2)) * m_nElemsPerSlice + my_ix;
 
             #pragma GCC ivdep
@@ -746,10 +748,10 @@ class BlockLab
                ElementType * __restrict__ ptrDest1 = &m_cacheBlock->LinAccess(my_izx + (abs(code[1]) * (iy + 1 * yStep - m_stencilStart[1]) + (1 - abs(code[1])) * ((iy + 1 * yStep) / 2 - m_stencilStart[1] + aux * (e[1] - s[1]) / 2)) * m_vSize0);
                ElementType * __restrict__ ptrDest2 = &m_cacheBlock->LinAccess(my_izx + (abs(code[1]) * (iy + 2 * yStep - m_stencilStart[1]) + (1 - abs(code[1])) * ((iy + 2 * yStep) / 2 - m_stencilStart[1] + aux * (e[1] - s[1]) / 2)) * m_vSize0);
                ElementType * __restrict__ ptrDest3 = &m_cacheBlock->LinAccess(my_izx + (abs(code[1]) * (iy + 3 * yStep - m_stencilStart[1]) + (1 - abs(code[1])) * ((iy + 3 * yStep) / 2 - m_stencilStart[1] + aux * (e[1] - s[1]) / 2)) * m_vSize0);
-               const int YY0 = (abs(code[1]) == 1) ? 2 * (iy + 0 * yStep - code[1] * nY) + min(0, code[1]) * nY : iy + 0 * yStep;
-               const int YY1 = (abs(code[1]) == 1) ? 2 * (iy + 1 * yStep - code[1] * nY) + min(0, code[1]) * nY : iy + 1 * yStep;
-               const int YY2 = (abs(code[1]) == 1) ? 2 * (iy + 2 * yStep - code[1] * nY) + min(0, code[1]) * nY : iy + 2 * yStep;
-               const int YY3 = (abs(code[1]) == 1) ? 2 * (iy + 3 * yStep - code[1] * nY) + min(0, code[1]) * nY : iy + 3 * yStep;
+               const int YY0 = (abs(code[1]) == 1) ? 2 * (iy + 0 * yStep - code[1] * nY) + std::min(0, code[1]) * nY : iy + 0 * yStep;
+               const int YY1 = (abs(code[1]) == 1) ? 2 * (iy + 1 * yStep - code[1] * nY) + std::min(0, code[1]) * nY : iy + 1 * yStep;
+               const int YY2 = (abs(code[1]) == 1) ? 2 * (iy + 2 * yStep - code[1] * nY) + std::min(0, code[1]) * nY : iy + 2 * yStep;
+               const int YY3 = (abs(code[1]) == 1) ? 2 * (iy + 3 * yStep - code[1] * nY) + std::min(0, code[1]) * nY : iy + 3 * yStep;
                #if DIMENSION == 3
                   const ElementType * ptrSrc_00 = &b(XX  ,YY0  ,ZZ  );
                   const ElementType * ptrSrc_10 = &b(XX  ,YY0  ,ZZ+1);
@@ -802,7 +804,7 @@ class BlockLab
             for (int iy = e[1]-mod; iy < e[1]; iy += yStep)
             {
                ElementType *ptrDest = (ElementType *)&m_cacheBlock->LinAccess(my_izx + (abs(code[1]) * (iy - m_stencilStart[1]) + (1 - abs(code[1])) *(iy / 2 - m_stencilStart[1] + aux * (e[1] - s[1]) / 2)) * m_vSize0);
-               const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
+               const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + std::min(0, code[1]) * nY : iy;
                #if DIMENSION == 3
                   const ElementType * ptrSrc_0 = &b(XX, YY, ZZ);
                   const ElementType * ptrSrc_1 = &b(XX, YY, ZZ + 1);
@@ -886,9 +888,9 @@ class BlockLab
       CoarseEdge[2] = (code[2] == 0) ? 0 : (((info.index[2] % 2 == 0) && (infoNei_index_true[2] > info.index[2])) ||
                                             ((info.index[2] % 2 == 1) && (infoNei_index_true[2] < info.index[2]))) ? 1 : 0;
 
-      const int start[3] = {max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2,
-                            max(code[1], 0) * nY / 2 + (1 - abs(code[1])) * base[1] * nY / 2 - code[1] * nY + CoarseEdge[1] * code[1] * nY / 2,
-                            max(code[2], 0) * nZ / 2 + (1 - abs(code[2])) * base[2] * nZ / 2 - code[2] * nZ + CoarseEdge[2] * code[2] * nZ / 2};
+      const int start[3] = {std::max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2,
+                            std::max(code[1], 0) * nY / 2 + (1 - abs(code[1])) * base[1] * nY / 2 - code[1] * nY + CoarseEdge[1] * code[1] * nY / 2,
+                            std::max(code[2], 0) * nZ / 2 + (1 - abs(code[2])) * base[2] * nZ / 2 - code[2] * nZ + CoarseEdge[2] * code[2] * nZ / 2};
 
       const int m_vSize0         = m_CoarsenedBlock->getSize(0);
       const int m_nElemsPerSlice = m_CoarsenedBlock->getNumberOfElementsPerSlice();
@@ -963,9 +965,9 @@ class BlockLab
       if (!bytes) return;
 
       const int start[3] = {
-          s[0] + max(code[0], 0) * CoarseBlockSize[0] - code[0] * nX + min(0, code[0]) * (e[0] - s[0]),
-          s[1] + max(code[1], 0) * CoarseBlockSize[1] - code[1] * nY + min(0, code[1]) * (e[1] - s[1]),
-          s[2] + max(code[2], 0) * CoarseBlockSize[2] - code[2] * nZ + min(0, code[2]) * (e[2] - s[2])};
+          s[0] + std::max(code[0], 0) * CoarseBlockSize[0] - code[0] * nX + std::min(0, code[0]) * (e[0] - s[0]),
+          s[1] + std::max(code[1], 0) * CoarseBlockSize[1] - code[1] * nY + std::min(0, code[1]) * (e[1] - s[1]),
+          s[2] + std::max(code[2], 0) * CoarseBlockSize[2] - code[2] * nZ + std::min(0, code[2]) * (e[2] - s[2])};
 
       const int m_vSize0         = m_CoarsenedBlock->getSize(0);
       const int m_nElemsPerSlice = m_CoarsenedBlock->getNumberOfElementsPerSlice();
@@ -1082,8 +1084,8 @@ class BlockLab
             if (use_averages)
                for (int iz = s[2]; iz < e[2]; iz += 2)
                {
-                  const int ZZ = (iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2];
-                  const int z = abs(iz - s[2] - min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2;
+                  const int ZZ = (iz - s[2] - std::min(0, code[2]) * ((e[2] - s[2]) % 2)) / 2 + sC[2];
+                  const int z = abs(iz - s[2] - std::min(0, code[2]) * ((e[2] - s[2]) % 2)) % 2;
                   const int izp = (abs(iz) % 2 == 1) ?  -1 : 1;
                   const int rzp = (izp == 1) ? 1:0;
                   const int rz  = (izp == 1) ? 0:1;
@@ -1091,8 +1093,8 @@ class BlockLab
                   #pragma GCC ivdep   
                   for (int iy = s[1]; iy < e[1]; iy += 2)
                   {
-                     const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
-                     const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
+                     const int YY = (iy - s[1] - std::min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
+                     const int y = abs(iy - s[1] - std::min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
                      const int iyp = (abs(iy) % 2 == 1) ?  -1 : 1;
                      const int ryp = (iyp == 1) ? 1:0;
                      const int ry  = (iyp == 1) ? 0:1;
@@ -1100,8 +1102,8 @@ class BlockLab
                      #pragma GCC ivdep      
                      for (int ix = s[0]; ix < e[0]; ix += 2)
                      {
-                        const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
-                        const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                        const int XX = (ix - s[0] - std::min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
+                        const int x = abs(ix - s[0] - std::min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
                         const int ixp = (abs(ix) % 2 == 1) ?  -1 : 1;
                         const int rxp = (ixp == 1) ? 1:0;
                         const int rx  = (ixp == 1) ? 0:1;
@@ -1135,15 +1137,15 @@ class BlockLab
                }
             if (m_refGrid->FiniteDifferences && abs(code[0]) + abs(code[1]) + abs(code[2]) == 1) //Correct stencil points +-1 and +-2 at faces
             {
-               const int coef_ixyz [3] = {min(0, code[0]) * ((e[0] - s[0]) % 2),
-                                          min(0, code[1]) * ((e[1] - s[1]) % 2),
-                                          min(0, code[2]) * ((e[2] - s[2]) % 2)}; 
-               const int min_iz = max(s[2],-2);
-               const int min_iy = max(s[1],-2);
-               const int min_ix = max(s[0],-2);
-               const int max_iz = min(e[2],nZ+2);
-               const int max_iy = min(e[1],nY+2);
-               const int max_ix = min(e[0],nX+2);
+               const int coef_ixyz [3] = {std::min(0, code[0]) * ((e[0] - s[0]) % 2),
+                                          std::min(0, code[1]) * ((e[1] - s[1]) % 2),
+                                          std::min(0, code[2]) * ((e[2] - s[2]) % 2)}; 
+               const int min_iz = std::max(s[2],-2);
+               const int min_iy = std::max(s[1],-2);
+               const int min_ix = std::max(s[0],-2);
+               const int max_iz = std::min(e[2],nZ+2);
+               const int max_iy = std::min(e[1],nY+2);
+               const int max_ix = std::min(e[0],nX+2);
 
                for (int iz = min_iz; iz < max_iz; iz ++)
                {
@@ -1340,19 +1342,19 @@ class BlockLab
                #pragma GCC ivdep
                for (int iy = s[1]; iy < e[1]; iy += 1)
                {
-                  const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
+                  const int YY = (iy - s[1] - std::min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1];
                   #pragma GCC ivdep
                   for (int ix = s[0]; ix < e[0]; ix += 1)
                   {
-                     const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
+                     const int XX = (ix - s[0] - std::min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0];
                      ElementType *Test[3][3];
                      for (int i = 0; i < 3; i++)
                         for (int j = 0; j < 3; j++)
                               Test[i][j] = &m_CoarsenedBlock->Access(XX - 1 + i - offset[0],
                                                                      YY - 1 + j - offset[1],0);
                      TestInterp(Test,m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0),
-                                abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
-                                abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2);
+                                abs(ix - s[0] - std::min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2,
+                                abs(iy - s[1] - std::min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2);
                   }
                }
             }
@@ -1361,16 +1363,16 @@ class BlockLab
                #pragma GCC ivdep
                for (int iy = s[1]; iy < e[1]; iy += 2)
                {
-                  const int YY = (iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1]- offset[1];
-                  const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
+                  const int YY = (iy - s[1] - std::min(0, code[1]) * ((e[1] - s[1]) % 2)) / 2 + sC[1]- offset[1];
+                  const int y = abs(iy - s[1] - std::min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
                   const int iyp = (abs(iy) % 2 == 1) ?  -1 : 1;
                   const double dy = 0.25*(2*y-1);
 
                   #pragma GCC ivdep
                   for (int ix = s[0]; ix < e[0]; ix += 2)
                   {
-                     const int XX = (ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0]- offset[0];
-                     const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                     const int XX = (ix - s[0] - std::min(0, code[0]) * ((e[0] - s[0]) % 2)) / 2 + sC[0]- offset[0];
+                     const int x = abs(ix - s[0] - std::min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
                      const int ixp = (abs(ix) % 2 == 1) ?  -1 : 1;
                      const double dx = 0.25*(2*x-1);
                      if (ix < -2 || iy < -2 || ix > nX+1 || iy > nY+1) continue;
@@ -1431,8 +1433,8 @@ class BlockLab
                for (int ix = s[0]; ix < e[0]; ix += 1)
                {
                   if (ix < -2 || iy < -2 || ix > nX+1 || iy > nY+1) continue;
-                  const int x = abs(ix - s[0] - min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
-                  const int y = abs(iy - s[1] - min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
+                  const int x = abs(ix - s[0] - std::min(0, code[0]) * ((e[0] - s[0]) % 2)) % 2;
+                  const int y = abs(iy - s[1] - std::min(0, code[1]) * ((e[1] - s[1]) % 2)) % 2;
 
                   auto & a = m_cacheBlock->Access(ix - m_stencilStart[0], iy - m_stencilStart[1],0);
 

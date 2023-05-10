@@ -10,7 +10,7 @@
 #include <cassert>
 
 #ifndef CUBISM_ALIGNMENT
-#define CUBISM_ALIGNMENT
+#define CUBISM_ALIGNMENT 32
 #endif
 
 namespace cubism {

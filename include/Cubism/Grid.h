@@ -34,18 +34,6 @@ struct BlockGroup
    int NZZ; ///< Grid points of the group in the z-direction
 };
 
-///Single integer used to recognize if a Block exists in the Grid and by which MPI rank it is owned. 
-struct TreePosition
-{
-   int position{-3};
-   bool CheckCoarser() const { return position == -2; }
-   bool CheckFiner() const { return position == -1; }
-   bool Exists() const { return position >= 0; }
-   int rank() const { return position; }
-   void setrank(const int r) { position = r; }
-   void setCheckCoarser() { position = -2; }
-   void setCheckFiner() { position = -1; }
-};
 
 /** Holds the GridBlocks and their meta-data (BlockInfos).
  * This class provides information about the current state of the Octree of blocks in the 

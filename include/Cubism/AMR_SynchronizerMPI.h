@@ -3,6 +3,8 @@
 #include <mpi.h>
 #include <omp.h>
 #include <vector>
+#include <set>
+#include <algorithm>
 
 #include "BlockInfo.h"
 #include "PUPkernelsMPI.h"
@@ -325,18 +327,18 @@ struct StencilManager
                        ((f.infos[1]->index[2] % 2 == 1) && (Cindex_true[2] < f.infos[1]->index[2])))
                           ? 1 : 0;
 
-        Coarse_Range.sx = s[0] + max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2;
-        Coarse_Range.sy = s[1] + max(code[1], 0) * nY / 2 + (1 - abs(code[1])) * base[1] * nY / 2 - code[1] * nY + CoarseEdge[1] * code[1] * nY / 2;
+        Coarse_Range.sx = s[0] + std::max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2;
+        Coarse_Range.sy = s[1] + std::max(code[1], 0) * nY / 2 + (1 - abs(code[1])) * base[1] * nY / 2 - code[1] * nY + CoarseEdge[1] * code[1] * nY / 2;
         #if DIMENSION == 3
-        Coarse_Range.sz = s[2] + max(code[2], 0) * nZ / 2 + (1 - abs(code[2])) * base[2] * nZ / 2 - code[2] * nZ + CoarseEdge[2] * code[2] * nZ / 2;
+        Coarse_Range.sz = s[2] + std::max(code[2], 0) * nZ / 2 + (1 - abs(code[2])) * base[2] * nZ / 2 - code[2] * nZ + CoarseEdge[2] * code[2] * nZ / 2;
         #else
         Coarse_Range.sz = 0;
         #endif
 
-        Coarse_Range.ex = e[0] + max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2;
-        Coarse_Range.ey = e[1] + max(code[1], 0) * nY / 2 + (1 - abs(code[1])) * base[1] * nY / 2 - code[1] * nY + CoarseEdge[1] * code[1] * nY / 2;
+        Coarse_Range.ex = e[0] + std::max(code[0], 0) * nX / 2 + (1 - abs(code[0])) * base[0] * nX / 2 - code[0] * nX + CoarseEdge[0] * code[0] * nX / 2;
+        Coarse_Range.ey = e[1] + std::max(code[1], 0) * nY / 2 + (1 - abs(code[1])) * base[1] * nY / 2 - code[1] * nY + CoarseEdge[1] * code[1] * nY / 2;
         #if DIMENSION == 3
-        Coarse_Range.ez = e[2] + max(code[2], 0) * nZ / 2 + (1 - abs(code[2])) * base[2] * nZ / 2 - code[2] * nZ + CoarseEdge[2] * code[2] * nZ / 2;
+        Coarse_Range.ez = e[2] + std::max(code[2], 0) * nZ / 2 + (1 - abs(code[2])) * base[2] * nZ / 2 - code[2] * nZ + CoarseEdge[2] * code[2] * nZ / 2;
         #else
         Coarse_Range.ez = 1;
         #endif
@@ -867,13 +869,13 @@ class SynchronizerMPI_AMR
       {
         for (int iz = s[2]; iz < e[2]; iz += zStep)
         {
-          const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
+          const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + std::min(0, code[2]) * nZ : iz;
           for (int iy = s[1]; iy < e[1]; iy += yStep)
           {
-            const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
+            const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + std::min(0, code[1]) * nY : iy;
             for (int ix = s[0]; ix < e[0]; ix += xStep)
             {
-              const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + min(0, code[0]) * nX : ix;
+              const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + std::min(0, code[0]) * nX : ix;
               #ifdef PRESERVE_SYMMETRY
               dst[pos] = ConsistentAverage( src[XX  +(YY  +(ZZ  )*nY)*nX],
                                             src[XX  +(YY  +(ZZ+1)*nY)*nX],
@@ -902,13 +904,13 @@ class SynchronizerMPI_AMR
       {
         for (int iz = s[2]; iz < e[2]; iz += zStep)
         {
-          const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + min(0, code[2]) * nZ : iz;
+          const int ZZ = (abs(code[2]) == 1) ? 2 * (iz - code[2] * nZ) + std::min(0, code[2]) * nZ : iz;
           for (int iy = s[1]; iy < e[1]; iy += yStep)
           {
-            const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
+            const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + std::min(0, code[1]) * nY : iy;
             for (int ix = s[0]; ix < e[0]; ix += xStep)
             {
-              const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + min(0, code[0]) * nX : ix;
+              const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + std::min(0, code[0]) * nX : ix;
               for (int c = 0; c < NC; c++)
               {
                 int comp = stencil.selcomponents[c];
@@ -946,10 +948,10 @@ class SynchronizerMPI_AMR
       int pos = 0;
       for (int iy = s[1]; iy < e[1]; iy += yStep)
       {
-        const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + min(0, code[1]) * nY : iy;
+        const int YY = (abs(code[1]) == 1) ? 2 * (iy - code[1] * nY) + std::min(0, code[1]) * nY : iy;
         for (int ix = s[0]; ix < e[0]; ix += xStep)
         {
-          const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + min(0, code[0]) * nX : ix;
+          const int XX = (abs(code[0]) == 1) ? 2 * (ix - code[0] * nX) + std::min(0, code[0]) * nX : ix;
           for (int c = 0; c < NC; c++)
           {
             int comp = stencil.selcomponents[c];
@@ -985,14 +987,14 @@ class SynchronizerMPI_AMR
     #if DIMENSION == 3
     for (int iz = s[2]; iz < e[2]; iz++)
     {
-      const int ZZ = 2 * (iz - s[2]) + s[2] + max(code[2], 0) * nZ / 2 - code[2] * nZ + min(0, code[2]) * (e[2] - s[2]);
+      const int ZZ = 2 * (iz - s[2]) + s[2] + std::max(code[2], 0) * nZ / 2 - code[2] * nZ + std::min(0, code[2]) * (e[2] - s[2]);
     #endif
       for (int iy = s[1]; iy < e[1]; iy++)
       {
-        const int YY = 2 * (iy - s[1]) + s[1] + max(code[1], 0) * nY / 2 - code[1] * nY + min(0, code[1]) * (e[1] - s[1]);
+        const int YY = 2 * (iy - s[1]) + s[1] + std::max(code[1], 0) * nY / 2 - code[1] * nY + std::min(0, code[1]) * (e[1] - s[1]);
         for (int ix = s[0]; ix < e[0]; ix++)
         {
-          const int XX = 2 * (ix - s[0]) + s[0] + max(code[0], 0) * nX / 2 - code[0] * nX + min(0, code[0]) * (e[0] - s[0]);
+          const int XX = 2 * (ix - s[0]) + s[0] + std::max(code[0], 0) * nX / 2 - code[0] * nX + std::min(0, code[0]) * (e[0] - s[0]);
 
           for (int c = 0; c < NC; c++)
           {
@@ -1136,9 +1138,9 @@ class SynchronizerMPI_AMR
               #endif
               const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
 
-              const long long nFine  = infoNei.Zchild[max(-code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
-                                                     [max(-code[1], 0) + temp    * max(0, 1 - abs(code[1]))]
-                                                     [max(-code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
+              const long long nFine  = infoNei.Zchild[std::max(-code[0], 0) + (B % 2) * std::max(0, 1 - abs(code[0]))]
+                                                     [std::max(-code[1], 0) + temp    * std::max(0, 1 - abs(code[1]))]
+                                                     [std::max(-code[2], 0) + (B / 2) * std::max(0, 1 - abs(code[2]))];
 
 
               const int infoNeiFinerrank = grid->Tree(info.level+1,nFine).rank();

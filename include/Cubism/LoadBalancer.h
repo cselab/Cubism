@@ -1,7 +1,6 @@
 #pragma once
 
 #include "BlockInfo.h"
-#include "GridMPI.h"
 #include <algorithm>
 #include <cstring>
 #include <omp.h>
@@ -27,6 +26,7 @@ class LoadBalancer
  public:
    typedef typename TGrid::Block BlockType;
    typedef typename TGrid::Block::ElementType ElementType;
+   typedef typename TGrid::Block::ElementType::RealType Real;
    bool movedBlocks;///< =true if load-balancing is performed when Balance_Diffusion of Balance_Global is called
 
  protected:
@@ -408,8 +408,8 @@ class LoadBalancer
             const long long a2 = ideal_index + my_load - 1;
             const long long b1 = index_start[r];
             const long long b2 = index_start[r] + all_b[r] - 1;
-            const long long c1 = max(a1, b1);
-            const long long c2 = min(a2, b2);
+            const long long c1 = std::max(a1, b1);
+            const long long c2 = std::min(a2, b2);
             if (c2 - c1 + 1 > 0) recv_blocks[r].resize(c2 - c1 + 1);
          }
          { // check if I need to send blocks
@@ -421,8 +421,8 @@ class LoadBalancer
             const long long a2 = other_ideal_index + other_load - 1;
             const long long b1 = index_start[rank];
             const long long b2 = index_start[rank] + all_b[rank] - 1;
-            const long long c1 = max(a1, b1);
-            const long long c2 = min(a2, b2);
+            const long long c1 = std::max(a1, b1);
+            const long long c2 = std::min(a2, b2);
             if (c2 - c1 + 1 > 0) send_blocks[r].resize(c2 - c1 + 1);
          }
       }

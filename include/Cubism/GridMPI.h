@@ -16,6 +16,7 @@
 #include "BlockInfo.h"
 #include "AMR_SynchronizerMPI.h"
 #include "FluxCorrectionMPI.h"
+#include "Grid.h"
 
 #include <unistd.h>
 #include <ios>
@@ -180,9 +181,9 @@ class GridMPI : public TGrid
                #endif
                {
                   const int temp         = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                  const long long nFine  = infoNei.Zchild[max(-code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
-                                                         [max(-code[1], 0) + temp    * max(0, 1 - abs(code[1]))]
-                                                         [max(-code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
+                  const long long nFine  = infoNei.Zchild[std::max(-code[0], 0) + (B % 2) * std::max(0, 1 - abs(code[0]))]
+                                                         [std::max(-code[1], 0) + temp    * std::max(0, 1 - abs(code[1]))]
+                                                         [std::max(-code[2], 0) + (B / 2) * std::max(0, 1 - abs(code[2]))];
 
                   BlockInfo &infoNeiFiner    = TGrid::getBlockInfoAll(infoNei.level + 1, nFine);
                   const int infoNeiFinerrank = TGrid::Tree(infoNei.level + 1, nFine).rank();
@@ -317,9 +318,9 @@ class GridMPI : public TGrid
                                                    // (respectively 4,2 or 1 blocks)
                {
                   const int temp   = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-                  const long long nFine  = infoNei.Zchild[max(-code[0], 0) + (B % 2) * max(0, 1 - abs(code[0]))]
-                                                         [max(-code[1], 0) + temp    * max(0, 1 - abs(code[1]))]
-                                                         [max(-code[2], 0) + (B / 2) * max(0, 1 - abs(code[2]))];
+                  const long long nFine  = infoNei.Zchild[std::max(-code[0], 0) + (B % 2) * std::max(0, 1 - abs(code[0]))]
+                                                         [std::max(-code[1], 0) + temp    * std::max(0, 1 - abs(code[1]))]
+                                                         [std::max(-code[2], 0) + (B / 2) * std::max(0, 1 - abs(code[2]))];
                   const int infoNeiFinerrank = TGrid::Tree(infoNei.level + 1, nFine).rank();
                   if (infoNeiFinerrank != myrank)
                   {

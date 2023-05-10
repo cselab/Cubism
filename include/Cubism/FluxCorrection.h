@@ -2,7 +2,8 @@
 
 #include <map>
 #include <omp.h>
-using namespace std;
+#include <algorithm>
+#include "BlockInfo.h"
 
 namespace cubism
 {
@@ -90,8 +91,8 @@ class FluxCorrection
    ///Perform flux correction for BlockInfo 'info' in the direction/face specified by 'code'
    void FillCase(BlockInfo & info, const int *const code)
    {
-      const int myFace    = abs( code[0]) * max(0,  code[0]) + abs( code[1]) * (max(0,  code[1]) + 2) + abs( code[2]) * (max(0,  code[2]) + 4);
-      const int otherFace = abs(-code[0]) * max(0, -code[0]) + abs(-code[1]) * (max(0, -code[1]) + 2) + abs(-code[2]) * (max(0, -code[2]) + 4);
+      const int myFace    = abs( code[0]) * std::max(0,  code[0]) + abs( code[1]) * (std::max(0,  code[1]) + 2) + abs( code[2]) * (std::max(0,  code[2]) + 4);
+      const int otherFace = abs(-code[0]) * std::max(0, -code[0]) + abs(-code[1]) * (std::max(0, -code[1]) + 2) + abs(-code[2]) * (std::max(0, -code[2]) + 4);
 
       std::array<long long, 2> temp = {(long long)info.level, info.Z};
       auto search             = MapOfCases.find(temp);
@@ -113,13 +114,13 @@ class FluxCorrection
         const int aux = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
         #if DIMENSION == 3
         const long long Z = (*grid).getZforward(info.level + 1,
-                  2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
-                  2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])),
-                  2 * info.index[2] + max(code[2], 0) + code[2] +(B / 2) * max(0, 1 - abs(code[2])));
+                  2 * info.index[0] + std::max(code[0], 0) + code[0] +(B % 2) * std::max(0, 1 - abs(code[0])),
+                  2 * info.index[1] + std::max(code[1], 0) + code[1] +    aux * std::max(0, 1 - abs(code[1])),
+                  2 * info.index[2] + std::max(code[2], 0) + code[2] +(B / 2) * std::max(0, 1 - abs(code[2])));
         #else
         const long long Z = (*grid).getZforward(info.level + 1,
-                  2 * info.index[0] + max(code[0], 0) + code[0] +(B % 2) * max(0, 1 - abs(code[0])),
-                  2 * info.index[1] + max(code[1], 0) + code[1] +    aux * max(0, 1 - abs(code[1])));
+                  2 * info.index[0] + std::max(code[0], 0) + code[0] +(B % 2) * std::max(0, 1 - abs(code[0])),
+                  2 * info.index[1] + std::max(code[1], 0) + code[1] +    aux * std::max(0, 1 - abs(code[1])));
         #endif
 
         const int other_rank = grid->Tree(info.level + 1, Z).rank();
@@ -129,8 +130,8 @@ class FluxCorrection
         Case &FineCase                     = (*search1->second);
         std::vector<ElementType> &FineFace = FineCase.m_pData[otherFace];
         const int d   = myFace / 2;
-        const int d1  = max((d + 1) % 3, (d + 2) % 3);
-        const int d2  = min((d + 1) % 3, (d + 2) % 3);
+        const int d1  = std::max((d + 1) % 3, (d + 2) % 3);
+        const int d2  = std::min((d + 1) % 3, (d + 2) % 3);
         const int N1F = FineCase.m_vSize[d1];
         const int N2F = FineCase.m_vSize[d2];
         const int N1  = N1F;
@@ -207,7 +208,7 @@ class FluxCorrection
 
           if (!grid->Tree(info.level,info.Znei_(code[0],code[1],code[2])).Exists())
           {
-            storeFace[ abs(code[0]) *  max(0,code[0]) + abs(code[1]) * (max(0,code[1])+2) + abs(code[2]) * (max(0,code[2])+4)  ] = true;
+            storeFace[ abs(code[0]) *  std::max(0,code[0]) + abs(code[1]) * (std::max(0,code[1])+2) + abs(code[2]) * (std::max(0,code[2])+4)  ] = true;
             stored = true;
           }
         }
@@ -270,20 +271,20 @@ class FluxCorrection
           {
             FillCase(info, code);
 
-            const int myFace = abs(code[0]) * max(0, code[0]) + abs(code[1]) * (max(0, code[1]) + 2) + abs(code[2]) * (max(0, code[2]) + 4);
+            const int myFace = abs(code[0]) * std::max(0, code[0]) + abs(code[1]) * (std::max(0, code[1]) + 2) + abs(code[2]) * (std::max(0, code[2]) + 4);
             std::array<long long, 2> temp = {(long long)info.level, info.Z};
             auto search             = MapOfCases.find(temp);
             assert(search != MapOfCases.end());
             Case &CoarseCase                     = (*search->second);
             std::vector<ElementType> &CoarseFace = CoarseCase.m_pData[myFace];
             const int d  = myFace / 2;
-            const int d2 = min((d + 1) % 3, (d + 2) % 3);
+            const int d2 = std::min((d + 1) % 3, (d + 2) % 3);
             const int N2 = CoarseCase.m_vSize[d2];
             BlockType &block = *(BlockType *)info.ptrBlock;
 
             #if DIMENSION == 3
               // WARNING: tmp indices are tmp[z][y][x][Flow Quantity]!
-              const int d1 = max((d + 1) % 3, (d + 2) % 3);
+              const int d1 = std::max((d + 1) % 3, (d + 2) % 3);
               const int N1 = CoarseCase.m_vSize[d1];
               if (d == 0)
               {

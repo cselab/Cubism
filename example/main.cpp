@@ -11,6 +11,7 @@ with a 1st order upwind scheme and Euler timestepping.
 //'DIMENSION' needs to be defined first (spatial dimensions)
 #define DIMENSION 2
 
+//Include the necessary headers
 #include <mpi.h>
 #include "Definitions.h"
 #include "HDF5Dumper_MPI.h"
@@ -21,6 +22,7 @@ with a 1st order upwind scheme and Euler timestepping.
 #include "Grid.h"
 #include "StencilInfo.h"
 
+//define shorthand aliases for easier use
 #define blocksize 8 //this is the size of each 2D GridBlock (8x8)
 using element   = cubism::ScalarElement<double>;
 using block     = cubism::GridBlock<blocksize,DIMENSION,element>;
@@ -28,6 +30,7 @@ using grid      = cubism::GridMPI<cubism::Grid<block>>;
 using lab       = cubism::BlockLabMPI<cubism::BlockLab<grid>>;
 using amr       = cubism::MeshAdaptation<lab>;
 
+//struct where we write down the uniform grid computation of our numerical scheme
 struct KernelAdvection
 {
   KernelAdvection(grid & _output) :output(&_output){}
@@ -58,18 +61,18 @@ struct KernelAdvection
 void performSimulation()
 {
   //some initial hard-coded parameters
-  constexpr int blocksX = 2;
-  constexpr int blocksY = 2;
-  constexpr int blocksZ = 1;
-  constexpr double domain_size = 1.0;
-  constexpr int levelStart = 2;
-  constexpr int levelMax = 3;
+  constexpr int blocksX = 2; //number of blocks in X, at coarsest level
+  constexpr int blocksY = 2; //number of blocks in Y, at coarsest level
+  constexpr int blocksZ = 1; //number of blocks in Z, at coarsest level (does not really apply to 2D)
+  constexpr double domain_size = 1.0; //square domain of size 1.0 x 1.0
+  constexpr int levelStart = 2; //initial level at t=0
+  constexpr int levelMax = 3; //maximum level allowed
   constexpr bool xperiodic = true; //assume periodic domain
   constexpr bool yperiodic = true;
   constexpr bool zperiodic = true;
   grid g  (blocksX,blocksY,blocksZ,domain_size,levelStart,levelMax,MPI_COMM_WORLD,xperiodic,yperiodic,zperiodic); 
   grid tmp(blocksX,blocksY,blocksZ,domain_size,levelStart,levelMax,MPI_COMM_WORLD,xperiodic,yperiodic,zperiodic); 
-  amr   g_amr(g  ,0.5,0.05);
+  amr   g_amr(g  ,0.5,0.05); //refine when u > 0.5, compress when u < 0.05
   amr tmp_amr(tmp,0.5,0.05);
 
   //set an initial condition: iterate over all BlockInfos
@@ -82,7 +85,7 @@ void performSimulation()
       for (int iy = 0; iy < blocksize; iy++)
       for (int ix = 0; ix < blocksize; ix++)
       {
-         double p[2];
+         double p[2]; //these are the (x,y) coordinates of a point
          info.pos(p,ix,iy);
          const double r2 = pow(p[0]-0.5,2) + pow(p[1]-0.5,2);
          b(ix,iy).s = r2 < 0.01 ? 1.0 : 0.0;
@@ -92,7 +95,7 @@ void performSimulation()
   //perform iterations 
   KernelAdvection K(tmp);
   double time = 0;
-  double dt = 0.001;
+  double dt = 0.001; //set a small value for the timestep
   int step = 0;
   while (time < 1.0)
   {

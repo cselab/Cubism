@@ -14,7 +14,7 @@ with a 1st order upwind scheme and Euler timestepping.
 //Include the necessary headers
 #include <mpi.h>
 #include "Definitions.h"
-#include "HDF5Dumper_MPI.h"
+#include "HDF5Dumper.h"
 #include "AMR_MeshAdaptation.h"
 #include "BlockInfo.h"
 #include "BlockLabMPI.h"

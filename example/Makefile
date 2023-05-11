@@ -1,6 +1,6 @@
 CC = CC
 
-CFLAGS = -g -O2 -I../include/Cubism/ -fopenmp -Wall
+CFLAGS = -g -O2 -I../include/Cubism/ -fopenmp -Wall -std=c++17
 
 .PHONY: all clean
 

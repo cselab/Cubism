@@ -472,31 +472,7 @@ class BlockLab
    {
       if (a.level == 0|| (!use_averages)) return false;
 
-      //int imin[3];
-      //int imax[3];
-      //for (int d = 0; d < 3; d++)
-      //{
-      //  imin[d] = (a.index[d] < b_index[d]) ? 0 : -1;
-      //  imax[d] = (a.index[d] > b_index[d]) ? 0 : +1;
-      //}
-
-      //const int aux = 1 << a.level;
       std::array<int, 3> blocksPerDim = m_refGrid->getMaxBlocks();
-      //if (is_xperiodic())
-      //{
-      //  if (a.index[0] == 0 && b_index[0] == blocksPerDim[0] * aux - 1) imin[0] = -1;
-      //  if (b_index[0] == 0 && a.index[0] == blocksPerDim[0] * aux - 1) imax[0] = +1;
-      //}
-      //if (is_yperiodic())
-      //{
-      //  if (a.index[1] == 0 && b_index[1] == blocksPerDim[1] * aux - 1) imin[1] = -1;
-      //  if (b_index[1] == 0 && a.index[1] == blocksPerDim[1] * aux - 1) imax[1] = +1;
-      //}
-      //if (is_zperiodic())
-      //{
-      //  if (a.index[2] == 0 && b_index[2] == blocksPerDim[2] * aux - 1) imin[2] = -1;
-      //  if (b_index[2] == 0 && a.index[2] == blocksPerDim[2] * aux - 1) imax[2] = +1;
-      //}
 
       int imin[3];
       int imax[3];
@@ -505,20 +481,16 @@ class BlockLab
       const int  blocks   [3] = {blocksPerDim[0] * aux - 1, blocksPerDim[1] * aux - 1, blocksPerDim[2] * aux - 1};
       for (int d = 0; d < 3; d++)
       {
+        imin[d] = (a.index[d] < b_index[d]) ? 0 : -1;
+        imax[d] = (a.index[d] > b_index[d]) ? 0 : +1;
+        if (a.index[d] == 0         && b_index[d] == 0        ) imin[d] =  0;
+        if (a.index[d] == blocks[d] && b_index[d] == blocks[d]) imax[d] =  0;  
         if (periodic[d])
         {
           if (a.index[d] == 0 && b_index[d] == blocks[d]) imin[d] = -1;
           if (b_index[d] == 0 && a.index[d] == blocks[d]) imax[d] = +1;
         }
-        else
-        {
-          imin[d] = (a.index[d] < b_index[d]) ? 0 : -1;
-          imax[d] = (a.index[d] > b_index[d]) ? 0 : +1;
-          if (a.index[d] == 0         && b_index[d] == 0        ) imin[d] =  0;
-          if (a.index[d] == blocks[d] && b_index[d] == blocks[d]) imax[d] =  0;  
-        }
       }
-
 
       for (int itest = 0; itest < coarsened_nei_codes_size; itest ++)
       for (int i2 = imin[2]; i2 <= imax[2]; i2++)

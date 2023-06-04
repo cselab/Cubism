@@ -9,118 +9,218 @@ namespace cubism {
 template <typename Lab, typename Kernel, typename TGrid, typename TGrid_corr = TGrid>
 void compute(Kernel &&kernel, TGrid *g, TGrid_corr *g_corr = nullptr)
 {
-    if (g_corr != nullptr) g_corr->Corrector.prepare(*g_corr);
+  //If flux corrections are needed, prepare the flux correction object
+  if (g_corr != nullptr) g_corr->Corrector.prepare(*g_corr);
 
-    cubism::SynchronizerMPI_AMR<typename TGrid::Real,TGrid>& Synch = *(g->sync(kernel.stencil));
+  //Start sending and receiving of data for blocks at the boundary of each rank
+  cubism::SynchronizerMPI_AMR<typename TGrid::Real,TGrid>& Synch = *(g->sync(kernel.stencil));
 
-    const StencilInfo & stencil = Synch.getstencil();
+  //Access the inner blocks of each rank
+  std::vector<cubism::BlockInfo*> * inner = & Synch.avail_inner();
 
-    std::vector<cubism::BlockInfo*> *inner = &Synch.avail_inner();
-    std::vector<cubism::BlockInfo*> *halo;
-    #pragma omp parallel
+  std::vector<cubism::BlockInfo*> * halo_next;
+  bool done = false;
+  #pragma omp parallel
+  {
+    Lab lab;
+    lab.prepare(*g, kernel.stencil);
+
+    //First compute for inner blocks
+    #pragma omp for nowait
+    for (const auto & I : * inner)
     {
-        Lab lab;
-        lab.prepare(*g, stencil);
-
-        #pragma omp for nowait
-        for (const cubism::BlockInfo *I : *inner)
-        {
-          lab.load(*I, 0);
-          kernel(lab, *I);
-        }
-
-        #pragma omp master
-        halo = &Synch.avail_halo();
-        #pragma omp barrier
-
-        #pragma omp for nowait
-        for (const cubism::BlockInfo *I : *halo)
-        {
-          lab.load(*I, 0);
-          kernel(lab, *I);
-        }
+      lab.load(*I, 0);
+      kernel(lab, *I);
     }
 
-    if (g_corr != nullptr) g_corr->Corrector.FillBlockCases();
+    //Then compute for boundary blocks
+#if 1
+    while(done == false)
+    {
+      #pragma omp master
+      halo_next = &Synch.avail_next();
+      #pragma omp barrier
+
+      #pragma omp for nowait
+      for (const auto & I : * halo_next)
+      {
+        lab.load(*I, 0);
+        kernel(lab, *I);
+      }
+
+      #pragma omp single
+      {
+        if (halo_next->size() == 0) done = true;
+      }
+    }
+#else  
+  std::vector<cubism::BlockInfo> & blk = g->getBlocksInfo();
+  std::vector<bool> ready(blk.size(),false);
+  std::vector<cubism::BlockInfo*> & avail1  = Synch .avail_halo_nowait();
+  const int Nhalo = avail1.size();
+  while(done == false)
+  {
+    done = true;
+    for(int i=0; i<Nhalo; i++)
+    {
+      const cubism::BlockInfo &I  = *avail1 [i];
+      if (ready[I.blockID] == false)
+      {
+        if (Synch.isready(I ))
+        {
+         ready[I.blockID] = true;
+         lab.load(I, 0);
+         kernel(lab, I);
+        }
+        else
+        {
+          done = false;
+        }
+      }
+    }
+  }
+#endif
+  Synch .avail_halo();
+
+  }
+
+  //Complete the send requests remaining
+  Synch.avail_halo();
+
+  //Carry out flux corrections
+  if (g_corr != nullptr) g_corr->Corrector.FillBlockCases();
 }
 
 //Get two BlockLabs from two different Grids
 template <typename Kernel, typename TGrid, typename LabMPI, typename TGrid2, typename LabMPI2, typename TGrid_corr = TGrid>
 static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool applyFluxCorrection = false, TGrid_corr * corrected_grid = nullptr)
 {
-    if (applyFluxCorrection)
-        corrected_grid->Corrector.prepare(*corrected_grid);
- 
-    SynchronizerMPI_AMR<typename TGrid::Real,TGrid >& Synch  = * grid .sync(kernel.stencil);
-    Kernel kernel2 = kernel;
-    kernel2.stencil.sx = kernel2.stencil2.sx;
-    kernel2.stencil.sy = kernel2.stencil2.sy;
-    kernel2.stencil.sz = kernel2.stencil2.sz;
-    kernel2.stencil.ex = kernel2.stencil2.ex;
-    kernel2.stencil.ey = kernel2.stencil2.ey;
-    kernel2.stencil.ez = kernel2.stencil2.ez;
-    kernel2.stencil.tensorial = kernel2.stencil2.tensorial;
-    kernel2.stencil.selcomponents.clear();
-    kernel2.stencil.selcomponents = kernel2.stencil2.selcomponents;
+  if (applyFluxCorrection) corrected_grid->Corrector.prepare(*corrected_grid);
 
-    SynchronizerMPI_AMR<typename TGrid::Real,TGrid2>& Synch2 = * grid2.sync(kernel2.stencil);
+  SynchronizerMPI_AMR<typename TGrid::Real,TGrid >& Synch  = * grid .sync(kernel.stencil);
+  Kernel kernel2 = kernel;
+  kernel2.stencil.sx = kernel2.stencil2.sx;
+  kernel2.stencil.sy = kernel2.stencil2.sy;
+  kernel2.stencil.sz = kernel2.stencil2.sz;
+  kernel2.stencil.ex = kernel2.stencil2.ex;
+  kernel2.stencil.ey = kernel2.stencil2.ey;
+  kernel2.stencil.ez = kernel2.stencil2.ez;
+  kernel2.stencil.tensorial = kernel2.stencil2.tensorial;
+  kernel2.stencil.selcomponents.clear();
+  kernel2.stencil.selcomponents = kernel2.stencil2.selcomponents;
 
-    const StencilInfo & stencil = Synch.getstencil();
-    const StencilInfo & stencil2 = Synch2.getstencil();
+  SynchronizerMPI_AMR<typename TGrid::Real,TGrid2>& Synch2 = * grid2.sync(kernel2.stencil);
 
+  const StencilInfo & stencil = Synch.getstencil();
+  const StencilInfo & stencil2 = Synch2.getstencil();
 
-    const int nthreads = omp_get_max_threads();
-    LabMPI * labs = new LabMPI[nthreads];
-    LabMPI2 * labs2 = new LabMPI2[nthreads];
-    #pragma omp parallel for schedule(static, 1)
-    for(int i = 0; i < nthreads; ++i)
+  const int nthreads = omp_get_max_threads();
+  LabMPI * labs = new LabMPI[nthreads];
+  LabMPI2 * labs2 = new LabMPI2[nthreads];
+  #pragma omp parallel for schedule(static, 1)
+  for(int i = 0; i < nthreads; ++i)
+  {
+    labs[i].prepare(grid, stencil);
+    labs2[i].prepare(grid2, stencil2);
+  }
+
+  std::vector<cubism::BlockInfo> & blk = grid.getBlocksInfo();
+  std::vector<bool> ready(blk.size(),false);
+
+  std::vector<BlockInfo*> & avail0  = Synch .avail_inner();
+  std::vector<BlockInfo*> & avail02 = Synch2.avail_inner();
+  const int Ninner = avail0.size();
+  #pragma omp parallel
+  {
+    const int tid = omp_get_thread_num();
+    LabMPI & lab  = labs[tid];
+    LabMPI2& lab2 = labs2[tid];
+    #pragma omp for
+    for(int i=0; i<Ninner; i++)
     {
-        labs[i].prepare(grid, stencil);
-        labs2[i].prepare(grid2, stencil2);
+      const BlockInfo &I  = *avail0 [i];
+      const BlockInfo &I2 = *avail02[i];
+      lab.load(I, 0);
+      lab2.load(I2, 0);
+      kernel(lab,lab2,I,I2);
+      ready[I.blockID] = true;
     }
+  }
 
-    std::vector<BlockInfo*> & avail0  = Synch .avail_inner();
-    std::vector<BlockInfo*> & avail02 = Synch2.avail_inner();
-    const int Ninner = avail0.size();
-    #pragma omp parallel
-    {
-        const int tid = omp_get_thread_num();
-        LabMPI & lab  = labs[tid];
-        LabMPI2& lab2 = labs2[tid];
-        #pragma omp for schedule(static)
-        for(int i=0; i<Ninner; i++) {
-          const BlockInfo &I  = *avail0 [i];
-          const BlockInfo &I2 = *avail02[i];
-          lab.load(I, 0);
-          lab2.load(I2, 0);
-          kernel(lab,lab2,I,I2);
-        }
+  #if 1
+  std::vector<cubism::BlockInfo*> & avail1  = Synch .avail_halo();
+  std::vector<cubism::BlockInfo*> & avail12 = Synch2.avail_halo();
+  const int Nhalo = avail1.size();
+  #pragma omp parallel
+  {
+    const int tid = omp_get_thread_num();
+    LabMPI & lab  = labs [tid];
+    LabMPI2& lab2 = labs2[tid];
+    #pragma omp for
+    for(int i=0; i<Nhalo; i++) {
+      const cubism::BlockInfo &I  = *avail1 [i];
+      const cubism::BlockInfo &I2 = *avail12[i];
+      lab.load(I, 0);
+      lab2.load(I2, 0);
+      kernel(lab, lab2, I, I2);
     }
-    std::vector<cubism::BlockInfo*> & avail1  = Synch .avail_halo();
-    std::vector<cubism::BlockInfo*> & avail12 = Synch2.avail_halo();
-    const int Nhalo = avail1.size();
-    #pragma omp parallel
+  }
+  #else
+  std::vector<cubism::BlockInfo*> & avail1  = Synch .avail_halo_nowait();
+  std::vector<cubism::BlockInfo*> & avail12 = Synch2.avail_halo_nowait();
+  const int Nhalo = avail1.size();
+  bool done = false;
+
+  #pragma omp parallel
+  {
+    const int tid = omp_get_thread_num();
+    LabMPI & lab  = labs [tid];
+    LabMPI2& lab2 = labs2[tid];
+    while(done == false)
     {
-        const int tid = omp_get_thread_num();
-        LabMPI & lab  = labs [tid];
-        LabMPI2& lab2 = labs2[tid];
-        #pragma omp for schedule(static)
-        for(int i=0; i<Nhalo; i++) {
-          const cubism::BlockInfo &I  = *avail1 [i];
-          const cubism::BlockInfo &I2 = *avail12[i];
-          lab.load(I, 0);
-          lab2.load(I2, 0);
-          kernel(lab, lab2, I, I2);
+      #pragma omp barrier
+
+      #pragma omp single
+      done = true;
+
+      #pragma omp for
+      for(int i=0; i<Nhalo; i++)
+      {
+        const cubism::BlockInfo &I  = *avail1 [i];
+        const cubism::BlockInfo &I2 = *avail12[i];
+        if (ready[I.blockID] == false)
+        {
+          bool blockready;
+          #pragma omp critical
+          {
+            blockready = (Synch.isready(I ) && Synch.isready(I2));
+          }
+          if (blockready)
+          {
+           ready[I.blockID] = true;
+           lab.load(I, 0);
+           lab2.load(I2, 0);
+           kernel(lab, lab2, I, I2);
+          }
+          else
+          {
+            #pragma omp atomic write
+            done = false;
+          }
         }
       }
- 
-      delete [] labs;
-      delete [] labs2;
-      labs = nullptr;
-      labs2 = nullptr;
- 
-      if (applyFluxCorrection)
-        corrected_grid->Corrector.FillBlockCases();
+    }
+  }
+  avail1  = Synch .avail_halo();
+  avail12 = Synch2.avail_halo();
+  #endif
+
+  delete [] labs;
+  delete [] labs2;
+  labs = nullptr;
+  labs2 = nullptr;
+
+  if (applyFluxCorrection) corrected_grid->Corrector.FillBlockCases();
 }
 
 ///Example of a gridpoint element that is merely a scalar quantity of type 'Real' (double/float).

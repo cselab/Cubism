@@ -5,12 +5,13 @@
 #include <vector>
 #include <set>
 #include <algorithm>
-
+#include <unordered_map>
+#include <iomanip>      // std::setw
 #include "BlockInfo.h"
 #include "PUPkernelsMPI.h"
 #include "StencilInfo.h"
 #include "ConsistentOperations.h"
-
+#include <numeric>      // std::iota
 namespace cubism
 {
 
@@ -25,7 +26,7 @@ class GrowingVector
 
  public:
    std::vector<T> v;
-   GrowingVector() { pos = 0; }
+   GrowingVector() { pos = 0; s = 0;}
    GrowingVector(size_t size) { resize(size); }
    GrowingVector(size_t size, T value) { resize(size, value); }
 
@@ -62,6 +63,8 @@ class GrowingVector
    T &operator[](size_t i) { return v[i]; }
 
    T &back() { return v[pos - 1]; }
+   typename std::vector<T>::iterator begin() { return v.begin(); }
+   typename std::vector<T>::iterator end() { return v.begin()+pos; }
 
    void EraseAll()
    {
@@ -92,6 +95,23 @@ struct Interface
     CoarseStencil = false;
     ToBeKept = true;
     dis      = 0;
+  }
+
+  bool operator<(const Interface &other) const
+  {
+    if (infos[0]->blockID_2 == other.infos[0]->blockID_2)
+    {
+      if (icode[0] == other.icode[0])
+      {
+        if (infos[1]->blockID_2 == other.infos[1]->blockID_2)
+        {
+          return (icode[1] < other.icode[1]); 
+        }
+        return (infos[1]->blockID_2 < other.infos[1]->blockID_2); 
+      }
+      return (icode[0] < other.icode[0]); 
+    }
+    return (infos[0]->blockID_2 < other.infos[0]->blockID_2);
   }
 };
 
@@ -383,151 +403,14 @@ struct StencilManager
    }
 };
 
-/** \brief Auxiliary struct for SynchronizerMPI_AMR; manages how UnpackInfos are sent
- * 
+/** Auxiliary struct for SynchronizerMPI_AMR; stored a number of halo blocks that received their
+ *  halo cells from a particular set of ranks.
  */
-struct UnpacksManagerStruct
+struct HaloBlockGroup
 {
-  size_t blocks; ///< number of boundary blocks that will receive UnPackInfos
-  size_t *sizes; ///< sizes[i] is the number of UnPackInfos for block with blockID=i
-  int size; ///< number of MPI processes
-  std::vector<GrowingVector<UnPackInfo>> manyUnpacks; ///< UnPackInfos this rank will send; manyUnpacks_recv[i] are the UnPackInfos sent to rank i
-  std::vector<GrowingVector<UnPackInfo>> manyUnpacks_recv; ///< UnPackInfos this rank will receive; manyUnpacks_recv[i] are the UnPackInfos received from rank i
-  GrowingVector<GrowingVector<UnPackInfo *>> unpacks; ///< vector of vectors of UnPackInfos; unpacks[i] contains all UnPackInfos needed for a block with blockID=i
-  std::vector<MPI_Request> pack_requests; ///< MPI requests for non-blocking communication of UnPackInfos
-  std::vector<std::array<long long int, 2>> MapOfInfos; ///< Pairs of halo block IDs (0,1,...,number of halo blocks-1) and unique blockIDs
-  MPI_Datatype MPI_PACK; ///< Custom MPI datatype to send an UnPackInfo
-  MPI_Comm comm; ///< MPI communicator
-
-  ///Constructor.
-  UnpacksManagerStruct(MPI_Comm a_comm)
-  {
-    comm = a_comm;
-    sizes = nullptr;
-    MPI_Comm_size(comm, &size);
-    manyUnpacks_recv.resize(size);
-    manyUnpacks.resize(size);
-    int array_of_blocklengths[22];
-    MPI_Datatype array_of_types[22];
-    for (int i=0;i<21;i++)
-    {
-      array_of_blocklengths[i] = 1;
-      array_of_types[i] = MPI_INT;
-    }
-    array_of_blocklengths[21] = 1;
-    array_of_types[21] = MPI_LONG_LONG_INT;
-    MPI_Aint array_of_displacements[23];
-    UnPackInfo p;    
-    MPI_Aint base                  ; MPI_Get_address(&p                       ,&base);
-    MPI_Aint offset                ; MPI_Get_address(&p.offset                ,&offset                ); array_of_displacements[ 0] = offset                 - base;
-    MPI_Aint lx                    ; MPI_Get_address(&p.lx                    ,&lx                    ); array_of_displacements[ 1] = lx                     - base;
-    MPI_Aint ly                    ; MPI_Get_address(&p.ly                    ,&ly                    ); array_of_displacements[ 2] = ly                     - base;
-    MPI_Aint lz                    ; MPI_Get_address(&p.lz                    ,&lz                    ); array_of_displacements[ 3] = lz                     - base;
-    MPI_Aint srcxstart             ; MPI_Get_address(&p.srcxstart             ,&srcxstart             ); array_of_displacements[ 4] = srcxstart              - base;
-    MPI_Aint srcystart             ; MPI_Get_address(&p.srcystart             ,&srcystart             ); array_of_displacements[ 5] = srcystart              - base;
-    MPI_Aint srczstart             ; MPI_Get_address(&p.srczstart             ,&srczstart             ); array_of_displacements[ 6] = srczstart              - base;
-    MPI_Aint LX                    ; MPI_Get_address(&p.LX                    ,&LX                    ); array_of_displacements[ 7] = LX                     - base;
-    MPI_Aint LY                    ; MPI_Get_address(&p.LY                    ,&LY                    ); array_of_displacements[ 8] = LY                     - base;
-    MPI_Aint CoarseVersionOffset   ; MPI_Get_address(&p.CoarseVersionOffset   ,&CoarseVersionOffset   ); array_of_displacements[ 9] = CoarseVersionOffset    - base;
-    MPI_Aint CoarseVersionLX       ; MPI_Get_address(&p.CoarseVersionLX       ,&CoarseVersionLX       ); array_of_displacements[10] = CoarseVersionLX        - base;
-    MPI_Aint CoarseVersionLY       ; MPI_Get_address(&p.CoarseVersionLY       ,&CoarseVersionLY       ); array_of_displacements[11] = CoarseVersionLY        - base;
-    MPI_Aint CoarseVersionsrcxstart; MPI_Get_address(&p.CoarseVersionsrcxstart,&CoarseVersionsrcxstart); array_of_displacements[12] = CoarseVersionsrcxstart - base;
-    MPI_Aint CoarseVersionsrcystart; MPI_Get_address(&p.CoarseVersionsrcystart,&CoarseVersionsrcystart); array_of_displacements[13] = CoarseVersionsrcystart - base;
-    MPI_Aint CoarseVersionsrczstart; MPI_Get_address(&p.CoarseVersionsrczstart,&CoarseVersionsrczstart); array_of_displacements[14] = CoarseVersionsrczstart - base;
-    MPI_Aint level                 ; MPI_Get_address(&p.level                 ,&level                 ); array_of_displacements[15] = level                  - base;
-    MPI_Aint icode                 ; MPI_Get_address(&p.icode                 ,&icode                 ); array_of_displacements[16] = icode                  - base;
-    MPI_Aint rank                  ; MPI_Get_address(&p.rank                  ,&rank                  ); array_of_displacements[17] = rank                   - base;
-    MPI_Aint index_0               ; MPI_Get_address(&p.index_0               ,&index_0               ); array_of_displacements[18] = index_0                - base;
-    MPI_Aint index_1               ; MPI_Get_address(&p.index_1               ,&index_1               ); array_of_displacements[19] = index_1                - base;
-    MPI_Aint index_2               ; MPI_Get_address(&p.index_2               ,&index_2               ); array_of_displacements[20] = index_2                - base;
-    MPI_Aint IDreceiver            ; MPI_Get_address(&p.IDreceiver            ,&IDreceiver            ); array_of_displacements[21] = IDreceiver             - base;
-    MPI_Type_create_struct(22, array_of_blocklengths, array_of_displacements, array_of_types,&MPI_PACK);
-    MPI_Type_commit(&MPI_PACK);
-  }
-
-  ///Reset the arrays of this struct.
-  void clear()
-  {
-    if (sizes != nullptr)
-    {
-      delete[] sizes;
-      sizes = nullptr;
-      for (size_t i = 0; i < blocks; i++) unpacks[i].clear();
-      unpacks.clear();
-    }
-    for (int i = 0; i < size; i++)
-    {
-      manyUnpacks[i].clear();
-      manyUnpacks_recv[i].clear();
-    }
-    MapOfInfos.clear();
-  }
-
-  ///Destructor.
-  ~UnpacksManagerStruct() { clear(); MPI_Type_free(&MPI_PACK);}
-
-  ///Allocate a number of UnPackInfos for each halo block
-  void _allocate(size_t a_blocks, size_t *L)
-  {
-    blocks = a_blocks;
-    unpacks.resize(blocks);
-    sizes = new size_t[blocks];
-    for (size_t i = 0; i < blocks; i++)
-    {
-      sizes[i] = 0;
-      unpacks[i].resize(L[i]);
-    }
-  }
-
-  ///Add a received UnPackInfo to the list of UnPackInfos for block with blockID=block_id
-  void add(UnPackInfo &info, const size_t block_id)
-  {
-    assert(block_id < blocks);
-    assert(sizes[block_id] < unpacks[block_id].size());
-    unpacks[block_id][sizes[block_id]] = &info;
-    sizes[block_id]++;
-  }
-
-  /// Send UnPackInfos to neighboring ranks
-  void SendPacks(std::set<int> Neighbor, const int timestamp)
-  {
-    pack_requests.clear();
-    for (auto &r : Neighbor)
-    {
-      pack_requests.resize(pack_requests.size() + 1);
-      MPI_Isend(manyUnpacks[r].data(), manyUnpacks[r].size(), MPI_PACK, r, timestamp, comm, &pack_requests.back());         
-    }
-    for (auto &r : Neighbor)
-    {
-      int number_amount;
-      MPI_Status status;
-      MPI_Probe(r, timestamp, comm, &status);
-      MPI_Get_count(&status, MPI_PACK, &number_amount);
-      manyUnpacks_recv[r].resize(number_amount);
-      pack_requests.resize(pack_requests.size() + 1);
-      MPI_Irecv(manyUnpacks_recv[r].data(), manyUnpacks_recv[r].size(), MPI_PACK, r, timestamp, comm, &pack_requests.back());           
-    }
-  }
-
-  /// Take received UnPackInfos and reorganise them based on the block they correspond to
-  void MapIDs()
-  {
-    if (pack_requests.size() == 0) return;
-    pack_requests.clear();        
-    std::sort(MapOfInfos.begin(), MapOfInfos.end());
-    int myrank;
-    MPI_Comm_rank(comm,&myrank);
-    for (int r = 0; r < size; r++) if (r!=myrank)
-    for (size_t i = 0; i < manyUnpacks_recv[r].size(); i++)
-    {
-      UnPackInfo &info                     = manyUnpacks_recv[r][i];
-      std::array<long long int, 2> element = {info.IDreceiver, -1};
-      auto low   = std::lower_bound(MapOfInfos.begin(), MapOfInfos.end(), element);
-      int Target = (*low)[1];
-      assert((*low)[0] == info.IDreceiver);
-      add(info, Target);
-    }
-  }
+  std::vector<BlockInfo*> myblocks; ///< Halo blocks for this group.
+  std::set<int> myranks; ///< MPI ranks for this group.
+  bool ready = false; ///< Check whether communication for this group has completed.
 };
 
 /**
@@ -585,7 +468,8 @@ class SynchronizerMPI_AMR
 
   std::set<int> Neighbors; ///< IDs of neighboring MPI processes 
 
-  UnpacksManagerStruct UnpacksManager;
+  GrowingVector<GrowingVector<UnPackInfo >> myunpacks; ///< vector of vectors of UnPackInfos; unpacks[i] contains all UnPackInfos needed for a block with halo_blockID=i
+
   StencilManager SM;
 
   const unsigned int gptfloats; ///< number of Reals (doubles/float) each Element from Grid has
@@ -605,11 +489,16 @@ class SynchronizerMPI_AMR
   };
   std::vector<GrowingVector<PackInfo>> send_packinfos; ///< vector of vectors of PackInfos; send_packinfos[i] contains all the PackInfos to send to rank i
 
-  std::vector<GrowingVector<Interface>> send_interfaces;  ///< vector of vectors of Interfaces; send_interfaces[i] contains all the Interfaces between this rank and rank i
+  std::vector<GrowingVector<Interface>> send_interfaces;  ///< vector of vectors of Interfaces; send_interfaces[i] contains all the Interfaces this rank will send to rank i
+  std::vector<GrowingVector<Interface>> recv_interfaces;  ///< vector of vectors of Interfaces; recv_interfaces[i] contains all the Interfaces this rank will receive from rank i 
 
   std::vector<std::vector<int>> ToBeAveragedDown; ///< vector of vectors of Interfaces that need to be averaged down when sent
 
   bool use_averages;///< if true, fine blocks average down their cells to provide halo cells for coarse blocks (2nd order accurate). If false, they perform a 3rd-order accurate interpolation instead (which is the accuracy needed to compute 2nd derivatives).
+
+  std::unordered_map<std::string, HaloBlockGroup> mapofHaloBlockGroups; ///<Maps groups of ranks (encoded to strings) to groups of halo blocks for communication.
+
+  std::unordered_map<int,MPI_Request*> mapofrequests;///< Maps each request for communication to an integer
 
   ///Auxiliary struct used to avoid sending the same data twice
   struct DuplicatesManager
@@ -703,20 +592,25 @@ class SynchronizerMPI_AMR
     cube C;
 
     std::vector<int> offsets; ///< As the send buffer for each rank is being filled, offset[i] is the current offset where sent data is located in the send buffer.
+    std::vector<int> offsets_recv; ///< As the send buffer for each rank is being filled, offset[i] is the current offset where sent data is located in the send buffer.
     SynchronizerMPI_AMR * Synch_ptr; ///< pointer to the SynchronizerMPI_AMR for which to remove duplicate data
-    std::vector< GrowingVector <int>> positions;///< positions[i][j ]contains the offset of Interface j in the send buffer to rank i
+    std::vector<int> positions;
+    std::vector<size_t> sizes;
 
     DuplicatesManager(SynchronizerMPI_AMR & Synch)
     {
       positions.resize(Synch.size);
+      sizes.resize(Synch.size);
       offsets.resize(Synch.size,0);
+      offsets_recv.resize(Synch.size,0);
       Synch_ptr = & Synch;
     }
 
     ///Adds an element to 'positions[r]'
     void Add(const int r,const int index)
     {
-      positions[r].push_back(index);
+      if (sizes[r] == 0) positions[r] = index;
+      sizes[r]++;
     }
 
     /**Remove duplicate data that will be sent to one rank.
@@ -726,16 +620,64 @@ class SynchronizerMPI_AMR
      */
     void RemoveDuplicates(const int r, std::vector<Interface> & f, int & total_size)
     {
+      if (sizes[r] == 0) return;
+
+      bool skip_needed = false;
+      const int nc = Synch_ptr->getstencil().selcomponents.size();
+
+      std::sort(f.begin()+positions[r], f.begin()+sizes[r]+positions[r]);
+
+      C.clear();
+      for (size_t i=0; i<sizes[r]; i++)
+      {              
+        C.compass[f[i+positions[r]].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[i+positions[r]]));
+        C.compass[f[i+positions[r]].icode[0]].back().index = i+positions[r];
+        C.compass[f[i+positions[r]].icode[0]].back().avg_down = (f[i+positions[r]].infos[0]->level > f[i+positions[r]].infos[1]->level);
+        if (skip_needed == false) skip_needed = f[i+positions[r]].CoarseStencil;
+      }
+
+      if (skip_needed == false)
+      {
+        std::vector<int> remEl;
+        C.__needed(remEl);
+        for (size_t k=0; k< remEl.size();k++)
+          f[remEl[k]].ToBeKept = false;
+      }
+
+      int L [3] ={0,0,0};
+      int Lc[3] ={0,0,0};
+      for (auto & i:C.keepEl())
+      {
+        const int k = i->index;
+        Synch_ptr->SM.DetermineStencilLength(f[k].infos[0]->level,f[k].infos[1]->level,f[k].icode[1],L);
+        const int V = L[0]*L[1]*L[2];
+        total_size+= V;
+        f[k].dis = offsets[r];
+        if (f[k].CoarseStencil)
+        {
+          Synch_ptr->SM.CoarseStencilLength(f[k].icode[1],Lc);
+          const int Vc = Lc[0]*Lc[1]*Lc[2];
+          total_size += Vc;
+          offsets[r] += Vc*nc;
+        }          
+        offsets[r] += V*nc;
+        for (size_t kk=0; kk< (*i).removedIndices.size();kk++) 
+          f[i->removedIndices[kk]].dis = f[k].dis;
+      }
+    }
+
+    void RemoveDuplicates_recv(std::vector<Interface> & f, int & total_size, const int otherrank, const size_t start, const size_t finish)
+    {
       bool skip_needed = false;
       const int nc = Synch_ptr->getstencil().selcomponents.size();
 
       C.clear();
-      for (size_t i=0; i<positions[r].size();i++)
+      for (size_t i=start; i<finish ;i++)
       {              
-        C.compass[f[positions[r][i]].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[positions[r][i]]));
-        C.compass[f[positions[r][i]].icode[0]].back().index = positions[r][i];
-        C.compass[f[positions[r][i]].icode[0]].back().avg_down = (f[positions[r][i]].infos[0]->level > f[positions[r][i]].infos[1]->level);
-        if (skip_needed == false) skip_needed = f[positions[r][i]].CoarseStencil;
+        C.compass[f[i].icode[0]].push_back(Synch_ptr->SM.DetermineStencil(f[i]));
+        C.compass[f[i].icode[0]].back().index = i;
+        C.compass[f[i].icode[0]].back().avg_down = (f[i].infos[0]->level > f[i].infos[1]->level);
+        if (skip_needed == false) skip_needed = f[i].CoarseStencil;
       }
 
       if (skip_needed == false)
@@ -748,53 +690,49 @@ class SynchronizerMPI_AMR
 
       for (auto & i:C.keepEl())
       {
-        const int k = i->index;            
+        const int k = i->index;
         int L [3] ={0,0,0};
         int Lc[3] ={0,0,0};
         Synch_ptr->SM.DetermineStencilLength(f[k].infos[0]->level,f[k].infos[1]->level,f[k].icode[1],L);
         const int V = L[0]*L[1]*L[2];
         int Vc = 0;
         total_size+= V;
+        f[k].dis = offsets_recv[otherrank];
+        UnPackInfo info = {f[k].dis,L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,
+            f[k].icode[1], otherrank,
+            f[k].infos[0]->index[0],
+            f[k].infos[0]->index[1],
+            f[k].infos[0]->index[2], f[k].infos[1]->blockID_2};
         if (f[k].CoarseStencil)
         {
           Synch_ptr->SM.CoarseStencilLength(f[k].icode[1],Lc);
           Vc = Lc[0]*Lc[1]*Lc[2];
           total_size += Vc;
-        }                    
-
-        UnPackInfo info = {offsets[r],L[0],L[1],L[2],0,0,0,L[0],L[1],-1, 0,0,0,0,0,f[k].infos[0]->level,
-            f[k].icode[1], Synch_ptr->rank,
-            f[k].infos[0]->index[0],
-            f[k].infos[0]->index[1],
-            f[k].infos[0]->index[2], f[k].infos[1]->blockID_2};
-          
-        f[k].dis = offsets[r];
-        offsets[r] += V*nc;
-        if (f[k].CoarseStencil)
-        {
-          offsets[r] += Vc*nc;
+          offsets_recv[otherrank] += Vc*nc;
           info.CoarseVersionOffset = V*nc;
           info.CoarseVersionLX = Lc[0];
           info.CoarseVersionLY = Lc[1];
-        }                   
+        }
+         
+        offsets_recv[otherrank] += V*nc;
               
-        Synch_ptr->UnpacksManager.manyUnpacks[r].push_back(info);
-          
+        Synch_ptr->myunpacks[f[k].infos[1]->halo_block_id].push_back(info);
+    
         for (size_t kk=0; kk< (*i).removedIndices.size();kk++)
         {
           const int remEl1 = i->removedIndices[kk];
-          Synch_ptr->SM.DetermineStencilLength(f[remEl1].infos[0]->level,f[remEl1].infos[1]->level,f[remEl1].icode[1],&L[0]);
-                  
+          Synch_ptr->SM.DetermineStencilLength(f[remEl1].infos[0]->level,f[remEl1].infos[1]->level,f[remEl1].icode[1],&L[0]);                
           int srcx, srcy, srcz;
           Synch_ptr->SM.__FixDuplicates(f[k],f[remEl1], info.lx,info.ly,info.lz,L[0],L[1],L[2],srcx,srcy,srcz);
           int Csrcx=0;
           int Csrcy=0;
           int Csrcz=0;
           if (f[k].CoarseStencil) Synch_ptr->SM.__FixDuplicates2(f[k],f[remEl1],Csrcx,Csrcy,Csrcz);
-          Synch_ptr->UnpacksManager.manyUnpacks[r].push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,
+
+          Synch_ptr->myunpacks[f[remEl1].infos[1]->halo_block_id].push_back({info.offset,L[0],L[1],L[2],srcx, srcy, srcz,info.LX,info.LY,
           info.CoarseVersionOffset, info.CoarseVersionLX, info.CoarseVersionLY,
               Csrcx, Csrcy, Csrcz,
-              f[remEl1].infos[0]->level, f[remEl1].icode[1], Synch_ptr->rank,
+              f[remEl1].infos[0]->level, f[remEl1].icode[1], otherrank,
               f[remEl1].infos[0]->index[0],
               f[remEl1].infos[0]->index[1],
               f[remEl1].infos[0]->index[2], f[remEl1].infos[1]->blockID_2});
@@ -813,26 +751,23 @@ class SynchronizerMPI_AMR
     if (a.level == 0|| (!use_averages)) return false;
     int imin[3];
     int imax[3];
+    const int aux = 1 << a.level;
+    const bool periodic [3] = {grid->xperiodic, grid->yperiodic, grid->zperiodic};
+    const int  blocks   [3] = {grid->getMaxBlocks()[0] * aux - 1, grid->getMaxBlocks()[1] * aux - 1, grid->getMaxBlocks()[2] * aux - 1};
     for (int d = 0; d < 3; d++)
     {
-      imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
-      imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
-    }
-    const int aux = 1 << a.level;
-    if (grid->xperiodic)
-    {
-      if (a.index[0] == 0 && b.index[0] == grid->getMaxBlocks()[0] * aux - 1) imin[0] = -1;
-      if (b.index[0] == 0 && a.index[0] == grid->getMaxBlocks()[0] * aux - 1) imax[0] = +1;
-    }
-    if (grid->yperiodic)
-    {
-      if (a.index[1] == 0 && b.index[1] == grid->getMaxBlocks()[1] * aux - 1) imin[1] = -1;
-      if (b.index[1] == 0 && a.index[1] == grid->getMaxBlocks()[1] * aux - 1) imax[1] = +1;
-    }
-    if (grid->zperiodic)
-    {
-      if (a.index[2] == 0 && b.index[2] == grid->getMaxBlocks()[2] * aux - 1) imin[2] = -1;
-      if (b.index[2] == 0 && a.index[2] == grid->getMaxBlocks()[2] * aux - 1) imax[2] = +1;
+      if (periodic[d])
+      {
+        if (a.index[d] == 0 && b.index[d] == blocks[d]) imin[d] = -1;
+        if (b.index[d] == 0 && a.index[d] == blocks[d]) imax[d] = +1;
+      }
+      else
+      {
+        imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
+        imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
+        if (a.index[d] == 0         && b.index[d] == 0        ) imin[d] =  0;
+        if (a.index[d] == blocks[d] && b.index[d] == blocks[d]) imax[d] =  0;  
+      }
     }
 
     bool retval = false;
@@ -840,8 +775,7 @@ class SynchronizerMPI_AMR
     for (int i1 = imin[1]; i1 <= imax[1]; i1++)
     for (int i0 = imin[0]; i0 <= imax[0]; i0++)
     {
-      const long long n = a.Znei_(i0, i1, i2);
-      if ((grid->Tree(a.level, n)).CheckCoarser())
+      if ((grid->Tree(a.level, a.Znei_(i0, i1, i2))).CheckCoarser())
       {
         retval = true;
         break;
@@ -1036,8 +970,48 @@ class SynchronizerMPI_AMR
     #endif
   }
 
-  ///Auxiliary function called from '_Setup()' which will identify the boundary blocks and the type of interface they have with other processes.
-  void DefineInterfaces()
+  #if 0
+  std::string removeLeadingZeros(const std::string& input)
+  {
+    std::size_t firstNonZero = input.find_first_not_of('0');
+    if (firstNonZero == std::string::npos)
+    {
+      // The input consists only of zeros
+      return "0";
+    }
+    return input.substr(firstNonZero);
+  }
+  std::set<int> DecodeSet(std::string ID)
+  {
+    std::set<int> retval;
+    for (size_t i = 0 ; i < ID.length() ; i += size)
+    {
+      std::string toconvert = removeLeadingZeros( ID.substr(i, size) );
+      int current_rank = std::stoi ( toconvert );
+      retval.insert(current_rank);
+    }
+    return retval;
+  }
+  #endif
+
+  ///Maps a set of integers to a string
+  std::string EncodeSet(const std::set<int> & ranks)
+  {
+    std::string retval;
+    for (auto r : ranks)
+    {
+      std::stringstream ss;
+      ss << std::setw(size) << std::setfill('0') << r;
+      std::string s = ss.str();
+      retval += s;
+    }
+    return retval;
+  }
+
+ public:
+
+  ///Needs to be called whenever the grid changes because of refinement/compression
+  void _Setup()
   {
     Neighbors.clear();
     inner_blocks.clear();
@@ -1045,21 +1019,21 @@ class SynchronizerMPI_AMR
     for (int r = 0; r < size; r++)
     {
       send_interfaces[r].clear();
+      recv_interfaces[r].clear();
       send_buffer_size[r] = 0;
     }
 
-    UnpacksManager.clear();
+    for (size_t i = 0; i < myunpacks.size(); i++) myunpacks[i].clear();
+    myunpacks.clear();
 
-    std::vector<size_t> lengths;
-    std::vector<std::vector<std::pair<int, int>>> interface_ranks_and_positions;
+    DuplicatesManager DM(*(this));
 
     for (BlockInfo & info : grid->getBlocksInfo())
     {
       info.halo_block_id = -1;
-      const int aux    = 1 << info.level;
-      const bool xskin = info.index[0] == 0 || info.index[0] == grid->getMaxBlocks()[0] * aux - 1;
-      const bool yskin = info.index[1] == 0 || info.index[1] == grid->getMaxBlocks()[1] * aux - 1;
-      const bool zskin = info.index[2] == 0 || info.index[2] == grid->getMaxBlocks()[2] * aux - 1;
+      const bool xskin = info.index[0] == 0 || info.index[0] == ((grid->getMaxBlocks()[0] << info.level) - 1);
+      const bool yskin = info.index[1] == 0 || info.index[1] == ((grid->getMaxBlocks()[1] << info.level) - 1);
+      const bool zskin = info.index[2] == 0 || info.index[2] == ((grid->getMaxBlocks()[2] << info.level) - 1);
       const int xskip  = info.index[0] == 0 ? -1 : 1;
       const int yskip  = info.index[1] == 0 ? -1 : 1;
       const int zskip  = info.index[2] == 0 ? -1 : 1;
@@ -1069,525 +1043,629 @@ class SynchronizerMPI_AMR
       std::vector<int> ToBeChecked;
       bool Coarsened = false;
 
-      int l = 0;
       for (int icode = 0; icode < 27; icode++)
       {
-         if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;
-         const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
-         #if DIMENSION == 2
-            if (code[2] != 0) continue;
-         #endif
-         if (!grid->xperiodic && code[0] == xskip && xskin) continue;
-         if (!grid->yperiodic && code[1] == yskip && yskin) continue;
-         if (!grid->zperiodic && code[2] == zskip && zskin) continue;
+        if (icode == 1 * 1 + 3 * 1 + 9 * 1) continue;
+        const int code[3] = {icode % 3 - 1, (icode / 3) % 3 - 1, (icode / 9) % 3 - 1};
 
-         // if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
-         //if (!stencil.tensorial && use_averages == false && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
+        #if DIMENSION == 2
+        if (code[2] != 0) continue;
+        #endif
+        if (!grid->xperiodic && code[0] == xskip && xskin) continue;
+        if (!grid->yperiodic && code[1] == yskip && yskin) continue;
+        if (!grid->zperiodic && code[2] == zskip && zskin) continue;
 
-         BlockInfo &infoNei = grid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
-         const TreePosition & infoNeiTree = grid->Tree(info.level,info.Znei_(code[0], code[1], code[2]));
-         if (infoNeiTree.Exists() && infoNeiTree.rank() != rank)
-         {
-            if (isInner) interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
-            isInner    = false;
-            int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
-            send_interfaces[infoNeiTree.rank()].push_back(Interface(info, infoNei, icode, icode2));
-            ToBeChecked.push_back(infoNeiTree.rank());
-            ToBeChecked.push_back((int)send_interfaces[infoNeiTree.rank()].size() - 1);
-            Neighbors.insert(infoNeiTree.rank());
-            interface_ranks_and_positions.back().push_back({infoNeiTree.rank(), (int)send_interfaces[infoNeiTree.rank()].size() - 1});
-            l++;
-         }
-         else if (infoNeiTree.CheckCoarser())
-         {
-            Coarsened = true;
-            const int infoNeiCoarserrank = grid->Tree(info.level-1,infoNei.Zparent).rank();
-            if (infoNeiCoarserrank != rank)
+        //if (!stencil.tensorial && !Cstencil.tensorial && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
+        //if (!stencil.tensorial && use_averages == false && abs(code[0])+abs(code[1])+abs(code[2])>1) continue;
+
+        const TreePosition & infoNeiTree = grid->Tree(info.level,info.Znei_(code[0], code[1], code[2]));
+
+        if (infoNeiTree.Exists() && infoNeiTree.rank() != rank)
+        {
+          isInner = false;
+          Neighbors.insert(infoNeiTree.rank());
+
+          BlockInfo &infoNei = grid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+
+          const int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
+
+          send_interfaces[infoNeiTree.rank()].push_back({info   ,infoNei,icode ,icode2});
+          recv_interfaces[infoNeiTree.rank()].push_back({infoNei,info   ,icode2,icode });
+
+          ToBeChecked.push_back(infoNeiTree.rank());
+          ToBeChecked.push_back((int)send_interfaces[infoNeiTree.rank()].size() - 1);
+          ToBeChecked.push_back((int)recv_interfaces[infoNeiTree.rank()].size() - 1);
+
+          DM.Add(infoNeiTree.rank(), (int)send_interfaces[infoNeiTree.rank()].size() - 1);
+        }
+        else if (infoNeiTree.CheckCoarser())
+        {
+          Coarsened = true;
+          BlockInfo &infoNei = grid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+          const int infoNeiCoarserrank = grid->Tree(info.level-1,infoNei.Zparent).rank();
+          if (infoNeiCoarserrank != rank)
+          {
+            isInner = false;
+            Neighbors.insert(infoNeiCoarserrank);
+
+            BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, infoNei.Zparent);
+
+            const int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
+
+            const int Bmax [3] = {grid->getMaxBlocks()[0] << (info.level-1), 
+                                  grid->getMaxBlocks()[1] << (info.level-1),
+                                  grid->getMaxBlocks()[2] << (info.level-1)};
+
+            const int test_idx [3] = { (infoNeiCoarser.index[0]-code[0]+Bmax[0])%Bmax[0],
+                                       (infoNeiCoarser.index[1]-code[1]+Bmax[1])%Bmax[1], 
+                                       (infoNeiCoarser.index[2]-code[2]+Bmax[2])%Bmax[2]};
+
+            if (info.index[0] / 2 == test_idx[0] && info.index[1] / 2 == test_idx[1] && info.index[2] / 2 == test_idx[2])
             {
-               BlockInfo &infoNeiCoarser = grid->getBlockInfoAll(infoNei.level - 1, infoNei.Zparent);
+              send_interfaces[infoNeiCoarserrank].push_back({info          ,infoNeiCoarser,icode ,icode2});
+              recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info          ,icode2,icode });
 
-               if (isInner) interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
-               isInner = false;
-               int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
+              DM.Add(infoNeiCoarserrank,(int)send_interfaces[infoNeiCoarserrank].size() - 1);
 
-
-               const BlockInfo &test = grid->getBlockInfoAll(infoNeiCoarser.level, infoNeiCoarser.Znei_(-code[0], -code[1], -code[2]));
-
-               if (info.index[0] / 2 == test.index[0] && 
-                   info.index[1] / 2 == test.index[1] &&
-                   info.index[2] / 2 == test.index[2])
-               {
-                  send_interfaces[infoNeiCoarserrank].push_back(Interface(info, infoNeiCoarser, icode, icode2));
-                  interface_ranks_and_positions.back().push_back({infoNeiCoarserrank,(int)send_interfaces[infoNeiCoarserrank].size() - 1});
-               }
-               Neighbors.insert(infoNeiCoarserrank);
-               l++;
-            }
-         }
-         else if (infoNeiTree.CheckFiner())
-         {
-            int Bstep = 1;
-            if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge
-            else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3)) Bstep = 4; // corner
-
-            for (int B = 0; B <= 3;B += Bstep) // loop over blocks that make up face/edge/corner (4/2/1 blocks)
-            {
-              #if DIMENSION == 2
-              if (Bstep == 1 && B >=2) continue;
-              if (Bstep >  1 && B >=1) continue;
-              #endif
-              const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-
-              const long long nFine  = infoNei.Zchild[std::max(-code[0], 0) + (B % 2) * std::max(0, 1 - abs(code[0]))]
-                                                     [std::max(-code[1], 0) + temp    * std::max(0, 1 - abs(code[1]))]
-                                                     [std::max(-code[2], 0) + (B / 2) * std::max(0, 1 - abs(code[2]))];
-
-
-              const int infoNeiFinerrank = grid->Tree(info.level+1,nFine).rank();
-
-              if (infoNeiFinerrank != rank)
+              if (abs(code[0]) + abs(code[1]) + abs(code[2]) == 1 )//if filling a face need also two edges and a corner
               {
-                BlockInfo &infoNeiFiner = grid->getBlockInfoAll(info.level + 1, nFine);
-                if (isInner) interface_ranks_and_positions.resize(interface_ranks_and_positions.size() + 1);
-                isInner    = false;
-                int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
-                send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode2));
-                interface_ranks_and_positions.back().push_back({infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1});
-                Neighbors.insert(infoNeiFinerrank);
-                l++;
-                #if DIMENSION ==3
-                if (Bstep == 3) // if I'm filling an edge then I'm also filling a corner
-                {
-                   int code3[3];
-                   code3[0]   = (code[0] == 0) ? (B == 0 ? 1 : -1) : -code[0];
-                   code3[1]   = (code[1] == 0) ? (B == 0 ? 1 : -1) : -code[1];
-                   code3[2]   = (code[2] == 0) ? (B == 0 ? 1 : -1) : -code[2];
-                   int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
-                   send_interfaces[infoNeiFinerrank].push_back( Interface(info, infoNeiFiner, icode, icode3));
-                   interface_ranks_and_positions.back().push_back({infoNeiFinerrank, (int)send_interfaces[infoNeiFinerrank].size() - 1});
-                }
-                else
-                #endif 
-                if (Bstep == 1) // if I'm filling a face then I'm also filling two edges and a corner
-                {
-                  assert(abs(code[0]) + abs(code[1]) + abs(code[2]) == 1);
+                const int d0 = abs(code[1] + 2*code[2]); // =0 if |code[0]|=1, =1 if |code[1]|=1, =2 if |code[2]|=1
+                const int d1 = (d0+1)%3;
+                const int d2 = (d0+2)%3;
 
-                  int code3[3];
-                  int code4[3];
-                  int code5[3];
-                  int d0, d1, d2;
-                  if (code[0] != 0)
-                  {
-                     d0 = 0;
-                     d1 = 1;
-                     d2 = 2;
-                  }
-                  else if (code[1] != 0)
-                  {
-                     d0 = 1;
-                     d1 = 0;
-                     d2 = 2;
-                  }
-                  else /*if (code[2]!=0)*/
-                  {
-                     d0 = 2;
-                     d1 = 0;
-                     d2 = 1;
-                  }
-                  code3[d0] = -code[d0];
-                  code4[d0] = -code[d0];
-                  code5[d0] = -code[d0];
-                  if (B == 0)
-                  {
-                    code3[d1] = 1;
-                    code3[d2] = 1;
-                    code4[d1] = 1;
-                    code4[d2] = 0;
-                    code5[d1] = 0;
-                    code5[d2] = 1;
-                  }
-                  else if (B == 1)
-                  {
-                    code3[d1] = -1;
-                    code3[d2] = 1;
-                    code4[d1] = -1;
-                    code4[d2] = 0;
-                    code5[d1] = 0;
-                    code5[d2] = 1;
-                  }
-                  else if (B == 2)
-                  {
-                    code3[d1] = 1;
-                    code3[d2] = -1;
-                    code4[d1] = 1;
-                    code4[d2] = 0;
-                    code5[d1] = 0;
-                    code5[d2] = -1;
-                  }
-                  else // if (B==3)
-                  {
-                    code3[d1] = -1;
-                    code3[d2] = -1;
-                    code4[d1] = -1;
-                    code4[d2] = 0;
-                    code5[d1] = 0;
-                    code5[d2] = -1;
-                  }
-                  int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
-                  int icode4 = (code4[0] + 1) + (code4[1] + 1) * 3 + (code4[2] + 1) * 9;
-                  int icode5 = (code5[0] + 1) + (code5[1] + 1) * 3 + (code5[2] + 1) * 9;
-                  #if DIMENSION == 2
-                    if (code3[2] == 0)
-                    {
-                      send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode3));
-                      interface_ranks_and_positions.back().push_back({infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1});
-                    }
-                    if (code4[2] == 0)
-                    {
-                      send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode4));
-                      interface_ranks_and_positions.back().push_back({infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1});
-                    }
-                    if (code5[2] == 0)
-                    {
-                      send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode5));
-                      interface_ranks_and_positions.back().push_back({infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1});
-                    }
-                  #else
-                    send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode3));
-                    interface_ranks_and_positions.back().push_back({infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1});
-                    send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode4));
-                    interface_ranks_and_positions.back().push_back({infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1});
-                    send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode5));
-                    interface_ranks_and_positions.back().push_back({infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1});
-                  #endif
-                }
-              }
+                //corner being filled
+                int code3[3];
+                code3[d0] = code[d0];
+                code3[d1] = -2*(info.index[d1] % 2)+1;
+                code3[d2] = -2*(info.index[d2] % 2)+1;
+                const int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
+
+                //edge in the d1 direction
+                int code4[3];
+                code4[d0] = code[d0];
+                code4[d1] = code3[d1];
+                code4[d2] = 0;
+                const int icode4 = (code4[0] + 1) + (code4[1] + 1) * 3 + (code4[2] + 1) * 9;
+
+                //edge in the d2 direction
+                int code5[3];
+                code5[d0] = code[d0];
+                code5[d1] = 0;
+                code5[d2] = code3[d2];
+                const int icode5 = (code5[0] + 1) + (code5[1] + 1) * 3 + (code5[2] + 1) * 9;
+
+                #if DIMENSION == 2
+                  if (code3[2] == 0) recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info,icode2,icode3});
+                  if (code4[2] == 0) recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info,icode2,icode4});
+                  if (code5[2] == 0) recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info,icode2,icode5});
+                #else
+                  recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info,icode2,icode3});
+                  recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info,icode2,icode4});
+                  recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info,icode2,icode5});
+                #endif
+              } 
+              else if (abs(code[0]) + abs(code[1]) + abs(code[2]) == 2 )//if filling an edge need also a corner
+              {
+                const int d0 = (1-abs(code[1])) + 2*(1-abs(code[2]));
+                const int d1 = (d0+1)%3;
+                const int d2 = (d0+2)%3;
+                int code3[3];
+                code3[d0]= -2*(info.index[d0] % 2)+1;
+                code3[d1] = code[d1];
+                code3[d2] = code[d2];
+                const int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
+                recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info,icode2, icode3});
+              } 
             }
-         }
+          }
+        }
+        else if (infoNeiTree.CheckFiner())
+        {
+          BlockInfo &infoNei = grid->getBlockInfoAll(info.level, info.Znei_(code[0], code[1], code[2]));
+
+          int Bstep = 1;
+          if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2)) Bstep = 3; // edge
+          else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3)) Bstep = 4; // corner
+
+          for (int B = 0; B <= 3;B += Bstep) // loop over blocks that make up face/edge/corner (4/2/1 blocks)
+          {
+            #if DIMENSION == 2
+            if (Bstep == 1 && B >=2) continue;
+            if (Bstep >  1 && B >=1) continue;
+            #endif
+            const int temp = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
+
+            const long long nFine  = infoNei.Zchild[std::max(-code[0], 0) + (B % 2) * std::max(0, 1 - abs(code[0]))]
+                                                   [std::max(-code[1], 0) + temp    * std::max(0, 1 - abs(code[1]))]
+                                                   [std::max(-code[2], 0) + (B / 2) * std::max(0, 1 - abs(code[2]))];
+
+            const int infoNeiFinerrank = grid->Tree(info.level+1,nFine).rank();
+
+            if (infoNeiFinerrank != rank)
+            {
+              isInner    = false;
+              Neighbors.insert(infoNeiFinerrank);
+
+              BlockInfo &infoNeiFiner = grid->getBlockInfoAll(info.level + 1, nFine);
+
+              const int icode2 = (-code[0] + 1) + (-code[1] + 1) * 3 + (-code[2] + 1) * 9;
+              
+              send_interfaces[infoNeiFinerrank].push_back({info        ,infoNeiFiner,icode ,icode2});
+              recv_interfaces[infoNeiFinerrank].push_back({infoNeiFiner,info        ,icode2,icode });
+
+              DM.Add(infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1);
+
+              if (Bstep == 1) // if I'm filling a face then I'm also filling two edges and a corner
+              {
+                const int d0 = abs(code[1] + 2*code[2]); // =0 if |code[0]|=1, =1 if |code[1]|=1, =2 if |code[2]|=1
+                const int d1 = (d0+1)%3;
+                const int d2 = (d0+2)%3;
+
+                //corner being filled
+                int code3[3];
+                code3[d0] = -code[d0];
+                code3[d1] = -2*(infoNeiFiner.index[d1] % 2)+1;
+                code3[d2] = -2*(infoNeiFiner.index[d2] % 2)+1;
+                const int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
+
+                //edge in the d1 direction
+                int code4[3];
+                code4[d0] = -code[d0];
+                code4[d1] = code3[d1];
+                code4[d2] = 0;
+                const int icode4 = (code4[0] + 1) + (code4[1] + 1) * 3 + (code4[2] + 1) * 9;
+
+                //edge in the d2 direction
+                int code5[3];
+                code5[d0] = -code[d0];
+                code5[d1] = 0;
+                code5[d2] = code3[d2];
+                const int icode5 = (code5[0] + 1) + (code5[1] + 1) * 3 + (code5[2] + 1) * 9;
+
+                #if DIMENSION == 2
+                  if (code3[2] == 0)
+                  {
+                    send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode3));
+                    DM.Add(infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1);
+                  }
+                  if (code4[2] == 0)
+                  {
+                    send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode4));
+                    DM.Add(infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1);
+                  }
+                  if (code5[2] == 0)
+                  {
+                    send_interfaces[infoNeiFinerrank].push_back(Interface(info, infoNeiFiner, icode, icode5));
+                    DM.Add(infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1);
+                  }
+                #else
+                  send_interfaces[infoNeiFinerrank].push_back({info, infoNeiFiner, icode, icode3});
+                  DM.Add(infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1);
+                  send_interfaces[infoNeiFinerrank].push_back({info, infoNeiFiner, icode, icode4});
+                  DM.Add(infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1);
+                  send_interfaces[infoNeiFinerrank].push_back({info, infoNeiFiner, icode, icode5});
+                  DM.Add(infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1);
+                #endif
+              }
+              #if DIMENSION ==3
+                else if (Bstep == 3) // if I'm filling an edge then I'm also filling a corner
+                {
+                  const int d0 = (1-abs(code[1])) + 2*(1-abs(code[2]));
+                  const int d1 = (d0+1)%3;
+                  const int d2 = (d0+2)%3;
+                  int code3[3];
+                  code3[d0] = B == 0 ? 1 : -1;
+                  code3[d1] = -code[d1];
+                  code3[d2] = -code[d2];
+                  const int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
+                  send_interfaces[infoNeiFinerrank].push_back({info, infoNeiFiner, icode, icode3});
+                  DM.Add(infoNeiFinerrank,(int)send_interfaces[infoNeiFinerrank].size() - 1);
+                }
+              #endif
+            }
+          }
+        }
       } // icode = 0,...,26
 
       if (isInner)
       {
-         info.halo_block_id = -1;
-         inner_blocks.push_back(&info);
+        info.halo_block_id = -1;
+        inner_blocks.push_back(&info);
       }
       else
       { 
-         info.halo_block_id = halo_blocks.size();
-         halo_blocks.push_back(&info);
-         lengths.push_back(l);
-         if (Coarsened)
-            for (size_t j = 0; j < ToBeChecked.size(); j += 2)
-               send_interfaces[ToBeChecked[j]][ToBeChecked[j + 1]].CoarseStencil =
-                   UseCoarseStencil(send_interfaces[ToBeChecked[j]][ToBeChecked[j + 1]]);
+        info.halo_block_id = halo_blocks.size();
+        halo_blocks.push_back(&info);
+        if (Coarsened)
+        {
+          for (size_t j = 0; j < ToBeChecked.size(); j += 3)
+          {
+            const int r    = ToBeChecked[j  ];
+            const int send = ToBeChecked[j+1];
+            const int recv = ToBeChecked[j+2];
+            const bool tmp = UseCoarseStencil(send_interfaces[r][send]);
+            send_interfaces[r][send].CoarseStencil = tmp;
+            recv_interfaces[r][recv].CoarseStencil = tmp;
+          }
+        }
+
+        for (int r = 0; r < size; r++) if (DM.sizes[r]>0)
+        {
+          DM.RemoveDuplicates(r, send_interfaces[r].v, send_buffer_size[r]);
+          DM.sizes[r] = 0;
+        }
       }
       grid->getBlockInfoAll(info.level, info.Z).halo_block_id = info.halo_block_id;
     } // i-loop
 
-    DuplicatesManager DM(*(this));
-    for (size_t i = 0; i < interface_ranks_and_positions.size(); i++)
+    myunpacks.resize(halo_blocks.size());
+
+    for (int r = 0; r < size; r++)
     {
-      const BlockInfo &info = *halo_blocks[i];
+      recv_buffer_size[r] = 0;
+      std::sort(recv_interfaces[r].begin(), recv_interfaces[r].end());
 
-      UnpacksManager.MapOfInfos.push_back({info.blockID_2, info.halo_block_id});
+      size_t counter = 0;
+      size_t total = 0;
+      while (counter < recv_interfaces[r].size())
+      {
+        const long long ID = recv_interfaces[r][counter].infos[0]->blockID_2;
+        const size_t start = counter;
+        size_t finish = start+1;
+        counter ++;
+        size_t j;
+        for (j = counter; j < recv_interfaces[r].size(); j++)
+        {
+          if (recv_interfaces[r][j].infos[0]->blockID_2 == ID) finish ++;
+          else break;
+        }
+        counter = j;
+        total += finish - start;
 
-      for (int r = 0; r < size; r++) DM.positions[r].clear();
+        DM.RemoveDuplicates_recv(recv_interfaces[r].v, recv_buffer_size[r], r, start, finish);
+      }
 
-      for (auto &rp : interface_ranks_and_positions[i]) DM.Add(rp.first, rp.second);
+      send_buffer[r].resize(send_buffer_size[r] * NC);
+      recv_buffer[r].resize(recv_buffer_size[r] * NC);
+      send_packinfos[r].clear();
+      ToBeAveragedDown[r].clear();
+      for (int i = 0; i < (int)send_interfaces[r].size(); i++)
+      {
+        const Interface &f = send_interfaces[r][i];
 
-      for (int r = 0; r < size; r++) DM.RemoveDuplicates(r, send_interfaces[r].v, send_buffer_size[r]);
+        if (!f.ToBeKept) continue;
+
+        if (f.infos[0]->level <= f.infos[1]->level)
+        {
+          const MyRange & range = SM.DetermineStencil(f);
+          send_packinfos[r].push_back({(Real *)f.infos[0]->ptrBlock, &send_buffer[r][f.dis], range.sx, range.sy, range.sz, range.ex, range.ey, range.ez});
+          if (f.CoarseStencil)
+          {
+            const int V = (range.ex - range.sx) * (range.ey - range.sy) * (range.ez - range.sz);
+            ToBeAveragedDown[r].push_back(i);
+            ToBeAveragedDown[r].push_back(f.dis + V * NC);
+          }
+        }
+        else // receiver is coarser, so sender averages down data first
+        {
+          ToBeAveragedDown[r].push_back(i);
+          ToBeAveragedDown[r].push_back(f.dis);
+        }
+      }
     }
 
-    UnpacksManager._allocate(halo_blocks.size(), lengths.data());
-  }
-
-  public:
-    //constructor
-    SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, TGrid * _grid) : stencil(a_stencil), Cstencil(a_Cstencil),
-    UnpacksManager(_grid->getWorldComm()), SM(a_stencil, a_Cstencil, TGrid::Block::sizeX, TGrid::Block::sizeY, TGrid::Block::sizeZ),
-    gptfloats(sizeof(typename TGrid::Block::ElementType) / sizeof(Real)), NC(a_stencil.selcomponents.size())
+    mapofHaloBlockGroups.clear();
+    for (auto & info : halo_blocks)
     {
-      grid = _grid; 
-      use_averages = (grid->FiniteDifferences == false || stencil.tensorial
-                     || stencil.sx< -2 || stencil.sy < -2 || stencil.sz < -2
-                     || stencil.ex>  3 || stencil.ey >  3 || stencil.ez >  3);
-
-      comm = grid->getWorldComm();
-      MPI_Comm_rank(comm, &rank);
-      MPI_Comm_size(comm, &size);
-
-      nX = TGrid::Block::sizeX;
-      nY = TGrid::Block::sizeY;
-      nZ = TGrid::Block::sizeZ;
-
-      send_interfaces.resize(size);
-      send_packinfos.resize(size);
-      send_buffer_size.resize(size);
-      recv_buffer_size.resize(size);
-      send_buffer.resize(size);
-      recv_buffer.resize(size);
-
-      std::sort(stencil.selcomponents.begin(), stencil.selcomponents.end());
-
-      if (sizeof(Real) == sizeof(double))
+      //1. Find ranks from which 'info' wants to receive
+      const int id = info->halo_block_id;
+      UnPackInfo *unpacks = myunpacks[id].data();
+      std::set<int> ranks;
+      for (size_t jj = 0; jj < myunpacks[id].size(); jj++)
       {
-        MPIREAL = MPI_DOUBLE;
+        const UnPackInfo &unpack = unpacks[jj];
+        ranks.insert(unpack.rank);
       }
-      else if (sizeof(Real) == sizeof(long double))
+      //2. Encode the set of ranks to one number
+      auto set_ID = EncodeSet(ranks);
+
+      //3. Find that set and add 'info' to it. If set does not exist, create it.
+      const auto retval = mapofHaloBlockGroups.find(set_ID);
+      if (retval == mapofHaloBlockGroups.end())
       {
-        MPIREAL = MPI_LONG_DOUBLE;
+        HaloBlockGroup temporary;
+        temporary.myranks = ranks;
+        temporary.myblocks.push_back(info);
+        mapofHaloBlockGroups[set_ID] = temporary;
       }
       else
       {
-        MPIREAL = MPI_FLOAT;
-        assert(sizeof(Real) == sizeof(float));
+        (retval->second).myblocks.push_back(info);
       }
     }
+  }
 
-    ///Returns vector of pointers to inner blocks.
-    std::vector<BlockInfo *> & avail_inner() { return inner_blocks; }
-
-    ///Returns vector of pointers to halo blocks.
-    std::vector<BlockInfo *> & avail_halo()
+  //constructor
+  SynchronizerMPI_AMR(StencilInfo a_stencil, StencilInfo a_Cstencil, TGrid * _grid) : stencil(a_stencil), Cstencil(a_Cstencil),
+  SM(a_stencil, a_Cstencil, TGrid::Block::sizeX, TGrid::Block::sizeY, TGrid::Block::sizeZ),
+  gptfloats(sizeof(typename TGrid::Block::ElementType) / sizeof(Real)), NC(a_stencil.selcomponents.size())
+  {
+    grid = _grid; 
+    use_averages = (grid->FiniteDifferences == false || stencil.tensorial
+                   || stencil.sx< -2 || stencil.sy < -2 || stencil.sz < -2
+                   || stencil.ex>  3 || stencil.ey >  3 || stencil.ez >  3);
+    comm = grid->getWorldComm();
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &size);
+    nX = TGrid::Block::sizeX;
+    nY = TGrid::Block::sizeY;
+    nZ = TGrid::Block::sizeZ;
+    send_interfaces.resize(size);
+    recv_interfaces.resize(size);
+    send_packinfos.resize(size);
+    send_buffer_size.resize(size);
+    recv_buffer_size.resize(size);
+    send_buffer.resize(size);
+    recv_buffer.resize(size);
+    ToBeAveragedDown.resize(size);
+    std::sort(stencil.selcomponents.begin(), stencil.selcomponents.end());
+    if (sizeof(Real) == sizeof(double))
     {
-      MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
-      return halo_blocks;
+      MPIREAL = MPI_DOUBLE;
     }
-
-    ///Needs to be called whenever the grid changes because of refinement/compression
-    void _Setup()
+    else if (sizeof(Real) == sizeof(long double))
     {
-      const int timestamp = grid->getTimeStamp();
+      MPIREAL = MPI_LONG_DOUBLE;
+    }
+    else
+    {
+      MPIREAL = MPI_FLOAT;
+      assert(sizeof(Real) == sizeof(float));
+    }
+  }
 
-      DefineInterfaces();
+  ///Returns vector of pointers to inner blocks.
+  std::vector<BlockInfo *> & avail_inner() { return inner_blocks; }
 
-      //communicate send/recv buffer sizes with neighbors
-      std::vector<MPI_Request> size_requests(2 * Neighbors.size());
-      std::vector<int> temp_send(size);
-      std::vector<int> temp_recv(size);
-      for (int r = 0; r < size; r++)
+  ///Returns vector of pointers to halo blocks.
+  std::vector<BlockInfo *> & avail_halo()
+  {
+    MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+    return halo_blocks;
+  }
+
+  ///Returns vector of pointers to halo blocks without calling MPI_Wait
+  std::vector<BlockInfo *> & avail_halo_nowait()
+  {
+    return halo_blocks;
+  }
+
+  ///Empty vector that avail_next() returns if no halo block groups are available
+  std::vector<BlockInfo *> dummy_vector;
+
+  ///Returns the next available (in terms of completed communication) group of halo blocks
+  std::vector<BlockInfo *> & avail_next()
+  {
+    bool done = false;
+    auto it = mapofHaloBlockGroups.begin();
+    while (done == false)
+    {
+      done = true;
+      it = mapofHaloBlockGroups.begin();
+      while (it != mapofHaloBlockGroups.end())
       {
-        send_buffer[r].resize(send_buffer_size[r] * NC);
-        temp_send[r] = send_buffer[r].size();
-        recv_buffer_size[r] = 0;
-      }
-      int k = 0;
-      for (auto r : Neighbors)
-      {
-        MPI_Irecv(&temp_recv[r], 1, MPI_INT, r, timestamp, comm, &size_requests[k]    );
-        MPI_Isend(&temp_send[r], 1, MPI_INT, r, timestamp, comm, &size_requests[k + 1]);
-        k += 2;
-      }
-
-      //communicate packs meta-data (stencil sizes, ranges etc.)
-      UnpacksManager.SendPacks(Neighbors, timestamp);
-
-      ToBeAveragedDown.resize(size);
-      for (int r = 0; r < size; r++)
-      {
-        send_packinfos[r].clear();
-        ToBeAveragedDown[r].clear();
-
-        for (int i = 0; i < (int)send_interfaces[r].size(); i++)
+        if ((it->second).ready == false)
         {
-          const Interface &f         = send_interfaces[r][i];
-
-          if (!f.ToBeKept) continue;
-
-          if (f.infos[0]->level <= f.infos[1]->level)
+          std::set<int> ranks = (it->second).myranks;
+          int flag = 0;
+          for (auto r : ranks)
           {
-            const MyRange & range = SM.DetermineStencil(f);
-            send_packinfos[r].push_back({(Real *)f.infos[0]->ptrBlock, &send_buffer[r][f.dis], range.sx, range.sy, range.sz, range.ex, range.ey, range.ez});
-            if (f.CoarseStencil)
-            {
-              const int V = (range.ex - range.sx) * (range.ey - range.sy) * (range.ez - range.sz);
-              ToBeAveragedDown[r].push_back(i);
-              ToBeAveragedDown[r].push_back(f.dis + V * NC);
-            }
+            const auto retval = mapofrequests.find(r);
+            MPI_Test(retval->second,&flag,MPI_STATUS_IGNORE);
+            if (flag == false) break;
           }
-          else // receiver is coarser, so sender averages down data first
+          if (flag == 1)
           {
-            ToBeAveragedDown[r].push_back(i);
-            ToBeAveragedDown[r].push_back(f.dis);
+            (it->second).ready = true;
+            return (it->second).myblocks;
           }
         }
+        done = done && (it->second).ready;
+        it++;
       }
-      MPI_Waitall(size_requests.size(), size_requests.data(), MPI_STATUSES_IGNORE);
-      MPI_Waitall(UnpacksManager.pack_requests.size(), UnpacksManager.pack_requests.data(), MPI_STATUSES_IGNORE);
-      UnpacksManager.MapIDs();
+    }
+    return dummy_vector;
+  }
 
-      for (auto r : Neighbors)
+  ///Needs to be called to initiate communication and halo cells exchange.
+  void sync()
+  {
+    auto it = mapofHaloBlockGroups.begin();
+    while (it != mapofHaloBlockGroups.end())
+    {
+      (it->second).ready = false;
+      it++;
+    }
+
+    const int timestamp = grid->getTimeStamp();
+    mapofrequests.clear();
+    requests.clear();
+    requests.reserve(2*size);
+
+    //Post receive requests first
+    for (auto r : Neighbors) if (recv_buffer_size[r] > 0)
+    {
+      requests.resize(requests.size() + 1);
+      mapofrequests[r] = &requests.back();
+      MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &requests.back());
+    }
+
+    // Pack data
+    for (int r = 0; r < size; r++) if (send_buffer_size[r] != 0)
+    {
+      #pragma omp parallel
       {
-        recv_buffer_size[r] = temp_recv[r] / NC;
-        recv_buffer[r].resize(recv_buffer_size[r] * NC);
+        #pragma omp for
+        for (size_t j = 0; j < ToBeAveragedDown[r].size(); j += 2)
+        {
+          const int i        = ToBeAveragedDown[r][j];
+          const int d        = ToBeAveragedDown[r][j + 1];
+          const Interface &f = send_interfaces[r][i];
+          const int code[3]  = {-(f.icode[0] % 3 - 1), -((f.icode[0] / 3) % 3 - 1), -((f.icode[0] / 9) % 3 - 1)};
+          if (f.CoarseStencil) AverageDownAndFill2(send_buffer[r].data() + d, f.infos[0], code);
+          else                 AverageDownAndFill (send_buffer[r].data() + d, f.infos[0], code);
+        }
+        #pragma omp for
+        for (size_t i = 0; i < send_packinfos[r].size(); i++)
+        {
+          const PackInfo &info = send_packinfos[r][i];
+          pack(info.block, info.pack, gptfloats, &stencil.selcomponents.front(), NC, info.sx, info.sy, info.sz, info.ex, info.ey, info.ez, nX, nY);
+        }
       }
     }
 
-    ///Needs to be called to initiate communication and halo cells exchange.
-    void sync()
+    //Do the sends
+    for (auto r : Neighbors) if (send_buffer_size[r] > 0)
     {
-      const int timestamp = grid->getTimeStamp();
-      requests.clear();
-
-      //Post receive requests first
-      for (auto r : Neighbors) if (recv_buffer_size[r] > 0)
-      {
-        requests.resize(requests.size() + 1);
-        MPI_Irecv(&recv_buffer[r][0], recv_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &requests.back());
-      }
-
-      // Pack data
-      for (int r = 0; r < size; r++) if (send_buffer_size[r] != 0)
-      {
-        #pragma omp parallel
-        {
-          #pragma omp for
-          for (size_t j = 0; j < ToBeAveragedDown[r].size(); j += 2)
-          {
-            const int i        = ToBeAveragedDown[r][j];
-            const int d        = ToBeAveragedDown[r][j + 1];
-            const Interface &f = send_interfaces[r][i];
-            const int code[3]  = {-(f.icode[0] % 3 - 1), -((f.icode[0] / 3) % 3 - 1), -((f.icode[0] / 9) % 3 - 1)};
-            if (f.CoarseStencil) AverageDownAndFill2(send_buffer[r].data() + d, f.infos[0], code);
-            else                 AverageDownAndFill (send_buffer[r].data() + d, f.infos[0], code);
-          }
-          #pragma omp for
-          for (size_t i = 0; i < send_packinfos[r].size(); i++)
-          {
-            const PackInfo &info = send_packinfos[r][i];
-            pack(info.block, info.pack, gptfloats, &stencil.selcomponents.front(), NC, info.sx, info.sy, info.sz, info.ex, info.ey, info.ez, nX, nY);
-          }
-        }
-      }
-
-      //Do the sends
-      for (auto r : Neighbors) if (send_buffer_size[r] > 0)
-      {
-        requests.resize(requests.size() + 1);
-        MPI_Isend(&send_buffer[r][0], send_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &requests.back());
-      }
+      requests.resize(requests.size() + 1);
+      MPI_Isend(&send_buffer[r][0], send_buffer_size[r] * NC, MPIREAL, r, timestamp, comm, &requests.back());
     }
+  }
 
-    ///Get the StencilInfo of this Synchronizer
-    const StencilInfo & getstencil() const { return stencil; }
+  ///Get the StencilInfo of this Synchronizer
+  const StencilInfo & getstencil() const { return stencil; }
 
-    ///Used by BlockLabMPI, to get the data from the receive buffers owned by the Synchronizer and put them in its working copy of a GridBlock plus its halo cells. 
-    void fetch(const BlockInfo &info, const unsigned int Length[3], const unsigned int CLength[3], Real *cacheBlock, Real *coarseBlock)
+  ///Check whether communication for a particular block has compelted
+  bool isready(const BlockInfo &info)
+  {
+    const int id = info.halo_block_id;
+    if (id < 0) return true;
+    UnPackInfo *unpacks = myunpacks[id].data();
+    for (size_t jj = 0; jj < myunpacks[id].size(); jj++)
     {
-      //fetch received data for blocks that are neighbors with 'info' but are owned by another rank
-      const int id = info.halo_block_id;
-      if (id < 0) return;
+      const UnPackInfo &unpack = unpacks[jj];
+      const int otherrank = unpack.rank;
+      int flag = 0;
+      const auto retval = mapofrequests.find(otherrank);
+      MPI_Test(retval->second,&flag,MPI_STATUS_IGNORE);
+      if (flag == 0) return false;
+    }
+    return true;
+  }
 
-      //loop over all unpacks that correspond to block with this halo_block_id
-      UnPackInfo **unpacks = UnpacksManager.unpacks[id].data();
-      for (size_t jj = 0; jj < UnpacksManager.sizes[id]; jj++)
+  ///Used by BlockLabMPI, to get the data from the receive buffers owned by the Synchronizer and put them in its working copy of a GridBlock plus its halo cells. 
+  void fetch(const BlockInfo &info, const unsigned int Length[3], const unsigned int CLength[3], Real *cacheBlock, Real *coarseBlock)
+  {
+    //fetch received data for blocks that are neighbors with 'info' but are owned by another rank
+    const int id = info.halo_block_id;
+    if (id < 0) return;
+
+    //loop over all unpacks that correspond to block with this halo_block_id
+    UnPackInfo *unpacks = myunpacks[id].data();
+    for (size_t jj = 0; jj < myunpacks[id].size(); jj++)
+    {
+      const UnPackInfo &unpack = unpacks[jj];
+      const int code[3] = {unpack.icode % 3 - 1, (unpack.icode / 3) % 3 - 1, (unpack.icode / 9) % 3 - 1};
+      const int otherrank = unpack.rank;
+
+      //Based on the current unpack's icode, regions starting from 's' and ending to 'e' of the
+      //current block will be filled with ghost cells. 
+      const int s[3] = {code[0] < 1 ? (code[0] < 0 ? stencil.sx : 0) : nX,
+                        code[1] < 1 ? (code[1] < 0 ? stencil.sy : 0) : nY,
+                        code[2] < 1 ? (code[2] < 0 ? stencil.sz : 0) : nZ};
+      const int e[3] = {code[0] < 1 ? (code[0] < 0 ? 0 : nX) : nX + stencil.ex - 1,
+                        code[1] < 1 ? (code[1] < 0 ? 0 : nY) : nY + stencil.ey - 1,
+                        code[2] < 1 ? (code[2] < 0 ? 0 : nZ) : nZ + stencil.ez - 1};
+
+      if (unpack.level == info.level) //same level neighbors
       {
-        const UnPackInfo &unpack = *unpacks[jj];
+        Real *dst = cacheBlock + ((s[2] - stencil.sz) * Length[0] * Length[1] + (s[1] - stencil.sy) * Length[0] + s[0] - stencil.sx) * gptfloats;
 
-        const int code[3] = {unpack.icode % 3 - 1, (unpack.icode / 3) % 3 - 1, (unpack.icode / 9) % 3 - 1};
+        unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], 
+                          gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
+                          unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX, unpack.LY, 
+                          0               , 0               , 0               , unpack.lx, unpack.ly, unpack.lz, 
+                          Length[0],Length[1], Length[2]);
 
-        const int otherrank = unpack.rank;
-
-        //Based on the current unpack's icode, regions starting from 's' and ending to 'e' of the
-        //current block will be filled with ghost cells. 
-        const int s[3] = {code[0] < 1 ? (code[0] < 0 ? stencil.sx : 0) : nX,
-                          code[1] < 1 ? (code[1] < 0 ? stencil.sy : 0) : nY,
-                          code[2] < 1 ? (code[2] < 0 ? stencil.sz : 0) : nZ};
-        const int e[3] = {code[0] < 1 ? (code[0] < 0 ? 0 : nX) : nX + stencil.ex - 1,
-                          code[1] < 1 ? (code[1] < 0 ? 0 : nY) : nY + stencil.ey - 1,
-                          code[2] < 1 ? (code[2] < 0 ? 0 : nZ) : nZ + stencil.ez - 1};
-
-        if (unpack.level == info.level) //same level neighbors
-        {
-          Real *dst = cacheBlock + ((s[2] - stencil.sz) * Length[0] * Length[1] + (s[1] - stencil.sy) * Length[0] + s[0] - stencil.sx) * gptfloats;
-
-          unpack_subregion(&recv_buffer[otherrank][unpack.offset], &dst[0], 
-                           gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
-                           unpack.srcxstart, unpack.srcystart, unpack.srczstart, unpack.LX, unpack.LY, 
-                           0               , 0               , 0               , unpack.lx, unpack.ly, unpack.lz, 
-                           Length[0],Length[1], Length[2]);
-
-          if (unpack.CoarseVersionOffset >= 0) //same level neighbors exchange averaged down ghosts
-          {
-            const int offset[3] = {(stencil.sx - 1) / 2 + Cstencil.sx, (stencil.sy - 1) / 2 + Cstencil.sy, (stencil.sz - 1) / 2 + Cstencil.sz};
-            const int sC[3] = {code[0] < 1 ? (code[0] < 0 ? offset[0] : 0) : nX / 2,
-                               code[1] < 1 ? (code[1] < 0 ? offset[1] : 0) : nY / 2,
-                               code[2] < 1 ? (code[2] < 0 ? offset[2] : 0) : nZ / 2};
-            Real *dst1 = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] + (sC[1] - offset[1]) * CLength[0] + sC[0] - offset[0]) * gptfloats;
-
-            int L[3];
-            SM.CoarseStencilLength((-code[0]+1)+3*(-code[1]+1)+9*(-code[2]+1), L);
-
-            unpack_subregion(
-            &recv_buffer[otherrank][unpack.offset + unpack.CoarseVersionOffset], &dst1[0],
-            gptfloats, &stencil.selcomponents[0], stencil.selcomponents.size(),
-            unpack.CoarseVersionsrcxstart, unpack.CoarseVersionsrcystart,
-            unpack.CoarseVersionsrczstart, unpack.CoarseVersionLX, unpack.CoarseVersionLY,
-            0,0,0,L[0],L[1],L[2],CLength[0],CLength[1],CLength[2]);
-          }
-        }
-        else if (unpack.level < info.level)
+        if (unpack.CoarseVersionOffset >= 0) //same level neighbors exchange averaged down ghosts
         {
           const int offset[3] = {(stencil.sx - 1) / 2 + Cstencil.sx, (stencil.sy - 1) / 2 + Cstencil.sy, (stencil.sz - 1) / 2 + Cstencil.sz};
           const int sC[3] = {code[0] < 1 ? (code[0] < 0 ? offset[0] : 0) : nX / 2,
                              code[1] < 1 ? (code[1] < 0 ? offset[1] : 0) : nY / 2,
                              code[2] < 1 ? (code[2] < 0 ? offset[2] : 0) : nZ / 2};
-          Real *dst = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] + sC[0] - offset[0] + (sC[1] - offset[1]) * CLength[0]) *gptfloats;
+          Real *dst1 = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] + (sC[1] - offset[1]) * CLength[0] + sC[0] - offset[0]) * gptfloats;
+
+          int L[3];
+          SM.CoarseStencilLength((-code[0]+1)+3*(-code[1]+1)+9*(-code[2]+1), L);
+
           unpack_subregion(
-          &recv_buffer[otherrank][unpack.offset], &dst[0], 
-          gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
-          unpack.srcxstart,unpack.srcystart,unpack.srczstart,unpack.LX,unpack.LY, 
-          0,0,0,unpack.lx,unpack.ly,unpack.lz,CLength[0],CLength[1], CLength[2]);
+          &recv_buffer[otherrank][unpack.offset + unpack.CoarseVersionOffset], &dst1[0],
+          gptfloats, &stencil.selcomponents[0], stencil.selcomponents.size(),
+          unpack.CoarseVersionsrcxstart, unpack.CoarseVersionsrcystart,
+          unpack.CoarseVersionsrczstart, unpack.CoarseVersionLX, unpack.CoarseVersionLY,
+          0,0,0,L[0],L[1],L[2],CLength[0],CLength[1],CLength[2]);
+        }
+      }
+      else if (unpack.level < info.level)
+      {
+        const int offset[3] = {(stencil.sx - 1) / 2 + Cstencil.sx, (stencil.sy - 1) / 2 + Cstencil.sy, (stencil.sz - 1) / 2 + Cstencil.sz};
+        const int sC[3] = {code[0] < 1 ? (code[0] < 0 ? offset[0] : 0) : nX / 2,
+                           code[1] < 1 ? (code[1] < 0 ? offset[1] : 0) : nY / 2,
+                           code[2] < 1 ? (code[2] < 0 ? offset[2] : 0) : nZ / 2};
+        Real *dst = coarseBlock + ((sC[2] - offset[2]) * CLength[0] * CLength[1] + sC[0] - offset[0] + (sC[1] - offset[1]) * CLength[0]) *gptfloats;
+        unpack_subregion(
+        &recv_buffer[otherrank][unpack.offset], &dst[0], 
+        gptfloats,&stencil.selcomponents[0], stencil.selcomponents.size(),
+        unpack.srcxstart,unpack.srcystart,unpack.srczstart,unpack.LX,unpack.LY, 
+        0,0,0,unpack.lx,unpack.ly,unpack.lz,CLength[0],CLength[1], CLength[2]);
+      }
+      else
+      {
+        int B;
+        if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3)) B = 0; // corner
+        else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2))   // edge
+        {
+          int t;
+          if      (code[0] == 0) t = unpack.index_0 - 2 * info.index[0];
+          else if (code[1] == 0) t = unpack.index_1 - 2 * info.index[1];
+          else                   t = unpack.index_2 - 2 * info.index[2];
+          assert(t == 0 || t == 1);
+          B = (t == 1) ? 3:0;
         }
         else
         {
-          int B;
-          if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 3)) B = 0; // corner
-          else if ((abs(code[0]) + abs(code[1]) + abs(code[2]) == 2))   // edge
+          int Bmod, Bdiv;
+          if (abs(code[0]) == 1)
           {
-            int t;
-            if      (code[0] == 0) t = unpack.index_0 - 2 * info.index[0];
-            else if (code[1] == 0) t = unpack.index_1 - 2 * info.index[1];
-            else                   t = unpack.index_2 - 2 * info.index[2];
-            assert(t == 0 || t == 1);
-            B = (t == 1) ? 3:0;
+            Bmod = unpack.index_1 - 2 * info.index[1];
+            Bdiv = unpack.index_2 - 2 * info.index[2];
+          }
+          else if (abs(code[1]) == 1)
+          {
+            Bmod = unpack.index_0 - 2 * info.index[0];
+            Bdiv = unpack.index_2 - 2 * info.index[2];
           }
           else
           {
-            int Bmod, Bdiv;
-            if (abs(code[0]) == 1)
-            {
-              Bmod = unpack.index_1 - 2 * info.index[1];
-              Bdiv = unpack.index_2 - 2 * info.index[2];
-            }
-            else if (abs(code[1]) == 1)
-            {
-              Bmod = unpack.index_0 - 2 * info.index[0];
-              Bdiv = unpack.index_2 - 2 * info.index[2];
-            }
-            else
-            {
-              Bmod = unpack.index_0 - 2 * info.index[0];
-              Bdiv = unpack.index_1 - 2 * info.index[1];
-            }
-            B = 2 * Bdiv + Bmod;
+            Bmod = unpack.index_0 - 2 * info.index[0];
+            Bdiv = unpack.index_1 - 2 * info.index[1];
           }
-          
-          const int aux1 = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
-          Real *dst = cacheBlock + (
-                 (abs(code[2]) * (s[2] - stencil.sz) + (1 - abs(code[2])) * (- stencil.sz + (B / 2) * (e[2] - s[2]) / 2)) * Length[0]*Length[1] +
-                 (abs(code[1]) * (s[1] - stencil.sy) + (1 - abs(code[1])) * (- stencil.sy + aux1    * (e[1] - s[1]) / 2)) * Length[0] +
-                  abs(code[0]) * (s[0] - stencil.sx) + (1 - abs(code[0])) * (- stencil.sx + (B % 2) * (e[0] - s[0]) / 2)
-                ) * gptfloats;
-
-          unpack_subregion(
-          &recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
-          &stencil.selcomponents[0],stencil.selcomponents.size(),
-          unpack.srcxstart,unpack.srcystart,unpack.srczstart,unpack.LX,unpack.LY, 
-          0, 0, 0, unpack.lx, unpack.ly, unpack.lz, Length[0],Length[1], Length[2]);
-        }
+          B = 2 * Bdiv + Bmod;
+        }    
+        const int aux1 = (abs(code[0]) == 1) ? (B % 2) : (B / 2);
+        Real *dst = cacheBlock + (
+               (abs(code[2]) * (s[2] - stencil.sz) + (1 - abs(code[2])) * (- stencil.sz + (B / 2) * (e[2] - s[2]) / 2)) * Length[0]*Length[1] +
+               (abs(code[1]) * (s[1] - stencil.sy) + (1 - abs(code[1])) * (- stencil.sy + aux1    * (e[1] - s[1]) / 2)) * Length[0] +
+                abs(code[0]) * (s[0] - stencil.sx) + (1 - abs(code[0])) * (- stencil.sx + (B % 2) * (e[0] - s[0]) / 2)
+              ) * gptfloats;
+        unpack_subregion(
+        &recv_buffer[otherrank][unpack.offset], &dst[0], gptfloats,
+        &stencil.selcomponents[0],stencil.selcomponents.size(),
+        unpack.srcxstart,unpack.srcystart,unpack.srczstart,unpack.LX,unpack.LY, 
+        0, 0, 0, unpack.lx, unpack.ly, unpack.lz, Length[0],Length[1], Length[2]);
       }
     }
+  }
 };
 
 }//namespace cubism

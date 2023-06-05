@@ -1141,6 +1141,7 @@ class SynchronizerMPI_AMR
                   recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info,icode2,icode5});
                 #endif
               } 
+              #if DIMENSION == 3
               else if (abs(code[0]) + abs(code[1]) + abs(code[2]) == 2 )//if filling an edge need also a corner
               {
                 const int d0 = (1-abs(code[1])) + 2*(1-abs(code[2]));
@@ -1153,6 +1154,7 @@ class SynchronizerMPI_AMR
                 const int icode3 = (code3[0] + 1) + (code3[1] + 1) * 3 + (code3[2] + 1) * 9;
                 recv_interfaces[infoNeiCoarserrank].push_back({infoNeiCoarser,info,icode2, icode3});
               } 
+              #endif
             }
           }
         }

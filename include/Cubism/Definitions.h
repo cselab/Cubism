@@ -80,8 +80,6 @@ void compute(Kernel &&kernel, TGrid *g, TGrid_corr *g_corr = nullptr)
     }
   }
 #endif
-  Synch .avail_halo();
-
   }
 
   //Complete the send requests remaining

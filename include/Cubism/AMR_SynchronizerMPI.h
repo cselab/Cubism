@@ -1305,7 +1305,6 @@ class SynchronizerMPI_AMR
       std::sort(recv_interfaces[r].begin(), recv_interfaces[r].end());
 
       size_t counter = 0;
-      size_t total = 0;
       while (counter < recv_interfaces[r].size())
       {
         const long long ID = recv_interfaces[r][counter].infos[0]->blockID_2;
@@ -1319,7 +1318,6 @@ class SynchronizerMPI_AMR
           else break;
         }
         counter = j;
-        total += finish - start;
 
         DM.RemoveDuplicates_recv(recv_interfaces[r].v, recv_buffer_size[r], r, start, finish);
       }

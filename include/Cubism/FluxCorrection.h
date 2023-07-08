@@ -1,7 +1,6 @@
 #pragma once
 
 #include <map>
-#include <omp.h>
 #include <algorithm>
 #include "BlockInfo.h"
 

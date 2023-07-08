@@ -1,7 +1,6 @@
 #pragma once
 
 #include <mpi.h>
-#include <omp.h>
 #include <vector>
 #include <set>
 #include <algorithm>

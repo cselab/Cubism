@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <omp.h>
 #include <unordered_map>
 
 #ifdef CUBISM_USE_ONETBB

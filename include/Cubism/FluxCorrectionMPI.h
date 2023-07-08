@@ -1,7 +1,6 @@
 #pragma once
 
 #include "FluxCorrection.h"
-#include <omp.h>
 
 namespace cubism
 {

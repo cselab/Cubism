@@ -3,7 +3,6 @@
 #include "BlockInfo.h"
 #include <algorithm>
 #include <cstring>
-#include <omp.h>
 #include <string>
 
 namespace cubism

@@ -1,4 +1,5 @@
 #pragma once
+#include <omp.h>
 #include "ConsistentOperations.h"
 #include "StencilInfo.h"
 #include "BlockLab.h"

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <omp.h>
 #include "BlockInfo.h"
 #include "LoadBalancer.h"
 #include "StencilInfo.h"

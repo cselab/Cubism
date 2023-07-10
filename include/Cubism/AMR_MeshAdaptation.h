@@ -1,6 +1,5 @@
 #pragma once
 
-#include <omp.h>
 #include "BlockInfo.h"
 #include "LoadBalancer.h"
 #include "StencilInfo.h"
@@ -47,9 +46,7 @@ class MeshAdaptation
    bool boundary_needed; ///< set true to update the boundary blocks of each GridMPI
    LoadBalancer<TGrid> *Balancer; ///< load-balancing of blocks
    TGrid *grid; ///< pointer to Grid that will be adapted
-   TLab *labs; ///< BlockLabs (one per thread) to perform refinement interpolation
    double time; ///< (optional) time of simulation, for time-dependent refinement criteria
-   bool LabsPrepared; ///< set to false if BlockLabs are not 'prepared' for refinement 
    bool basic_refinement; ///< set to false if no interpolation is to be performed after refinement
    double tolerance_for_refinement; ///< compare 'magnitude()' of each gridpoint to this number, to check if refinement is needed
    double tolerance_for_compression; ///< compare 'magnitude()' of each gridpoint to this number, to check if compression is needed
@@ -65,7 +62,6 @@ class MeshAdaptation
     */
    MeshAdaptation(TGrid &g, double Rtol, double Ctol)
    {
-      labs = nullptr;
       grid = &g;
 
       tolerance_for_refinement  = Rtol;
@@ -105,10 +101,6 @@ class MeshAdaptation
 
       SynchronizerMPI_AMR<Real,TGrid> * Synch = grid->sync(stencil);
 
-      const int nthreads = omp_get_max_threads();
-      labs = new TLab[nthreads];
-      for (int i = 0; i < nthreads; i++) labs[i].prepare(*grid, Synch->getstencil());
-
       CallValidStates = false;
       bool Reduction = false;
       MPI_Request Reduction_req;
@@ -119,8 +111,6 @@ class MeshAdaptation
 
       std::vector<BlockInfo * > & halo  = Synch->avail_halo();
       TagBlocksVector(halo , Reduction, Reduction_req, tmp);
-
-      LabsPrepared = true;
 
       if (!Reduction)
       {
@@ -146,12 +136,10 @@ class MeshAdaptation
    void Adapt(double t = 0, bool verbosity = false, bool basic = false)
    {
       basic_refinement = basic;
-      if (LabsPrepared == false && basic == false)
+      SynchronizerMPI_AMR<Real,TGrid> * Synch = nullptr;
+      if (basic == false)
       {
-         SynchronizerMPI_AMR<Real,TGrid> * Synch = grid->sync(stencil);
-         const int nthreads = omp_get_max_threads();
-         labs = new TLab[nthreads];
-         for (int i = 0; i < nthreads; i++) labs[i].prepare(*grid, Synch->getstencil());
+         Synch = grid->sync(stencil);
          //TODO: the line below means there's no computation & communication overlap here
          grid->boundary  = Synch->avail_halo();
          if (boundary_needed)
@@ -208,12 +196,14 @@ class MeshAdaptation
       #pragma omp parallel
       #endif
       {
+         TLab lab;
+         if (Synch != nullptr) lab.prepare(*grid, Synch->getstencil());
          #ifdef CUBISM_USE_ONETBB
          #pragma omp for
          #endif
          for (size_t i = 0; i < m_ref.size(); i++)
          {
-            refine_1(m_ref[i], n_ref[i]);
+            refine_1(m_ref[i], n_ref[i], lab);
          }
          #ifdef CUBISM_USE_ONETBB
          #pragma omp for
@@ -249,12 +239,6 @@ class MeshAdaptation
 
       Balancer->Balance_Diffusion(verbosity,block_distribution);
 
-      if (labs != nullptr)
-      {
-         delete[] labs;
-         labs = nullptr;
-      }
-
       if ( result[0] > 0 || result[1] > 0 || Balancer->movedBlocks)
       {
          grid->UpdateFluxCorrection = true;
@@ -269,7 +253,6 @@ class MeshAdaptation
             it++;
          }
       }
-      LabsPrepared = false;
    }
 
    /**
@@ -324,7 +307,6 @@ class MeshAdaptation
             infoNei.state = Compress;
          }
       }
-      LabsPrepared = false;
    }
 
  protected:
@@ -340,12 +322,9 @@ class MeshAdaptation
       const int levelMax = grid->getlevelMax();
       #pragma omp parallel
       {
-         const int tid = omp_get_thread_num();
          #pragma omp for schedule(dynamic, 1)
          for (size_t i = 0; i < I.size(); i++)
          {
-            labs[tid].load(*I[i], time);
-
             BlockInfo &info = grid->getBlockInfoAll(I[i]->level, I[i]->Z);
 
             I[i]->state     = TagLoadedBlock(info);
@@ -382,14 +361,11 @@ class MeshAdaptation
     * @param level The refinement level of the block to be refined.
     * @param Z The Z-order index of the block to be refined.
     */
-   void refine_1(const int level, const long long Z)
+   void refine_1(const int level, const long long Z, TLab & lab)
    {
-      const int tid = omp_get_thread_num();
-
       BlockInfo &parent = grid->getBlockInfoAll(level, Z);
       parent.state      = Leave;
-      if (basic_refinement == false)
-         labs[tid].load(parent, time, true);
+      if (basic_refinement == false) lab.load(parent, time, true);
 
       const int p[3] = {parent.index[0], parent.index[1], parent.index[2]};
 
@@ -422,7 +398,7 @@ class MeshAdaptation
          }
       #endif
       if (basic_refinement == false)
-         RefineBlocks(Blocks);
+         RefineBlocks(Blocks,lab);
    }
 
    /**
@@ -825,16 +801,13 @@ class MeshAdaptation
     * 
     * @param B Pointers to the eight new blocks to be interpolated.
     */
-   virtual void RefineBlocks(BlockType *B[8])
+   virtual void RefineBlocks(BlockType *B[8], TLab & Lab)
    {
-      int tid      = omp_get_thread_num();
       const int nx = BlockType::sizeX;
       const int ny = BlockType::sizeY;
 
       int offsetX[2] = {0, nx / 2};
       int offsetY[2] = {0, ny / 2};
-
-      TLab &Lab = labs[tid];
 
       #if DIMENSION == 3
       const int nz   = BlockType::sizeZ;

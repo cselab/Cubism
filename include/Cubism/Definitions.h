@@ -1,5 +1,4 @@
 #pragma once
-#include <omp.h>
 #include "ConsistentOperations.h"
 #include "StencilInfo.h"
 #include "BlockLab.h"
@@ -113,27 +112,21 @@ static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool
   const StencilInfo & stencil = Synch.getstencil();
   const StencilInfo & stencil2 = Synch2.getstencil();
 
-  const int nthreads = omp_get_max_threads();
-  LabMPI * labs = new LabMPI[nthreads];
-  LabMPI2 * labs2 = new LabMPI2[nthreads];
-  #pragma omp parallel for schedule(static, 1)
-  for(int i = 0; i < nthreads; ++i)
-  {
-    labs[i].prepare(grid, stencil);
-    labs2[i].prepare(grid2, stencil2);
-  }
-
   std::vector<cubism::BlockInfo> & blk = grid.getBlocksInfo();
   std::vector<bool> ready(blk.size(),false);
 
   std::vector<BlockInfo*> & avail0  = Synch .avail_inner();
   std::vector<BlockInfo*> & avail02 = Synch2.avail_inner();
   const int Ninner = avail0.size();
+  std::vector<cubism::BlockInfo*> avail1 ;
+  std::vector<cubism::BlockInfo*> avail12;
+  //bool done = false;
   #pragma omp parallel
   {
-    const int tid = omp_get_thread_num();
-    LabMPI & lab  = labs[tid];
-    LabMPI2& lab2 = labs2[tid];
+    LabMPI  lab;
+    LabMPI2 lab2;
+    lab.prepare(grid, stencil);
+    lab2.prepare(grid2, stencil2);
     #pragma omp for
     for(int i=0; i<Ninner; i++)
     {
@@ -144,37 +137,36 @@ static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool
       kernel(lab,lab2,I,I2);
       ready[I.blockID] = true;
     }
-  }
 
-  #if 1
-  std::vector<cubism::BlockInfo*> & avail1  = Synch .avail_halo();
-  std::vector<cubism::BlockInfo*> & avail12 = Synch2.avail_halo();
-  const int Nhalo = avail1.size();
-  #pragma omp parallel
-  {
-    const int tid = omp_get_thread_num();
-    LabMPI & lab  = labs [tid];
-    LabMPI2& lab2 = labs2[tid];
+    #if 1
+    #pragma omp master
+    {
+        avail1  = Synch .avail_halo();
+        avail12 = Synch2.avail_halo();
+    }
+    #pragma omp barrier
+
+    const int Nhalo = avail1.size();
+
     #pragma omp for
-    for(int i=0; i<Nhalo; i++) {
+    for(int i=0; i<Nhalo; i++)
+    {
       const cubism::BlockInfo &I  = *avail1 [i];
       const cubism::BlockInfo &I2 = *avail12[i];
       lab.load(I, 0);
       lab2.load(I2, 0);
       kernel(lab, lab2, I, I2);
     }
-  }
-  #else
-  std::vector<cubism::BlockInfo*> & avail1  = Synch .avail_halo_nowait();
-  std::vector<cubism::BlockInfo*> & avail12 = Synch2.avail_halo_nowait();
-  const int Nhalo = avail1.size();
-  bool done = false;
+    #else
 
-  #pragma omp parallel
-  {
-    const int tid = omp_get_thread_num();
-    LabMPI & lab  = labs [tid];
-    LabMPI2& lab2 = labs2[tid];
+    #pragma omp master
+    {
+        avail1  = Synch .avail_halo_nowait();
+        avail12 = Synch2.avail_halo_nowait();
+    }
+    #pragma omp barrier
+    const int Nhalo = avail1.size();
+
     while(done == false)
     {
       #pragma omp barrier
@@ -209,15 +201,10 @@ static void compute(const Kernel& kernel, TGrid& grid, TGrid2& grid2, const bool
         }
       }
     }
-  }
-  avail1  = Synch .avail_halo();
-  avail12 = Synch2.avail_halo();
+    avail1  = Synch .avail_halo();
+    avail12 = Synch2.avail_halo();
   #endif
-
-  delete [] labs;
-  delete [] labs2;
-  labs = nullptr;
-  labs2 = nullptr;
+  }
 
   if (applyFluxCorrection) corrected_grid->Corrector.FillBlockCases();
 }

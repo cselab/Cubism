@@ -199,8 +199,6 @@ class BlockLab
 
          m_cacheBlock = allocator<Matrix3D<ElementType, allocator>>().allocate(1);
 
-         allocator<Matrix3D<ElementType, allocator>>().construct(m_cacheBlock);
-
          m_cacheBlock->_Setup(BlockType::sizeX + m_stencilEnd[0] - m_stencilStart[0] - 1,
                               BlockType::sizeY + m_stencilEnd[1] - m_stencilStart[1] - 1,
                               BlockType::sizeZ + m_stencilEnd[2] - m_stencilStart[2] - 1);
@@ -223,8 +221,6 @@ class BlockLab
          if (m_CoarsenedBlock != NULL) _release(m_CoarsenedBlock);
 
          m_CoarsenedBlock = allocator<Matrix3D<ElementType, allocator>>().allocate(1);
-
-         allocator<Matrix3D<ElementType, allocator>>().construct(m_CoarsenedBlock);
 
          m_CoarsenedBlock->_Setup(CoarseBlockSize[0] + e[0] - offset[0] - 1,
                                   CoarseBlockSize[1] + e[1] - offset[1] - 1,
@@ -1508,7 +1504,6 @@ class BlockLab
    {
       if (t != NULL)
       {
-         allocator<T>().destroy(t);
          allocator<T>().deallocate(t, 1);
       }
       t = NULL;

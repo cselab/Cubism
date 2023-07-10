@@ -11,6 +11,8 @@
 #include "StencilInfo.h"
 #include "ConsistentOperations.h"
 #include <numeric>      // std::iota
+#include <sstream>
+
 namespace cubism
 {
 

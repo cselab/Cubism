@@ -494,48 +494,21 @@ class GridMPI : public TGrid
                                     {std::max(l1[1], l2[1]), std::min(h1[1], h2[1])},
                                     {std::max(l1[2], l2[2]), std::min(h1[2], h2[2])}};
 
-      const bool normal_intersection_x = intersect[0][1] - intersect[0][0] > 0.0;
-      const bool normal_intersection_y = intersect[1][1] - intersect[1][0] > 0.0;
-      const bool normal_intersection_z = DIMENSION == 3 ? (intersect[2][1] - intersect[2][0] > 0.0) : true;
-
-      if (normal_intersection_x && normal_intersection_y && normal_intersection_z) return true;
-
-      bool periodic_intersection_x = false;
-      bool periodic_intersection_y = false;
-      bool periodic_intersection_z = false;
-      if (TGrid::xperiodic)
+      bool intersection[3];
+      intersection[0] = intersect[0][1] - intersect[0][0] > 0.0;
+      intersection[1] = intersect[1][1] - intersect[1][0] > 0.0;
+      intersection[2] = DIMENSION == 3 ? (intersect[2][1] - intersect[2][0] > 0.0) : true;
+      const bool isperiodic[3] = {TGrid::xperiodic,TGrid::yperiodic,TGrid::zperiodic};
+      for (int d = 0 ; d < DIMENSION ; d ++)
       {
-         if (h2[0] > extent[0] && (h2[0] - extent[0] > l1[0]) && (h2[0] - extent[0] < h1[0]))
-            periodic_intersection_x = true;
-         if (h1[0] > extent[0] && (h1[0] - extent[0] > l2[0]) && (h1[0] - extent[0] < h2[0]))
-            periodic_intersection_x = true;
+        if (isperiodic[d])
+        {
+  	  if      (h2[d] > extent[d]) intersection[d] = std::min(h1[d], h2[d]-extent[d]) - std::max(l1[d], l2[d]-extent[d]);
+ 	  else if (h1[d] > extent[d]) intersection[d] = std::min(h2[d], h1[d]-extent[d]) - std::max(l2[d], l1[d]-extent[d]);
+        }
+	if (!intersection[d]) return false;
       }
-      if (TGrid::yperiodic)
-      {
-         if (h2[1] > extent[1] && (h2[1] - extent[1] > l1[1]) && (h2[1] - extent[1] < h1[1]))
-            periodic_intersection_y = true;
-         if (h1[1] > extent[1] && (h1[1] - extent[1] > l2[1]) && (h1[1] - extent[1] < h2[1]))
-            periodic_intersection_y = true;
-      }
-      if (TGrid::zperiodic)
-      {
-         if (h2[2] > extent[2] && (h2[2] - extent[2] > l1[2]) && (h2[2] - extent[2] < h1[2]))
-            periodic_intersection_z = true;
-         if (h1[2] > extent[2] && (h1[2] - extent[2] > l2[2]) && (h1[2] - extent[2] < h2[2]))
-            periodic_intersection_z = true;
-      }
-
-      if (normal_intersection_x && normal_intersection_y && periodic_intersection_z) return true;
-      if (normal_intersection_x && periodic_intersection_y && normal_intersection_z) return true;
-      if (periodic_intersection_x && normal_intersection_y && normal_intersection_z) return true;
-
-      if (normal_intersection_x && periodic_intersection_y && periodic_intersection_z) return true;
-      if (periodic_intersection_x && normal_intersection_y && periodic_intersection_z) return true;
-      if (periodic_intersection_x && periodic_intersection_y && normal_intersection_z) return true;
-
-      if (periodic_intersection_x && periodic_intersection_y && periodic_intersection_z) return true;
-
-      return false;
+      return true;
    }
 
    /** Returns a SynchronizerMPI_AMR for a given stencil of points.

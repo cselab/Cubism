@@ -83,14 +83,14 @@ class Matrix3D
          assert(m_vSize[1] == m.m_vSize[1]);
          assert(m_vSize[2] == m.m_vSize[2]);
       #endif
-      for (int i = 0; i < m_nElements; i++) m_pData[i] = m.m_pData[i];
+      for (unsigned int i = 0; i < m_nElements; i++) m_pData[i] = m.m_pData[i];
       return *this;
    }
 
    /// Set all elements to a given element of the same datatype
    inline Matrix3D &operator=(DataType d)
    {
-      for (int i = 0; i < m_nElements; i++) m_pData[i] = d;
+      for (unsigned int i = 0; i < m_nElements; i++) m_pData[i] = d;
 
       return *this;
    }
@@ -98,7 +98,7 @@ class Matrix3D
    /// Set all elements to a number, applicable only is data is doubles/floats
    inline Matrix3D &operator=(const double a)
    {
-      for (int i = 0; i < m_nElements; i++) m_pData[i] = a;
+      for (unsigned int i = 0; i < m_nElements; i++) m_pData[i].set(a);
       return *this;
    }
 

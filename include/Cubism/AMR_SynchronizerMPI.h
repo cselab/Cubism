@@ -759,12 +759,15 @@ class SynchronizerMPI_AMR
     {
       imin[d] = (a.index[d] < b.index[d]) ? 0 : -1;
       imax[d] = (a.index[d] > b.index[d]) ? 0 : +1;
-      if (a.index[d] == 0         && b.index[d] == 0        ) imin[d] =  0;
-      if (a.index[d] == blocks[d] && b.index[d] == blocks[d]) imax[d] =  0;  
       if (periodic[d])
       {
         if (a.index[d] == 0 && b.index[d] == blocks[d]) imin[d] = -1;
         if (b.index[d] == 0 && a.index[d] == blocks[d]) imax[d] = +1;
+      }
+      else
+      {
+        if (a.index[d] == 0         && b.index[d] == 0        ) imin[d] =  0;
+        if (a.index[d] == blocks[d] && b.index[d] == blocks[d]) imax[d] =  0;
       }
     }
 

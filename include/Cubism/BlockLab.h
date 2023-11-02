@@ -483,13 +483,16 @@ class BlockLab
       {
         imin[d] = (a.index[d] < b_index[d]) ? 0 : -1;
         imax[d] = (a.index[d] > b_index[d]) ? 0 : +1;
-        if (a.index[d] == 0         && b_index[d] == 0        ) imin[d] =  0;
-        if (a.index[d] == blocks[d] && b_index[d] == blocks[d]) imax[d] =  0;  
         if (periodic[d])
         {
           if (a.index[d] == 0 && b_index[d] == blocks[d]) imin[d] = -1;
           if (b_index[d] == 0 && a.index[d] == blocks[d]) imax[d] = +1;
         }
+	else
+	{
+          if (a.index[d] == 0         && b_index[d] == 0        ) imin[d] =  0;
+          if (a.index[d] == blocks[d] && b_index[d] == blocks[d]) imax[d] =  0;
+	}
       }
 
       for (int itest = 0; itest < coarsened_nei_codes_size; itest ++)
